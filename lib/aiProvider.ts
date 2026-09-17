@@ -1,22 +1,22 @@
-// Free-model AI provider abstraction. Zero-cost by design: Google Gemini
-// free tier by default (no billing, just rate limits), Groq free tier as
-// a drop-in alternative. Which one runs is decided purely by which API
-// key is present in the environment — no key means the AI features
-// degrade to a clear "not configured" message, and everything else in
+// Free-model AI provider abstraction. Zero-cost by design: it calls
+// whichever free-tier LLM providers have an API key set in the
+// environment, in order, and returns the first successful answer. With
+// several keys set this gives real redundancy — if one provider errors
+// or rate-limits, the next one answers. No key at all means the AI
+// features degrade to a clear "not configured" message while the rest of
 // the app keeps working.
 //
-// Set ONE of these in Vercel → Project → Settings → Environment Variables:
-//   GEMINI_API_KEY   (from https://aistudio.google.com/apikey — free)
-//   GROQ_API_KEY     (from https://console.groq.com/keys — free tier)
-// Optional model overrides: GEMINI_MODEL, GROQ_MODEL.
+// Set any of these in Vercel → Project → Settings → Environment Variables
+// (each is free to obtain):
+//   GEMINI_API_KEY      — https://aistudio.google.com/apikey
+//   OPENROUTER_API_KEY  — https://openrouter.ai/keys
+//   GROQ_API_KEY        — https://console.groq.com/keys
+// Optional model overrides: GEMINI_MODEL, OPENROUTER_MODEL, GROQ_MODEL.
+//
+// Provider order (first configured one that succeeds wins): Gemini,
+// OpenRouter, Groq.
 
-export type AiProvider = "gemini" | "groq" | "none";
-
-export function activeProvider(): AiProvider {
-  if (process.env.GEMINI_API_KEY) return "gemini";
-  if (process.env.GROQ_API_KEY) return "groq";
-  return "none";
-}
+export type AiProvider = "gemini" | "openrouter" | "groq" | "none";
 
 export interface AiResult {
   ok: boolean;
@@ -41,7 +41,10 @@ async function withTimeout<T>(p: (signal: AbortSignal) => Promise<T>): Promise<T
 async function callGemini(system: string, user: string): Promise<AiResult> {
   const key = process.env.GEMINI_API_KEY as string;
   const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+  // Use the x-goog-api-key HEADER rather than a ?key= query param — this
+  // is Google's documented method and works for both classic "AIza…" keys
+  // and the newer "AQ.…" key format.
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const body = {
     systemInstruction: { parts: [{ text: system }] },
     contents: [{ role: "user", parts: [{ text: user }] }],
@@ -50,34 +53,33 @@ async function callGemini(system: string, user: string): Promise<AiResult> {
   const res = await withTimeout((signal) =>
     fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify(body),
       signal,
     })
   );
   if (!res.ok) {
     const msg = await res.text().catch(() => res.statusText);
-    return { ok: false, provider: "gemini", error: `Gemini API ${res.status}: ${msg.slice(0, 300)}` };
+    return { ok: false, provider: "gemini", error: `Gemini ${res.status}: ${msg.slice(0, 200)}` };
   }
   const json = await res.json();
   const text: string | undefined = json?.candidates?.[0]?.content?.parts
     ?.map((p: { text?: string }) => p?.text ?? "")
     .join("");
-  if (!text) {
-    return { ok: false, provider: "gemini", error: "Gemini returned no text (possibly blocked or empty)." };
-  }
+  if (!text) return { ok: false, provider: "gemini", error: "Gemini returned no text (blocked or empty)." };
   return { ok: true, provider: "gemini", text: text.trim() };
 }
 
-async function callGroq(system: string, user: string): Promise<AiResult> {
-  const key = process.env.GROQ_API_KEY as string;
-  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+async function callOpenRouter(system: string, user: string): Promise<AiResult> {
+  const key = process.env.OPENROUTER_API_KEY as string;
+  const model = process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free";
   const res = await withTimeout((signal) =>
-    fetch("https://api.groq.com/openai/v1/chat/completions", {
+    fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${key}`,
+        "X-Title": "Second Brain Desk",
       },
       body: JSON.stringify({
         model,
@@ -93,7 +95,36 @@ async function callGroq(system: string, user: string): Promise<AiResult> {
   );
   if (!res.ok) {
     const msg = await res.text().catch(() => res.statusText);
-    return { ok: false, provider: "groq", error: `Groq API ${res.status}: ${msg.slice(0, 300)}` };
+    return { ok: false, provider: "openrouter", error: `OpenRouter ${res.status}: ${msg.slice(0, 200)}` };
+  }
+  const json = await res.json();
+  const text: string | undefined = json?.choices?.[0]?.message?.content;
+  if (!text) return { ok: false, provider: "openrouter", error: "OpenRouter returned no text." };
+  return { ok: true, provider: "openrouter", text: text.trim() };
+}
+
+async function callGroq(system: string, user: string): Promise<AiResult> {
+  const key = process.env.GROQ_API_KEY as string;
+  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+  const res = await withTimeout((signal) =>
+    fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        temperature: 0.4,
+        max_tokens: 900,
+      }),
+      signal,
+    })
+  );
+  if (!res.ok) {
+    const msg = await res.text().catch(() => res.statusText);
+    return { ok: false, provider: "groq", error: `Groq ${res.status}: ${msg.slice(0, 200)}` };
   }
   const json = await res.json();
   const text: string | undefined = json?.choices?.[0]?.message?.content;
@@ -102,11 +133,13 @@ async function callGroq(system: string, user: string): Promise<AiResult> {
 }
 
 export async function runAi(system: string, user: string): Promise<AiResult> {
-  // Try each configured provider in order (Gemini first, then Groq) and
-  // return the first success. If Gemini errors or rate-limits, fall back
-  // to Groq automatically — real redundancy when both keys are set.
+  // Build the chain from whichever keys are configured, in preference
+  // order, and return the first success. If all configured providers
+  // fail, return every provider's error joined together so the cause is
+  // visible at a glance instead of one failure at a time.
   const chain: { name: AiProvider; call: () => Promise<AiResult> }[] = [];
   if (process.env.GEMINI_API_KEY) chain.push({ name: "gemini", call: () => callGemini(system, user) });
+  if (process.env.OPENROUTER_API_KEY) chain.push({ name: "openrouter", call: () => callOpenRouter(system, user) });
   if (process.env.GROQ_API_KEY) chain.push({ name: "groq", call: () => callGroq(system, user) });
 
   if (chain.length === 0) {
@@ -115,19 +148,21 @@ export async function runAi(system: string, user: string): Promise<AiResult> {
       provider: "none",
       notConfigured: true,
       error:
-        "AI is not configured. Add a free GEMINI_API_KEY (aistudio.google.com/apikey) or GROQ_API_KEY in Vercel and redeploy.",
+        "AI is not configured. Add a free GEMINI_API_KEY, OPENROUTER_API_KEY, or GROQ_API_KEY in Vercel and redeploy.",
     };
   }
 
-  let last: AiResult | null = null;
+  const errors: string[] = [];
+  let lastProvider: AiProvider = "none";
   for (const step of chain) {
+    lastProvider = step.name;
     try {
       const r = await step.call();
       if (r.ok) return r;
-      last = r; // failed — try the next provider if there is one
+      errors.push(r.error || `${step.name}: failed`);
     } catch (err) {
-      last = { ok: false, provider: step.name, error: err instanceof Error ? err.message : "AI request failed" };
+      errors.push(`${step.name}: ${err instanceof Error ? err.message : "request failed"}`);
     }
   }
-  return last ?? { ok: false, provider: "none", error: "AI request failed" };
+  return { ok: false, provider: lastProvider, error: errors.join("  |  ") };
 }
