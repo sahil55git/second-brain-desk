@@ -1,0 +1,96 @@
+// Second Brain Desk — Phase 1 schema
+// Models exactly the two desks ported in this phase: Job-Work Desk and
+// Daily Closing. See README.md and claude/dashboard-app-plan.md (project
+// docs) for the full artifact this is being migrated from.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Which side keeps the oil cake at settlement (Scenario A vs B in the
+// job-work SOP). SHOP = shop keeps cake, shop pays customer ~₹6/kg.
+// CUSTOMER = customer keeps cake, customer pays shop ~₹10/kg.
+enum CakeOwnership {
+  SHOP
+  CUSTOMER
+}
+
+// The two fixed daily counts (see sop-daily-cash-stock-closing.md).
+enum ClosingSession {
+  AFTERNOON
+  NIGHT
+}
+
+model JobWorkIntake {
+  id String @id @default(cuid())
+
+  customer  String
+  vehicleNo String? // "Auto / vehicle no." — optional, used for payment split
+
+  seedKg Float
+
+  cakeOwnership CakeOwnership @default(SHOP)
+
+  // Advances taken at intake, split customer/auto (Version 13 of the plan doc)
+  advanceCustomerInr Float @default(0)
+  advanceAutoInr     Float @default(0)
+
+  // Oil cans taken at intake (Version 14): {"can15": {"qty":1,"rate":50}, ...}
+  // Keys match CAN_TYPES in lib/calculations.ts; rate is captured at the
+  // moment of intake so a later price change never rewrites history.
+  cans Json?
+
+  notes String?
+
+  // Settlement (filled in when the entry is paid/settled)
+  settled                Boolean   @default(false)
+  settlementCustomerInr  Float?
+  settlementAutoInr      Float?
+  settlementRatePerKg    Float?
+  settlementAmountInr    Float?
+  settledAt              DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DailyClosing {
+  id String @id @default(cuid())
+
+  date    String // "YYYY-MM-DD" — the business date this count belongs to
+  session ClosingSession
+
+  // Cash in
+  cashInOpening Float @default(0)
+  cashInSales   Float @default(0)
+  cashInOther   Float @default(0)
+
+  // Cash out
+  cashOutGrn      Float @default(0) // job-work Scenario A payouts
+  cashOutExpenses Float @default(0)
+  cashOutSalary   Float @default(0)
+  cashOutUpi      Float @default(0)
+  cashOutDraw     Float @default(0)
+  cashOutOther    Float @default(0)
+
+  // Physical count
+  counterCashInr Float @default(0)
+
+  // Computed + snapshotted at submit time (see getYesterdayStock's
+  // "most recent prior entry" note in lib/calculations.ts)
+  systemCashInr Float @default(0)
+  cashDiffInr   Float @default(0)
+  cashMismatch  Boolean @default(false) // |diff| >= ₹300
+
+  // 10-product oil-stock tally, snapshotted at submit time:
+  // { sf: {today, reportSale, yesterday, sale, gap}, karadi1: {...}, k2: {today, yesterday, diff}, ... }
+  stock Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
