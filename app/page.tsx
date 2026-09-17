@@ -34,7 +34,7 @@ export default async function Home() {
       <header className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Second Brain Desk</h1>
         <p className="text-sm opacity-70">
-          Coded rebuild — Job-Work Desk, Manufacturing &amp; Daily Closing. Single-user, no login yet.
+          Coded rebuild — Job-Work Desk, Manufacturing, Daily Closing &amp; Reports. Single-user, no login yet.
         </p>
       </header>
 

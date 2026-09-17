@@ -5,8 +5,9 @@ import type { DailyClosingDTO, JobWorkIntakeDTO, MfgBatchDTO } from "@/lib/types
 import JobWorkDesk from "./JobWorkDesk";
 import DailyClosingDesk from "./DailyClosingDesk";
 import ManufacturingDesk from "./ManufacturingDesk";
+import ReportsDesk from "./ReportsDesk";
 
-type Desk = "jobwork" | "manufacturing" | "closing";
+type Desk = "jobwork" | "manufacturing" | "closing" | "reports";
 
 export default function DeskTabs({
   initialJobWork,
@@ -25,11 +26,12 @@ export default function DeskTabs({
     { key: "jobwork" as const, label: "Job-Work Desk" },
     { key: "manufacturing" as const, label: "Manufacturing" },
     { key: "closing" as const, label: "Daily Closing" },
+    { key: "reports" as const, label: "Reports & AI" },
   ];
 
   return (
     <div>
-      <nav className="flex gap-2 mb-6 border-b border-black/10 dark:border-white/10">
+      <nav className="flex flex-wrap gap-2 mb-6 border-b border-black/10 dark:border-white/10">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -53,6 +55,9 @@ export default function DeskTabs({
       )}
       {active === "closing" && (
         <DailyClosingDesk initialEntries={initialClosing} dbConnected={dbConnected} />
+      )}
+      {active === "reports" && (
+        <ReportsDesk jobWork={initialJobWork} closing={initialClosing} mfg={initialMfg} />
       )}
     </div>
   );
