@@ -102,8 +102,14 @@ async function callGroq(system: string, user: string): Promise<AiResult> {
 }
 
 export async function runAi(system: string, user: string): Promise<AiResult> {
-  const provider = activeProvider();
-  if (provider === "none") {
+  // Try each configured provider in order (Gemini first, then Groq) and
+  // return the first success. If Gemini errors or rate-limits, fall back
+  // to Groq automatically — real redundancy when both keys are set.
+  const chain: { name: AiProvider; call: () => Promise<AiResult> }[] = [];
+  if (process.env.GEMINI_API_KEY) chain.push({ name: "gemini", call: () => callGemini(system, user) });
+  if (process.env.GROQ_API_KEY) chain.push({ name: "groq", call: () => callGroq(system, user) });
+
+  if (chain.length === 0) {
     return {
       ok: false,
       provider: "none",
@@ -112,10 +118,16 @@ export async function runAi(system: string, user: string): Promise<AiResult> {
         "AI is not configured. Add a free GEMINI_API_KEY (aistudio.google.com/apikey) or GROQ_API_KEY in Vercel and redeploy.",
     };
   }
-  try {
-    return provider === "gemini" ? await callGemini(system, user) : await callGroq(system, user);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "AI request failed";
-    return { ok: false, provider, error: message };
+
+  let last: AiResult | null = null;
+  for (const step of chain) {
+    try {
+      const r = await step.call();
+      if (r.ok) return r;
+      last = r; // failed — try the next provider if there is one
+    } catch (err) {
+      last = { ok: false, provider: step.name, error: err instanceof Error ? err.message : "AI request failed" };
+    }
   }
+  return last ?? { ok: false, provider: "none", error: "AI request failed" };
 }
