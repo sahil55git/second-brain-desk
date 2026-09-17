@@ -54,3 +54,37 @@ export interface DailyClosingDTO {
   createdAt: string;
   updatedAt: string;
 }
+
+// Manufacturing — barrel/batch (plan doc, Versions 19-20).
+export interface BatchSupplierDTO {
+  name: string;
+  seedKg: number;
+}
+
+export interface MfgBatchDTO {
+  id: string;
+  mill: string | null;
+  barrel: string;
+  productItem: string;
+  date: string;
+  suppliers: BatchSupplierDTO[];
+  step1Kg: number | null;
+  step2Kg: number | null;
+  step3Kg: number | null;
+  step4Kg: number | null;
+  step2Date: string | null;
+  step2Time: string | null;
+  step3Date: string | null;
+  step3Time: string | null;
+  step4Date: string | null;
+  step4Time: string | null;
+  refOilPct: number;
+  moisturePct: number | null;
+  systemOilKgOverride: number | null;
+  seedQuality: string | null;
+  notes: string | null;
+  // Snapshotted computeBarrelYield() result (shape from lib/mfgCalculations.ts).
+  yield: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}

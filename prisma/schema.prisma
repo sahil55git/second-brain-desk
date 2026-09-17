@@ -94,3 +94,49 @@ model DailyClosing {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// Manufacturing — self-crushing barrel/batch yield tracking (plan doc,
+// Versions 19-20). A batch is a multi-day thing: Step 1 (crude oil in)
+// starts it; Steps 2-4 (settling) are logged as they happen. It becomes
+// "complete" and gets scored once both Step 3 and Step 4 are logged.
+// The yield analysis (actual oil, efficiency, short/extra, mass-balance
+// loss, oil-cake cross-check) is computed by lib/mfgCalculations.ts and
+// snapshotted onto `yield` at each save so history stays stable.
+model MfgBatch {
+  id String @id @default(cuid())
+
+  mill        String? // which mill
+  barrel      String  // barrel/batch label — letters allowed (e.g. "A1")
+  productItem String  @default("Karadi oil") // oil being produced
+  date        String  // start (Step 1) date, "YYYY-MM-DD"
+
+  // Up to two suppliers: [{ "name": "...", "seedKg": 600 }, ...]
+  suppliers Json
+
+  step1Kg Float? // crude oil pumped in at crush time
+  step2Kg Float? // partial skim (after 2-3 days)
+  step3Kg Float? // full decant (after 3-4 days)
+  step4Kg Float? // waste / sediment removed (~= oil cake)
+
+  // Per-step date+time, auto-stamped when that step's kg is entered but
+  // fully editable (plan doc, Version 20). "YYYY-MM-DD" / "HH:MM".
+  step2Date String?
+  step2Time String?
+  step3Date String?
+  step3Time String?
+  step4Date String?
+  step4Time String?
+
+  refOilPct           Float  @default(22) // per-batch reference yield %
+  moisturePct         Float? // default 1.5 if null (see calc module)
+  systemOilKgOverride Float? // explicit expected-oil override
+  seedQuality         String? // optional, informational only (Version 20)
+
+  notes String?
+
+  // Snapshotted yield analysis at last save (from computeBarrelYield()).
+  yield Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
