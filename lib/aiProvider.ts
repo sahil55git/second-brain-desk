@@ -40,7 +40,7 @@ async function withTimeout<T>(p: (signal: AbortSignal) => Promise<T>): Promise<T
 
 async function callGemini(system: string, user: string): Promise<AiResult> {
   const key = process.env.GEMINI_API_KEY as string;
-  const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
   // Use the x-goog-api-key HEADER rather than a ?key= query param — this
   // is Google's documented method and works for both classic "AIza…" keys
   // and the newer "AQ.…" key format.
@@ -72,7 +72,7 @@ async function callGemini(system: string, user: string): Promise<AiResult> {
 
 async function callOpenRouter(system: string, user: string): Promise<AiResult> {
   const key = process.env.OPENROUTER_API_KEY as string;
-  const model = process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free";
+  const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat-v3-0324:free";
   const res = await withTimeout((signal) =>
     fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
