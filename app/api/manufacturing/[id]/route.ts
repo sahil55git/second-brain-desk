@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
-import { yieldSnapshotFrom } from "../route";
-import type { BatchSupplier } from "@/lib/mfgCalculations";
+import { yieldSnapshotFrom, type BatchSupplier } from "@/lib/mfgCalculations";
 
 // Update / complete a batch — any field is editable after the fact (plan
 // doc, Version 20). The yield snapshot is recomputed from the merged

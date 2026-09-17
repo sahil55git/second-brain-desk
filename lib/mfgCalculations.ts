@@ -227,3 +227,38 @@ export const YIELD_BAND_LABELS: Record<YieldBand, string> = {
   high: "High yield",
   best: "Best yield",
 };
+
+/**
+ * yieldSnapshotFrom() — build the snapshotted yield analysis from a raw
+ * batch record (suppliers may be untyped JSON), so the stored `yield`
+ * always matches computeBarrelYield() at save time. Lives here (a plain
+ * module) rather than in a route.ts, since Next.js route files may only
+ * export route handlers.
+ */
+export function yieldSnapshotFrom(rec: {
+  suppliers: unknown;
+  step1Kg?: number | null;
+  step2Kg?: number | null;
+  step3Kg?: number | null;
+  step4Kg?: number | null;
+  refOilPct?: number | null;
+  moisturePct?: number | null;
+  systemOilKgOverride?: number | null;
+}): BarrelYieldResult {
+  const suppliers: BatchSupplier[] = Array.isArray(rec.suppliers)
+    ? (rec.suppliers as BatchSupplier[]).map((s) => ({
+        name: String(s?.name ?? ""),
+        seedKg: Number(s?.seedKg) || 0,
+      }))
+    : [];
+  return computeBarrelYield({
+    suppliers,
+    step1Kg: rec.step1Kg ?? null,
+    step2Kg: rec.step2Kg ?? null,
+    step3Kg: rec.step3Kg ?? null,
+    step4Kg: rec.step4Kg ?? null,
+    refOilPct: rec.refOilPct ?? null,
+    moisturePct: rec.moisturePct ?? null,
+    systemOilKgOverride: rec.systemOilKgOverride ?? null,
+  });
+}

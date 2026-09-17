@@ -1,37 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
-import { computeBarrelYield, type BatchSupplier } from "@/lib/mfgCalculations";
-
-// Build the snapshotted yield analysis from a batch's own fields, so the
-// stored `yield` JSON always matches computeBarrelYield() at save time.
-export function yieldSnapshotFrom(rec: {
-  suppliers: unknown;
-  step1Kg?: number | null;
-  step2Kg?: number | null;
-  step3Kg?: number | null;
-  step4Kg?: number | null;
-  refOilPct?: number | null;
-  moisturePct?: number | null;
-  systemOilKgOverride?: number | null;
-}) {
-  const suppliers: BatchSupplier[] = Array.isArray(rec.suppliers)
-    ? (rec.suppliers as BatchSupplier[]).map((s) => ({
-        name: String(s?.name ?? ""),
-        seedKg: Number(s?.seedKg) || 0,
-      }))
-    : [];
-  return computeBarrelYield({
-    suppliers,
-    step1Kg: rec.step1Kg ?? null,
-    step2Kg: rec.step2Kg ?? null,
-    step3Kg: rec.step3Kg ?? null,
-    step4Kg: rec.step4Kg ?? null,
-    refOilPct: rec.refOilPct ?? null,
-    moisturePct: rec.moisturePct ?? null,
-    systemOilKgOverride: rec.systemOilKgOverride ?? null,
-  });
-}
+import { yieldSnapshotFrom, type BatchSupplier } from "@/lib/mfgCalculations";
 
 export async function GET() {
   const result = await safeDbCall(() =>
