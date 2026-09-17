@@ -71,7 +71,7 @@ async function callGemini(system: string, user: string): Promise<AiResult> {
 
 async function callGroq(system: string, user: string): Promise<AiResult> {
   const key = process.env.GROQ_API_KEY as string;
-  const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
   const res = await withTimeout((signal) =>
     fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
