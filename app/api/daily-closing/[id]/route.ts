@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
 import {
   cashGapFlag,
@@ -98,7 +99,10 @@ export async function PATCH(
         systemCashInr: systemCash,
         cashDiffInr: diff,
         cashMismatch: flagged,
-        stock: stock ?? undefined,
+        stock:
+          stock === null || stock === undefined
+            ? Prisma.JsonNull
+            : (stock as Prisma.InputJsonValue),
       },
     })
   );

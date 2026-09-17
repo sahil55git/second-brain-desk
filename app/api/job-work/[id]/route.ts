@@ -32,7 +32,10 @@ export async function PATCH(
   if (notes !== undefined) data.notes = notes || null;
 
   const result = await safeDbCall(() =>
-    prisma.jobWorkIntake.update({ where: { id: params.id }, data })
+    // `data` is built dynamically (only the fields the caller sent), so it's
+    // typed as a loose Record rather than Prisma's exact update-input type —
+    // cast at the call site rather than fighting Prisma's generated types.
+    prisma.jobWorkIntake.update({ where: { id: params.id }, data: data as any }) // eslint-disable-line @typescript-eslint/no-explicit-any
   );
 
   if (!result.ok) {

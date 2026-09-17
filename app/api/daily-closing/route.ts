@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
 import {
   cashGapFlag,
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
         systemCashInr: systemCash,
         cashDiffInr: diff,
         cashMismatch: flagged,
-        stock,
+        stock: stock as Prisma.InputJsonValue,
         createdAt: now,
       },
     })
