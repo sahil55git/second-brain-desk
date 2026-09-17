@@ -16,12 +16,15 @@ function inr(n: number | null | undefined) {
 }
 
 function fmtTime(iso: string) {
+  // Pinned timezone — see JobWorkDesk fmtTime: keeps server (UTC) and
+  // client (IST) output identical so React hydration doesn't mismatch.
   return new Date(iso).toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
+    timeZone: "Asia/Kolkata",
   });
 }
 

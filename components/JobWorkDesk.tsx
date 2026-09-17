@@ -17,12 +17,16 @@ function inr(n: number | null | undefined) {
 }
 
 function fmtTime(iso: string) {
+  // Pin the timezone so the Vercel server (UTC) and the browser (IST)
+  // render the SAME string — otherwise the text differs and React throws
+  // a hydration mismatch (#418/#425) that breaks interactivity.
   return new Date(iso).toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
+    timeZone: "Asia/Kolkata",
   });
 }
 
