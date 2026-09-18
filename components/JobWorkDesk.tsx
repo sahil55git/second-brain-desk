@@ -156,6 +156,18 @@ export default function JobWorkDesk({
     if (typeof fields.advanceCustomerInr === "number") setAdvanceCustomerInr(String(fields.advanceCustomerInr));
     if (typeof fields.advanceAutoInr === "number") setAdvanceAutoInr(String(fields.advanceAutoInr));
     if (typeof fields.notes === "string") setNotes(fields.notes);
+    if (
+      typeof fields.can15 === "number" ||
+      typeof fields.can5new === "number" ||
+      typeof fields.can5old === "number"
+    ) {
+      setCans((prev) => ({
+        ...prev,
+        ...(typeof fields.can15 === "number" ? { can15: fields.can15 } : {}),
+        ...(typeof fields.can5new === "number" ? { can5new: fields.can5new } : {}),
+        ...(typeof fields.can5old === "number" ? { can5old: fields.can5old } : {}),
+      }));
+    }
   }
 
   function openPayRow(entry: JobWorkIntakeDTO) {

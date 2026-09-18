@@ -21,6 +21,9 @@ export const AI_FILL_SCHEMAS: Record<AiFillDesk, AiFillFieldSpec[]> = {
     { key: "cakeOwnership", label: "Who keeps the cake", type: "enum", enumValues: ["SHOP", "CUSTOMER"] },
     { key: "advanceCustomerInr", label: "Advance to customer (₹)", type: "number" },
     { key: "advanceAutoInr", label: "Advance to auto (₹)", type: "number" },
+    { key: "can15", label: "Oil cans taken — 15 kg can (count)", type: "number" },
+    { key: "can5new", label: "Oil cans taken — 5 kg new can (count)", type: "number" },
+    { key: "can5old", label: "Oil cans taken — 5 kg old can (count)", type: "number" },
     { key: "notes", label: "Notes", type: "string" },
   ],
   closing: [
@@ -61,8 +64,13 @@ export function buildFillPrompt(desk: AiFillDesk): string {
       return `- "${f.key}" (${type}): ${f.label}`;
     })
     .join("\n");
+  const canNote =
+    desk === "jobwork"
+      ? `\n\nA note on cans: "can15" / "can5new" / "can5old" are HOW MANY cans of that size the customer took away, not a weight. "one 15 kg can" or "15 kg can" means can15 = 1 (a single 15-kilogram-sized can), not seedKg = 15. Only put an actual seed weight into "seedKg".`
+      : "";
   return `You are filling a business data-entry form for an edible-oil business in India (job-work crushing / manufacturing / daily cash-and-stock closing). From the user's text and/or an attached photo (a receipt, memo, register page, or handwritten note), extract ONLY the following fields:
 ${fieldLines}
+${canNote}
 
 Rules:
 - Return STRICT JSON only — a single flat object with a subset of the keys above. No markdown, no code fences, no explanation, no extra keys.
