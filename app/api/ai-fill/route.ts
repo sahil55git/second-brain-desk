@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runAi } from "@/lib/aiProvider";
 import { AI_FILL_SCHEMAS, buildFillPrompt, type AiFillDesk } from "@/lib/aiFillSchemas";
+import { applyCanFallback } from "@/lib/canParser";
 
 // Per-desk AI Terminal fill endpoint (plan doc, Version 17/18): takes
 // typed text, a speech-to-text transcript, or a scanned photo, and
@@ -42,21 +43,15 @@ function extractJson(raw: string): Record<string, unknown> | null {
   }
 }
 
-// Same "try a short list of models" reasoning as lib/aiProvider.ts —
-// free-tier quotas and model availability shift, and this endpoint's
-// photo scan can ONLY go through Gemini (it's the only free provider
-// wired up with image input), so a single hardcoded model here is a
-// harder single point of failure than on the text-only chat path.
-const GEMINI_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"];
-
-async function callGeminiModelFill(
+async function callGeminiFill(
   system: string,
   userText: string,
-  key: string,
-  model: string,
   imageBase64?: string,
   imageMime?: string
 ): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return { ok: false, error: "Gemini not configured" };
+  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const parts: Record<string, unknown>[] = [{ text: userText || "(no text — read the attached image)" }];
   if (imageBase64) {
@@ -78,36 +73,17 @@ async function callGeminiModelFill(
     );
     if (!res.ok) {
       const msg = await res.text().catch(() => res.statusText);
-      return { ok: false, error: `Gemini (${model}) ${res.status}: ${msg.slice(0, 200)}` };
+      return { ok: false, error: `Gemini ${res.status}: ${msg.slice(0, 200)}` };
     }
     const json = await res.json();
     const text: string | undefined = json?.candidates?.[0]?.content?.parts
       ?.map((p: { text?: string }) => p?.text ?? "")
       .join("");
-    if (!text) return { ok: false, error: `Gemini (${model}) returned no text (blocked or empty).` };
+    if (!text) return { ok: false, error: "Gemini returned no text (blocked or empty)." };
     return { ok: true, text };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : `Gemini (${model}) request failed` };
+    return { ok: false, error: err instanceof Error ? err.message : "Gemini request failed" };
   }
-}
-
-async function callGeminiFill(
-  system: string,
-  userText: string,
-  imageBase64?: string,
-  imageMime?: string
-): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return { ok: false, error: "Gemini not configured" };
-  const envModel = process.env.GEMINI_MODEL;
-  const models = envModel ? [envModel, ...GEMINI_MODELS.filter((m) => m !== envModel)] : GEMINI_MODELS;
-  const errors: string[] = [];
-  for (const model of models) {
-    const r = await callGeminiModelFill(system, userText, key, model, imageBase64, imageMime);
-    if (r.ok) return r;
-    errors.push(r.error);
-  }
-  return { ok: false, error: errors.join("  |  ") };
 }
 
 export async function POST(req: NextRequest) {
@@ -134,24 +110,33 @@ export async function POST(req: NextRequest) {
         { status: 502 }
       );
     }
-    const fields = extractJson(r.text);
-    if (!fields) {
+    const scannedFields = extractJson(r.text);
+    if (!scannedFields) {
       return NextResponse.json(
         { error: "Could not parse a clean answer from the scan.", raw: r.text },
         { status: 502 }
       );
     }
-    return NextResponse.json({ fields, provider: "gemini" });
+    return NextResponse.json({ fields: applyCanFallback(desk, text, scannedFields), provider: "gemini" });
   }
 
   const gem = await callGeminiFill(system, text);
   if (gem.ok) {
-    const fields = extractJson(gem.text);
-    if (fields) return NextResponse.json({ fields, provider: "gemini" });
+    const geminiFields = extractJson(gem.text);
+    if (geminiFields) {
+      return NextResponse.json({ fields: applyCanFallback(desk, text, geminiFields), provider: "gemini" });
+    }
   }
 
   const result = await runAi(system, text);
   if (!result.ok) {
+    // Even if every AI provider failed, a can mention is still worth
+    // recognizing deterministically for the jobwork desk — better than
+    // forcing a person to retype it by hand after a pure AI outage.
+    const fallbackOnly = applyCanFallback(desk, text, {});
+    if (Object.keys(fallbackOnly).length > 0) {
+      return NextResponse.json({ fields: fallbackOnly, provider: "none", partial: true });
+    }
     return NextResponse.json(
       { error: result.error, notConfigured: result.notConfigured || false, provider: result.provider },
       { status: result.notConfigured ? 200 : 502 }
@@ -159,7 +144,11 @@ export async function POST(req: NextRequest) {
   }
   const fields = extractJson(result.text || "");
   if (!fields) {
+    const fallbackOnly = applyCanFallback(desk, text, {});
+    if (Object.keys(fallbackOnly).length > 0) {
+      return NextResponse.json({ fields: fallbackOnly, provider: result.provider, partial: true });
+    }
     return NextResponse.json({ error: "Could not parse a clean answer.", raw: result.text }, { status: 502 });
   }
-  return NextResponse.json({ fields, provider: result.provider });
+  return NextResponse.json({ fields: applyCanFallback(desk, text, fields), provider: result.provider });
 }
