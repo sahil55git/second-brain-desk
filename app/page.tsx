@@ -1,5 +1,6 @@
 import { prisma, safeDbCall } from "@/lib/db";
 import DeskTabs from "@/components/DeskTabs";
+import CustomizeButton from "@/components/CustomizeButton";
 import type { DailyClosingDTO, JobWorkIntakeDTO, MfgBatchDTO } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -31,11 +32,14 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen max-w-6xl mx-auto px-4 py-6 sm:px-6">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">Second Brain Desk</h1>
-        <p className="text-sm opacity-70">
-          Coded rebuild — Job-Work Desk, Manufacturing, Daily Closing &amp; Reports. Single-user, no login yet.
-        </p>
+      <header className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Second Brain Desk</h1>
+          <p className="text-sm opacity-70">
+            Coded rebuild — Job-Work Desk, Manufacturing, Daily Closing &amp; Reports. Single-user, no login yet.
+          </p>
+        </div>
+        <CustomizeButton />
       </header>
 
       {dbError && (

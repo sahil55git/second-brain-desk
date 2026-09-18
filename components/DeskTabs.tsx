@@ -38,7 +38,7 @@ export default function DeskTabs({
             onClick={() => setActive(tab.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               active === tab.key
-                ? "border-amber-600 text-amber-700 dark:text-amber-400"
+                ? "border-[var(--accent)] text-[var(--accent-ink)]"
                 : "border-transparent opacity-60 hover:opacity-100"
             }`}
           >

@@ -117,7 +117,7 @@ export default function ReportsDesk({
               key={r}
               onClick={() => setRange(r)}
               className={`px-3 py-1 rounded text-sm ${
-                range === r ? "bg-amber-600 text-white" : "bg-black/5 dark:bg-white/5"
+                range === r ? "bg-[var(--accent)] text-[var(--accent-contrast)]" : "bg-black/5 dark:bg-white/5"
               }`}
             >
               {RANGE_LABELS[r]}
@@ -153,7 +153,7 @@ export default function ReportsDesk({
           <button
             onClick={() => ask(question)}
             disabled={askLoading}
-            className="rounded bg-amber-600 text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+            className="rounded bg-[var(--accent)] text-[var(--accent-contrast)] px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             {askLoading ? "Thinking…" : "Ask"}
           </button>

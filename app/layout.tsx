@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { CustomizeProvider } from "@/lib/customize";
 
 export const metadata: Metadata = {
   title: "Second Brain Desk",
   description:
-    "Coded rebuild (Phase 1) of the Second Brain Desk business dashboard — Job-Work Desk and Daily Closing.",
+    "Coded rebuild of the Second Brain Desk business dashboard — Job-Work Desk, Manufacturing, Daily Closing & Reports.",
 };
 
 export default function RootLayout({
@@ -14,7 +15,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <CustomizeProvider>{children}</CustomizeProvider>
+      </body>
     </html>
   );
 }

@@ -10,6 +10,7 @@ import {
   expectedSettlementWithRate,
   KHALI_SPLIT,
 } from "@/lib/calculations";
+import AiTerminal from "@/components/AiTerminal";
 
 function inr(n: number | null | undefined) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
@@ -145,6 +146,18 @@ export default function JobWorkDesk({
     }
   }
 
+  function handleAiFill(fields: Record<string, unknown>) {
+    if (typeof fields.customer === "string") setCustomer(fields.customer);
+    if (typeof fields.vehicleNo === "string") setVehicleNo(fields.vehicleNo);
+    if (typeof fields.seedKg === "number") setSeedKg(String(fields.seedKg));
+    if (fields.cakeOwnership === "SHOP" || fields.cakeOwnership === "CUSTOMER") {
+      setCakeOwnership(fields.cakeOwnership);
+    }
+    if (typeof fields.advanceCustomerInr === "number") setAdvanceCustomerInr(String(fields.advanceCustomerInr));
+    if (typeof fields.advanceAutoInr === "number") setAdvanceAutoInr(String(fields.advanceAutoInr));
+    if (typeof fields.notes === "string") setNotes(fields.notes);
+  }
+
   function openPayRow(entry: JobWorkIntakeDTO) {
     setEditRowId(null);
     setPayRowId(entry.id);
@@ -227,6 +240,7 @@ export default function JobWorkDesk({
       {/* Form panel */}
       <div className="rounded-xl border border-black/10 dark:border-white/10 p-4">
         <h2 className="font-semibold mb-3">New intake</h2>
+        <AiTerminal desk="jobwork" onFill={handleAiFill} title="AI Terminal — New intake" />
         <form onSubmit={submitIntake} className="space-y-3 text-sm">
           <div>
             <label className="block mb-1 opacity-70">Customer</label>
@@ -348,7 +362,7 @@ export default function JobWorkDesk({
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded bg-amber-600 text-white py-2 font-medium disabled:opacity-50"
+            className="w-full rounded bg-[var(--accent)] text-[var(--accent-contrast)] py-2 font-medium disabled:opacity-50"
           >
             {loading ? "Saving…" : "Log intake"}
           </button>
@@ -421,7 +435,7 @@ export default function JobWorkDesk({
                         {entry.settled ? (
                           <span className="text-green-700 dark:text-green-400 font-medium">Paid</span>
                         ) : (
-                          <span className="text-amber-700 dark:text-amber-400 font-medium">
+                          <span className="text-[var(--accent-ink)] font-medium">
                             Due {inr(due)}
                           </span>
                         )}
@@ -430,7 +444,7 @@ export default function JobWorkDesk({
                         {!entry.settled && (
                           <button
                             onClick={() => openPayRow(entry)}
-                            className="text-amber-700 dark:text-amber-400 underline mr-2"
+                            className="text-[var(--accent-ink)] underline mr-2"
                           >
                             Pay
                           </button>
@@ -487,7 +501,7 @@ export default function JobWorkDesk({
                             <button
                               onClick={() => submitPay(entry)}
                               disabled={loading}
-                              className="rounded bg-amber-600 text-white px-3 py-1.5 font-medium disabled:opacity-50"
+                              className="rounded bg-[var(--accent)] text-[var(--accent-contrast)] px-3 py-1.5 font-medium disabled:opacity-50"
                             >
                               Save payment
                             </button>
@@ -544,7 +558,7 @@ export default function JobWorkDesk({
                             <button
                               onClick={() => submitEdit(entry)}
                               disabled={loading}
-                              className="rounded bg-amber-600 text-white px-3 py-1.5 font-medium disabled:opacity-50"
+                              className="rounded bg-[var(--accent)] text-[var(--accent-contrast)] px-3 py-1.5 font-medium disabled:opacity-50"
                             >
                               Save
                             </button>

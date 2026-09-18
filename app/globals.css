@@ -5,12 +5,19 @@
 :root {
   --background: #faf7f1;
   --foreground: #1f2320;
+  --accent: #d97706;
+  --accent-ink: #b45309;
+  --accent-contrast: #ffffff;
 }
 
+/* Pre-JS fallback so a dark-OS visitor doesn't flash light before the
+   Customize provider (lib/customize.tsx) applies the saved/derived
+   theme via inline CSS variables and the .dark class below. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light) {
     --background: #0f1210;
     --foreground: #ededed;
+    --accent-ink: #fbbf24;
   }
 }
 

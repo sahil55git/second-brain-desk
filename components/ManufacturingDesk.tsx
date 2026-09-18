@@ -9,6 +9,7 @@ import {
   type BarrelBatchInput,
   type BarrelYieldResult,
 } from "@/lib/mfgCalculations";
+import AiTerminal from "@/components/AiTerminal";
 
 function kg(n: number | null | undefined, digits = 1) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
@@ -165,6 +166,43 @@ export default function ManufacturingDesk({
     }
   }
 
+  function handleAiFill(fields: Record<string, unknown>) {
+    if (typeof fields.mill === "string") setMill(fields.mill);
+    if (typeof fields.barrel === "string") setBarrel(fields.barrel);
+    if (typeof fields.productItem === "string") {
+      if ((OIL_TYPES as readonly string[]).includes(fields.productItem)) {
+        setProductItem(fields.productItem);
+      } else {
+        setProductItem("Other");
+        setCustomItem(fields.productItem);
+      }
+    }
+    if (typeof fields.date === "string") setDate(fields.date);
+    if (typeof fields.refOilPct === "number") setRefOilPct(String(fields.refOilPct));
+    if (typeof fields.step1Kg === "number") setStep1Kg(String(fields.step1Kg));
+    if (typeof fields.seedQuality === "string") setSeedQuality(fields.seedQuality);
+    if (typeof fields.notes === "string") setNotes(fields.notes);
+
+    const s1n = typeof fields.supplier1Name === "string" ? fields.supplier1Name : undefined;
+    const s1k = typeof fields.supplier1SeedKg === "number" ? String(fields.supplier1SeedKg) : undefined;
+    const s2n = typeof fields.supplier2Name === "string" ? fields.supplier2Name : undefined;
+    const s2k = typeof fields.supplier2SeedKg === "number" ? String(fields.supplier2SeedKg) : undefined;
+    if (s1n !== undefined || s1k !== undefined || s2n !== undefined || s2k !== undefined) {
+      setSuppliers((prev) => {
+        const next = [...prev];
+        if (!next[0]) next[0] = { name: "", seedKg: "" };
+        if (s1n !== undefined) next[0] = { ...next[0], name: s1n };
+        if (s1k !== undefined) next[0] = { ...next[0], seedKg: s1k };
+        if (s2n !== undefined || s2k !== undefined) {
+          if (!next[1]) next[1] = { name: "", seedKg: "" };
+          if (s2n !== undefined) next[1] = { ...next[1], name: s2n };
+          if (s2k !== undefined) next[1] = { ...next[1], seedKg: s2k };
+        }
+        return next;
+      });
+    }
+  }
+
   // ---- Update / complete form state ----
   const [selBatchId, setSelBatchId] = useState<string>("");
   const [uStep2, setUStep2] = useState("");
@@ -298,7 +336,7 @@ export default function ManufacturingDesk({
               key={t}
               onClick={() => setTab(t)}
               className={`px-3 py-1.5 rounded text-sm font-medium ${
-                tab === t ? "bg-amber-600 text-white" : "bg-black/5 dark:bg-white/5"
+                tab === t ? "bg-[var(--accent)] text-[var(--accent-contrast)]" : "bg-black/5 dark:bg-white/5"
               }`}
             >
               {t === "start" ? "Start batch" : "Update / complete"}
@@ -307,7 +345,9 @@ export default function ManufacturingDesk({
         </div>
 
         {tab === "start" ? (
-          <form onSubmit={submitStart} className="space-y-3 text-sm">
+          <>
+            <AiTerminal desk="mfg-start" onFill={handleAiFill} title="AI Terminal — Start batch" />
+            <form onSubmit={submitStart} className="space-y-3 text-sm">
             <div className="grid grid-cols-2 gap-2">
               <Field label="Mill (optional)">
                 <input value={mill} onChange={(e) => setMill(e.target.value)} className={inp} placeholder="e.g. Mill 1" />
@@ -398,7 +438,8 @@ export default function ManufacturingDesk({
             <button type="submit" disabled={loading} className={btn}>
               {loading ? "Saving…" : "Start batch"}
             </button>
-          </form>
+            </form>
+          </>
         ) : (
           <form onSubmit={submitUpdate} className="space-y-3 text-sm">
             <Field label="Batch (settling shown first)">
@@ -542,7 +583,7 @@ export default function ManufacturingDesk({
                     {y.complete ? (
                       <span className="text-green-700 dark:text-green-400 font-medium">Complete</span>
                     ) : (
-                      <span className="text-amber-700 dark:text-amber-400 font-medium">Settling</span>
+                      <span className="text-[var(--accent-ink)] font-medium">Settling</span>
                     )}
                   </td>
                   <td className="p-2 whitespace-nowrap">
@@ -577,7 +618,7 @@ export default function ManufacturingDesk({
 const inp =
   "w-full rounded border border-black/20 dark:border-white/20 bg-transparent px-2 py-1.5";
 const btn =
-  "w-full rounded bg-amber-600 text-white py-2 font-medium disabled:opacity-50";
+  "w-full rounded bg-[var(--accent)] text-[var(--accent-contrast)] py-2 font-medium disabled:opacity-50";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

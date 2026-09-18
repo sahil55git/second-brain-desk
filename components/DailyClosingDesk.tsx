@@ -9,6 +9,7 @@ import {
   STOCK_PRODUCTS,
   type CashInputs,
 } from "@/lib/calculations";
+import AiTerminal from "@/components/AiTerminal";
 
 function inr(n: number | null | undefined) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
@@ -123,6 +124,31 @@ export default function DailyClosingDesk({
     });
   }, [stockForm, priorEntriesForPreview]);
 
+  const CASH_KEYS = [
+    "cashInOpening",
+    "cashInSales",
+    "cashInOther",
+    "cashOutGrn",
+    "cashOutExpenses",
+    "cashOutSalary",
+    "cashOutUpi",
+    "cashOutDraw",
+    "cashOutOther",
+  ] as const;
+
+  function handleAiFill(fields: Record<string, unknown>) {
+    if (typeof fields.date === "string") setDate(fields.date);
+    if (fields.session === "AFTERNOON" || fields.session === "NIGHT") setSession(fields.session);
+    setCash((prev) => {
+      const next = { ...prev };
+      CASH_KEYS.forEach((k) => {
+        if (typeof fields[k] === "number") next[k] = String(fields[k]);
+      });
+      return next;
+    });
+    if (typeof fields.counterCashInr === "number") setCounterCashInr(String(fields.counterCashInr));
+  }
+
   async function submitClosing(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -191,6 +217,7 @@ export default function DailyClosingDesk({
       {/* Form panel */}
       <div className="rounded-xl border border-black/10 dark:border-white/10 p-4">
         <h2 className="font-semibold mb-3">New closing count</h2>
+        <AiTerminal desk="closing" onFill={handleAiFill} title="AI Terminal — Closing count" />
         <form onSubmit={submitClosing} className="space-y-3 text-sm">
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -349,7 +376,7 @@ export default function DailyClosingDesk({
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded bg-amber-600 text-white py-2 font-medium disabled:opacity-50"
+            className="w-full rounded bg-[var(--accent)] text-[var(--accent-contrast)] py-2 font-medium disabled:opacity-50"
           >
             {loading ? "Saving…" : "Log closing count"}
           </button>
@@ -512,7 +539,7 @@ function EditClosingRow({
           <button
             onClick={save}
             disabled={loading}
-            className="rounded bg-amber-600 text-white px-3 py-1.5 font-medium disabled:opacity-50"
+            className="rounded bg-[var(--accent)] text-[var(--accent-contrast)] px-3 py-1.5 font-medium disabled:opacity-50"
           >
             Save
           </button>
