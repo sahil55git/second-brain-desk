@@ -42,15 +42,21 @@ function extractJson(raw: string): Record<string, unknown> | null {
   }
 }
 
-async function callGeminiFill(
+// Same "try a short list of models" reasoning as lib/aiProvider.ts —
+// free-tier quotas and model availability shift, and this endpoint's
+// photo scan can ONLY go through Gemini (it's the only free provider
+// wired up with image input), so a single hardcoded model here is a
+// harder single point of failure than on the text-only chat path.
+const GEMINI_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"];
+
+async function callGeminiModelFill(
   system: string,
   userText: string,
+  key: string,
+  model: string,
   imageBase64?: string,
   imageMime?: string
 ): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return { ok: false, error: "Gemini not configured" };
-  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const parts: Record<string, unknown>[] = [{ text: userText || "(no text — read the attached image)" }];
   if (imageBase64) {
@@ -72,17 +78,36 @@ async function callGeminiFill(
     );
     if (!res.ok) {
       const msg = await res.text().catch(() => res.statusText);
-      return { ok: false, error: `Gemini ${res.status}: ${msg.slice(0, 200)}` };
+      return { ok: false, error: `Gemini (${model}) ${res.status}: ${msg.slice(0, 200)}` };
     }
     const json = await res.json();
     const text: string | undefined = json?.candidates?.[0]?.content?.parts
       ?.map((p: { text?: string }) => p?.text ?? "")
       .join("");
-    if (!text) return { ok: false, error: "Gemini returned no text (blocked or empty)." };
+    if (!text) return { ok: false, error: `Gemini (${model}) returned no text (blocked or empty).` };
     return { ok: true, text };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Gemini request failed" };
+    return { ok: false, error: err instanceof Error ? err.message : `Gemini (${model}) request failed` };
   }
+}
+
+async function callGeminiFill(
+  system: string,
+  userText: string,
+  imageBase64?: string,
+  imageMime?: string
+): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return { ok: false, error: "Gemini not configured" };
+  const envModel = process.env.GEMINI_MODEL;
+  const models = envModel ? [envModel, ...GEMINI_MODELS.filter((m) => m !== envModel)] : GEMINI_MODELS;
+  const errors: string[] = [];
+  for (const model of models) {
+    const r = await callGeminiModelFill(system, userText, key, model, imageBase64, imageMime);
+    if (r.ok) return r;
+    errors.push(r.error);
+  }
+  return { ok: false, error: errors.join("  |  ") };
 }
 
 export async function POST(req: NextRequest) {

@@ -11,10 +11,18 @@
 //   GEMINI_API_KEY      — https://aistudio.google.com/apikey
 //   OPENROUTER_API_KEY  — https://openrouter.ai/keys
 //   GROQ_API_KEY        — https://console.groq.com/keys
-// Optional model overrides: GEMINI_MODEL, OPENROUTER_MODEL, GROQ_MODEL.
+// Optional model overrides: GEMINI_MODEL, OPENROUTER_MODEL, GROQ_MODEL —
+// each pins that provider to exactly one model instead of trying the
+// built-in candidate list below.
 //
 // Provider order (first configured one that succeeds wins): Gemini,
-// OpenRouter, Groq.
+// OpenRouter, Groq. WITHIN each provider, several model names are tried
+// in order too — free-tier model availability and free-tagged slugs
+// both shift over time (a model gets retired, a free tag is pulled, a
+// quota is scoped per-model), so one hardcoded model name is a single
+// point of failure. Trying a short list costs nothing extra when the
+// first one works, and turns "the whole provider is down" into "the
+// whole provider is down" only when EVERY candidate fails.
 
 export type AiProvider = "gemini" | "openrouter" | "groq" | "none";
 
@@ -38,9 +46,26 @@ async function withTimeout<T>(p: (signal: AbortSignal) => Promise<T>): Promise<T
   }
 }
 
-async function callGemini(system: string, user: string): Promise<AiResult> {
-  const key = process.env.GEMINI_API_KEY as string;
-  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+// Built-in fallback model candidates per provider. An env override
+// (GEMINI_MODEL / OPENROUTER_MODEL / GROQ_MODEL) is tried FIRST and
+// exclusively-preferred, but the built-ins still back it up if it fails,
+// since a manually-set model can go stale too.
+const GEMINI_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"];
+const OPENROUTER_MODELS = [
+  "deepseek/deepseek-chat-v3-0324:free",
+  "meta-llama/llama-3.2-3b-instruct:free",
+  "google/gemma-2-9b-it:free",
+  "qwen/qwen-2.5-7b-instruct:free",
+  "mistralai/mistral-7b-instruct:free",
+];
+const GROQ_MODELS = ["llama-3.1-8b-instant", "gemma2-9b-it", "llama3-8b-8192"];
+
+function candidateModels(envVar: string | undefined, builtins: string[]): string[] {
+  const list = envVar ? [envVar, ...builtins.filter((m) => m !== envVar)] : builtins;
+  return list;
+}
+
+async function callGeminiModel(system: string, user: string, key: string, model: string): Promise<AiResult> {
   // Use the x-goog-api-key HEADER rather than a ?key= query param — this
   // is Google's documented method and works for both classic "AIza…" keys
   // and the newer "AQ.…" key format.
@@ -60,19 +85,17 @@ async function callGemini(system: string, user: string): Promise<AiResult> {
   );
   if (!res.ok) {
     const msg = await res.text().catch(() => res.statusText);
-    return { ok: false, provider: "gemini", error: `Gemini ${res.status}: ${msg.slice(0, 200)}` };
+    return { ok: false, provider: "gemini", error: `Gemini (${model}) ${res.status}: ${msg.slice(0, 200)}` };
   }
   const json = await res.json();
   const text: string | undefined = json?.candidates?.[0]?.content?.parts
     ?.map((p: { text?: string }) => p?.text ?? "")
     .join("");
-  if (!text) return { ok: false, provider: "gemini", error: "Gemini returned no text (blocked or empty)." };
+  if (!text) return { ok: false, provider: "gemini", error: `Gemini (${model}) returned no text (blocked or empty).` };
   return { ok: true, provider: "gemini", text: text.trim() };
 }
 
-async function callOpenRouter(system: string, user: string): Promise<AiResult> {
-  const key = process.env.OPENROUTER_API_KEY as string;
-  const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat-v3-0324:free";
+async function callOpenRouterModel(system: string, user: string, key: string, model: string): Promise<AiResult> {
   const res = await withTimeout((signal) =>
     fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -95,17 +118,15 @@ async function callOpenRouter(system: string, user: string): Promise<AiResult> {
   );
   if (!res.ok) {
     const msg = await res.text().catch(() => res.statusText);
-    return { ok: false, provider: "openrouter", error: `OpenRouter ${res.status}: ${msg.slice(0, 200)}` };
+    return { ok: false, provider: "openrouter", error: `OpenRouter (${model}) ${res.status}: ${msg.slice(0, 200)}` };
   }
   const json = await res.json();
   const text: string | undefined = json?.choices?.[0]?.message?.content;
-  if (!text) return { ok: false, provider: "openrouter", error: "OpenRouter returned no text." };
+  if (!text) return { ok: false, provider: "openrouter", error: `OpenRouter (${model}) returned no text.` };
   return { ok: true, provider: "openrouter", text: text.trim() };
 }
 
-async function callGroq(system: string, user: string): Promise<AiResult> {
-  const key = process.env.GROQ_API_KEY as string;
-  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+async function callGroqModel(system: string, user: string, key: string, model: string): Promise<AiResult> {
   const res = await withTimeout((signal) =>
     fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -124,12 +145,52 @@ async function callGroq(system: string, user: string): Promise<AiResult> {
   );
   if (!res.ok) {
     const msg = await res.text().catch(() => res.statusText);
-    return { ok: false, provider: "groq", error: `Groq ${res.status}: ${msg.slice(0, 200)}` };
+    return { ok: false, provider: "groq", error: `Groq (${model}) ${res.status}: ${msg.slice(0, 200)}` };
   }
   const json = await res.json();
   const text: string | undefined = json?.choices?.[0]?.message?.content;
-  if (!text) return { ok: false, provider: "groq", error: "Groq returned no text." };
+  if (!text) return { ok: false, provider: "groq", error: `Groq (${model}) returned no text.` };
   return { ok: true, provider: "groq", text: text.trim() };
+}
+
+// Tries each model candidate for one provider in order, returning the
+// first success. On total failure, returns every model's error joined
+// together (still scoped to just this provider — runAi() below joins
+// across providers on top of this).
+async function tryProviderModels(
+  provider: AiProvider,
+  models: string[],
+  call: (model: string) => Promise<AiResult>
+): Promise<AiResult> {
+  const errors: string[] = [];
+  for (const model of models) {
+    try {
+      const r = await call(model);
+      if (r.ok) return r;
+      errors.push(r.error || `${provider} (${model}): failed`);
+    } catch (err) {
+      errors.push(`${provider} (${model}): ${err instanceof Error ? err.message : "request failed"}`);
+    }
+  }
+  return { ok: false, provider, error: errors.join("  |  ") };
+}
+
+async function callGemini(system: string, user: string): Promise<AiResult> {
+  const key = process.env.GEMINI_API_KEY as string;
+  const models = candidateModels(process.env.GEMINI_MODEL, GEMINI_MODELS);
+  return tryProviderModels("gemini", models, (model) => callGeminiModel(system, user, key, model));
+}
+
+async function callOpenRouter(system: string, user: string): Promise<AiResult> {
+  const key = process.env.OPENROUTER_API_KEY as string;
+  const models = candidateModels(process.env.OPENROUTER_MODEL, OPENROUTER_MODELS);
+  return tryProviderModels("openrouter", models, (model) => callOpenRouterModel(system, user, key, model));
+}
+
+async function callGroq(system: string, user: string): Promise<AiResult> {
+  const key = process.env.GROQ_API_KEY as string;
+  const models = candidateModels(process.env.GROQ_MODEL, GROQ_MODELS);
+  return tryProviderModels("groq", models, (model) => callGroqModel(system, user, key, model));
 }
 
 export async function runAi(system: string, user: string): Promise<AiResult> {
