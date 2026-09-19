@@ -10,6 +10,13 @@ import {
   type CashInputs,
 } from "@/lib/calculations";
 import AiTerminal from "@/components/AiTerminal";
+import { useCustomize, visibleOrderedIds } from "@/lib/customize";
+import { COLUMN_DEFS } from "@/lib/desksConfig";
+
+const CLOSING_COLUMN_IDS = COLUMN_DEFS.closing.map((c) => c.id);
+const TD_CLASS: Record<string, string> = {
+  time: "p-2 whitespace-nowrap",
+};
 
 function inr(n: number | null | undefined) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
@@ -66,6 +73,9 @@ export default function DailyClosingDesk({
   const [stockForm, setStockForm] = useState<Record<string, StockFormRow>>(emptyStockForm());
 
   const [editRowId, setEditRowId] = useState<string | null>(null);
+  const { prefs } = useCustomize();
+  const visibleColIds = visibleOrderedIds(CLOSING_COLUMN_IDS, prefs.columns.closing);
+  const totalCols = visibleColIds.length;
 
   async function refetch() {
     try {
@@ -388,68 +398,70 @@ export default function DailyClosingDesk({
         <table className="w-full text-sm">
           <thead className="bg-black/5 dark:bg-white/5 text-left">
             <tr>
-              <th className="p-2">Time</th>
-              <th className="p-2">Session</th>
-              <th className="p-2">System cash</th>
-              <th className="p-2">Counter cash</th>
-              <th className="p-2">Diff</th>
-              <th className="p-2">Stock</th>
-              <th className="p-2">Actions</th>
+              {visibleColIds.map((id) => (
+                <th key={id} className="p-2">
+                  {COLUMN_DEFS.closing.find((c) => c.id === id)?.label ?? id}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {entries.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-4 text-center opacity-60">
+                <td colSpan={totalCols} className="p-4 text-center opacity-60">
                   No closing counts yet.
                 </td>
               </tr>
             )}
-            {entries.map((entry) => (
+            {entries.map((entry) => {
+              const cells: Record<string, React.ReactNode> = {
+                time: fmtTime(entry.createdAt),
+                session: entry.session === "AFTERNOON" ? "Afternoon" : "9 PM",
+                systemCash: inr(entry.systemCashInr),
+                counterCash: inr(entry.counterCashInr),
+                diff: (
+                  <span className={entry.cashMismatch ? "text-red-600 font-semibold" : "opacity-80"}>
+                    {inr(entry.cashDiffInr)}
+                  </span>
+                ),
+                stock:
+                  entry.stock &&
+                  Object.entries(entry.stock).map(([key, v]) => {
+                    const gap = v.gap ?? v.diff ?? 0;
+                    const ok = Math.abs(gap) < 0.5;
+                    return (
+                      <span
+                        key={key}
+                        className={`inline-block mr-1 mb-1 px-1.5 py-0.5 rounded text-[10px] ${
+                          ok ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {key}:{ok ? "✓" : gap}
+                      </span>
+                    );
+                  }),
+                actions: (
+                  <button
+                    onClick={() => setEditRowId(editRowId === entry.id ? null : entry.id)}
+                    className="underline opacity-80"
+                  >
+                    Edit
+                  </button>
+                ),
+              };
+              return (
               <React.Fragment key={entry.id}>
                 <tr className="border-t border-black/5 dark:border-white/5 align-top">
-                  <td className="p-2 whitespace-nowrap">{fmtTime(entry.createdAt)}</td>
-                  <td className="p-2">{entry.session === "AFTERNOON" ? "Afternoon" : "9 PM"}</td>
-                  <td className="p-2">{inr(entry.systemCashInr)}</td>
-                  <td className="p-2">{inr(entry.counterCashInr)}</td>
-                  <td className="p-2">
-                    <span
-                      className={
-                        entry.cashMismatch ? "text-red-600 font-semibold" : "opacity-80"
-                      }
-                    >
-                      {inr(entry.cashDiffInr)}
-                    </span>
-                  </td>
-                  <td className="p-2">
-                    {entry.stock &&
-                      Object.entries(entry.stock).map(([key, v]) => {
-                        const gap = v.gap ?? v.diff ?? 0;
-                        const ok = Math.abs(gap) < 0.5;
-                        return (
-                          <span
-                            key={key}
-                            className={`inline-block mr-1 mb-1 px-1.5 py-0.5 rounded text-[10px] ${
-                              ok ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"
-                            }`}
-                          >
-                            {key}:{ok ? "✓" : gap}
-                          </span>
-                        );
-                      })}
-                  </td>
-                  <td className="p-2">
-                    <button
-                      onClick={() => setEditRowId(editRowId === entry.id ? null : entry.id)}
-                      className="underline opacity-80"
-                    >
-                      Edit
-                    </button>
-                  </td>
+                  {visibleColIds.map((id) => (
+                    <td key={id} className={TD_CLASS[id] ?? "p-2"}>
+                      {cells[id]}
+                    </td>
+                  ))}
                 </tr>
                 {editRowId === entry.id && (
                   <EditClosingRow
                     entry={entry}
+                    colSpan={totalCols}
                     onSaved={(updated) => {
                       setEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
                       setEditRowId(null);
@@ -458,7 +470,8 @@ export default function DailyClosingDesk({
                   />
                 )}
               </React.Fragment>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -490,10 +503,12 @@ function LabeledInput({
 
 function EditClosingRow({
   entry,
+  colSpan,
   onSaved,
   onCancel,
 }: {
   entry: DailyClosingDTO;
+  colSpan: number;
   onSaved: (updated: DailyClosingDTO) => void;
   onCancel: () => void;
 }) {
@@ -525,7 +540,7 @@ function EditClosingRow({
 
   return (
     <tr className="bg-black/5 dark:bg-white/5">
-      <td colSpan={7} className="p-3">
+      <td colSpan={colSpan} className="p-3">
         <div className="flex items-end gap-3 text-xs">
           <div>
             <label className="block mb-1 opacity-70">Counter cash (₹)</label>

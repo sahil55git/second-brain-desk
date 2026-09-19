@@ -10,6 +10,11 @@ import {
   type BarrelYieldResult,
 } from "@/lib/mfgCalculations";
 import AiTerminal from "@/components/AiTerminal";
+import { useCustomize, visibleOrderedIds } from "@/lib/customize";
+import { WIDGET_DEFS, COLUMN_DEFS } from "@/lib/desksConfig";
+
+const MFG_WIDGET_IDS = WIDGET_DEFS.mfg.map((w) => w.id);
+const MFG_COLUMN_IDS = COLUMN_DEFS.mfg.map((c) => c.id);
 
 function kg(n: number | null | undefined, digits = 1) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
@@ -80,6 +85,10 @@ export default function ManufacturingDesk({
   const [tab, setTab] = useState<"start" | "update">("start");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { prefs } = useCustomize();
+  const visibleWidgetIds = visibleOrderedIds(MFG_WIDGET_IDS, prefs.widgets.mfg);
+  const visibleColIds = visibleOrderedIds(MFG_COLUMN_IDS, prefs.columns.mfg);
+  const totalCols = visibleColIds.length;
 
   async function refetch() {
     try {
@@ -518,10 +527,15 @@ export default function ManufacturingDesk({
       {/* Ledger panel */}
       <div>
         <div className="flex flex-wrap gap-3 mb-3">
-          <Stat label="Batches settling" value={String(settlingCount)} />
-          <Stat label="Oil produced (7d)" value={kg(oilThisWeek)} />
-          <Stat label="Self-crush khali/waste" value={kg(khaliWaste)} />
-          <Stat label="Total oil produced" value={kg(totalOilProduced)} />
+          {(() => {
+            const widgetNodes: Record<string, React.ReactNode> = {
+              settling: <Stat label="Batches settling" value={String(settlingCount)} />,
+              oilWeek: <Stat label="Oil produced (7d)" value={kg(oilThisWeek)} />,
+              khaliWaste: <Stat label="Self-crush khali/waste" value={kg(khaliWaste)} />,
+              totalOil: <Stat label="Total oil produced" value={kg(totalOilProduced)} />,
+            };
+            return visibleWidgetIds.map((id) => <React.Fragment key={id}>{widgetNodes[id]}</React.Fragment>);
+          })()}
         </div>
 
         {flagged.length > 0 && (
@@ -549,53 +563,70 @@ export default function ManufacturingDesk({
           <table className="w-full text-sm">
             <thead className="bg-black/5 dark:bg-white/5 text-left">
               <tr>
-                <th className="p-2">Date</th>
-                <th className="p-2">Barrel</th>
-                <th className="p-2">Item</th>
-                <th className="p-2">Suppliers</th>
-                <th className="p-2">Steps (1/2/3/4)</th>
-                <th className="p-2">Status</th>
-                <th className="p-2">Oil</th>
-                <th className="p-2">Oil cake</th>
-                <th className="p-2">Flags</th>
+                {visibleColIds.map((id) => (
+                  <th key={id} className="p-2">
+                    {COLUMN_DEFS.mfg.find((c) => c.id === id)?.label ?? id}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {batches.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="p-4 text-center opacity-60">No batches yet.</td>
+                  <td colSpan={totalCols} className="p-4 text-center opacity-60">No batches yet.</td>
                 </tr>
               )}
-              {computed.map(({ b, y }) => (
-                <tr key={b.id} className="border-t border-black/5 dark:border-white/5 align-top">
-                  <td className="p-2 whitespace-nowrap">{b.date}<div className="opacity-50 text-[10px]">{fmtDateTime(b.createdAt)}</div></td>
-                  <td className="p-2 font-medium">{b.barrel}{b.mill ? <div className="opacity-50 text-[10px]">{b.mill}</div> : null}</td>
-                  <td className="p-2">{b.productItem}</td>
-                  <td className="p-2 text-xs">
-                    {(b.suppliers || []).map((s: BatchSupplierDTO, i) => (
-                      <div key={i}>{s.name || "—"} · {s.seedKg}kg</div>
-                    ))}
-                  </td>
-                  <td className="p-2 text-xs whitespace-nowrap">
-                    {b.step1Kg ?? "—"} / {b.step2Kg ?? "—"} / {b.step3Kg ?? "—"} / {b.step4Kg ?? "—"}
-                  </td>
-                  <td className="p-2">
-                    {y.complete ? (
-                      <span className="text-green-700 dark:text-green-400 font-medium">Complete</span>
-                    ) : (
-                      <span className="text-[var(--accent-ink)] font-medium">Settling</span>
-                    )}
-                  </td>
-                  <td className="p-2 whitespace-nowrap">
-                    {kg(y.actualOilKg)}
-                    {y.extractionEfficiencyPct !== null && (
-                      <div className="opacity-60 text-[10px]">{pct(y.extractionEfficiencyPct)} {y.yieldBand && bandPill(y)}</div>
-                    )}
-                  </td>
-                  <td className="p-2 whitespace-nowrap text-xs">
-                    {kg(y.actualCakeKg)}<div className="opacity-50 text-[10px]">exp {kg(y.expectedCakeKg)}</div>
-                  </td>
-                  <td className="p-2">
+              {computed.map(({ b, y }) => {
+                const cells: Record<string, React.ReactNode> = {
+                  date: (
+                    <>
+                      {b.date}
+                      <div className="opacity-50 text-[10px]">{fmtDateTime(b.createdAt)}</div>
+                    </>
+                  ),
+                  barrel: (
+                    <>
+                      {b.barrel}
+                      {b.mill ? <div className="opacity-50 text-[10px]">{b.mill}</div> : null}
+                    </>
+                  ),
+                  item: b.productItem,
+                  suppliers: (
+                    <>
+                      {(b.suppliers || []).map((s: BatchSupplierDTO, i) => (
+                        <div key={i}>
+                          {s.name || "—"} · {s.seedKg}kg
+                        </div>
+                      ))}
+                    </>
+                  ),
+                  steps: (
+                    <>
+                      {b.step1Kg ?? "—"} / {b.step2Kg ?? "—"} / {b.step3Kg ?? "—"} / {b.step4Kg ?? "—"}
+                    </>
+                  ),
+                  status: y.complete ? (
+                    <span className="text-green-700 dark:text-green-400 font-medium">Complete</span>
+                  ) : (
+                    <span className="text-[var(--accent-ink)] font-medium">Settling</span>
+                  ),
+                  oil: (
+                    <>
+                      {kg(y.actualOilKg)}
+                      {y.extractionEfficiencyPct !== null && (
+                        <div className="opacity-60 text-[10px]">
+                          {pct(y.extractionEfficiencyPct)} {y.yieldBand && bandPill(y)}
+                        </div>
+                      )}
+                    </>
+                  ),
+                  cake: (
+                    <>
+                      {kg(y.actualCakeKg)}
+                      <div className="opacity-50 text-[10px]">exp {kg(y.expectedCakeKg)}</div>
+                    </>
+                  ),
+                  flags: (
                     <div className="flex flex-col gap-0.5">
                       {y.massBalanceFlagged && <span className={`px-1 rounded text-[10px] ${CRIT}`}>mass-bal</span>}
                       {y.shortExtraFlagged && <span className={`px-1 rounded text-[10px] ${CRIT}`}>short/extra</span>}
@@ -604,9 +635,24 @@ export default function ManufacturingDesk({
                         <span className="opacity-40 text-[10px]">—</span>
                       )}
                     </div>
-                  </td>
-                </tr>
-              ))}
+                  ),
+                };
+                const NOWRAP = new Set(["date", "steps", "oil", "cake"]);
+                return (
+                  <tr key={b.id} className="border-t border-black/5 dark:border-white/5 align-top">
+                    {visibleColIds.map((id) => (
+                      <td
+                        key={id}
+                        className={`p-2 ${NOWRAP.has(id) ? "whitespace-nowrap" : ""} ${
+                          id === "suppliers" || id === "steps" ? "text-xs" : ""
+                        }`}
+                      >
+                        {cells[id]}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

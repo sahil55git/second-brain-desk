@@ -11,6 +11,16 @@ import {
   KHALI_SPLIT,
 } from "@/lib/calculations";
 import AiTerminal from "@/components/AiTerminal";
+import { useCustomize, visibleOrderedIds } from "@/lib/customize";
+import { WIDGET_DEFS, COLUMN_DEFS } from "@/lib/desksConfig";
+
+const JOBWORK_WIDGET_IDS = WIDGET_DEFS.jobwork.map((w) => w.id);
+const JOBWORK_COLUMN_IDS = COLUMN_DEFS.jobwork.map((c) => c.id);
+const TD_CLASS: Record<string, string> = {
+  time: "p-2 whitespace-nowrap",
+  notes: "p-2 max-w-[160px] truncate",
+  actions: "p-2 whitespace-nowrap",
+};
 
 function inr(n: number | null | undefined) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
@@ -43,6 +53,10 @@ export default function JobWorkDesk({
   const [entries, setEntries] = useState<JobWorkIntakeDTO[]>(initialEntries);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { prefs } = useCustomize();
+  const visibleWidgetIds = visibleOrderedIds(JOBWORK_WIDGET_IDS, prefs.widgets.jobwork);
+  const visibleColIds = visibleOrderedIds(JOBWORK_COLUMN_IDS, prefs.columns.jobwork);
+  const totalCols = visibleColIds.length;
 
   // Intake form state
   const [customer, setCustomer] = useState("");
@@ -156,18 +170,6 @@ export default function JobWorkDesk({
     if (typeof fields.advanceCustomerInr === "number") setAdvanceCustomerInr(String(fields.advanceCustomerInr));
     if (typeof fields.advanceAutoInr === "number") setAdvanceAutoInr(String(fields.advanceAutoInr));
     if (typeof fields.notes === "string") setNotes(fields.notes);
-    if (
-      typeof fields.can15 === "number" ||
-      typeof fields.can5new === "number" ||
-      typeof fields.can5old === "number"
-    ) {
-      setCans((prev) => ({
-        ...prev,
-        ...(typeof fields.can15 === "number" ? { can15: fields.can15 } : {}),
-        ...(typeof fields.can5new === "number" ? { can5new: fields.can5new } : {}),
-        ...(typeof fields.can5old === "number" ? { can5old: fields.can5old } : {}),
-      }));
-    }
   }
 
   function openPayRow(entry: JobWorkIntakeDTO) {
@@ -384,34 +386,40 @@ export default function JobWorkDesk({
       {/* Ledger panel */}
       <div>
         <div className="flex gap-3 mb-3">
-          <div className="rounded-lg border border-black/10 dark:border-white/10 px-3 py-2 text-sm">
-            <div className="opacity-60 text-xs">Khali (cake) stock</div>
-            <div className="font-semibold">{khaliStock.toFixed(1)} kg</div>
-          </div>
-          <div className="rounded-lg border border-black/10 dark:border-white/10 px-3 py-2 text-sm">
-            <div className="opacity-60 text-xs">Unsettled entries</div>
-            <div className="font-semibold">{unsettledCount}</div>
-          </div>
+          {(() => {
+            const widgetNodes: Record<string, React.ReactNode> = {
+              khali: (
+                <div className="rounded-lg border border-black/10 dark:border-white/10 px-3 py-2 text-sm">
+                  <div className="opacity-60 text-xs">Khali (cake) stock</div>
+                  <div className="font-semibold">{khaliStock.toFixed(1)} kg</div>
+                </div>
+              ),
+              unsettled: (
+                <div className="rounded-lg border border-black/10 dark:border-white/10 px-3 py-2 text-sm">
+                  <div className="opacity-60 text-xs">Unsettled entries</div>
+                  <div className="font-semibold">{unsettledCount}</div>
+                </div>
+              ),
+            };
+            return visibleWidgetIds.map((id) => <React.Fragment key={id}>{widgetNodes[id]}</React.Fragment>);
+          })()}
         </div>
 
         <div className="overflow-x-auto rounded-xl border border-black/10 dark:border-white/10">
           <table className="w-full text-sm">
             <thead className="bg-black/5 dark:bg-white/5 text-left">
               <tr>
-                <th className="p-2">Time</th>
-                <th className="p-2">Customer</th>
-                <th className="p-2">Auto/Vehicle</th>
-                <th className="p-2">Seed kg</th>
-                <th className="p-2">Cake</th>
-                <th className="p-2">Notes</th>
-                <th className="p-2">Status</th>
-                <th className="p-2">Actions</th>
+                {visibleColIds.map((id) => (
+                  <th key={id} className="p-2">
+                    {COLUMN_DEFS.jobwork.find((c) => c.id === id)?.label ?? id}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {entries.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-4 text-center opacity-60">
+                  <td colSpan={totalCols} className="p-4 text-center opacity-60">
                     No entries yet.
                   </td>
                 </tr>
@@ -421,54 +429,65 @@ export default function JobWorkDesk({
                 const cansCharge = entry.cans
                   ? Object.values(entry.cans).reduce((s, c) => s + c.qty * c.rate, 0)
                   : 0;
+                const cells: Record<string, React.ReactNode> = {
+                  time: fmtTime(entry.createdAt),
+                  customer: (
+                    <>
+                      {entry.customer}
+                      {entry.advanceCustomerInr > 0 && (
+                        <span className="opacity-60"> (adv ₹{entry.advanceCustomerInr})</span>
+                      )}
+                      {cansCharge > 0 && <span className="opacity-60"> (cans ₹{cansCharge})</span>}
+                    </>
+                  ),
+                  vehicle: (
+                    <>
+                      {entry.vehicleNo || "—"}
+                      {entry.advanceAutoInr > 0 && (
+                        <span className="opacity-60"> (adv ₹{entry.advanceAutoInr})</span>
+                      )}
+                    </>
+                  ),
+                  seed: entry.seedKg,
+                  cake: entry.cakeOwnership === "SHOP" ? "Shop" : "Customer",
+                  notes: entry.notes || "—",
+                  status: entry.settled ? (
+                    <span className="text-green-700 dark:text-green-400 font-medium">Paid</span>
+                  ) : (
+                    <span className="text-[var(--accent-ink)] font-medium">Due {inr(due)}</span>
+                  ),
+                  actions: (
+                    <>
+                      {!entry.settled && (
+                        <button
+                          onClick={() => openPayRow(entry)}
+                          className="text-[var(--accent-ink)] underline mr-2"
+                        >
+                          Pay
+                        </button>
+                      )}
+                      <button onClick={() => openEditRow(entry)} className="underline opacity-80">
+                        Edit
+                      </button>
+                    </>
+                  ),
+                };
                 return (
                   <React.Fragment key={entry.id}>
                     <tr className="border-t border-black/5 dark:border-white/5 align-top">
-                      <td className="p-2 whitespace-nowrap">{fmtTime(entry.createdAt)}</td>
-                      <td className="p-2">
-                        {entry.customer}
-                        {entry.advanceCustomerInr > 0 && (
-                          <span className="opacity-60"> (adv ₹{entry.advanceCustomerInr})</span>
-                        )}
-                        {cansCharge > 0 && <span className="opacity-60"> (cans ₹{cansCharge})</span>}
-                      </td>
-                      <td className="p-2">
-                        {entry.vehicleNo || "—"}
-                        {entry.advanceAutoInr > 0 && (
-                          <span className="opacity-60"> (adv ₹{entry.advanceAutoInr})</span>
-                        )}
-                      </td>
-                      <td className="p-2">{entry.seedKg}</td>
-                      <td className="p-2">{entry.cakeOwnership === "SHOP" ? "Shop" : "Customer"}</td>
-                      <td className="p-2 max-w-[160px] truncate" title={entry.notes || ""}>
-                        {entry.notes || "—"}
-                      </td>
-                      <td className="p-2">
-                        {entry.settled ? (
-                          <span className="text-green-700 dark:text-green-400 font-medium">Paid</span>
-                        ) : (
-                          <span className="text-[var(--accent-ink)] font-medium">
-                            Due {inr(due)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-2 whitespace-nowrap">
-                        {!entry.settled && (
-                          <button
-                            onClick={() => openPayRow(entry)}
-                            className="text-[var(--accent-ink)] underline mr-2"
-                          >
-                            Pay
-                          </button>
-                        )}
-                        <button onClick={() => openEditRow(entry)} className="underline opacity-80">
-                          Edit
-                        </button>
-                      </td>
+                      {visibleColIds.map((id) => (
+                        <td
+                          key={id}
+                          className={TD_CLASS[id] ?? "p-2"}
+                          title={id === "notes" ? entry.notes || "" : undefined}
+                        >
+                          {cells[id]}
+                        </td>
+                      ))}
                     </tr>
                     {payRowId === entry.id && (
                       <tr className="bg-amber-50 dark:bg-amber-950/30">
-                        <td colSpan={8} className="p-3">
+                        <td colSpan={totalCols} className="p-3">
                           <div className="flex flex-wrap items-end gap-3 text-xs">
                             <div>
                               <label className="block mb-1 opacity-70">Rate override (₹/kg)</label>
@@ -526,7 +545,7 @@ export default function JobWorkDesk({
                     )}
                     {editRowId === entry.id && editState && (
                       <tr className="bg-black/5 dark:bg-white/5">
-                        <td colSpan={8} className="p-3">
+                        <td colSpan={totalCols} className="p-3">
                           <div className="flex flex-wrap items-end gap-3 text-xs">
                             <div>
                               <label className="block mb-1 opacity-70">Customer</label>

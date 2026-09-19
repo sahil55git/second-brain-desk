@@ -9,14 +9,46 @@
 // data."
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import type { DeskKey } from "./desksConfig";
 
 export type ThemeMode = "auto" | "light" | "dark";
 export type BackgroundKey = "default" | "slate" | "sepia" | "sage";
+
+// Version 15/16-style reorder + show/hide, per desk, for a widget strip
+// or a ledger table's columns: `order` is a saved permutation of ids
+// (any id missing from it — new, or never touched — is appended in its
+// natural/default order; see resolveOrder below), `hidden` is the set
+// of ids currently hidden.
+export interface ListPrefs {
+  order: string[];
+  hidden: string[];
+}
 
 export interface Prefs {
   theme: ThemeMode;
   accent: string; // hex
   background: BackgroundKey;
+  widgets: Partial<Record<DeskKey, ListPrefs>>;
+  columns: Partial<Record<DeskKey, ListPrefs>>;
+}
+
+// Merges a saved order over the definition's natural id order: saved
+// ids that still exist keep their saved position, anything new (a field
+// added after the prefs were last saved) is appended — so an older save
+// never crashes or silently drops a newly-added widget/column.
+export function resolveOrder(allIds: string[], lp?: ListPrefs): string[] {
+  const known = new Set(allIds);
+  const ordered = (lp?.order ?? []).filter((id) => known.has(id));
+  const seen = new Set(ordered);
+  const missing = allIds.filter((id) => !seen.has(id));
+  return [...ordered, ...missing];
+}
+
+// Same, filtered down to only the currently-visible ids — what a desk
+// component actually renders, in order.
+export function visibleOrderedIds(allIds: string[], lp?: ListPrefs): string[] {
+  const hidden = new Set(lp?.hidden ?? []);
+  return resolveOrder(allIds, lp).filter((id) => !hidden.has(id));
 }
 
 export const ACCENT_PRESETS: { key: string; label: string; hex: string }[] = [
@@ -56,7 +88,13 @@ export const BACKGROUND_PALETTES: Record<
   },
 };
 
-const DEFAULT_PREFS: Prefs = { theme: "auto", accent: ACCENT_PRESETS[0].hex, background: "default" };
+const DEFAULT_PREFS: Prefs = {
+  theme: "auto",
+  accent: ACCENT_PRESETS[0].hex,
+  background: "default",
+  widgets: {},
+  columns: {},
+};
 const STORAGE_KEY = "sbd_prefs_v1";
 
 function hexToRgb(hex: string) {
@@ -150,6 +188,7 @@ interface Ctx {
   prefs: Prefs;
   setPrefs: (p: Partial<Prefs>) => void;
   reset: () => void;
+  setListPrefs: (kind: "widgets" | "columns", desk: DeskKey, patch: Partial<ListPrefs>) => void;
 }
 
 const CustomizeContext = createContext<Ctx | null>(null);
@@ -200,6 +239,11 @@ export function CustomizeProvider({ children }: { children: React.ReactNode }) {
       prefs,
       setPrefs: (p) => setPrefsState((prev) => ({ ...prev, ...p })),
       reset: () => setPrefsState(DEFAULT_PREFS),
+      setListPrefs: (kind, desk, patch) =>
+        setPrefsState((prev) => {
+          const cur = prev[kind][desk] ?? { order: [], hidden: [] };
+          return { ...prev, [kind]: { ...prev[kind], [desk]: { ...cur, ...patch } } };
+        }),
     }),
     [prefs]
   );

@@ -8,10 +8,16 @@ import {
   type ThemeMode,
   type BackgroundKey,
 } from "@/lib/customize";
+import { DESK_LABELS, WIDGET_DEFS, COLUMN_DEFS, type DeskKey } from "@/lib/desksConfig";
+import ReorderList from "@/components/ReorderList";
+
+const DESK_KEYS: DeskKey[] = ["jobwork", "closing", "mfg"];
 
 export default function CustomizeButton() {
-  const { prefs, setPrefs, reset } = useCustomize();
+  const { prefs, setPrefs, reset, setListPrefs } = useCustomize();
   const [open, setOpen] = useState(false);
+  const [widgetDesk, setWidgetDesk] = useState<DeskKey>("jobwork");
+  const [columnDesk, setColumnDesk] = useState<DeskKey>("jobwork");
 
   return (
     <>
@@ -102,6 +108,54 @@ export default function CustomizeButton() {
                   );
                 })}
               </div>
+            </div>
+
+            <div className="mb-5">
+              <div className="text-xs opacity-70 mb-2 font-medium">Widgets</div>
+              <div className="flex gap-2 mb-2">
+                {DESK_KEYS.map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setWidgetDesk(d)}
+                    className={`px-2.5 py-1 rounded text-xs ${
+                      widgetDesk === d
+                        ? "bg-[var(--accent)] text-[var(--accent-contrast)]"
+                        : "bg-black/5 dark:bg-white/5"
+                    }`}
+                  >
+                    {DESK_LABELS[d]}
+                  </button>
+                ))}
+              </div>
+              <ReorderList
+                allDefs={WIDGET_DEFS[widgetDesk]}
+                listPrefs={prefs.widgets[widgetDesk]}
+                onChange={(patch) => setListPrefs("widgets", widgetDesk, patch)}
+              />
+            </div>
+
+            <div className="mb-5">
+              <div className="text-xs opacity-70 mb-2 font-medium">Columns</div>
+              <div className="flex gap-2 mb-2">
+                {DESK_KEYS.map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setColumnDesk(d)}
+                    className={`px-2.5 py-1 rounded text-xs ${
+                      columnDesk === d
+                        ? "bg-[var(--accent)] text-[var(--accent-contrast)]"
+                        : "bg-black/5 dark:bg-white/5"
+                    }`}
+                  >
+                    {DESK_LABELS[d]}
+                  </button>
+                ))}
+              </div>
+              <ReorderList
+                allDefs={COLUMN_DEFS[columnDesk]}
+                listPrefs={prefs.columns[columnDesk]}
+                onChange={(patch) => setListPrefs("columns", columnDesk, patch)}
+              />
             </div>
 
             <button onClick={reset} className="text-xs underline opacity-70">
