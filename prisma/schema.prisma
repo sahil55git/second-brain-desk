@@ -68,6 +68,11 @@ model Party {
   notes  String?
   active Boolean @default(true)
 
+  // Phase 2 back-relations
+  sales     SalesInvoice[] @relation("PartySales")
+  purchases PurchaseBill[] @relation("PartyPurchases")
+  expenses  Expense[]      @relation("PartyExpenses")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -91,6 +96,10 @@ model Item {
 
   notes  String?
   active Boolean @default(true)
+
+  // Phase 2 back-relations
+  salesLines    SalesLineItem[]    @relation("ItemSales")
+  purchaseLines PurchaseLineItem[] @relation("ItemPurchases")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -116,6 +125,159 @@ model BusinessSettings {
   invoiceCounter    Int    @default(0) // last-used invoice number; Sales (Phase 2) increments this atomically
 
   updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — Core ledgers (erp-architecture-plan.md). Sales (GST invoicing),
+// Purchase (supplier bills), Expense recording. All additive.
+//
+// Design notes:
+// - Line items snapshot the item's name/hsn/rate/gstRate at entry time, so a
+//   later edit to the Item master never rewrites historical invoices.
+// - GST is computed and stored on the row (subtotal/cgst/sgst/igst/total) by
+//   the API route via lib/gst.ts — not recomputed on read — so the numbers a
+//   customer saw on their invoice are stable forever.
+// - itemId is optional on every line: a one-off line ("misc", "labour") that
+//   isn't in the Item master is still allowed. When present it references Item
+//   and is SetNull on delete so archiving an item never destroys invoice
+//   history.
+// - partyId is a real FK; Restrict on delete so a party with any ledger
+//   activity can't be hard-deleted out from under its transactions (the UI
+//   only ever soft-deletes parties anyway).
+// ---------------------------------------------------------------------------
+
+enum PaymentMode {
+  CASH
+  UPI
+  BANK
+  CREDIT // unpaid / on account
+  OTHER
+}
+
+model SalesInvoice {
+  id        String @id @default(cuid())
+  invoiceNo String @unique // formatted from BusinessSettings.invoicePrefix + counter
+
+  date    String // "YYYY-MM-DD" business date of the invoice
+  partyId String
+  party   Party  @relation("PartySales", fields: [partyId], references: [id], onDelete: Restrict)
+
+  // Snapshotted at issue time so a later Party/Settings edit never rewrites a
+  // historical invoice's tax treatment.
+  partyStateSnapshot    String?
+  businessStateSnapshot String?
+  interState            Boolean @default(false) // true => IGST; false => CGST+SGST
+
+  subtotalInr Float @default(0)
+  cgstInr     Float @default(0)
+  sgstInr     Float @default(0)
+  igstInr     Float @default(0)
+  totalInr    Float @default(0)
+
+  paymentMode PaymentMode @default(CASH)
+  notes       String?
+
+  lineItems SalesLineItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([partyId])
+  @@index([date])
+}
+
+model SalesLineItem {
+  id        String       @id @default(cuid())
+  invoiceId String
+  invoice   SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  itemId String?
+  item   Item?   @relation("ItemSales", fields: [itemId], references: [id], onDelete: SetNull)
+
+  name       String // snapshot of item name (or free-text one-off)
+  hsnCode    String?
+  qty        Float   @default(0)
+  unit       String  @default("kg")
+  rateInr    Float   @default(0) // per-unit, pre-tax
+  gstRatePct Float   @default(0)
+
+  lineSubtotalInr Float @default(0) // qty * rate
+  lineTaxInr      Float @default(0) // lineSubtotal * gstRate/100
+  lineTotalInr    Float @default(0) // subtotal + tax
+
+  @@index([invoiceId])
+}
+
+model PurchaseBill {
+  id     String @id @default(cuid())
+  billNo String // the SUPPLIER's bill/invoice number (not unique on our side)
+
+  date    String
+  partyId String
+  party   Party  @relation("PartyPurchases", fields: [partyId], references: [id], onDelete: Restrict)
+
+  partyStateSnapshot    String?
+  businessStateSnapshot String?
+  interState            Boolean @default(false)
+
+  subtotalInr Float @default(0)
+  cgstInr     Float @default(0)
+  sgstInr     Float @default(0)
+  igstInr     Float @default(0)
+  totalInr    Float @default(0)
+
+  paymentMode PaymentMode @default(CREDIT)
+  notes       String?
+
+  lineItems PurchaseLineItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([partyId])
+  @@index([date])
+}
+
+model PurchaseLineItem {
+  id     String       @id @default(cuid())
+  billId String
+  bill   PurchaseBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  itemId String?
+  item   Item?   @relation("ItemPurchases", fields: [itemId], references: [id], onDelete: SetNull)
+
+  name       String
+  hsnCode    String?
+  qty        Float   @default(0)
+  unit       String  @default("kg")
+  rateInr    Float   @default(0)
+  gstRatePct Float   @default(0)
+
+  lineSubtotalInr Float @default(0)
+  lineTaxInr      Float @default(0)
+  lineTotalInr    Float @default(0)
+
+  @@index([billId])
+}
+
+model Expense {
+  id String @id @default(cuid())
+
+  date      String
+  category  String // free text for now (e.g. "Electricity", "Transport", "Salary")
+  amountInr Float  @default(0)
+
+  // Optional link to a party (e.g. a transporter or landlord in the master).
+  partyId String?
+  party   Party?  @relation("PartyExpenses", fields: [partyId], references: [id], onDelete: SetNull)
+
+  paymentMode PaymentMode @default(CASH)
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
 }
 
 // The two fixed daily counts (see sop-daily-cash-stock-closing.md).

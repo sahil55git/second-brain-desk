@@ -152,3 +152,92 @@ export interface BusinessSettingsDTO {
   invoiceCounter: number;
   updatedAt: string;
 }
+
+// Phase 2 — core ledgers (erp-architecture-plan.md).
+export type PaymentMode = "CASH" | "UPI" | "BANK" | "CREDIT" | "OTHER";
+
+export interface SalesLineItemDTO {
+  id: string;
+  invoiceId: string;
+  itemId: string | null;
+  name: string;
+  hsnCode: string | null;
+  qty: number;
+  unit: string;
+  rateInr: number;
+  gstRatePct: number;
+  lineSubtotalInr: number;
+  lineTaxInr: number;
+  lineTotalInr: number;
+}
+
+export interface SalesInvoiceDTO {
+  id: string;
+  invoiceNo: string;
+  date: string;
+  partyId: string;
+  partyStateSnapshot: string | null;
+  businessStateSnapshot: string | null;
+  interState: boolean;
+  subtotalInr: number;
+  cgstInr: number;
+  sgstInr: number;
+  igstInr: number;
+  totalInr: number;
+  paymentMode: PaymentMode;
+  notes: string | null;
+  lineItems: SalesLineItemDTO[];
+  // Convenience join (present when the API includes the party relation).
+  party?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PurchaseLineItemDTO {
+  id: string;
+  billId: string;
+  itemId: string | null;
+  name: string;
+  hsnCode: string | null;
+  qty: number;
+  unit: string;
+  rateInr: number;
+  gstRatePct: number;
+  lineSubtotalInr: number;
+  lineTaxInr: number;
+  lineTotalInr: number;
+}
+
+export interface PurchaseBillDTO {
+  id: string;
+  billNo: string;
+  date: string;
+  partyId: string;
+  partyStateSnapshot: string | null;
+  businessStateSnapshot: string | null;
+  interState: boolean;
+  subtotalInr: number;
+  cgstInr: number;
+  sgstInr: number;
+  igstInr: number;
+  totalInr: number;
+  paymentMode: PaymentMode;
+  notes: string | null;
+  lineItems: PurchaseLineItemDTO[];
+  party?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExpenseDTO {
+  id: string;
+  date: string;
+  category: string;
+  amountInr: number;
+  partyId: string | null;
+  paymentMode: PaymentMode;
+  notes: string | null;
+  party?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}

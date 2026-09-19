@@ -9,6 +9,9 @@ import type {
   PartyDTO,
   ItemDTO,
   BusinessSettingsDTO,
+  SalesInvoiceDTO,
+  PurchaseBillDTO,
+  ExpenseDTO,
 } from "@/lib/types";
 import JobWorkDesk from "./JobWorkDesk";
 import DailyClosingDesk from "./DailyClosingDesk";
@@ -17,11 +20,17 @@ import ReportsDesk from "./ReportsDesk";
 import PartiesDesk from "./PartiesDesk";
 import InventoryDesk from "./InventoryDesk";
 import SettingsDesk from "./SettingsDesk";
+import SalesDesk from "./SalesDesk";
+import PurchaseDesk from "./PurchaseDesk";
+import ExpensesDesk from "./ExpensesDesk";
 
 type Desk =
   | "jobwork"
   | "manufacturing"
   | "closing"
+  | "sales"
+  | "purchase"
+  | "expenses"
   | "reports"
   | "parties"
   | "inventory"
@@ -34,6 +43,9 @@ export default function DeskTabs({
   initialParties,
   initialItems,
   initialSettings,
+  initialSales,
+  initialPurchases,
+  initialExpenses,
   dbConnected,
 }: {
   initialJobWork: JobWorkIntakeDTO[];
@@ -42,6 +54,9 @@ export default function DeskTabs({
   initialParties: PartyDTO[];
   initialItems: ItemDTO[];
   initialSettings: BusinessSettingsDTO | null;
+  initialSales: SalesInvoiceDTO[];
+  initialPurchases: PurchaseBillDTO[];
+  initialExpenses: ExpenseDTO[];
   dbConnected: boolean;
 }) {
   const [active, setActive] = useState<Desk>("jobwork");
@@ -53,6 +68,9 @@ export default function DeskTabs({
     { key: "jobwork", label: "Job-Work Desk" },
     { key: "manufacturing", label: "Manufacturing" },
     { key: "closing", label: "Daily Closing" },
+    { key: "sales", label: "Sales" },
+    { key: "purchase", label: "Purchase" },
+    { key: "expenses", label: "Expenses" },
     { key: "parties", label: "Parties" },
     { key: "inventory", label: "Inventory" },
     { key: "reports", label: "Reports & AI" },
@@ -87,6 +105,31 @@ export default function DeskTabs({
       )}
       {active === "closing" && (
         <DailyClosingDesk initialEntries={initialClosing} dbConnected={dbConnected} />
+      )}
+      {active === "sales" && (
+        <SalesDesk
+          initialInvoices={initialSales}
+          parties={initialParties}
+          items={initialItems}
+          settings={initialSettings}
+          dbConnected={dbConnected}
+        />
+      )}
+      {active === "purchase" && (
+        <PurchaseDesk
+          initialBills={initialPurchases}
+          parties={initialParties}
+          items={initialItems}
+          settings={initialSettings}
+          dbConnected={dbConnected}
+        />
+      )}
+      {active === "expenses" && (
+        <ExpensesDesk
+          initialExpenses={initialExpenses}
+          parties={initialParties}
+          dbConnected={dbConnected}
+        />
       )}
       {active === "parties" && (
         <PartiesDesk initialParties={initialParties} dbConnected={dbConnected} />
