@@ -1,32 +1,64 @@
 "use client";
 
 import { useState } from "react";
-import type { DailyClosingDTO, JobWorkIntakeDTO, MfgBatchDTO } from "@/lib/types";
+import { useSession } from "next-auth/react";
+import type {
+  DailyClosingDTO,
+  JobWorkIntakeDTO,
+  MfgBatchDTO,
+  PartyDTO,
+  ItemDTO,
+  BusinessSettingsDTO,
+} from "@/lib/types";
 import JobWorkDesk from "./JobWorkDesk";
 import DailyClosingDesk from "./DailyClosingDesk";
 import ManufacturingDesk from "./ManufacturingDesk";
 import ReportsDesk from "./ReportsDesk";
+import PartiesDesk from "./PartiesDesk";
+import InventoryDesk from "./InventoryDesk";
+import SettingsDesk from "./SettingsDesk";
 
-type Desk = "jobwork" | "manufacturing" | "closing" | "reports";
+type Desk =
+  | "jobwork"
+  | "manufacturing"
+  | "closing"
+  | "reports"
+  | "parties"
+  | "inventory"
+  | "settings";
 
 export default function DeskTabs({
   initialJobWork,
   initialClosing,
   initialMfg,
+  initialParties,
+  initialItems,
+  initialSettings,
   dbConnected,
 }: {
   initialJobWork: JobWorkIntakeDTO[];
   initialClosing: DailyClosingDTO[];
   initialMfg: MfgBatchDTO[];
+  initialParties: PartyDTO[];
+  initialItems: ItemDTO[];
+  initialSettings: BusinessSettingsDTO | null;
   dbConnected: boolean;
 }) {
   const [active, setActive] = useState<Desk>("jobwork");
+  const { data: session } = useSession();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isOwner = (session?.user as any)?.role === "OWNER";
 
-  const tabs = [
-    { key: "jobwork" as const, label: "Job-Work Desk" },
-    { key: "manufacturing" as const, label: "Manufacturing" },
-    { key: "closing" as const, label: "Daily Closing" },
-    { key: "reports" as const, label: "Reports & AI" },
+  const tabs: { key: Desk; label: string }[] = [
+    { key: "jobwork", label: "Job-Work Desk" },
+    { key: "manufacturing", label: "Manufacturing" },
+    { key: "closing", label: "Daily Closing" },
+    { key: "parties", label: "Parties" },
+    { key: "inventory", label: "Inventory" },
+    { key: "reports", label: "Reports & AI" },
+    // Settings is Owner-only — Staff sessions never see the tab (and the
+    // API route refuses them server-side even if they guess the URL).
+    ...(isOwner ? [{ key: "settings" as const, label: "Settings" }] : []),
   ];
 
   return (
@@ -56,6 +88,12 @@ export default function DeskTabs({
       {active === "closing" && (
         <DailyClosingDesk initialEntries={initialClosing} dbConnected={dbConnected} />
       )}
+      {active === "parties" && (
+        <PartiesDesk initialParties={initialParties} dbConnected={dbConnected} />
+      )}
+      {active === "inventory" && (
+        <InventoryDesk initialItems={initialItems} dbConnected={dbConnected} />
+      )}
       {active === "reports" && (
         <ReportsDesk
           jobWork={initialJobWork}
@@ -63,6 +101,9 @@ export default function DeskTabs({
           mfg={initialMfg}
           onNavigate={(desk) => setActive(desk === "mfg" ? "manufacturing" : desk)}
         />
+      )}
+      {active === "settings" && isOwner && (
+        <SettingsDesk initialSettings={initialSettings} dbConnected={dbConnected} />
       )}
     </div>
   );

@@ -20,6 +20,104 @@ enum CakeOwnership {
   CUSTOMER
 }
 
+// Two-tier role model (claude/erp-architecture-plan.md, Phase 1) — Owner
+// sees everything including Settings/financial reports; Staff can log
+// operational entries but not see Settings or financial reports. Not
+// multi-tenant: one business, two access levels.
+enum UserRole {
+  OWNER
+  STAFF
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  name         String
+  role         UserRole @default(STAFF)
+  active       Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Unified customer/supplier master (erp-architecture-plan.md, Phase 1).
+// A single party can be both (e.g. someone who both sells seed to the
+// shop and buys oil from it) — `type` is a tag for filtering UI lists,
+// not an exclusive category.
+enum PartyType {
+  CUSTOMER
+  SUPPLIER
+  BOTH
+}
+
+model Party {
+  id   String    @id @default(cuid())
+  type PartyType @default(CUSTOMER)
+
+  name  String
+  phone String?
+  email String?
+
+  gstin   String? // party's own GSTIN, when registered — needed for GST invoicing (Phase 2)
+  address String?
+  state   String? // used to determine CGST+SGST (same state as business) vs IGST (different state)
+
+  openingBalanceInr Float @default(0) // positive = party owes the business
+
+  notes  String?
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Inventory / SKU master (erp-architecture-plan.md, Phase 1). Sales/
+// Purchase (Phase 2) and POS (Phase 3) reference this rather than
+// free-text item names.
+model Item {
+  id String @id @default(cuid())
+
+  name String
+  sku  String? @unique // shop's own code, optional
+  unit String  @default("kg") // kg, ltr, pcs, ...
+
+  hsnCode      String? // GST HSN/SAC code
+  gstRatePct   Float? // overrides BusinessSettings.defaultGstRatePct when set
+  barcode      String? @unique // reserved for future barcode/QR scanning (Phase 3) — not enforced yet
+
+  openingStockQty Float  @default(0)
+  reorderLevelQty Float? // below this, a future low-stock report/flag can trigger
+
+  notes  String?
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Singleton business profile + GST settings (erp-architecture-plan.md,
+// Phase 1). Enforced as a singleton at the application layer (always
+// read/write the one row with a well-known id), not by a DB constraint —
+// simplest option for a single-business app; revisit only if this ever
+// needs to become multi-tenant (explicitly out of scope for now).
+model BusinessSettings {
+  id String @id @default("singleton")
+
+  businessName String @default("")
+  gstin        String? // business's own GSTIN — Regular dealer (erp-architecture-plan.md)
+  address      String?
+  state        String? // business's home state — compared against a party's state for CGST+SGST vs IGST
+  phone        String?
+  email        String?
+
+  defaultGstRatePct Float  @default(5) // used when an Item has no gstRatePct of its own
+  invoicePrefix     String @default("INV-")
+  invoiceCounter    Int    @default(0) // last-used invoice number; Sales (Phase 2) increments this atomically
+
+  updatedAt DateTime @updatedAt
+}
+
 // The two fixed daily counts (see sop-daily-cash-stock-closing.md).
 enum ClosingSession {
   AFTERNOON

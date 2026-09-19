@@ -88,3 +88,67 @@ export interface MfgBatchDTO {
   createdAt: string;
   updatedAt: string;
 }
+
+// Auth / roles (erp-architecture-plan.md, Phase 1).
+export type UserRole = "OWNER" | "STAFF";
+
+export interface UserDTO {
+  id: string;
+  username: string;
+  name: string;
+  role: UserRole;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Unified customer/supplier master (erp-architecture-plan.md, Phase 1).
+export type PartyType = "CUSTOMER" | "SUPPLIER" | "BOTH";
+
+export interface PartyDTO {
+  id: string;
+  type: PartyType;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  gstin: string | null;
+  address: string | null;
+  state: string | null;
+  openingBalanceInr: number;
+  notes: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Inventory / SKU master (erp-architecture-plan.md, Phase 1).
+export interface ItemDTO {
+  id: string;
+  name: string;
+  sku: string | null;
+  unit: string;
+  hsnCode: string | null;
+  gstRatePct: number | null;
+  barcode: string | null;
+  openingStockQty: number;
+  reorderLevelQty: number | null;
+  notes: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Singleton business profile + GST settings (erp-architecture-plan.md, Phase 1).
+export interface BusinessSettingsDTO {
+  id: string;
+  businessName: string;
+  gstin: string | null;
+  address: string | null;
+  state: string | null;
+  phone: string | null;
+  email: string | null;
+  defaultGstRatePct: number;
+  invoicePrefix: string;
+  invoiceCounter: number;
+  updatedAt: string;
+}
