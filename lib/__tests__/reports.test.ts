@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReportCsv, computeSummary, type ReportData } from "../reports";
+import { buildReportCsv, computeSummary, buildTriageItems, JOBWORK_OVERDUE_DAYS, type ReportData } from "../reports";
 import type { JobWorkIntakeDTO, DailyClosingDTO, MfgBatchDTO } from "../types";
 
 function jw(over: Partial<JobWorkIntakeDTO>): JobWorkIntakeDTO {
@@ -72,5 +72,101 @@ describe("computeSummary", () => {
   });
   it("counts cash mismatches", () => {
     expect(s.cashMismatches).toBe(1);
+  });
+});
+
+describe("buildTriageItems", () => {
+  const oldDate = new Date(Date.now() - (JOBWORK_OVERDUE_DAYS + 2) * 24 * 60 * 60 * 1000).toISOString();
+  const recentDate = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+
+  it("flags an unsettled job-work intake older than the overdue threshold, naming customer and amount due", () => {
+    const t = buildTriageItems({
+      jobWork: [jw({ id: "j-old", customer: "Overdue Kishan", settled: false, createdAt: oldDate })],
+      mfg: [], closing: [],
+    });
+    const item = t.find((i) => i.id === "jw-j-old");
+    expect(item).toBeTruthy();
+    expect(item?.severity).toBe("critical");
+    expect(item?.message).toContain("Overdue Kishan");
+  });
+
+  it("does not flag an unsettled job-work intake still within the overdue threshold", () => {
+    const t = buildTriageItems({
+      jobWork: [jw({ id: "j-new", settled: false, createdAt: recentDate })],
+      mfg: [], closing: [],
+    });
+    expect(t.find((i) => i.id === "jw-j-new")).toBeUndefined();
+  });
+
+  it("does not flag a settled job-work intake even if old", () => {
+    const t = buildTriageItems({
+      jobWork: [jw({ id: "j-paid", settled: true, createdAt: oldDate })],
+      mfg: [], closing: [],
+    });
+    expect(t.find((i) => i.id === "jw-j-paid")).toBeUndefined();
+  });
+
+  it("flags a complete mass-balance-failing batch as critical, and a settling batch as info", () => {
+    const t = buildTriageItems({
+      jobWork: [],
+      mfg: [mfg({ id: "m-flag", step4Kg: 700 }), mfg({ id: "m-settling", step4Kg: null })],
+      closing: [],
+    });
+    const flagged = t.find((i) => i.id === "mfg-m-flag");
+    const settling = t.find((i) => i.id === "mfg-m-settling");
+    expect(flagged?.severity).toBe("critical");
+    expect(flagged?.message).toContain("mass-balance");
+    expect(settling?.severity).toBe("info");
+  });
+
+  it("flags today's cash mismatch but not a past one", () => {
+    const t = buildTriageItems({
+      jobWork: [], mfg: [],
+      closing: [
+        closing({ id: "c-today", cashMismatch: true, cashDiffInr: 500, date: todayStr }),
+        closing({ id: "c-past", cashMismatch: true, cashDiffInr: 400, date: "2020-01-01" }),
+      ],
+    });
+    expect(t.find((i) => i.id === "cl-cash-c-today")).toBeTruthy();
+    expect(t.find((i) => i.id === "cl-cash-c-past")).toBeUndefined();
+  });
+
+  it("flags a stock gap on only the most recent closing", () => {
+    const t = buildTriageItems({
+      jobWork: [], mfg: [],
+      closing: [
+        closing({
+          id: "c-old", createdAt: new Date(Date.now() - 100000).toISOString(),
+          stock: { Mustard: { today: 10, yesterday: 20, yesterdaySource: "auto", gap: 5 } },
+        }),
+        closing({
+          id: "c-latest", createdAt: new Date().toISOString(),
+          stock: { Mustard: { today: 10, yesterday: 20, yesterdaySource: "auto", gap: 0.7 } },
+        }),
+      ],
+    });
+    expect(t.find((i) => i.id === "cl-stock-c-latest-Mustard")).toBeTruthy();
+    expect(t.find((i) => i.id === "cl-stock-c-old-Mustard")).toBeUndefined();
+  });
+
+  it("sorts critical items before caution and info", () => {
+    const t = buildTriageItems({
+      jobWork: [jw({ id: "j-old2", settled: false, createdAt: oldDate })],
+      mfg: [mfg({ id: "m-settling2", step4Kg: null })],
+      closing: [closing({
+        id: "c-gap", createdAt: new Date().toISOString(),
+        stock: { Mustard: { today: 10, yesterday: 20, yesterdaySource: "auto", gap: 1 } },
+      })],
+    });
+    const severities = t.map((i) => i.severity);
+    const firstCaution = severities.indexOf("caution");
+    const firstInfo = severities.indexOf("info");
+    const lastCritical = severities.lastIndexOf("critical");
+    if (firstCaution !== -1) expect(lastCritical).toBeLessThan(firstCaution);
+    if (firstInfo !== -1) expect(lastCritical).toBeLessThan(firstInfo);
   });
 });

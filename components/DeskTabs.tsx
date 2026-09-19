@@ -57,7 +57,12 @@ export default function DeskTabs({
         <DailyClosingDesk initialEntries={initialClosing} dbConnected={dbConnected} />
       )}
       {active === "reports" && (
-        <ReportsDesk jobWork={initialJobWork} closing={initialClosing} mfg={initialMfg} />
+        <ReportsDesk
+          jobWork={initialJobWork}
+          closing={initialClosing}
+          mfg={initialMfg}
+          onNavigate={(desk) => setActive(desk === "mfg" ? "manufacturing" : desk)}
+        />
       )}
     </div>
   );

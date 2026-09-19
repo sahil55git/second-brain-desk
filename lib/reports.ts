@@ -134,6 +134,131 @@ export function buildReportCsv(data: ReportData, range: DateRange): string {
   return lines.join("\n");
 }
 
+// --- Needs-attention triage (deterministic, no AI) --------------------
+//
+// Ported from the original artifact's Version 23 "Needs attention today"
+// panel: a plain-JS pass over the same three logs, no invented tolerances
+// beyond what's already established elsewhere (₹300 cash-mismatch flag
+// from lib/calculations.ts, 0.5kg stock-gap and 2% mass-balance/oil-cake
+// thresholds from lib/mfgCalculations.ts). The one number that isn't
+// pinned down anywhere else is how many days an unsettled job-work intake
+// has to sit before it counts as overdue — the original plan doc flagged
+// its own 3-day default as a Claude guess never confirmed with Sahil.
+// Kept here, still unconfirmed, so it's a single named constant to
+// revisit rather than a magic number buried in the flagging logic.
+export const JOBWORK_OVERDUE_DAYS = 3;
+
+export type TriageSeverity = "critical" | "caution" | "info";
+export type TriageDesk = "jobwork" | "closing" | "mfg";
+
+export interface TriageItem {
+  id: string;
+  severity: TriageSeverity;
+  desk: TriageDesk;
+  message: string;
+}
+
+const SEVERITY_ORDER: Record<TriageSeverity, number> = { critical: 0, caution: 1, info: 2 };
+
+function todayLocalStr(): string {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+export function buildTriageItems(data: ReportData): TriageItem[] {
+  const items: TriageItem[] = [];
+  const now = Date.now();
+
+  // Job-work: unsettled past JOBWORK_OVERDUE_DAYS — name the customer,
+  // the age, and the amount due so this reads as a specific risk, not a
+  // vague count (per the project's own compliance-flagging discipline).
+  for (const e of data.jobWork) {
+    if (e.settled) continue;
+    const ageDays = Math.floor((now - new Date(e.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+    if (ageDays >= JOBWORK_OVERDUE_DAYS) {
+      const due = expectedSettlementWithRate(e, STANDARD_RATE[e.cakeOwnership]);
+      items.push({
+        id: `jw-${e.id}`,
+        severity: "critical",
+        desk: "jobwork",
+        message: `${e.customer} — unsettled ${ageDays}d (₹${due.toFixed(0)} due, ${e.seedKg}kg seed intake on ${e.createdAt.slice(0, 10)})`,
+      });
+    }
+  }
+
+  // Manufacturing: a complete batch that trips mass-balance / short-extra
+  // / oil-cake / poor-yield is critical (it's exactly the "unrecorded
+  // stock or unbilled batch"-shaped risk the project asks to flag
+  // clearly); a batch still settling is informational, not a risk.
+  for (const b of data.mfg) {
+    const y = computeBarrelYield({
+      suppliers: (b.suppliers || []).map((s) => ({ name: s.name, seedKg: s.seedKg })),
+      step1Kg: b.step1Kg, step2Kg: b.step2Kg, step3Kg: b.step3Kg, step4Kg: b.step4Kg,
+      refOilPct: b.refOilPct, moisturePct: b.moisturePct,
+      systemOilKgOverride: b.systemOilKgOverride,
+    });
+    if (y.complete && (y.massBalanceFlagged || y.shortExtraFlagged || y.cakeFlagged || y.yieldPoor)) {
+      const flags = [
+        y.massBalanceFlagged && "mass-balance",
+        y.shortExtraFlagged && "short/extra",
+        y.cakeFlagged && "oil-cake",
+        y.yieldPoor && "poor-yield",
+      ].filter(Boolean).join(", ");
+      items.push({
+        id: `mfg-${b.id}`,
+        severity: "critical",
+        desk: "mfg",
+        message: `Barrel ${b.barrel} (${b.productItem}, ${b.date.slice(0, 10)}) flagged: ${flags}`,
+      });
+    } else if (!y.complete) {
+      items.push({
+        id: `mfg-${b.id}`,
+        severity: "info",
+        desk: "mfg",
+        message: `Barrel ${b.barrel} (${b.productItem}) still settling`,
+      });
+    }
+  }
+
+  // Daily Closing: a cash mismatch is already the ₹300-threshold flag
+  // computed at save time (lib/calculations.ts) — scoped to today, since
+  // yesterday's escalated mismatch was (per the SOP) already handled on
+  // the spot. Stock gaps are scoped to only the single most recent
+  // closing (the current stock position), not every historical gap.
+  const today = todayLocalStr();
+  for (const c of data.closing) {
+    if (c.cashMismatch && c.date === today) {
+      items.push({
+        id: `cl-cash-${c.id}`,
+        severity: "critical",
+        desk: "closing",
+        message: `${c.date} ${c.session === "AFTERNOON" ? "Afternoon" : "9 PM"} count — cash diff ₹${c.cashDiffInr} (≥₹300 mismatch)`,
+      });
+    }
+  }
+  const latestClosing = data.closing.reduce<DailyClosingDTO | null>((latest, c) => {
+    if (!latest) return c;
+    return new Date(c.createdAt).getTime() > new Date(latest.createdAt).getTime() ? c : latest;
+  }, null);
+  if (latestClosing?.stock) {
+    for (const [product, v] of Object.entries(latestClosing.stock)) {
+      const gap = v.gap ?? v.diff ?? 0;
+      if (Math.abs(gap) >= 0.5) {
+        items.push({
+          id: `cl-stock-${latestClosing.id}-${product}`,
+          severity: "caution",
+          desk: "closing",
+          message: `${latestClosing.date} — ${product} stock gap ${gap.toFixed(1)}kg`,
+        });
+      }
+    }
+  }
+
+  return items.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+}
+
 // --- Deterministic summary (no AI) ------------------------------------
 
 export interface SummaryStats {

@@ -5,9 +5,13 @@ import type { JobWorkIntakeDTO, DailyClosingDTO, MfgBatchDTO } from "@/lib/types
 import {
   buildReportCsv,
   summaryText,
+  buildTriageItems,
   RANGE_LABELS,
   type DateRange,
   type ReportData,
+  type TriageItem,
+  type TriageDesk,
+  type TriageSeverity,
 } from "@/lib/reports";
 
 const ADVISOR_BUTTONS: { key: string; label: string }[] = [
@@ -17,19 +21,40 @@ const ADVISOR_BUTTONS: { key: string; label: string }[] = [
   { key: "selfdiag", label: "What isn't tracked yet?" },
 ];
 
+const SEVERITY_STYLE: Record<TriageSeverity, string> = {
+  critical: "border-red-400 bg-red-50 dark:bg-red-950/30 dark:border-red-700 text-red-900 dark:text-red-200",
+  caution: "border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 text-amber-900 dark:text-amber-200",
+  info: "border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 opacity-80",
+};
+
+const SEVERITY_ICON: Record<TriageSeverity, string> = {
+  critical: "●",
+  caution: "▲",
+  info: "ℹ",
+};
+
+const DESK_LABEL: Record<TriageDesk, string> = {
+  jobwork: "Job-Work Desk",
+  closing: "Daily Closing",
+  mfg: "Manufacturing",
+};
+
 export default function ReportsDesk({
   jobWork,
   closing,
   mfg,
+  onNavigate,
 }: {
   jobWork: JobWorkIntakeDTO[];
   closing: DailyClosingDTO[];
   mfg: MfgBatchDTO[];
+  onNavigate?: (desk: TriageDesk) => void;
 }) {
   const data: ReportData = useMemo(() => ({ jobWork, closing, mfg }), [jobWork, closing, mfg]);
   const [range, setRange] = useState<DateRange>("week");
 
   const summary = useMemo(() => summaryText(data, range), [data, range]);
+  const triageItems: TriageItem[] = useMemo(() => buildTriageItems(data), [data]);
 
   function downloadCsv() {
     const csv = buildReportCsv(data, range);
@@ -106,8 +131,56 @@ export default function ReportsDesk({
     }
   }
 
+  function summarizeTriage() {
+    if (triageItems.length === 0) return;
+    const list = triageItems.map((i) => `- [${i.severity}] ${i.message}`).join("\n");
+    ask(`Summarize this needs-attention list in one short paragraph, most urgent first:\n${list}`);
+  }
+
   return (
     <div className="space-y-6">
+      {/* Needs attention today — deterministic triage, no AI */}
+      <div className="rounded-xl border border-black/10 dark:border-white/10 p-4">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="font-semibold">Needs attention today</h2>
+          {triageItems.length > 0 && (
+            <button
+              onClick={summarizeTriage}
+              disabled={askLoading}
+              className="text-xs rounded border border-black/20 dark:border-white/20 px-2.5 py-1 disabled:opacity-50"
+            >
+              {askLoading ? "Thinking…" : "Summarize with AI"}
+            </button>
+          )}
+        </div>
+        <p className="text-xs opacity-60 mb-3">
+          Deterministic checks across all three desks — no AI, so it never misses or invents a flag.
+        </p>
+        {triageItems.length === 0 ? (
+          <p className="text-sm opacity-60">Nothing flagged right now.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {triageItems.map((item) => (
+              <li
+                key={item.id}
+                className={`flex items-center gap-2 rounded border px-3 py-2 text-sm ${SEVERITY_STYLE[item.severity]}`}
+              >
+                <span aria-hidden className="shrink-0">{SEVERITY_ICON[item.severity]}</span>
+                <span className="flex-1">{item.message}</span>
+                {onNavigate && (
+                  <button
+                    onClick={() => onNavigate(item.desk)}
+                    className="shrink-0 text-xs rounded border border-current/30 px-2 py-1 opacity-80 hover:opacity-100 whitespace-nowrap"
+                  >
+                    Open {DESK_LABEL[item.desk]}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {/* Range + export */}
       <div className="rounded-xl border border-black/10 dark:border-white/10 p-4">
         <div className="flex flex-wrap items-center gap-3">
