@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { CustomizeProvider } from "@/lib/customize";
 import AuthSessionProvider from "@/components/AuthSessionProvider";
+import { ScaleProvider } from "@/components/ScaleProvider";
 
 export const metadata: Metadata = {
   title: "Second Brain Desk",
@@ -18,7 +19,9 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         <AuthSessionProvider>
-          <CustomizeProvider>{children}</CustomizeProvider>
+          <ScaleProvider>
+            <CustomizeProvider>{children}</CustomizeProvider>
+          </ScaleProvider>
         </AuthSessionProvider>
       </body>
     </html>
