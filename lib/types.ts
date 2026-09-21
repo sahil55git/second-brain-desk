@@ -241,3 +241,44 @@ export interface ExpenseDTO {
   createdAt: string;
   updatedAt: string;
 }
+
+// Vyapar cross-check snapshot (erp-architecture-plan.md). The parsed figures
+// from vyapar_reader.py go in `payload`. Every field is optional so a partial
+// reader output still renders — the desk shows "—" for anything missing.
+export interface VyaparTopItem {
+  name: string;
+  qty: number;
+  unit?: string | null;
+  stockValueInr?: number | null;
+  change7d?: number | null; // qty change over the trailing 7 days, if known
+}
+
+export interface VyaparPartyBalance {
+  name: string;
+  balanceDueInr: number; // positive = they owe the business
+}
+
+export interface VyaparSnapshotPayload {
+  entity?: string; // e.g. "Mahadev Oil Mill (Non-GST, complete book)"
+  backupTakenAt?: string; // free-text, e.g. "14-09-2026 18:12"
+  asOfDate?: string; // the "till today" date the figures represent, e.g. "12-09-2026"
+  periodLabel?: string; // e.g. "trailing 90 days (14-06-2026 to 12-09-2026)"
+
+  sales90dInr?: number;
+  purchases90dInr?: number;
+  stockValueInr?: number;
+  activeItems?: number;
+  receivableInr?: number; // sum of positive customer balances (customers owe)
+  payableInr?: number; // sum of what the business owes suppliers, if tracked
+
+  topItems?: VyaparTopItem[];
+  topCustomerBalances?: VyaparPartyBalance[];
+
+  notes?: string; // any data-quality note the reader wants to surface
+}
+
+export interface VyaparSnapshotDTO {
+  id: string;
+  payload: VyaparSnapshotPayload;
+  updatedAt: string;
+}

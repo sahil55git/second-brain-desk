@@ -280,6 +280,22 @@ model Expense {
   @@index([date])
 }
 
+// Vyapar cross-check snapshot (erp-architecture-plan.md). Vyapar is the
+// accountant's source-of-truth software and has NO API, so this is a
+// SNAPSHOT parsed from its .vyb backup (05_Scripts/vyapar_reader.py) and
+// pushed in via PUT /api/vyapar. Purpose: cross-check the rebuild's own
+// entries and the physical stock on the floor against what the accountant
+// has in Vyapar, as of the latest backup. Singleton — one current snapshot,
+// replaced each time a newer backup is read. The parsed figures live in the
+// JSON `payload` (shape: VyaparSnapshotPayload in lib/types.ts) so the
+// reader can evolve without a schema migration.
+model VyaparSnapshot {
+  id      String @id @default("singleton")
+  payload Json
+
+  updatedAt DateTime @updatedAt
+}
+
 // The two fixed daily counts (see sop-daily-cash-stock-closing.md).
 enum ClosingSession {
   AFTERNOON

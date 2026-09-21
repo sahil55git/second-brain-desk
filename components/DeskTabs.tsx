@@ -12,6 +12,7 @@ import type {
   SalesInvoiceDTO,
   PurchaseBillDTO,
   ExpenseDTO,
+  VyaparSnapshotDTO,
 } from "@/lib/types";
 import JobWorkDesk from "./JobWorkDesk";
 import DailyClosingDesk from "./DailyClosingDesk";
@@ -23,6 +24,7 @@ import SettingsDesk from "./SettingsDesk";
 import SalesDesk from "./SalesDesk";
 import PurchaseDesk from "./PurchaseDesk";
 import ExpensesDesk from "./ExpensesDesk";
+import VyaparDesk from "./VyaparDesk";
 
 type Desk =
   | "jobwork"
@@ -34,6 +36,7 @@ type Desk =
   | "reports"
   | "parties"
   | "inventory"
+  | "vyapar"
   | "settings";
 
 export default function DeskTabs({
@@ -46,6 +49,7 @@ export default function DeskTabs({
   initialSales,
   initialPurchases,
   initialExpenses,
+  initialVyapar,
   dbConnected,
 }: {
   initialJobWork: JobWorkIntakeDTO[];
@@ -57,6 +61,7 @@ export default function DeskTabs({
   initialSales: SalesInvoiceDTO[];
   initialPurchases: PurchaseBillDTO[];
   initialExpenses: ExpenseDTO[];
+  initialVyapar: VyaparSnapshotDTO | null;
   dbConnected: boolean;
 }) {
   const [active, setActive] = useState<Desk>("jobwork");
@@ -74,9 +79,15 @@ export default function DeskTabs({
     { key: "parties", label: "Parties" },
     { key: "inventory", label: "Inventory" },
     { key: "reports", label: "Reports & AI" },
-    // Settings is Owner-only — Staff sessions never see the tab (and the
-    // API route refuses them server-side even if they guess the URL).
-    ...(isOwner ? [{ key: "settings" as const, label: "Settings" }] : []),
+    // Vyapar cross-check and Settings are Owner-only — Staff sessions never
+    // see the tabs (and the API routes refuse them server-side even if they
+    // guess the URL). Vyapar exposes financial totals (receivables, sales).
+    ...(isOwner
+      ? [
+          { key: "vyapar" as const, label: "Vyapar Sync" },
+          { key: "settings" as const, label: "Settings" },
+        ]
+      : []),
   ];
 
   return (
@@ -144,6 +155,9 @@ export default function DeskTabs({
           mfg={initialMfg}
           onNavigate={(desk) => setActive(desk === "mfg" ? "manufacturing" : desk)}
         />
+      )}
+      {active === "vyapar" && isOwner && (
+        <VyaparDesk initialSnapshot={initialVyapar} dbConnected={dbConnected} />
       )}
       {active === "settings" && isOwner && (
         <SettingsDesk initialSettings={initialSettings} dbConnected={dbConnected} />

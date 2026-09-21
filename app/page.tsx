@@ -1,3 +1,5 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma, safeDbCall } from "@/lib/db";
 import DeskTabs from "@/components/DeskTabs";
 import CustomizeButton from "@/components/CustomizeButton";
@@ -12,11 +14,16 @@ import type {
   SalesInvoiceDTO,
   PurchaseBillDTO,
   ExpenseDTO,
+  VyaparSnapshotDTO,
 } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  const session = await getServerSession(authOptions);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isOwner = (session?.user as any)?.role === "OWNER";
+
   const [
     jobWorkResult,
     closingResult,
@@ -27,6 +34,7 @@ export default async function Home() {
     salesResult,
     purchasesResult,
     expensesResult,
+    vyaparResult,
   ] = await Promise.all([
     safeDbCall(() => prisma.jobWorkIntake.findMany({ orderBy: { createdAt: "desc" } })),
     safeDbCall(() => prisma.dailyClosing.findMany({ orderBy: { createdAt: "desc" } })),
@@ -60,6 +68,12 @@ export default async function Home() {
         include: { party: { select: { id: true, name: true } } },
       })
     ),
+    // Vyapar snapshot is Owner-only (financial totals) — never fetched for a
+    // Staff session, matching /api/vyapar's own server-side check and the
+    // Owner-only tab in DeskTabs.
+    isOwner
+      ? safeDbCall(() => prisma.vyaparSnapshot.findUnique({ where: { id: "singleton" } }))
+      : Promise.resolve({ ok: true as const, data: null }),
   ]);
 
   const dbError = !jobWorkResult.ok
@@ -94,6 +108,10 @@ export default async function Home() {
   const settings: BusinessSettingsDTO | null =
     settingsResult.ok && settingsResult.data
       ? JSON.parse(JSON.stringify(settingsResult.data))
+      : null;
+  const vyapar: VyaparSnapshotDTO | null =
+    vyaparResult.ok && vyaparResult.data
+      ? JSON.parse(JSON.stringify(vyaparResult.data))
       : null;
 
   return (
@@ -132,6 +150,7 @@ export default async function Home() {
         initialSales={sales}
         initialPurchases={purchases}
         initialExpenses={expenses}
+        initialVyapar={vyapar}
         dbConnected={!dbError}
       />
     </main>
