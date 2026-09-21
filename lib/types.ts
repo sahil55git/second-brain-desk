@@ -258,6 +258,21 @@ export interface VyaparPartyBalance {
   balanceDueInr: number; // positive = they owe the business
 }
 
+// One day's flows from Vyapar (for the day-wise / date-picker views). Every
+// figure is optional so a reader that only computes some of them still works.
+// Net sales = sale − creditNote; net purchases = purchase − debitNote (the UI
+// derives those). `date` should be ISO "YYYY-MM-DD" so it sorts reliably.
+export interface VyaparDailyRow {
+  date: string;
+  saleInr?: number;
+  creditNoteInr?: number;
+  purchaseInr?: number;
+  debitNoteInr?: number;
+  expenseInr?: number;
+  cashInInr?: number;
+  cashOutInr?: number;
+}
+
 export interface VyaparSnapshotPayload {
   entity?: string; // e.g. "Mahadev Oil Mill (Non-GST, complete book)"
   backupTakenAt?: string; // free-text, e.g. "14-09-2026 18:12"
@@ -273,6 +288,10 @@ export interface VyaparSnapshotPayload {
 
   topItems?: VyaparTopItem[];
   topCustomerBalances?: VyaparPartyBalance[];
+
+  // Day-by-day flows for the date-picker + daily table (newest last or any
+  // order — the UI sorts). Feeds the "By day" section.
+  dailySeries?: VyaparDailyRow[];
 
   notes?: string; // any data-quality note the reader wants to surface
 }
