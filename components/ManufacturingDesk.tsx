@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { MfgBatchDTO, BatchSupplierDTO } from "@/lib/types";
 import {
   computeBarrelYield,
@@ -12,6 +12,7 @@ import {
 import AiTerminal from "@/components/AiTerminal";
 import { useCustomize, visibleOrderedIds } from "@/lib/customize";
 import { WIDGET_DEFS, COLUMN_DEFS } from "@/lib/desksConfig";
+import { useScale } from "@/components/ScaleProvider";
 
 const MFG_WIDGET_IDS = WIDGET_DEFS.mfg.map((w) => w.id);
 const MFG_COLUMN_IDS = COLUMN_DEFS.mfg.map((c) => c.id);
@@ -85,6 +86,9 @@ export default function ManufacturingDesk({
   const [tab, setTab] = useState<"start" | "update">("start");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeWeightField, setActiveWeightField] = useState("supplier-0");
+  const [scaleAutoFill, setScaleAutoFill] = useState(true);
+  const { connected: scaleConnected, selectedReading, selectedScale } = useScale();
   const { prefs } = useCustomize();
   const visibleWidgetIds = visibleOrderedIds(MFG_WIDGET_IDS, prefs.widgets.mfg);
   const visibleColIds = visibleOrderedIds(MFG_COLUMN_IDS, prefs.columns.mfg);
@@ -263,6 +267,21 @@ export default function ManufacturingDesk({
     }
   }
 
+  useEffect(() => {
+    if (!scaleAutoFill || !selectedReading || selectedReading.stable === false) return;
+    if (!Number.isFinite(selectedReading.weight) || selectedReading.weight < 0) return;
+    const value = selectedReading.weight.toFixed(2);
+    if (activeWeightField.startsWith("supplier-")) {
+      const index = Number(activeWeightField.split("-")[1]);
+      setSuppliers((prev) => prev.map((s, i) => i === index ? { ...s, seedKg: value } : s));
+    } else if (activeWeightField === "step1") setStep1Kg(value);
+    else if (activeWeightField === "step2") onStepKg(value, setUStep2, uStep2Date, setUStep2Date, uStep2Time, setUStep2Time);
+    else if (activeWeightField === "step3") onStepKg(value, setUStep3, uStep3Date, setUStep3Date, uStep3Time, setUStep3Time);
+    else if (activeWeightField === "step4") onStepKg(value, setUStep4, uStep4Date, setUStep4Date, uStep4Time, setUStep4Time);
+  // The latest reading is the event source; form timestamps/setters are intentionally not dependencies.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedReading, scaleAutoFill, activeWeightField]);
+
   const selBatch = batches.find((b) => b.id === selBatchId) || null;
   const updatePreview = useMemo(() => {
     if (!selBatch) return null;
@@ -352,6 +371,13 @@ export default function ManufacturingDesk({
             </button>
           ))}
         </div>
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-black/5 dark:bg-white/5 px-3 py-2 text-xs">
+          <span className={`h-2 w-2 rounded-full ${scaleConnected && selectedReading ? "bg-emerald-500" : "bg-red-500"}`} />
+          <strong>Live scale</strong>
+          <span className="font-mono opacity-60">{selectedScale || "not selected"}</span>
+          <span className="font-semibold tabular-nums">{selectedReading ? `${selectedReading.weight.toFixed(2)} ${selectedReading.unit || "kg"}` : "No reading"}</span>
+          <label className="ml-auto flex items-center gap-1"><input type="checkbox" checked={scaleAutoFill} onChange={(e) => setScaleAutoFill(e.target.checked)} /> Auto-fill focused weight</label>
+        </div>
 
         {tab === "start" ? (
           <>
@@ -400,6 +426,7 @@ export default function ManufacturingDesk({
                     placeholder="Seed kg"
                     type="number"
                     value={s.seedKg}
+                    onFocus={() => setActiveWeightField(`supplier-${i}`)}
                     onChange={(e) => setSuppliers((prev) => prev.map((x, j) => (j === i ? { ...x, seedKg: e.target.value } : x)))}
                     className={`${inp} w-24`}
                   />
@@ -413,7 +440,7 @@ export default function ManufacturingDesk({
             </div>
 
             <Field label="Step 1 — crude oil in (kg)">
-              <input type="number" step="0.1" value={step1Kg} onChange={(e) => setStep1Kg(e.target.value)} className={inp} />
+              <input type="number" step="0.1" value={step1Kg} onFocus={() => setActiveWeightField("step1")} onChange={(e) => setStep1Kg(e.target.value)} className={inp} />
             </Field>
 
             <details className="rounded border border-black/10 dark:border-white/10 p-2">
@@ -472,18 +499,21 @@ export default function ManufacturingDesk({
                   kgVal={uStep2}
                   onKg={(v) => onStepKg(v, setUStep2, uStep2Date, setUStep2Date, uStep2Time, setUStep2Time)}
                   d={uStep2Date} onD={setUStep2Date} t={uStep2Time} onT={setUStep2Time}
+                  onFocus={() => setActiveWeightField("step2")}
                 />
                 <StepRow
                   label="Step 3 — full decant (kg)"
                   kgVal={uStep3}
                   onKg={(v) => onStepKg(v, setUStep3, uStep3Date, setUStep3Date, uStep3Time, setUStep3Time)}
                   d={uStep3Date} onD={setUStep3Date} t={uStep3Time} onT={setUStep3Time}
+                  onFocus={() => setActiveWeightField("step3")}
                 />
                 <StepRow
                   label="Step 4 — waste / oil-cake (kg)"
                   kgVal={uStep4}
                   onKg={(v) => onStepKg(v, setUStep4, uStep4Date, setUStep4Date, uStep4Time, setUStep4Time)}
                   d={uStep4Date} onD={setUStep4Date} t={uStep4Time} onT={setUStep4Time}
+                  onFocus={() => setActiveWeightField("step4")}
                 />
 
                 {updatePreview && (
@@ -676,19 +706,20 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function StepRow({
-  label, kgVal, onKg, d, onD, t, onT,
+  label, kgVal, onKg, d, onD, t, onT, onFocus,
 }: {
   label: string;
   kgVal: string;
   onKg: (v: string) => void;
   d: string; onD: (v: string) => void;
   t: string; onT: (v: string) => void;
+  onFocus?: () => void;
 }) {
   return (
     <div>
       <label className="block mb-1 opacity-70">{label}</label>
       <div className="flex gap-2">
-        <input type="number" step="0.1" value={kgVal} onChange={(e) => onKg(e.target.value)} className={`${inp} w-24`} placeholder="kg" />
+        <input type="number" step="0.1" value={kgVal} onFocus={onFocus} onChange={(e) => onKg(e.target.value)} className={`${inp} w-24`} placeholder="kg" />
         <input type="date" value={d} onChange={(e) => onD(e.target.value)} className={`${inp} flex-1`} />
         <input type="time" value={t} onChange={(e) => onT(e.target.value)} className={`${inp} w-28`} />
       </div>

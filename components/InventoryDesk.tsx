@@ -3,6 +3,7 @@
 // Inventory / SKU master (erp-architecture-plan.md, Phase 1).
 import { useMemo, useState } from "react";
 import type { ItemDTO } from "@/lib/types";
+import { useScale } from "./ScaleProvider";
 
 export default function InventoryDesk({
   initialItems,
@@ -16,6 +17,7 @@ export default function InventoryDesk({
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { readings, connected: scaleConnected } = useScale();
 
   const [form, setForm] = useState({
     name: "",
@@ -95,6 +97,27 @@ export default function InventoryDesk({
           Database not connected — Inventory won&apos;t save yet.
         </div>
       )}
+
+      <section className="rounded-xl border border-black/10 dark:border-white/10 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="font-semibold">Live physical tank stock</h2>
+          <span className={`h-2 w-2 rounded-full ${scaleConnected ? "bg-emerald-500" : "bg-red-500"}`} />
+          <span className="text-xs opacity-55">{scaleConnected ? "bridge connected" : "bridge offline"}</span>
+        </div>
+        {Object.keys(readings).length === 0 ? (
+          <p className="text-sm opacity-55">No tank reading received. Start the local scale bridge and select the indicator in Live Scales.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {Object.values(readings).map((r) => (
+              <div key={r.scale_source} className="rounded-lg bg-black/5 dark:bg-white/5 p-3">
+                <div className="text-xs font-mono opacity-55">{r.scale_source}</div>
+                <div className="text-3xl font-bold tabular-nums">{r.weight.toFixed(2)} <span className="text-sm font-normal">{r.unit || "kg"}</span></div>
+                <div className="text-[10px] opacity-50">Live indicator value — not accounting stock</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className="flex flex-wrap items-center gap-2">
         <input

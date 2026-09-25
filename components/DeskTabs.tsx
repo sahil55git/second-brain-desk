@@ -25,6 +25,7 @@ import SalesDesk from "./SalesDesk";
 import PurchaseDesk from "./PurchaseDesk";
 import ExpensesDesk from "./ExpensesDesk";
 import VyaparDesk from "./VyaparDesk";
+import ScaleDashboard from "./ScaleDashboard";
 
 type Desk =
   | "jobwork"
@@ -36,6 +37,7 @@ type Desk =
   | "reports"
   | "parties"
   | "inventory"
+  | "scales"
   | "vyapar"
   | "settings";
 
@@ -78,6 +80,7 @@ export default function DeskTabs({
     { key: "expenses", label: "Expenses" },
     { key: "parties", label: "Parties" },
     { key: "inventory", label: "Inventory" },
+    { key: "scales", label: "Live Scales" },
     { key: "reports", label: "Reports & AI" },
     // Vyapar cross-check and Settings are Owner-only — Staff sessions never
     // see the tabs (and the API routes refuse them server-side even if they
@@ -148,6 +151,7 @@ export default function DeskTabs({
       {active === "inventory" && (
         <InventoryDesk initialItems={initialItems} dbConnected={dbConnected} />
       )}
+      {active === "scales" && <ScaleDashboard />}
       {active === "reports" && (
         <ReportsDesk
           jobWork={initialJobWork}
