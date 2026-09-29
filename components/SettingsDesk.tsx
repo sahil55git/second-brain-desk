@@ -6,6 +6,7 @@
 // server-side regardless (a client hide is never the real boundary).
 import { useState } from "react";
 import type { BusinessSettingsDTO } from "@/lib/types";
+import ScaleConnectionsSettings from "@/components/ScaleConnectionsSettings";
 
 export default function SettingsDesk({
   initialSettings,
@@ -56,7 +57,7 @@ export default function SettingsDesk({
   }
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-4 max-w-4xl">
       {!dbConnected && (
         <div className="rounded border border-amber-400 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-700 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
           Database not connected — settings won&apos;t save yet.
@@ -164,6 +165,7 @@ export default function SettingsDesk({
           </button>
         </div>
       </form>
+      <ScaleConnectionsSettings />
     </div>
   );
 }

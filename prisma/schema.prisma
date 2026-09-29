@@ -416,3 +416,61 @@ model MfgBatch {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// Physical Karadi tank evidence is separate from accounting stock.
+// A sampled weight never creates an IN/OUT transaction by itself.
+model TankReading {
+  id        String   @id @default(cuid())
+  source    String
+  weightKg  Float
+  bucketAt  DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([source, bucketAt])
+  @@index([source, createdAt])
+}
+
+model TankMovement {
+  id            String   @id @default(cuid())
+  source        String
+  direction     String // IN or OUT, derived from before/after weight
+  beforeKg      Float
+  afterKg       Float
+  quantityKg    Float
+  startedAt     DateTime
+  finishedAt    DateTime @default(now())
+  note          String?
+  recordedBy    String
+  requestId     String   @unique // a retry cannot double count the movement
+
+  @@index([source, finishedAt])
+}
+
+// Owner-maintained connection notebook. This contains device/network
+// configuration, not Wi-Fi passwords or live readings.
+model ScaleConnectionProfile {
+  id          String   @id @default(cuid())
+  source      String   @unique
+  name        String
+  model       String
+  mode        String   // SI850_POLL, TCP_SERVER_RAW, TCP_LISTENER_RAW, SERIAL_RAW
+  topology    String   // DIRECT, SWITCH, ROUTER_LAN, WIFI_BRIDGE, WIFI_NATIVE, USB_SERIAL, RS232
+  scaleHost   String?
+  scalePort   Int?
+  pcIp        String?
+  subnetMask  String?
+  gateway     String?
+  adapter     String?
+  routerIp    String?
+  serialPort  String?
+  baudRate    Int?
+  dataBits    Int?
+  parity      String?
+  stopBits    Int?
+  browserPort Int      @default(8765)
+  enabled     Boolean  @default(true)
+  verified    Boolean  @default(false)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

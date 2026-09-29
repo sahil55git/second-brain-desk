@@ -4,7 +4,7 @@
 // from Item masters (or free-text lines), see the CGST/SGST vs IGST split
 // update live as you type, save it (server allocates the invoice number and
 // re-computes GST authoritatively), and print a clean invoice.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   SalesInvoiceDTO,
   PartyDTO,
@@ -14,6 +14,7 @@ import type {
 } from "@/lib/types";
 import { computeTotals, gstTreatment, type GstLineInput } from "@/lib/gst";
 import InvoicePrint from "./InvoicePrint";
+import { useScale } from "./ScaleProvider";
 
 const PAYMENT_MODES: PaymentMode[] = ["CASH", "UPI", "BANK", "CREDIT", "OTHER"];
 
@@ -59,6 +60,16 @@ export default function SalesDesk({
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("CASH");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([blankLine()]);
+  const [activeScaleLine, setActiveScaleLine] = useState(0);
+  const [scaleAutoFill, setScaleAutoFill] = useState(true);
+  const { connected: scaleConnected, selectedReading, selectedScale } = useScale();
+
+  useEffect(() => {
+    if (!showForm || !scaleAutoFill || !selectedReading || selectedReading.stable === false) return;
+    if (!Number.isFinite(selectedReading.weight) || selectedReading.weight < 0) return;
+    const qty = selectedReading.weight.toFixed(2);
+    setLines((prev) => prev.map((line, index) => index === activeScaleLine ? { ...line, qty } : line));
+  }, [showForm, scaleAutoFill, selectedReading, activeScaleLine]);
 
   const activeParties = useMemo(() => parties.filter((p) => p.active), [parties]);
   const activeItems = useMemo(() => items.filter((i) => i.active), [items]);
@@ -79,6 +90,7 @@ export default function SalesDesk({
   const preview = computeTotals(previewInputs, treatment);
 
   function pickItem(idx: number, itemId: string) {
+    setActiveScaleLine(idx);
     const item = activeItems.find((i) => i.id === itemId);
     setLines((prev) =>
       prev.map((l, i) =>
@@ -260,8 +272,18 @@ export default function SalesDesk({
 
           {/* Line items */}
           <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-black/5 dark:bg-white/5 px-3 py-2 text-xs">
+              <span className={`h-2 w-2 rounded-full ${scaleConnected && selectedReading ? "bg-emerald-500" : "bg-red-500"}`} />
+              <strong>Live scale</strong>
+              <span className="font-mono opacity-65">{selectedScale || "not selected"}</span>
+              <span className="tabular-nums font-semibold">{selectedReading ? `${selectedReading.weight.toFixed(2)} ${selectedReading.unit || "kg"}` : "No reading"}</span>
+              <label className="ml-auto flex items-center gap-1.5">
+                <input type="checkbox" checked={scaleAutoFill} onChange={(e) => setScaleAutoFill(e.target.checked)} />
+                Auto-fill active item
+              </label>
+            </div>
             {lines.map((l, idx) => (
-              <div key={idx} className="grid grid-cols-12 gap-2 items-end">
+              <div key={idx} onFocus={() => setActiveScaleLine(idx)} className={`grid grid-cols-12 gap-2 items-end rounded p-1 ${scaleAutoFill && activeScaleLine === idx ? "ring-1 ring-[var(--accent)]" : ""}`}>
                 <label className="col-span-12 sm:col-span-3 text-xs space-y-1">
                   <span className="opacity-60">Item</span>
                   <select

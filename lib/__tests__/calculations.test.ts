@@ -222,7 +222,7 @@ describe("getYesterdayStock", () => {
   });
 
   it("skips entries that didn't record a value for this product", () => {
-    const prior = [
+    const prior: Parameters<typeof getYesterdayStock>[0] = [
       { createdAt: t(-2), stock: { sf: { today: 95 } } },
       { createdAt: t(-1), stock: {} }, // no sf recorded on this count
     ];
