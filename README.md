@@ -118,6 +118,54 @@ prisma/
   seed.ts                       two example rows matching the artifact's own demo data
 ```
 
+## Quick Register (`/register`)
+
+A simple, icon-first, English/Kannada counter register for the shop
+manager, used at the moment of each transaction. Open **📒 Quick Register**
+from the header, or go straight to `/register` on the shop phone (login
+required; Staff and Owner both allowed).
+
+- **Money In** (green): Sale (item-wise with qty × rate, or one "Total
+  sale" figure from the scale slip), Udhaar received.
+- **Money Out** (red): Purchase, Expense, Payment / Salary.
+- **Job-Work** (blue): New intake + Pay/settle. These write to the
+  **same `JobWorkIntake` rows as the Job-Work Desk** and use
+  `lib/calculations.ts` unchanged; nothing is duplicated.
+- **Cash taken out of counter** (orange, *not expense*): Pigmee, Sahil's
+  withdrawal.
+- **Count cash**: note-by-note count. Tally 1 / Tally 2 are saved as normal
+  `DailyClosing` rows (AFTERNOON / NIGHT, `source = "register"`, note
+  breakdown in `denoms`). System cash is computed on the server from what
+  was logged *up to the moment of counting*, mapped into the desk's
+  existing cash buckets, so the ₹300 mismatch rule applies unchanged.
+- **Opening cash** = last NIGHT count of an earlier day (from either the
+  register or the Daily Closing desk) + anything taken after that count;
+  can be overridden for today.
+- **Libraries**: rates remembered per item; "Other" items become permanent
+  buttons; customer/supplier names are linked to (or added to) the shared
+  Party master.
+- **Language**: Both / English only / Kannada only, remembered per device.
+- **Reports**: day + month totals, thermal-printer slip, WhatsApp share,
+  CSV copy for the accountant.
+- **Permissions** (checked server-side): Staff can delete only today's
+  entries and can only set today's opening; everything else in the
+  register settings is Owner-only.
+
+Only **cash** moves the counter figure; UPI and udhaar are recorded and
+shown separately. It is a cash book, not a GST ledger — the accountant
+still enters full invoices in Vyapar / the Sales & Purchase desks.
+
+**Database change** (additive only): new `RegisterEntry` and
+`RegisterConfig` tables, a `RegisterKind` enum, and two nullable columns
+on `DailyClosing` (`denoms`, `source`). After deploying run
+`npx prisma db push` (or `npx prisma migrate dev`) once against the
+database. No existing data is changed.
+
+Code: `app/register/`, `components/register/QuickRegister.tsx`,
+`app/api/register/*`, `lib/register.ts` (pure maths, tested in
+`lib/__tests__/register.test.ts`), `lib/registerServer.ts`,
+`lib/registerI18n.ts`.
+
 ## Not yet built (Phase 2+)
 
 Deliberately deferred, so nothing here gets silently forgotten:

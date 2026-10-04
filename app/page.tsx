@@ -125,6 +125,12 @@ export default async function Home() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <a
+            href="/register"
+            className="px-3 py-1.5 text-sm font-semibold rounded-md bg-[var(--accent)] text-[var(--accent-contrast)]"
+          >
+            📒 Quick Register
+          </a>
           <CustomizeButton />
           <SignOutButton />
         </div>

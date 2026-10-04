@@ -72,6 +72,7 @@ model Party {
   sales     SalesInvoice[] @relation("PartySales")
   purchases PurchaseBill[] @relation("PartyPurchases")
   expenses  Expense[]      @relation("PartyExpenses")
+  registerEntries RegisterEntry[] @relation("PartyRegister")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -367,6 +368,13 @@ model DailyClosing {
   // { sf: {today, reportSale, yesterday, sale, gap}, karadi1: {...}, k2: {today, yesterday, diff}, ... }
   stock Json?
 
+  // Quick Register additions (additive, nullable). When a count is taken
+  // from the Quick Register, the note/coin breakdown is kept here and
+  // `source` is "register"; counts entered on the Daily Closing desk leave
+  // both null.
+  denoms Json?
+  source String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -473,4 +481,66 @@ model ScaleConnectionProfile {
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Quick Register — the simple, icon-first, bilingual counter cash book used
+// by the shop manager at the moment of each transaction (sale, purchase,
+// expense, payment, pigmee, owner withdrawal). It is a CASH BOOK, not a GST
+// ledger: the accountant still enters full invoices in Vyapar / the Sales &
+// Purchase desks later. Job-work is NOT stored here — the Quick Register
+// writes job-work straight into JobWorkIntake (same rows the Job-Work Desk
+// shows), and the two daily cash counts are written into DailyClosing
+// (AFTERNOON = Tally 1, NIGHT = Tally 2), so there is one source of truth.
+// ---------------------------------------------------------------------------
+
+enum RegisterKind {
+  SALE        // money in
+  UDHAAR_IN   // money in — old credit collected
+  PURCHASE    // money out
+  EXPENSE     // money out
+  PAYMENT     // money out — salary / supplier / other
+  PIGMEE      // cash leaves counter, NOT an expense
+  OWNER_DRAW  // Sahil takes cash, NOT an expense
+}
+
+model RegisterEntry {
+  id   String       @id @default(cuid())
+  date String // "YYYY-MM-DD" business date
+  kind RegisterKind
+
+  item      String? // catalog key ("sunflower", "diesel", "salary", ...) or custom key
+  itemLabel String? // human label snapshot (custom / "Other" items)
+  qty       Float?
+  unit      String? // kg, ltr, bags, pcs, box
+  rateInr   Float?
+  amountInr Float
+
+  paymentMode PaymentMode @default(CASH)
+  totalSale   Boolean     @default(false) // Sale entered as one scale-slip total
+  drawKind    String? // OWNER_DRAW: "partial" | "full"
+
+  partyName String?
+  partyId   String?
+  party     Party?  @relation("PartyRegister", fields: [partyId], references: [id], onDelete: SetNull)
+
+  notes         String?
+  createdByName String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+  @@index([partyId])
+}
+
+// Singleton Quick Register settings: per-item rates, custom items library,
+// pigmee default, default language mode, opening-cash overrides. JSON so the
+// register can grow without migrations (shape: RegisterConfigData in
+// lib/register.ts).
+model RegisterConfig {
+  id   String @id @default("singleton")
+  data Json
+
+  updatedAt DateTime @updatedAt
 }
