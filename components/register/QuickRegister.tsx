@@ -5,7 +5,7 @@
 // routes, so every entry lands in the same Postgres database as the rest of
 // Second Brain Desk.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
   CAN_TYPES,
@@ -94,12 +94,52 @@ interface DayBundle {
 
 type Sheet =
   | { t: "entry"; kind: RegisterKind }
-  | { t: "jw" }
+  | { t: "jw"; id?: string }
   | { t: "jwpay"; id: string }
   | { t: "count" }
   | { t: "calc" }
   | { t: "report" }
   | null;
+
+// Per-device screen preferences (layout, favourite tiles, folded sections).
+type TileKey =
+  | "SALE"
+  | "UDHAAR_IN"
+  | "PURCHASE"
+  | "EXPENSE"
+  | "PAYMENT"
+  | "jwNew"
+  | "jwSettle"
+  | "PIGMEE"
+  | "OWNER_DRAW"
+  | "count"
+  | "calc"
+  | "reports";
+type SectionKey = "summary" | "entries" | "jobwork";
+type LayoutMode = "auto" | "side" | "stack";
+interface Prefs {
+  layout: LayoutMode;
+  favs: string[];
+  closed: string[];
+}
+const DEFAULT_PREFS: Prefs = { layout: "auto", favs: [], closed: [] };
+const PREFS_KEY = "qr-prefs";
+
+// "modal" = bottom sheet over the page (phones / one-column layout);
+// "inline" = form opens in the right-hand panel, side by side.
+const SheetModeCtx = createContext<"modal" | "inline">("modal");
+
+function useMedia(query: string): boolean {
+  const [match, setMatch] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const on = () => setMatch(m.matches);
+    on();
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, [query]);
+  return match;
+}
 
 const KIND_ICON: Record<RegisterKind, string> = {
   SALE: "💰",
@@ -188,6 +228,7 @@ function SheetFrame({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const mode = useContext(SheetModeCtx);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -195,8 +236,12 @@ function SheetFrame({
   }, [onClose]);
   return (
     <>
-      <div className="qr-veil" onClick={onClose} />
-      <div className="qr-sheet" role="dialog" aria-modal="true">
+      {mode === "modal" && <div className="qr-veil" onClick={onClose} />}
+      <div
+        className={`qr-sheet${mode === "inline" ? " inline" : ""}`}
+        role={mode === "modal" ? "dialog" : "region"}
+        aria-modal={mode === "modal" ? true : undefined}
+      >
         <div className="qr-sh">
           <span className="ic" aria-hidden>
             {icon}
@@ -271,6 +316,32 @@ export default function QuickRegister() {
   const [day, setDay] = useState<DayBundle | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
+  const [editFavs, setEditFavs] = useState(false);
+  const [prefs, setPrefsState] = useState<Prefs>(DEFAULT_PREFS);
+  useEffect(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(PREFS_KEY) || "null");
+      if (raw && typeof raw === "object") setPrefsState({ ...DEFAULT_PREFS, ...raw });
+      else setPrefsState({ ...DEFAULT_PREFS, favs: ["SALE", "EXPENSE", "jwNew"] });
+    } catch {
+      /* storage blocked — keep defaults */
+    }
+  }, []);
+  const setPrefs = useCallback((fn: (p: Prefs) => Prefs) => {
+    setPrefsState((p) => {
+      const next = fn(p);
+      try {
+        localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+  // Side by side needs a tablet/laptop-width screen; phones always stack.
+  const canSide = useMedia("(min-width: 760px)");
+  const wide = useMedia("(min-width: 1100px)");
+  const sideBySide = canSide && (prefs.layout === "side" || (prefs.layout === "auto" && wide));
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [lang, setLangState] = useState<LangMode>("both");
   const [now, setNow] = useState(Date.now());
@@ -395,12 +466,56 @@ export default function QuickRegister() {
     );
   };
 
-  const Tile = ({ k, icon, onClick }: { k: WordKey; icon: string; onClick: () => void }) => {
-    const w = words(k, lang);
+  // ---------------------------------------------------------------------
+  // Tiles: one registry so the board, the favourites strip and edit-mode
+  // all use the same definitions.
+  // ---------------------------------------------------------------------
+  const scrollToLedger = () => {
+    const el = document.getElementById("qr-jw-ledger");
+    if (el) {
+      setPrefs((p) => ({ ...p, closed: p.closed.filter((c) => c !== "jobwork") }));
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+  const TILES: Record<TileKey, { k: WordKey; icon: string; group: "in" | "out" | "jw" | "oth" | "tool"; open: () => void; needsDb?: boolean }> = {
+    SALE: { k: "SALE", icon: "💰", group: "in", open: () => setSheet({ t: "entry", kind: "SALE" }), needsDb: true },
+    UDHAAR_IN: { k: "UDHAAR_IN", icon: "🙌", group: "in", open: () => setSheet({ t: "entry", kind: "UDHAAR_IN" }), needsDb: true },
+    PURCHASE: { k: "PURCHASE", icon: "🛒", group: "out", open: () => setSheet({ t: "entry", kind: "PURCHASE" }), needsDb: true },
+    EXPENSE: { k: "EXPENSE", icon: "🧾", group: "out", open: () => setSheet({ t: "entry", kind: "EXPENSE" }), needsDb: true },
+    PAYMENT: { k: "PAYMENT", icon: "🤝", group: "out", open: () => setSheet({ t: "entry", kind: "PAYMENT" }), needsDb: true },
+    jwNew: { k: "jwNew", icon: "🌾", group: "jw", open: () => setSheet({ t: "jw" }), needsDb: true },
+    jwSettle: { k: "jwSettle", icon: "💳", group: "jw", open: scrollToLedger },
+    PIGMEE: { k: "PIGMEE", icon: "🏦", group: "oth", open: () => setSheet({ t: "entry", kind: "PIGMEE" }), needsDb: true },
+    OWNER_DRAW: { k: "OWNER_DRAW", icon: "🧔", group: "oth", open: () => setSheet({ t: "entry", kind: "OWNER_DRAW" }), needsDb: true },
+    count: { k: "count", icon: "💵", group: "tool", open: () => setSheet({ t: "count" }), needsDb: true },
+    calc: { k: "calc", icon: "🧮", group: "tool", open: () => setSheet({ t: "calc" }) },
+    reports: { k: "reports", icon: "🖨️", group: "tool", open: () => setSheet({ t: "report" }) },
+  };
+
+  const toggleFav = (key: TileKey) =>
+    setPrefs((p) => ({
+      ...p,
+      favs: p.favs.includes(key) ? p.favs.filter((f) => f !== key) : [...p.favs, key],
+    }));
+
+  const Tile = ({ id, extraClass = "" }: { id: TileKey; extraClass?: string }) => {
+    const t = TILES[id];
+    const w = words(t.k, lang);
+    const isFav = prefs.favs.includes(id);
     return (
-      <button className="qr-tile" onClick={onClick} disabled={dbOffline}>
+      <button
+        className={`qr-tile g-${t.group} ${extraClass}`}
+        onClick={() => (editFavs ? toggleFav(id) : t.open())}
+        disabled={!editFavs && t.needsDb && dbOffline}
+        aria-pressed={editFavs ? isFav : undefined}
+      >
+        {editFavs && (
+          <span className={`qr-star${isFav ? " on" : ""}`} aria-hidden>
+            {isFav ? "★" : "☆"}
+          </span>
+        )}
         <span className="ic" aria-hidden>
-          {icon}
+          {t.icon}
         </span>
         <span className="p">{w.main}</span>
         {w.sub && <span className="s">{w.sub}</span>}
@@ -408,13 +523,413 @@ export default function QuickRegister() {
     );
   };
 
+  // Collapsible section; whatever is left open stays open on this device.
+  const Section = ({
+    id,
+    title,
+    right,
+    children,
+    anchor,
+  }: {
+    id: SectionKey;
+    title: React.ReactNode;
+    right?: React.ReactNode;
+    children: React.ReactNode;
+    anchor?: string;
+  }) => {
+    const open = !prefs.closed.includes(id);
+    return (
+      <div className="qr-card qr-sec" id={anchor}>
+        <button
+          className="qr-sec-head"
+          aria-expanded={open}
+          onClick={() =>
+            setPrefs((p) => ({
+              ...p,
+              closed: open ? [...p.closed, id] : p.closed.filter((c) => c !== id),
+            }))
+          }
+        >
+          <span className="t">{title}</span>
+          <span className="r">
+            {right}
+            <span className="chev" aria-hidden>
+              {open ? "▾" : "▸"}
+            </span>
+          </span>
+        </button>
+        {open && <div className="qr-sec-body">{children}</div>}
+      </div>
+    );
+  };
+
   const unsettled = (day?.jobWork || []).filter((j) => !j.settled);
   const nextLang: Record<LangMode, LangMode> = { both: "en", en: "kn", kn: "both" };
   const langLabel: Record<LangMode, string> = { both: "EN+ಕ", en: "EN", kn: "ಕನ್ನಡ" };
+  const nextLayout: Record<LayoutMode, LayoutMode> = { auto: "side", side: "stack", stack: "auto" };
+  const layoutLabel: Record<LayoutMode, string> = { auto: "⇆ Auto", side: "⇆ Side", stack: "☰ One" };
+  const favKeys = prefs.favs.filter((f): f is TileKey => f in TILES);
+
+  // ----------------------------- blocks --------------------------------
+  const favouritesBlock =
+    favKeys.length > 0 || editFavs ? (
+      <div className="qr-favs-wrap">
+        <div className="qr-head qr-favs-head">
+          <span>
+            ⭐ <Txt k="favourites" lang={lang} />
+          </span>
+          {editFavs && (
+            <button className="qr-pill" onClick={() => setEditFavs(false)}>
+              ✓ {word("done", lang)}
+            </button>
+          )}
+        </div>
+        {editFavs && <div className="qr-hint" style={{ margin: "0 4px 8px" }}>{word("favHint", lang)}</div>}
+        {favKeys.length > 0 ? (
+          <div className="qr-favs">
+            {favKeys.map((id) => (
+              <Tile key={id} id={id} />
+            ))}
+          </div>
+        ) : (
+          <div className="qr-empty">{word("none", lang)}</div>
+        )}
+      </div>
+    ) : null;
+
+  const boardBlock = (
+    <>
+      <div className="qr-board">
+        <div className="qr-col in">
+          <div className="qr-head">
+            <span>
+              <Txt k="moneyIn" lang={lang} />
+            </span>
+            <span aria-hidden>⬇</span>
+          </div>
+          <Tile id="SALE" />
+          <Tile id="UDHAAR_IN" />
+        </div>
+        <div className="qr-col out">
+          <div className="qr-head">
+            <span>
+              <Txt k="moneyOut" lang={lang} />
+            </span>
+            <span aria-hidden>⬆</span>
+          </div>
+          <Tile id="PURCHASE" />
+          <Tile id="EXPENSE" />
+          <Tile id="PAYMENT" />
+        </div>
+      </div>
+
+      <div className="qr-strip jw">
+        <div className="qr-head">
+          <span>
+            ⚙️ <Txt k="jobWork" lang={lang} />
+          </span>
+          <span className="qr-m" style={{ fontSize: 13 }}>
+            {unsettled.length} {word("unsettled", lang)}
+          </span>
+        </div>
+        <div className="qr-row2">
+          <Tile id="jwNew" />
+          <Tile id="jwSettle" />
+        </div>
+      </div>
+
+      <div className="qr-strip oth">
+        <div className="qr-head">
+          <span>
+            <Txt k="otherCash" lang={lang} />
+          </span>
+          <span style={{ fontSize: 12 }}>
+            <Txt k="notExpense" lang={lang} />
+          </span>
+        </div>
+        <div className="qr-row2">
+          <Tile id="PIGMEE" />
+          <Tile id="OWNER_DRAW" />
+        </div>
+      </div>
+
+      <div className="qr-tools">
+        <Tile id="count" />
+        <Tile id="calc" />
+        <Tile id="reports" />
+      </div>
+    </>
+  );
+
+  const summaryBlock = (
+    <Section id="summary" title={<Txt k="summary" lang={lang} />} right={<b>{rs(counterNow)}</b>}>
+      <div className="qr-srow">
+        <span>
+          <Txt k="opening" lang={lang} />
+        </span>
+        <b>{rs(day?.opening.value)}</b>
+      </div>
+      <div className="qr-srow">
+        <span>
+          <Txt k="cashIn" lang={lang} />
+        </span>
+        <b className="qr-g">+ {rs(totals.cashIn)}</b>
+      </div>
+      <div className="qr-srow">
+        <span>
+          <Txt k="cashOut" lang={lang} />
+        </span>
+        <b className="qr-r">− {rs(totals.cashOut)}</b>
+      </div>
+      <div className="qr-srow">
+        <span>
+          <Txt k="jwCash" lang={lang} />
+        </span>
+        <b>
+          <span className="qr-g">+{rs(totals.jwIn)}</span> <span className="qr-r">−{rs(totals.jwOut)}</span>
+        </b>
+      </div>
+      <div className="qr-srow">
+        <span>
+          {words("PIGMEE", lang).main} + {words("OWNER_DRAW", lang).main}
+          {lang === "both" && (
+            <span className="qr-sub">
+              {words("PIGMEE", lang).sub} + {words("OWNER_DRAW", lang).sub}
+            </span>
+          )}
+        </span>
+        <b className="qr-o">− {rs(totals.pigmee + totals.ownerDraw)}</b>
+      </div>
+      <div className="qr-srow">
+        <span>
+          <b>
+            <Txt k="inCounter" lang={lang} />
+          </b>
+        </span>
+        <b className="qr-big">{rs(counterNow)}</b>
+      </div>
+      <div className="qr-srow">
+        <span>
+          📱 UPI <b className="qr-g">{rs(totals.upiIn)}</b> · <b className="qr-r">{rs(totals.upiOut)}</b>
+        </span>
+        <span>
+          📒 {word("CREDIT", lang)} <b>{rs(totals.creditGiven)}</b>
+        </span>
+      </div>
+      <div className="qr-srow">
+        <span>
+          <Txt k="t1" lang={lang} />
+        </span>
+        {tallyText(day?.tallies.AFTERNOON || null)}
+      </div>
+      <div className="qr-srow">
+        <span>
+          <Txt k="t2" lang={lang} />
+        </span>
+        {tallyText(day?.tallies.NIGHT || null)}
+      </div>
+    </Section>
+  );
+
+  const entriesBlock = (
+    <Section id="entries" title={<Txt k="entries" lang={lang} />} right={<span className="qr-m">{entries.length}</span>}>
+      <div className="qr-lists">
+        <div className="qr-lcol in">
+          <div className="qr-lh">
+            <span>⬇ {word("moneyIn", lang)}</span>
+            <span>{rs(sum(ins))}</span>
+          </div>
+          {ins.length ? [...ins].reverse().map(EntryCard) : <div className="qr-empty">{word("none", lang)}</div>}
+        </div>
+        <div className="qr-lcol out">
+          <div className="qr-lh">
+            <span>⬆ {word("moneyOut", lang)}</span>
+            <span>{rs(sum(outs))}</span>
+          </div>
+          {outs.length ? [...outs].reverse().map(EntryCard) : <div className="qr-empty">{word("none", lang)}</div>}
+        </div>
+        {oths.length > 0 && (
+          <div className="qr-lcol oth">
+            <div className="qr-lh">
+              <span>{word("otherCash", lang)}</span>
+              <span>{rs(sum(oths))}</span>
+            </div>
+            {[...oths].reverse().map(EntryCard)}
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+
+  // Job-work ledger laid out exactly like the Job-Work Desk table.
+  const th = (k: WordKey) => {
+    const w = words(k, lang);
+    return (
+      <th>
+        {w.main}
+        {w.sub && <span className="qr-sub">{w.sub}</span>}
+      </th>
+    );
+  };
+  const jobWorkBlock = (
+    <Section
+      id="jobwork"
+      anchor="qr-jw-ledger"
+      title={
+        <>
+          🌾 <Txt k="jobWork" lang={lang} />
+        </>
+      }
+      right={<span className="qr-m">{unsettled.length} {word("unsettled", lang)}</span>}
+    >
+      <div className="qr-stats">
+        <div className="qr-stat">
+          <div className="l">🟤 {word("khali", lang)}</div>
+          <div className="v">{(day?.khaliKg || 0).toFixed(1)} kg</div>
+        </div>
+        <div className="qr-stat">
+          <div className="l">⏳ {word("unsettled", lang)}</div>
+          <div className="v">{unsettled.length}</div>
+        </div>
+      </div>
+      <div className="qr-tablewrap">
+        <table className="qr-table">
+          <thead>
+            <tr>
+              {th("colTime")}
+              {th("colCustomer")}
+              {th("colVehicle")}
+              {th("colSeed")}
+              {th("colCake")}
+              {th("colNotes")}
+              {th("colStatus")}
+              {th("colActions")}
+            </tr>
+          </thead>
+          <tbody>
+            {(day?.jobWork || []).map((j) => {
+              const due = expectedSettlement(j);
+              const cansCharge = Object.values(j.cans || {}).reduce(
+                (s, c) => s + (c ? (Number(c.qty) || 0) * (Number(c.rate) || 0) : 0),
+                0
+              );
+              return (
+                <tr key={j.id}>
+                  <td className="nowrap">
+                    {new Date(j.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" })},{" "}
+                    {hm(j.createdAt)}
+                  </td>
+                  <td>
+                    <b>{j.customer}</b>
+                    {j.advanceCustomerInr > 0 && <span className="qr-m"> (adv ₹{j.advanceCustomerInr})</span>}
+                    {cansCharge > 0 && <span className="qr-m"> (cans ₹{cansCharge})</span>}
+                  </td>
+                  <td>
+                    {j.vehicleNo || "—"}
+                    {j.advanceAutoInr > 0 && <span className="qr-m"> (adv ₹{j.advanceAutoInr})</span>}
+                  </td>
+                  <td>{j.seedKg}</td>
+                  <td>{word(j.cakeOwnership === "SHOP" ? "cakeShopShort" : "cakeCustomerShort", lang)}</td>
+                  <td>{j.notes || "—"}</td>
+                  <td className="nowrap">
+                    {j.settled ? (
+                      <b className="qr-g">{word("paid", lang)}</b>
+                    ) : (
+                      <b className="qr-o">
+                        {word("due", lang)} {rs(due)}
+                      </b>
+                    )}
+                  </td>
+                  <td className="nowrap">
+                    {!j.settled && (
+                      <button className="qr-link o" disabled={dbOffline} onClick={() => setSheet({ t: "jwpay", id: j.id })}>
+                        {word("pay", lang)}
+                      </button>
+                    )}
+                    <button className="qr-link" disabled={dbOffline} onClick={() => setSheet({ t: "jw", id: j.id })}>
+                      {word("edit", lang)}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {!day?.jobWork.length && (
+              <tr>
+                <td colSpan={8} className="qr-empty">
+                  {word("none", lang)}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Section>
+  );
+
+  // ----------------------------- sheets --------------------------------
+  const done = (msg?: string) => {
+    setSheet(null);
+    toast(msg || word("saved", lang));
+    load();
+  };
+  const sheetEl = !sheet ? null : sheet.t === "calc" ? (
+    <CalcSheet lang={lang} onClose={() => setSheet(null)} />
+  ) : !day ? null : sheet.t === "entry" ? (
+    <EntrySheet key={sheet.kind} kind={sheet.kind} day={day} lang={lang} date={date} onClose={() => setSheet(null)} onSaved={() => done()} toast={toast} />
+  ) : sheet.t === "jw" ? (
+    <JobWorkSheet
+      key={sheet.id || "new"}
+      day={day}
+      lang={lang}
+      edit={sheet.id ? day.jobWork.find((j) => j.id === sheet.id) : undefined}
+      onClose={() => setSheet(null)}
+      onSaved={() => done()}
+      toast={toast}
+    />
+  ) : sheet.t === "jwpay" ? (
+    day.jobWork.find((j) => j.id === sheet.id) ? (
+      <JobWorkPaySheet
+        key={sheet.id}
+        entry={day.jobWork.find((j) => j.id === sheet.id)!}
+        lang={lang}
+        onClose={() => setSheet(null)}
+        onSaved={() => done()}
+        toast={toast}
+      />
+    ) : null
+  ) : sheet.t === "count" ? (
+    <CountSheet
+      day={day}
+      lang={lang}
+      date={date}
+      isOwner={isOwner}
+      onClose={() => setSheet(null)}
+      onSaved={(msg) => done(msg)}
+      reload={load}
+      toast={toast}
+    />
+  ) : (
+    <ReportSheet
+      day={day}
+      lang={lang}
+      setLang={setLang}
+      layout={prefs.layout}
+      setLayout={(l) => setPrefs((p) => ({ ...p, layout: l }))}
+      onEditFavs={() => {
+        setSheet(null);
+        setEditFavs(true);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }}
+      isOwner={isOwner}
+      onClose={() => setSheet(null)}
+      toast={toast}
+      reloadToday={load}
+    />
+  );
 
   return (
     <div className="qr">
-      <div className="qr-wrap">
+      <div className={`qr-wrap${sideBySide ? " split" : ""}`}>
         <div className="qr-top">
           <h1>
             {word("title", lang)}
@@ -428,6 +943,23 @@ export default function QuickRegister() {
               · {hm(now)}
             </small>
           </h1>
+          <button
+            className={`qr-pill${editFavs ? " on" : ""}`}
+            onClick={() => setEditFavs((v) => !v)}
+            aria-label={word("editFavs", lang)}
+            title={word("editFavs", lang)}
+          >
+            {editFavs ? "✓ ⭐" : "⭐"}
+          </button>
+          {canSide && (
+            <button
+              className="qr-pill"
+              onClick={() => setPrefs((p) => ({ ...p, layout: nextLayout[p.layout] }))}
+              title={word("layout", lang)}
+            >
+              {layoutLabel[prefs.layout]}
+            </button>
+          )}
           <button className="qr-pill" onClick={() => setLang(nextLang[lang])} aria-label={word("language", lang)}>
             🗣️ {langLabel[lang]}
           </button>
@@ -448,316 +980,31 @@ export default function QuickRegister() {
           </div>
         )}
 
-        {/* ---------------- action board ---------------- */}
-        <div className="qr-board">
-          <div className="qr-col in">
-            <div className="qr-head">
-              <span>
-                <Txt k="moneyIn" lang={lang} />
-              </span>
-              <span aria-hidden>⬇</span>
+        {sideBySide ? (
+          <div className="qr-split">
+            <div className="qr-left">
+              {favouritesBlock}
+              {boardBlock}
+              {summaryBlock}
             </div>
-            <Tile k="SALE" icon="💰" onClick={() => setSheet({ t: "entry", kind: "SALE" })} />
-            <Tile k="UDHAAR_IN" icon="🙌" onClick={() => setSheet({ t: "entry", kind: "UDHAAR_IN" })} />
-          </div>
-          <div className="qr-col out">
-            <div className="qr-head">
-              <span>
-                <Txt k="moneyOut" lang={lang} />
-              </span>
-              <span aria-hidden>⬆</span>
-            </div>
-            <Tile k="PURCHASE" icon="🛒" onClick={() => setSheet({ t: "entry", kind: "PURCHASE" })} />
-            <Tile k="EXPENSE" icon="🧾" onClick={() => setSheet({ t: "entry", kind: "EXPENSE" })} />
-            <Tile k="PAYMENT" icon="🤝" onClick={() => setSheet({ t: "entry", kind: "PAYMENT" })} />
-          </div>
-        </div>
-
-        <div className="qr-strip jw">
-          <div className="qr-head">
-            <span>
-              ⚙️ <Txt k="jobWork" lang={lang} />
-            </span>
-            <span className="qr-m" style={{ fontSize: 13 }}>
-              {unsettled.length} {word("unsettled", lang)}
-            </span>
-          </div>
-          <div className="qr-row2">
-            <Tile k="jwNew" icon="🌾" onClick={() => setSheet({ t: "jw" })} />
-            <Tile
-              k="jwSettle"
-              icon="💳"
-              onClick={() => {
-                document.getElementById("qr-jw-ledger")?.scrollIntoView({ behavior: "smooth" });
-              }}
-            />
-          </div>
-        </div>
-
-        <div className="qr-strip oth">
-          <div className="qr-head">
-            <span>
-              <Txt k="otherCash" lang={lang} />
-            </span>
-            <span style={{ fontSize: 12 }}>
-              <Txt k="notExpense" lang={lang} />
-            </span>
-          </div>
-          <div className="qr-row2">
-            <Tile k="PIGMEE" icon="🏦" onClick={() => setSheet({ t: "entry", kind: "PIGMEE" })} />
-            <Tile k="OWNER_DRAW" icon="🧔" onClick={() => setSheet({ t: "entry", kind: "OWNER_DRAW" })} />
-          </div>
-        </div>
-
-        <div className="qr-tools">
-          <Tile k="count" icon="💵" onClick={() => setSheet({ t: "count" })} />
-          <button className="qr-tile" onClick={() => setSheet({ t: "calc" })}>
-            <span className="ic" aria-hidden>
-              🧮
-            </span>
-            <span className="p">{words("calc", lang).main}</span>
-            {words("calc", lang).sub && <span className="s">{words("calc", lang).sub}</span>}
-          </button>
-          <button className="qr-tile" onClick={() => setSheet({ t: "report" })}>
-            <span className="ic" aria-hidden>
-              🖨️
-            </span>
-            <span className="p">{words("reports", lang).main}</span>
-            {words("reports", lang).sub && <span className="s">{words("reports", lang).sub}</span>}
-          </button>
-        </div>
-
-        {/* ---------------- summary ---------------- */}
-        <div className="qr-card">
-          <div className="qr-srow">
-            <span>
-              <Txt k="opening" lang={lang} />
-            </span>
-            <b>{rs(day?.opening.value)}</b>
-          </div>
-          <div className="qr-srow">
-            <span>
-              <Txt k="cashIn" lang={lang} />
-            </span>
-            <b className="qr-g">+ {rs(totals.cashIn)}</b>
-          </div>
-          <div className="qr-srow">
-            <span>
-              <Txt k="cashOut" lang={lang} />
-            </span>
-            <b className="qr-r">− {rs(totals.cashOut)}</b>
-          </div>
-          <div className="qr-srow">
-            <span>
-              <Txt k="jwCash" lang={lang} />
-            </span>
-            <b>
-              <span className="qr-g">+{rs(totals.jwIn)}</span> <span className="qr-r">−{rs(totals.jwOut)}</span>
-            </b>
-          </div>
-          <div className="qr-srow">
-            <span>
-              {words("PIGMEE", lang).main} + {words("OWNER_DRAW", lang).main}
-              {lang === "both" && (
-                <span className="qr-sub">
-                  {words("PIGMEE", lang).sub} + {words("OWNER_DRAW", lang).sub}
-                </span>
-              )}
-            </span>
-            <b className="qr-o">− {rs(totals.pigmee + totals.ownerDraw)}</b>
-          </div>
-          <div className="qr-srow">
-            <span>
-              <b>
-                <Txt k="inCounter" lang={lang} />
-              </b>
-            </span>
-            <b className="qr-big">{rs(counterNow)}</b>
-          </div>
-          <div className="qr-srow">
-            <span>
-              📱 UPI <b className="qr-g">{rs(totals.upiIn)}</b> · <b className="qr-r">{rs(totals.upiOut)}</b>
-            </span>
-            <span>
-              📒 {word("CREDIT", lang)} <b>{rs(totals.creditGiven)}</b>
-            </span>
-          </div>
-          <div className="qr-srow">
-            <span>
-              <Txt k="t1" lang={lang} />
-            </span>
-            {tallyText(day?.tallies.AFTERNOON || null)}
-          </div>
-          <div className="qr-srow">
-            <span>
-              <Txt k="t2" lang={lang} />
-            </span>
-            {tallyText(day?.tallies.NIGHT || null)}
-          </div>
-        </div>
-
-        {/* ---------------- today's entries ---------------- */}
-        <div className="qr-card" style={{ background: "transparent", border: "none", padding: 0 }}>
-          <h2>
-            <Txt k="entries" lang={lang} />
-          </h2>
-          <div className="qr-lists">
-            <div className="qr-lcol in">
-              <div className="qr-lh">
-                <span>⬇ {word("moneyIn", lang)}</span>
-                <span>{rs(sum(ins))}</span>
-              </div>
-              {ins.length ? [...ins].reverse().map(EntryCard) : <div className="qr-empty">{word("none", lang)}</div>}
-            </div>
-            <div className="qr-lcol out">
-              <div className="qr-lh">
-                <span>⬆ {word("moneyOut", lang)}</span>
-                <span>{rs(sum(outs))}</span>
-              </div>
-              {outs.length ? [...outs].reverse().map(EntryCard) : <div className="qr-empty">{word("none", lang)}</div>}
-            </div>
-            {oths.length > 0 && (
-              <div className="qr-lcol oth">
-                <div className="qr-lh">
-                  <span>{word("otherCash", lang)}</span>
-                  <span>{rs(sum(oths))}</span>
-                </div>
-                {[...oths].reverse().map(EntryCard)}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ---------------- job-work ledger ---------------- */}
-        <div className="qr-card" id="qr-jw-ledger">
-          <h2>
-            🌾 <Txt k="jobWork" lang={lang} />
-          </h2>
-          <div className="qr-stats">
-            <div className="qr-stat">
-              <div className="l">🟤 {word("khali", lang)}</div>
-              <div className="v">{(day?.khaliKg || 0).toFixed(1)} kg</div>
-            </div>
-            <div className="qr-stat">
-              <div className="l">⏳ {word("unsettled", lang)}</div>
-              <div className="v">{unsettled.length}</div>
+            <div className="qr-right">
+              <SheetModeCtx.Provider value="inline">{sheetEl}</SheetModeCtx.Provider>
+              {jobWorkBlock}
+              {entriesBlock}
             </div>
           </div>
-          {(day?.jobWork || []).slice(0, 15).map((j) => {
-            const due = expectedSettlement(j);
-            const cansTxt = Object.entries(j.cans || {})
-              .filter(([, c]) => c && c.qty)
-              .map(([k, c]) => `${c!.qty}× ${CAN_TYPES[k as CanKey]?.label || k}`)
-              .join(", ");
-            return (
-              <div className="qr-jwrow" key={j.id}>
-                <div className="t">
-                  <span>
-                    {new Date(j.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}, {hm(j.createdAt)}
-                  </span>
-                  <span>{j.cakeOwnership === "SHOP" ? "🏪" : "🙋"}</span>
-                </div>
-                <div className="n">
-                  {j.customer}
-                  {j.vehicleNo && <span className="qr-m"> ({j.vehicleNo})</span>}
-                </div>
-                <div className="qr-m" style={{ fontSize: 13 }}>
-                  {j.seedKg} kg{cansTxt ? " · " + cansTxt : ""}
-                  {j.notes ? " · " + j.notes : ""}
-                </div>
-                {j.settled ? (
-                  <span className="qr-badge ok">
-                    ✓ {word("paid", lang)} {rs(j.settlementAmountInr)}
-                  </span>
-                ) : (
-                  <>
-                    <span className="qr-badge due">
-                      {word(j.cakeOwnership === "SHOP" ? "shopPays" : "customerPays", lang)} {rs(Math.abs(due))}
-                    </span>
-                    <div className="qr-btnrow" style={{ gridTemplateColumns: "1fr" }}>
-                      <button className="qr-btn2" disabled={dbOffline} onClick={() => setSheet({ t: "jwpay", id: j.id })}>
-                        💰 {word("pay", lang)}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
-          {!day?.jobWork.length && <div className="qr-empty">{word("none", lang)}</div>}
-        </div>
+        ) : (
+          <>
+            {favouritesBlock}
+            {boardBlock}
+            {summaryBlock}
+            {entriesBlock}
+            {jobWorkBlock}
+          </>
+        )}
       </div>
 
-      {/* ---------------- sheets ---------------- */}
-      {sheet?.t === "entry" && day && (
-        <EntrySheet
-          kind={sheet.kind}
-          day={day}
-          lang={lang}
-          date={date}
-          onClose={() => setSheet(null)}
-          onSaved={() => {
-            setSheet(null);
-            toast(word("saved", lang));
-            load();
-          }}
-          toast={toast}
-        />
-      )}
-      {sheet?.t === "jw" && day && (
-        <JobWorkSheet
-          day={day}
-          lang={lang}
-          onClose={() => setSheet(null)}
-          onSaved={() => {
-            setSheet(null);
-            toast(word("saved", lang));
-            load();
-          }}
-          toast={toast}
-        />
-      )}
-      {sheet?.t === "jwpay" && day && (
-        <JobWorkPaySheet
-          entry={day.jobWork.find((j) => j.id === sheet.id)!}
-          lang={lang}
-          onClose={() => setSheet(null)}
-          onSaved={() => {
-            setSheet(null);
-            toast(word("saved", lang));
-            load();
-          }}
-          toast={toast}
-        />
-      )}
-      {sheet?.t === "count" && day && (
-        <CountSheet
-          day={day}
-          lang={lang}
-          date={date}
-          isOwner={isOwner}
-          onClose={() => setSheet(null)}
-          onSaved={(msg) => {
-            setSheet(null);
-            toast(msg);
-            load();
-          }}
-          reload={load}
-          toast={toast}
-        />
-      )}
-      {sheet?.t === "calc" && <CalcSheet lang={lang} onClose={() => setSheet(null)} />}
-      {sheet?.t === "report" && day && (
-        <ReportSheet
-          day={day}
-          lang={lang}
-          setLang={setLang}
-          isOwner={isOwner}
-          onClose={() => setSheet(null)}
-          toast={toast}
-          reloadToday={load}
-        />
-      )}
+      {!sideBySide && sheetEl}
       {toastMsg && (
         <div className="qr-toast" role="status">
           {toastMsg}
@@ -766,6 +1013,7 @@ export default function QuickRegister() {
     </div>
   );
 }
+
 
 // ---------------------------------------------------------------------------
 // Entry sheet (sale / udhaar / purchase / expense / payment / pigmee / draw)
@@ -1019,34 +1267,43 @@ function EntrySheet({
 function JobWorkSheet({
   day,
   lang,
+  edit,
   onClose,
   onSaved,
   toast,
 }: {
   day: DayBundle;
   lang: LangMode;
+  edit?: JobWork; // when set, edits this intake (PATCH) instead of creating one
   onClose: () => void;
   onSaved: () => void;
   toast: (m: string) => void;
 }) {
-  const [customer, setCustomer] = useState("");
-  const [vehicle, setVehicle] = useState("");
-  const [seedKg, setSeedKg] = useState("");
-  const [cake, setCake] = useState<CakeOwnership>("SHOP");
-  const [advC, setAdvC] = useState("");
-  const [advA, setAdvA] = useState("");
-  const [cans, setCans] = useState<Record<CanKey, string>>({ can15: "", can5new: "", can5old: "" });
-  const [notes, setNotes] = useState("");
+  const num = (v: number | null | undefined) => (v ? String(v) : "");
+  const [customer, setCustomer] = useState(edit?.customer || "");
+  const [vehicle, setVehicle] = useState(edit?.vehicleNo || "");
+  const [seedKg, setSeedKg] = useState(num(edit?.seedKg));
+  const [cake, setCake] = useState<CakeOwnership>(edit?.cakeOwnership || "SHOP");
+  const [advC, setAdvC] = useState(num(edit?.advanceCustomerInr));
+  const [advA, setAdvA] = useState(num(edit?.advanceAutoInr));
+  const [cans, setCans] = useState<Record<CanKey, string>>({
+    can15: num(edit?.cans?.can15?.qty),
+    can5new: num(edit?.cans?.can5new?.qty),
+    can5old: num(edit?.cans?.can5old?.qty),
+  });
+  const [notes, setNotes] = useState(edit?.notes || "");
   const [busy, setBusy] = useState(false);
 
+  // A can's price is fixed at the moment of intake, so an edit keeps the
+  // rate that was saved with the entry (lib/calculations.ts CAN_TYPES note).
   const cansObj = useMemo(() => {
     const o: Partial<Record<CanKey, { qty: number; rate: number }>> = {};
     (Object.keys(CAN_TYPES) as CanKey[]).forEach((k) => {
       const q = parseInt(cans[k], 10);
-      if (q > 0) o[k] = { qty: q, rate: CAN_TYPES[k].rate };
+      if (q > 0) o[k] = { qty: q, rate: edit?.cans?.[k]?.rate ?? CAN_TYPES[k].rate };
     });
     return o;
-  }, [cans]);
+  }, [cans, edit]);
 
   const due = expectedSettlement({
     seedKg: parseFloat(seedKg) || 0,
@@ -1062,8 +1319,8 @@ function JobWorkSheet({
     if (!(kg > 0)) return toast(word("needKg", lang));
     setBusy(true);
     try {
-      await api("/api/job-work", {
-        method: "POST",
+      await api(edit ? `/api/job-work/${edit.id}` : "/api/job-work", {
+        method: edit ? "PATCH" : "POST",
         body: JSON.stringify({
           customer: customer.trim(),
           vehicleNo: vehicle.trim() || null,
@@ -1089,7 +1346,7 @@ function JobWorkSheet({
   };
 
   return (
-    <SheetFrame icon="🌾" k="jwNew" lang={lang} onClose={onClose}>
+    <SheetFrame icon={edit ? "✏️" : "🌾"} k={edit ? "jwEdit" : "jwNew"} lang={lang} onClose={onClose}>
       <PartyField
         value={customer}
         onChange={setCustomer}
@@ -1181,7 +1438,7 @@ function JobWorkSheet({
         </span>
       </div>
       <button className="qr-save jw" onClick={save} disabled={busy}>
-        ✓ {word(busy ? "saving" : "logIntake", lang)}
+        ✓ {word(busy ? "saving" : edit ? "updateIntake" : "logIntake", lang)}
       </button>
     </SheetFrame>
   );
@@ -1474,6 +1731,9 @@ function ReportSheet({
   day: todayBundle,
   lang,
   setLang,
+  layout,
+  setLayout,
+  onEditFavs,
   isOwner,
   onClose,
   toast,
@@ -1482,6 +1742,9 @@ function ReportSheet({
   day: DayBundle;
   lang: LangMode;
   setLang: (m: LangMode) => void;
+  layout: LayoutMode;
+  setLayout: (l: LayoutMode) => void;
+  onEditFavs: () => void;
   isOwner: boolean;
   onClose: () => void;
   toast: (m: string) => void;
@@ -1677,6 +1940,26 @@ function ReportSheet({
             { key: "kn", icon: "ಅ", en: "Kannada only", kn: "ಕನ್ನಡ ಮಾತ್ರ" },
           ]}
         />
+      </div>
+
+      <div className="qr-card">
+        <h2>
+          🖥️ <Txt k="layout" lang={lang} />
+        </h2>
+        <Chips
+          lang={lang}
+          value={layout}
+          onPick={setLayout}
+          options={[
+            { key: "auto", icon: "⇆", en: "Auto (side by side on big screens)", kn: "ಸ್ವಯಂ (ದೊಡ್ಡ ಪರದೆಯಲ್ಲಿ ಪಕ್ಕ-ಪಕ್ಕ)" },
+            { key: "side", icon: "◧", en: "Always side by side", kn: "ಯಾವಾಗಲೂ ಪಕ್ಕ-ಪಕ್ಕ" },
+            { key: "stack", icon: "☰", en: "One column", kn: "ಒಂದೇ ಕಾಲಮ್" },
+          ]}
+        />
+        <div className="qr-hint">{word("layoutHint", lang)}</div>
+        <button className="qr-btn2" style={{ width: "100%", marginTop: 8 }} onClick={onEditFavs}>
+          ⭐ {word("editFavs", lang)}
+        </button>
       </div>
 
       {isOwner && (
