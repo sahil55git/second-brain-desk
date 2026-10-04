@@ -145,6 +145,17 @@ required; Staff and Owner both allowed).
   buttons; customer/supplier names are linked to (or added to) the shared
   Party master.
 - **Language**: Both / English only / Kannada only, remembered per device.
+- **Screen layout** (per device, Reports → Screen layout, or the ⇆ button):
+  *Auto* = side by side on screens ≥ 1100 px, *Always side by side*
+  (≥ 760 px), or *One column*. Side by side keeps the buttons on the left
+  and opens forms in the right-hand panel above the job-work table and
+  today's entries. Phones always use one column.
+- **Favourites** (⭐ button): pin any buttons to a Favourites strip at the
+  top. Summary / Today's entries / Job-Work sections can be folded; the
+  choice is remembered per device.
+- **Job-Work table**: same columns as the Job-Work Desk (Time, Customer +
+  advance + cans, Auto/Vehicle + advance, Seed kg, Cake, Notes, Status,
+  Pay / Edit). Edit uses the existing `PATCH /api/job-work/[id]`.
 - **Reports**: day + month totals, thermal-printer slip, WhatsApp share,
   CSV copy for the accountant.
 - **Permissions** (checked server-side): Staff can delete only today's
