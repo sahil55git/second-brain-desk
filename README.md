@@ -153,6 +153,17 @@ required; Staff and Owner both allowed).
 - **Favourites** (⭐ button): pin any buttons to a Favourites strip at the
   top. Summary / Today's entries / Job-Work sections can be folded; the
   choice is remembered per device.
+- **Fresh crush sale** (🫗, Money In): oil crushed in front of the customer
+  from the shop's own seed. Records the sale (qty, rate, amount, payment)
+  plus seed used → oil made → extra oil to tank/barrel → oil cake, with
+  yield % and the same 2 % mass-balance flag as `oil_yield_tracker.py`.
+  Reports → Fresh crush gives per-seed totals and a **Vyapar day-closing
+  sheet** to copy. Procedure: `docs/SOP-fresh-crush-sale.md`. Stored as a
+  `RegisterEntry` (kind `FRESH_CRUSH`) with the production numbers in the
+  new nullable `details` JSON column.
+- **Workspace** (always open): a card that never closes — pick Calculator,
+  Notepad (this device only) or any entry form; forms reset after saving
+  and stay open. In side-by-side mode it sits next to the forms.
 - **Job-Work table**: same columns as the Job-Work Desk (Time, Customer +
   advance + cans, Auto/Vehicle + advance, Seed kg, Cake, Notes, Status,
   Pay / Edit). Edit uses the existing `PATCH /api/job-work/[id]`.
@@ -165,6 +176,10 @@ required; Staff and Owner both allowed).
 Only **cash** moves the counter figure; UPI and udhaar are recorded and
 shown separately. It is a cash book, not a GST ledger — the accountant
 still enters full invoices in Vyapar / the Sales & Purchase desks.
+
+**Database change for Fresh crush** (additive): new `FRESH_CRUSH` value in
+`RegisterKind` and a nullable `details` column on `RegisterEntry`. Run
+`npx prisma db push` once **before** merging.
 
 **Database change** (additive only): new `RegisterEntry` and
 `RegisterConfig` tables, a `RegisterKind` enum, and two nullable columns

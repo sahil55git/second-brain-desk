@@ -15,6 +15,7 @@ import type { CashInputs } from "./calculations";
 export type Side = "in" | "out" | "oth";
 export type RegisterKind =
   | "SALE"
+  | "FRESH_CRUSH"
   | "UDHAAR_IN"
   | "PURCHASE"
   | "EXPENSE"
@@ -26,6 +27,7 @@ export type LangMode = "both" | "en" | "kn";
 
 export const KIND_SIDE: Record<RegisterKind, Side> = {
   SALE: "in",
+  FRESH_CRUSH: "in",
   UDHAAR_IN: "in",
   PURCHASE: "out",
   EXPENSE: "out",
@@ -49,6 +51,13 @@ export const CATALOG: Partial<Record<RegisterKind, CatalogItem[]>> = {
     { key: "groundnut", icon: "🥜", en: "Groundnut", kn: "ಶೇಂಗಾ" },
     { key: "ekatva", icon: "🧴", en: "Ekatva", kn: "ಏಕತ್ವ" },
     { key: "cake", icon: "🟤", en: "Oil cake (khali)", kn: "ಹಿಂಡಿ" },
+  ],
+  // Our own seed crushed in front of the customer (fresh crush sale).
+  FRESH_CRUSH: [
+    { key: "groundnut", icon: "🥜", en: "Groundnut", kn: "ಶೇಂಗಾ" },
+    { key: "karadi", icon: "🟠", en: "Karadi (safflower)", kn: "ಕರಡಿ (ಕುಸುಬೆ)" },
+    { key: "sunflower", icon: "🌻", en: "Sunflower", kn: "ಸೂರ್ಯಕಾಂತಿ" },
+    { key: "mustard", icon: "🟡", en: "Mustard", kn: "ಸಾಸಿವೆ" },
   ],
   PURCHASE: [
     { key: "seed", icon: "🌾", en: "Seed", kn: "ಬೀಜ" },
@@ -337,6 +346,7 @@ export function toClosingBuckets(
     if (!eff) continue;
     switch (e.kind) {
       case "SALE":
+      case "FRESH_CRUSH":
         b.cashInSales += eff;
         break;
       case "UDHAAR_IN":
@@ -431,4 +441,99 @@ export function toCsv(rows: CsvRow[]): string {
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return [head.join(","), ...rows.map((r) => head.map((h) => esc((r as unknown as Record<string, unknown>)[h])).join(","))].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Fresh crush sale — the customer buys oil crushed in front of them from the
+// SHOP's own seed (not job-work: job-work is the customer's seed, GST s.143).
+// One entry = one crushing: seed used -> oil produced -> part sold to the
+// customer, any extra transferred to a tank/barrel, plus oil cake kept.
+// ---------------------------------------------------------------------------
+export interface FreshCrushDetails {
+  seedKg: number; // shop's seed used
+  oilKg: number; // fresh oil produced
+  soldKg?: number | null; // oil sold to the customer, in kg (when sold by weight)
+  extraKg: number; // extra oil moved to tank / barrel
+  extraTo?: string | null; // which tank / barrel
+  cakeKg: number; // oil cake (khali) kept by the shop
+}
+
+// Same tolerance as 05_Scripts/oil_yield_tracker.py: flag when the invisible
+// loss (seed − oil − cake) is more than 2% of the seed.
+export const MASS_BALANCE_TOLERANCE_PCT = 2;
+
+export function freshCrushStats(d: FreshCrushDetails) {
+  const seed = Number(d.seedKg) || 0;
+  const oil = Number(d.oilKg) || 0;
+  const cake = Number(d.cakeKg) || 0;
+  const yieldPct = seed > 0 ? (oil / seed) * 100 : 0;
+  const lossKg = seed - oil - cake;
+  const lossPct = seed > 0 ? (lossKg / seed) * 100 : 0;
+  // Oil that is neither sold nor moved to a tank (only checkable when sold in kg).
+  const unaccountedOilKg =
+    typeof d.soldKg === "number" ? Math.round((oil - d.soldKg - (Number(d.extraKg) || 0)) * 100) / 100 : null;
+  return {
+    yieldPct,
+    lossKg,
+    lossPct,
+    lossFlag: cake > 0 && lossPct > MASS_BALANCE_TOLERANCE_PCT,
+    unaccountedOilKg,
+  };
+}
+
+/** Suggested extra-to-tank when the sale is in kg: oil produced − oil sold. */
+export function suggestedExtraKg(oilKg: number, soldKg: number | null): number | null {
+  if (!(oilKg > 0) || soldKg === null || !(soldKg >= 0) || soldKg > oilKg) return null;
+  return Math.round((oilKg - soldKg) * 100) / 100;
+}
+
+export function normalizeFreshCrush(raw: unknown): FreshCrushDetails | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const n = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : NaN);
+  const seedKg = n(r.seedKg);
+  const oilKg = n(r.oilKg);
+  const extraKg = r.extraKg === undefined || r.extraKg === null || r.extraKg === "" ? 0 : n(r.extraKg);
+  const cakeKg = r.cakeKg === undefined || r.cakeKg === null || r.cakeKg === "" ? 0 : n(r.cakeKg);
+  const soldKg = r.soldKg === undefined || r.soldKg === null || r.soldKg === "" ? null : n(r.soldKg);
+  if (!(seedKg > 0) || !(oilKg > 0) || oilKg > seedKg) return null;
+  if (!(extraKg >= 0) || !(cakeKg >= 0) || extraKg > oilKg || oilKg + cakeKg > seedKg * 1.02) return null;
+  if (soldKg !== null && (!(soldKg >= 0) || soldKg + extraKg > oilKg * 1.02)) return null;
+  const extraTo = typeof r.extraTo === "string" && r.extraTo.trim() ? r.extraTo.trim().slice(0, 60) : null;
+  return { seedKg, oilKg, soldKg, extraKg, extraTo, cakeKg };
+}
+
+export interface FreshCrushTotals {
+  count: number;
+  amount: number;
+  bySeed: Record<string, { seedKg: number; oilKg: number; extraKg: number; cakeKg: number; amount: number; count: number }>;
+  extraByTank: Record<string, number>;
+  flagged: number;
+}
+
+export function freshCrushTotals(
+  entries: { kind: RegisterKind; item?: string | null; amountInr: number; details?: unknown }[]
+): FreshCrushTotals {
+  const t: FreshCrushTotals = { count: 0, amount: 0, bySeed: {}, extraByTank: {}, flagged: 0 };
+  for (const e of entries) {
+    if (e.kind !== "FRESH_CRUSH") continue;
+    const d = normalizeFreshCrush(e.details);
+    if (!d) continue;
+    const k = e.item || "other";
+    const s = (t.bySeed[k] ||= { seedKg: 0, oilKg: 0, extraKg: 0, cakeKg: 0, amount: 0, count: 0 });
+    s.seedKg += d.seedKg;
+    s.oilKg += d.oilKg;
+    s.extraKg += d.extraKg;
+    s.cakeKg += d.cakeKg;
+    s.amount += e.amountInr;
+    s.count += 1;
+    t.count += 1;
+    t.amount += e.amountInr;
+    if (d.extraKg > 0) {
+      const tank = d.extraTo || "Tank / barrel";
+      t.extraByTank[tank] = (t.extraByTank[tank] || 0) + d.extraKg;
+    }
+    if (freshCrushStats(d).lossFlag) t.flagged += 1;
+  }
+  return t;
 }

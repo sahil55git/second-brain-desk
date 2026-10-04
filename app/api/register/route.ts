@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, isValidDate, loadConfig, loadDay, saveConfig } from "@/lib/registerServer";
-import { ALL_KINDS, KIND_SIDE, learnItem, rateKey, type RegisterKind } from "@/lib/register";
+import { ALL_KINDS, KIND_SIDE, learnItem, normalizeFreshCrush, rateKey, type RegisterKind } from "@/lib/register";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +35,14 @@ export async function POST(req: NextRequest) {
   if (!Number.isFinite(amount) || amount <= 0 || amount > 10_000_000) {
     return NextResponse.json({ error: "Amount must be a positive number" }, { status: 400 });
   }
+  // Fresh crush sale must carry valid production numbers (seed -> oil -> cake).
+  const details = kind === "FRESH_CRUSH" ? normalizeFreshCrush(body.details) : null;
+  if (kind === "FRESH_CRUSH" && !details) {
+    return NextResponse.json(
+      { error: "Check seed kg, oil kg, extra-to-tank and cake: the numbers don't add up." },
+      { status: 400 }
+    );
+  }
   const side = KIND_SIDE[kind];
   const mode = side === "oth" ? "CASH" : MODES.includes(body.paymentMode) ? body.paymentMode : "CASH";
   const qty = Number(body.qty);
@@ -58,7 +66,9 @@ export async function POST(req: NextRequest) {
       cfgChanged = true;
     }
     if (!totalSale && Number.isFinite(rate) && rate > 0 && item) {
-      cfg = { ...cfg, rates: { ...cfg.rates, [rateKey(kind, item)]: rate } };
+      // Fresh crush is sold per kg or per litre, so its rate is remembered per unit.
+      const key = kind === "FRESH_CRUSH" ? rateKey(kind, `${item}:${unit || "kg"}`) : rateKey(kind, item);
+      cfg = { ...cfg, rates: { ...cfg.rates, [key]: rate } };
       cfgChanged = true;
     }
     if (cfgChanged) await saveConfig(cfg);
@@ -101,6 +111,8 @@ export async function POST(req: NextRequest) {
         partyName,
         partyId,
         notes,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        details: (details as any) ?? undefined,
         createdByName: user.name || null,
       },
     });

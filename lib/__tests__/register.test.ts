@@ -156,3 +156,50 @@ describe("library + misc", () => {
     expect(csv.split("\n")[1]).toContain('"a,""b"""');
   });
 });
+
+import { freshCrushStats, freshCrushTotals, normalizeFreshCrush, suggestedExtraKg } from "../register";
+
+describe("fresh crush sale", () => {
+  it("is money in and counts as sales in the closing buckets", () => {
+    const e = { kind: "FRESH_CRUSH" as const, amountInr: 2400, paymentMode: "CASH" as const, createdAt: T(11) };
+    expect(entryCashEffect(e)).toBe(2400);
+    expect(toClosingBuckets(0, [e], []).cashInSales).toBe(2400);
+    expect(toClosingBuckets(0, [{ ...e, paymentMode: "UPI" }], []).cashInSales).toBe(0);
+  });
+  it("yield, mass-balance loss and the 2% flag (same rule as oil_yield_tracker.py)", () => {
+    const ok = freshCrushStats({ seedKg: 100, oilKg: 32, extraKg: 2, cakeKg: 67, soldKg: 30 });
+    expect(ok.yieldPct).toBe(32);
+    expect(ok.lossKg).toBe(1);
+    expect(ok.lossFlag).toBe(false);
+    expect(ok.unaccountedOilKg).toBe(0);
+    const bad = freshCrushStats({ seedKg: 100, oilKg: 32, extraKg: 0, cakeKg: 60 });
+    expect(bad.lossPct).toBe(8);
+    expect(bad.lossFlag).toBe(true);
+  });
+  it("suggests extra-to-tank only when the sale is in kg and fits", () => {
+    expect(suggestedExtraKg(32, 30)).toBe(2);
+    expect(suggestedExtraKg(32, null)).toBeNull();
+    expect(suggestedExtraKg(32, 40)).toBeNull();
+  });
+  it("rejects impossible numbers", () => {
+    expect(normalizeFreshCrush({ seedKg: 100, oilKg: 120 })).toBeNull(); // more oil than seed
+    expect(normalizeFreshCrush({ seedKg: 100, oilKg: 30, extraKg: 40 })).toBeNull(); // extra > oil
+    expect(normalizeFreshCrush({ seedKg: 100, oilKg: 30, cakeKg: 90 })).toBeNull(); // oil+cake > seed
+    expect(normalizeFreshCrush({ seedKg: 100, oilKg: 30, soldKg: 25, extraKg: 10 })).toBeNull(); // sold+extra > oil
+    expect(normalizeFreshCrush({ seedKg: 100, oilKg: 30, soldKg: 25, extraKg: 5, extraTo: " Barrel A1 " })).toMatchObject({
+      extraTo: "Barrel A1",
+      cakeKg: 0,
+    });
+  });
+  it("totals by seed and by tank", () => {
+    const t = freshCrushTotals([
+      { kind: "FRESH_CRUSH", item: "groundnut", amountInr: 2000, details: { seedKg: 50, oilKg: 20, extraKg: 2, extraTo: "Tank 1", cakeKg: 29.5 } },
+      { kind: "FRESH_CRUSH", item: "groundnut", amountInr: 1000, details: { seedKg: 25, oilKg: 10, extraKg: 0, cakeKg: 14.8 } },
+      { kind: "SALE", item: "groundnut", amountInr: 999 },
+    ]);
+    expect(t.count).toBe(2);
+    expect(t.amount).toBe(3000);
+    expect(t.bySeed.groundnut).toMatchObject({ seedKg: 75, oilKg: 30, extraKg: 2, count: 2 });
+    expect(t.extraByTank).toEqual({ "Tank 1": 2 });
+  });
+});
