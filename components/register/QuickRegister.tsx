@@ -23,7 +23,12 @@ import {
   businessDate,
   dayTotals,
   denominationTotal,
+  freshCrushStats,
+  freshCrushTotals,
   itemsFor,
+  normalizeFreshCrush,
+  suggestedExtraKg,
+  MASS_BALANCE_TOLERANCE_PCT,
   rateKey,
   systemCash,
   toCsv,
@@ -52,6 +57,7 @@ interface Entry extends RegisterEntryLike {
   partyName: string | null;
   notes: string | null;
   createdByName: string | null;
+  details?: unknown;
   createdAt: string;
 }
 interface JobWork {
@@ -95,6 +101,7 @@ interface DayBundle {
 type Sheet =
   | { t: "entry"; kind: RegisterKind }
   | { t: "jw"; id?: string }
+  | { t: "fresh" }
   | { t: "jwpay"; id: string }
   | { t: "count" }
   | { t: "calc" }
@@ -104,6 +111,7 @@ type Sheet =
 // Per-device screen preferences (layout, favourite tiles, folded sections).
 type TileKey =
   | "SALE"
+  | "FRESH_CRUSH"
   | "UDHAAR_IN"
   | "PURCHASE"
   | "EXPENSE"
@@ -116,13 +124,16 @@ type TileKey =
   | "calc"
   | "reports";
 type SectionKey = "summary" | "entries" | "jobwork";
+// What the always-open Workspace card shows.
+type WorkTool = "calc" | "notepad" | "FRESH_CRUSH" | "SALE" | "EXPENSE" | "PURCHASE" | "jwNew" | "count";
 type LayoutMode = "auto" | "side" | "stack";
 interface Prefs {
   layout: LayoutMode;
   favs: string[];
   closed: string[];
+  work: WorkTool;
 }
-const DEFAULT_PREFS: Prefs = { layout: "auto", favs: [], closed: [] };
+const DEFAULT_PREFS: Prefs = { layout: "auto", favs: [], closed: [], work: "calc" };
 const PREFS_KEY = "qr-prefs";
 
 // "modal" = bottom sheet over the page (phones / one-column layout);
@@ -143,6 +154,7 @@ function useMedia(query: string): boolean {
 
 const KIND_ICON: Record<RegisterKind, string> = {
   SALE: "💰",
+  FRESH_CRUSH: "🫗",
   UDHAAR_IN: "🙌",
   PURCHASE: "🛒",
   EXPENSE: "🧾",
@@ -164,6 +176,53 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
   return json as T;
+}
+
+const kg = (n: number) => `${Math.round(n * 100) / 100} kg`;
+
+/** One-line summary of a fresh-crush entry for lists and slips. */
+function freshCrushLine(details: unknown, lang: LangMode): string {
+  const d = normalizeFreshCrush(details);
+  if (!d) return "";
+  const st = freshCrushStats(d);
+  const parts = [
+    `${word("fcSeedShort", lang)} ${kg(d.seedKg)} → ${word("fcOilShort", lang)} ${kg(d.oilKg)} (${st.yieldPct.toFixed(1)}%)`,
+    d.extraKg > 0 ? `${kg(d.extraKg)} → ${d.extraTo || word("fcTankShort", lang)}` : "",
+    d.cakeKg > 0 ? `${word("fcCakeShort", lang)} ${kg(d.cakeKg)}` : "",
+    st.lossFlag ? "⚠️" : "",
+  ];
+  return parts.filter(Boolean).join(" · ");
+}
+
+// Notepad for the Workspace card — kept on this device only.
+function Notepad({ lang }: { lang: LangMode }) {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    try {
+      setText(localStorage.getItem("qr-notepad") || "");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  return (
+    <div>
+      <textarea
+        className="qr-txt qr-note"
+        value={text}
+        rows={8}
+        onChange={(e) => {
+          setText(e.target.value);
+          try {
+            localStorage.setItem("qr-notepad", e.target.value);
+          } catch {
+            /* ignore */
+          }
+        }}
+        aria-label={word("notepad", lang)}
+      />
+      <div className="qr-hint">{word("wsNoteHint", lang)}</div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -434,6 +493,7 @@ export default function QuickRegister() {
       e.partyName || "",
       e.notes || "",
       e.drawKind ? word(e.drawKind === "full" ? "full" : "partial", lang) : "",
+      e.kind === "FRESH_CRUSH" ? freshCrushLine(e.details, lang) : "",
     ]
       .filter(Boolean)
       .join(" · ");
@@ -479,6 +539,7 @@ export default function QuickRegister() {
   };
   const TILES: Record<TileKey, { k: WordKey; icon: string; group: "in" | "out" | "jw" | "oth" | "tool"; open: () => void; needsDb?: boolean }> = {
     SALE: { k: "SALE", icon: "💰", group: "in", open: () => setSheet({ t: "entry", kind: "SALE" }), needsDb: true },
+    FRESH_CRUSH: { k: "FRESH_CRUSH", icon: "🫗", group: "in", open: () => setSheet({ t: "fresh" }), needsDb: true },
     UDHAAR_IN: { k: "UDHAAR_IN", icon: "🙌", group: "in", open: () => setSheet({ t: "entry", kind: "UDHAAR_IN" }), needsDb: true },
     PURCHASE: { k: "PURCHASE", icon: "🛒", group: "out", open: () => setSheet({ t: "entry", kind: "PURCHASE" }), needsDb: true },
     EXPENSE: { k: "EXPENSE", icon: "🧾", group: "out", open: () => setSheet({ t: "entry", kind: "EXPENSE" }), needsDb: true },
@@ -608,6 +669,7 @@ export default function QuickRegister() {
             <span aria-hidden>⬇</span>
           </div>
           <Tile id="SALE" />
+          <Tile id="FRESH_CRUSH" />
           <Tile id="UDHAAR_IN" />
         </div>
         <div className="qr-col out">
@@ -866,6 +928,86 @@ export default function QuickRegister() {
     </Section>
   );
 
+  // ---------------------------- workspace ------------------------------
+  // An always-open card: pick a tool once and it stays on screen (per device).
+  const [wsKey, setWsKey] = useState(0);
+  const wsReset = () => setWsKey((k) => k + 1);
+  const wsSaved = () => {
+    toast(word("saved", lang));
+    load();
+    wsReset();
+  };
+  const WORK_TOOLS: { key: WorkTool; icon: string; k: WordKey }[] = [
+    { key: "calc", icon: "🧮", k: "calc" },
+    { key: "notepad", icon: "📝", k: "notepad" },
+    { key: "FRESH_CRUSH", icon: "🫗", k: "FRESH_CRUSH" },
+    { key: "SALE", icon: "💰", k: "SALE" },
+    { key: "EXPENSE", icon: "🧾", k: "EXPENSE" },
+    { key: "PURCHASE", icon: "🛒", k: "PURCHASE" },
+    { key: "jwNew", icon: "🌾", k: "jwNew" },
+    { key: "count", icon: "💵", k: "count" },
+  ];
+  const tool = prefs.work;
+  const wsBody =
+    tool === "calc" ? (
+      <CalcSheet key={wsKey} lang={lang} onClose={wsReset} />
+    ) : tool === "notepad" ? (
+      <Notepad lang={lang} />
+    ) : !day ? null : tool === "FRESH_CRUSH" ? (
+      <FreshCrushSheet key={wsKey} day={day} lang={lang} date={date} onClose={wsReset} onSaved={wsSaved} toast={toast} />
+    ) : tool === "jwNew" ? (
+      <JobWorkSheet key={wsKey} day={day} lang={lang} onClose={wsReset} onSaved={wsSaved} toast={toast} />
+    ) : tool === "count" ? (
+      <CountSheet
+        key={wsKey}
+        day={day}
+        lang={lang}
+        date={date}
+        isOwner={isOwner}
+        onClose={wsReset}
+        onSaved={(msg) => {
+          toast(msg);
+          load();
+          wsReset();
+        }}
+        reload={load}
+        toast={toast}
+      />
+    ) : (
+      <EntrySheet key={`${tool}-${wsKey}`} kind={tool} day={day} lang={lang} date={date} onClose={wsReset} onSaved={wsSaved} toast={toast} />
+    );
+  const workspaceBlock = (
+    <div className="qr-work" aria-label={word("workspace", lang)}>
+      <div className="qr-head qr-work-head">
+        <span>
+          🧰 <Txt k="workspace" lang={lang} />
+        </span>
+      </div>
+      <div className="qr-chips qr-work-tools" role="tablist">
+        {WORK_TOOLS.map((w) => {
+          const l = words(w.k, lang);
+          return (
+            <button
+              key={w.key}
+              role="tab"
+              aria-selected={tool === w.key}
+              className={`qr-chip${tool === w.key ? " sel" : ""}`}
+              disabled={dbOffline && w.key !== "calc" && w.key !== "notepad"}
+              onClick={() => setPrefs((p) => ({ ...p, work: w.key }))}
+            >
+              <span className="ci">{w.icon}</span>
+              {l.main}
+              {l.sub && <span className="qr-sub">{l.sub}</span>}
+            </button>
+          );
+        })}
+      </div>
+      <SheetModeCtx.Provider value="inline">
+        <div className="qr-work-body">{wsBody}</div>
+      </SheetModeCtx.Provider>
+    </div>
+  );
+
   // ----------------------------- sheets --------------------------------
   const done = (msg?: string) => {
     setSheet(null);
@@ -876,6 +1018,8 @@ export default function QuickRegister() {
     <CalcSheet lang={lang} onClose={() => setSheet(null)} />
   ) : !day ? null : sheet.t === "entry" ? (
     <EntrySheet key={sheet.kind} kind={sheet.kind} day={day} lang={lang} date={date} onClose={() => setSheet(null)} onSaved={() => done()} toast={toast} />
+  ) : sheet.t === "fresh" ? (
+    <FreshCrushSheet day={day} lang={lang} date={date} onClose={() => setSheet(null)} onSaved={() => done()} toast={toast} />
   ) : sheet.t === "jw" ? (
     <JobWorkSheet
       key={sheet.id || "new"}
@@ -988,15 +1132,21 @@ export default function QuickRegister() {
               {summaryBlock}
             </div>
             <div className="qr-right">
-              <SheetModeCtx.Provider value="inline">{sheetEl}</SheetModeCtx.Provider>
-              {jobWorkBlock}
-              {entriesBlock}
+              <div className="qr-rforms">
+                <SheetModeCtx.Provider value="inline">{sheetEl}</SheetModeCtx.Provider>
+                {workspaceBlock}
+              </div>
+              <div className="qr-rtables">
+                {jobWorkBlock}
+                {entriesBlock}
+              </div>
             </div>
           </div>
         ) : (
           <>
             {favouritesBlock}
             {boardBlock}
+            {workspaceBlock}
             {summaryBlock}
             {entriesBlock}
             {jobWorkBlock}
@@ -1691,6 +1841,281 @@ function CountSheet({
 // ---------------------------------------------------------------------------
 // Calculator (never saves anything)
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Fresh crush sale — our own seed crushed in front of the customer.
+// Records the money (like a sale) AND the production numbers the accountant
+// needs at day closing (seed used, oil made, oil to tank/barrel, oil cake).
+// ---------------------------------------------------------------------------
+function FreshCrushSheet({
+  day,
+  lang,
+  date,
+  onClose,
+  onSaved,
+  toast,
+}: {
+  day: DayBundle;
+  lang: LangMode;
+  date: string;
+  onClose: () => void;
+  onSaved: () => void;
+  toast: (m: string) => void;
+}) {
+  const seeds = itemsFor("FRESH_CRUSH", day.config);
+  const savedRate = (it: string | null, u: string) => {
+    const r = it ? day.config.rates[rateKey("FRESH_CRUSH", `${it}:${u}`)] : undefined;
+    return r ? String(r) : "";
+  };
+  const [seed, setSeed] = useState<string>(seeds[0]?.key || "other");
+  const [otherName, setOtherName] = useState("");
+  const [seedKg, setSeedKg] = useState("");
+  const [oilKg, setOilKg] = useState("");
+  const [soldQty, setSoldQty] = useState("");
+  const [unit, setUnit] = useState<"kg" | "ltr">("kg");
+  const [rate, setRate] = useState(() => savedRate(seeds[0]?.key || null, "kg"));
+  const [amount, setAmount] = useState("");
+  const [amtTouched, setAmtTouched] = useState(false);
+  const [extra, setExtra] = useState("");
+  const [extraTouched, setExtraTouched] = useState(false);
+  const [extraTo, setExtraTo] = useState("");
+  const [cake, setCake] = useState("");
+  const [mode, setMode] = useState<Mode>("CASH");
+  const [party, setParty] = useState("");
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const n = (v: string) => (v === "" ? NaN : parseFloat(v));
+  const seedN = n(seedKg);
+  const oilN = n(oilKg);
+  const soldN = n(soldQty);
+  const autoAmount = soldN > 0 && n(rate) > 0 ? String(Math.round(soldN * n(rate) * 100) / 100) : "";
+  const amountValue = amtTouched ? amount : autoAmount;
+  const autoExtra = unit === "kg" ? suggestedExtraKg(oilN, soldN >= 0 ? soldN : null) : null;
+  const extraValue = extraTouched ? extra : autoExtra !== null ? String(autoExtra) : "";
+  const details = {
+    seedKg: seedN,
+    oilKg: oilN,
+    soldKg: unit === "kg" && soldN >= 0 ? soldN : null,
+    extraKg: extraValue === "" ? 0 : parseFloat(extraValue),
+    extraTo,
+    cakeKg: cake === "" ? 0 : parseFloat(cake),
+  };
+  const valid = normalizeFreshCrush(details);
+  const stats = valid ? freshCrushStats(valid) : null;
+  const cakeHint = seedN > 0 && oilN > 0 && oilN < seedN ? Math.round((seedN - oilN) * 10) / 10 : null;
+
+  async function save() {
+    if (seed === "other" && !otherName.trim()) return toast(word("itemName", lang));
+    if (!valid) return toast(word("fcBadNumbers", lang));
+    const amt = parseFloat(amountValue);
+    if (!(amt > 0)) return toast(word("needAmount", lang));
+    setBusy(true);
+    try {
+      await api("/api/register", {
+        method: "POST",
+        body: JSON.stringify({
+          date,
+          kind: "FRESH_CRUSH",
+          item: seed,
+          itemLabel: seed === "other" ? otherName.trim() : null,
+          qty: soldN > 0 ? soldN : null,
+          unit,
+          rateInr: n(rate) > 0 ? n(rate) : null, // remembered per seed AND unit by the API
+          amountInr: amt,
+          paymentMode: mode,
+          partyName: party.trim() || null,
+          notes: notes.trim() || null,
+          details: valid,
+        }),
+      });
+      onSaved();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : word("error", lang));
+      setBusy(false);
+    }
+  }
+
+  const num = (v: string, set: (x: string) => void, label: WordKey, extraProps: Record<string, unknown> = {}) => (
+    <div className="qr-f">
+      <label>
+        <Txt k={label} lang={lang} />
+      </label>
+      <input
+        className="qr-num"
+        type="number"
+        inputMode="decimal"
+        min={0}
+        value={v}
+        onChange={(e) => set(e.target.value)}
+        {...extraProps}
+      />
+    </div>
+  );
+
+  return (
+    <SheetFrame icon="🫗" k="FRESH_CRUSH" lang={lang} onClose={onClose}>
+      <div className="qr-res" style={{ marginTop: 0, fontSize: 14, fontWeight: 600 }}>
+        <span>ℹ️ {word("fcNotJobwork", lang)}</span>
+      </div>
+
+      <div className="qr-f" style={{ marginTop: 10 }}>
+        <label>
+          <Txt k="fcSeed" lang={lang} />
+        </label>
+        <Chips
+          lang={lang}
+          value={seed}
+          options={seeds}
+          onPick={(v) => {
+            setSeed(v);
+            setRate(savedRate(v, unit));
+            setAmtTouched(false);
+          }}
+        />
+      </div>
+      {seed === "other" && (
+        <div className="qr-f">
+          <label>
+            <Txt k="itemName" lang={lang} />
+          </label>
+          <input className="qr-txt" value={otherName} onChange={(e) => setOtherName(e.target.value)} />
+        </div>
+      )}
+
+      <span className="qr-lbl">① <Txt k="fcStep1" lang={lang} /></span>
+      <div className="qr-grid2">
+        {num(seedKg, setSeedKg, "fcSeedKg")}
+        {num(oilKg, setOilKg, "fcOilKg")}
+      </div>
+
+      <span className="qr-lbl">② <Txt k="fcStep2" lang={lang} /></span>
+      <div className="qr-f">
+        <Chips
+          lang={lang}
+          value={unit}
+          onPick={(u) => {
+            setUnit(u);
+            setRate(savedRate(seed, u));
+            setAmtTouched(false);
+          }}
+          options={[
+            { key: "kg", icon: "⚖️", en: "kg", kn: "ಕೆಜಿ" },
+            { key: "ltr", icon: "🧴", en: "Litre", kn: "ಲೀಟರ್" },
+          ]}
+        />
+      </div>
+      <div className="qr-grid2">
+        {num(soldQty, setSoldQty, "fcSold")}
+        <div className="qr-f">
+          <label>
+            {words("rate", lang).main} {unit === "kg" ? "kg" : "Litre"}
+            {words("rate", lang).sub && (
+              <span className="qr-sub">
+                {words("rate", lang).sub} {unit === "kg" ? "ಕೆಜಿ" : "ಲೀಟರ್"}
+              </span>
+            )}
+          </label>
+          <input className="qr-num" type="number" inputMode="decimal" min={0} value={rate} onChange={(e) => setRate(e.target.value)} />
+        </div>
+      </div>
+      <div className="qr-f">
+        <label>
+          <Txt k="amount" lang={lang} />
+        </label>
+        <input
+          className="qr-num"
+          type="number"
+          inputMode="decimal"
+          min={0}
+          value={amountValue}
+          onChange={(e) => {
+            setAmount(e.target.value);
+            setAmtTouched(e.target.value !== "");
+          }}
+        />
+      </div>
+      <div className="qr-f">
+        <label>
+          <Txt k="how" lang={lang} />
+        </label>
+        <Chips
+          lang={lang}
+          value={mode}
+          onPick={setMode}
+          options={[
+            { key: "CASH" as Mode, icon: "💵", en: "Cash", kn: "ನಗದು" },
+            { key: "UPI" as Mode, icon: "📱", en: "UPI", kn: "UPI" },
+            { key: "CREDIT" as Mode, icon: "📒", en: "Udhaar", kn: "ಉದ್ರಿ" },
+          ]}
+        />
+      </div>
+      <PartyField value={party} onChange={setParty} top={day.topParties} all={day.allParties} lang={lang} />
+
+      <span className="qr-lbl">③ <Txt k="fcStep3" lang={lang} /></span>
+      <div className="qr-grid2">
+        {num(extraValue, (v) => {
+          setExtra(v);
+          setExtraTouched(true);
+        }, "fcExtra")}
+        <div className="qr-f">
+          <label>
+            <Txt k="fcExtraTo" lang={lang} />
+          </label>
+          <input className="qr-txt" list="qr-tanks" value={extraTo} onChange={(e) => setExtraTo(e.target.value)} placeholder="Karadi tank / Barrel A1" />
+          <datalist id="qr-tanks">
+            <option value="Karadi tank" />
+            <option value="Groundnut tank" />
+            <option value="Sunflower tank" />
+            <option value="Barrel" />
+          </datalist>
+        </div>
+      </div>
+      {unit === "ltr" && <div className="qr-hint">{word("fcLtrHint", lang)}</div>}
+      <div className="qr-f">
+        <label>
+          <Txt k="fcCake" lang={lang} />
+        </label>
+        <input className="qr-num" type="number" inputMode="decimal" min={0} value={cake} onChange={(e) => setCake(e.target.value)} />
+        {cakeHint !== null && (
+          <div className="qr-hint">
+            {word("fcCakeHint", lang)} ≈ {cakeHint} kg
+          </div>
+        )}
+      </div>
+      <div className="qr-f">
+        <label>
+          <Txt k="note" lang={lang} />
+        </label>
+        <input className="qr-txt" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </div>
+
+      {stats && (
+        <div className={`qr-res ${stats.lossFlag || (stats.unaccountedOilKg ?? 0) > 0.05 ? "bad" : "ok"}`}>
+          <span>
+            {word("fcYield", lang)} {stats.yieldPct.toFixed(1)}%
+            {valid!.cakeKg > 0 && (
+              <span className="qr-sub">
+                {word("fcLossLbl", lang)} {kg(stats.lossKg)} ({stats.lossPct.toFixed(1)}%)
+                {stats.lossFlag ? ` — ${word("fcLoss", lang)} (>${MASS_BALANCE_TOLERANCE_PCT}%)` : ""}
+              </span>
+            )}
+            {(stats.unaccountedOilKg ?? 0) > 0.05 && (
+              <span className="qr-sub">
+                {word("fcUnaccounted", lang)}: {kg(stats.unaccountedOilKg!)}
+              </span>
+            )}
+          </span>
+        </div>
+      )}
+      {!valid && seedKg !== "" && oilKg !== "" && <div className="qr-res bad">⚠️ {word("fcBadNumbers", lang)}</div>}
+
+      <button className="qr-save" onClick={save} disabled={busy}>
+        ✓ {word(busy ? "saving" : "save", lang)}
+      </button>
+    </SheetFrame>
+  );
+}
+
 function CalcSheet({ lang, onClose }: { lang: LangMode; onClose: () => void }) {
   const [x, setX] = useState("");
   const keys = ["7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "−", "0", ".", "C", "+", "⌫", "(", ")", "="];
@@ -1774,6 +2199,34 @@ function ReportSheet({
   }, [date]);
 
   const t = dayTotals(day.entries, day.jwEvents);
+  const fc = freshCrushTotals(day.entries);
+  const mfc = freshCrushTotals(month);
+  const seedName = (k: string) => {
+    const it = itemsFor("FRESH_CRUSH", day.config).find((i) => i.key === k);
+    return it ? it.en : k;
+  };
+
+  // What the accountant enters in Vyapar at day closing for fresh crush sales.
+  const vyaparText = () => {
+    const list = day.entries.filter((e) => e.kind === "FRESH_CRUSH");
+    let v = `FRESH CRUSH (our seed) — ${day.date}\nFor Vyapar at day closing. Check against the counter before entering.\n`;
+    list.forEach((e, i) => {
+      const d = normalizeFreshCrush(e.details);
+      if (!d) return;
+      const name = e.item === "other" || !itemsFor("FRESH_CRUSH", day.config).some((x) => x.key === e.item) ? e.itemLabel || e.item || "Oil" : seedName(e.item || "");
+      const st = freshCrushStats(d);
+      v += `\n#${i + 1}  ${hm(e.createdAt)}  ${e.partyName || "Cash customer"}\n`;
+      v += `  1) SALE: ${name} oil (fresh crushed) ${e.qty ?? "-"} ${e.unit || ""} @ ₹${e.rateInr ?? "-"} = ₹${e.amountInr}  [${e.paymentMode}]\n`;
+      v += `  2) MANUFACTURE / STOCK: ${name} seed −${d.seedKg} kg  →  ${name} oil +${d.oilKg} kg` + (d.cakeKg ? `, ${name} oil cake +${d.cakeKg} kg` : "") + `  (yield ${st.yieldPct.toFixed(1)}%)\n`;
+      if (d.extraKg > 0) v += `  3) TRANSFER: ${d.extraKg} kg ${name} oil → ${d.extraTo || "tank / barrel"}\n`;
+      if (st.lossFlag) v += `  ⚠ Loss ${st.lossKg.toFixed(2)} kg (${st.lossPct.toFixed(1)}%) is over 2% — recheck weights\n`;
+    });
+    v += `\nDAY TOTALS: ${fc.count} crushing(s), sales ₹${Math.round(fc.amount)}\n`;
+    for (const [k, x] of Object.entries(fc.bySeed)) {
+      v += `  ${seedName(k)}: seed ${x.seedKg} kg → oil ${x.oilKg} kg, to tank ${x.extraKg} kg, cake ${x.cakeKg} kg\n`;
+    }
+    return v;
+  };
   const mt = dayTotals(month);
   const kinds = Object.keys(t.byKind) as RegisterKind[];
   const mkinds = Object.keys(mt.byKind) as RegisterKind[];
@@ -1825,7 +2278,7 @@ function ReportSheet({
         party: e.partyName || "",
         mode: e.paymentMode,
         amount: e.amountInr,
-        notes: [e.notes, e.drawKind].filter(Boolean).join(" "),
+        notes: [e.notes, e.drawKind, e.kind === "FRESH_CRUSH" ? freshCrushLine(e.details, "en") : ""].filter(Boolean).join(" "),
       }))
     );
 
@@ -1909,6 +2362,56 @@ function ReportSheet({
       <button className="qr-btn2" style={{ width: "100%", marginTop: 8 }} onClick={() => copy(csv())}>
         📋 {word("csv", lang)}
       </button>
+
+      <div className="qr-card">
+        <h2>🫗 {word("fcReport", lang)}</h2>
+        {fc.count ? (
+          <>
+            {Object.entries(fc.bySeed).map(([k, x]) => (
+              <div className="qr-srow" key={k}>
+                <span>
+                  {seedName(k)} ×{x.count}
+                  <span className="qr-sub">
+                    {word("fcSeedShort", lang)} {kg(x.seedKg)} → {word("fcOilShort", lang)} {kg(x.oilKg)} (
+                    {x.seedKg ? ((x.oilKg / x.seedKg) * 100).toFixed(1) : "0"}%) · {word("fcTankShort", lang)} {kg(x.extraKg)} ·{" "}
+                    {word("fcCakeShort", lang)} {kg(x.cakeKg)}
+                  </span>
+                </span>
+                <b className="qr-g">{rs(x.amount)}</b>
+              </div>
+            ))}
+            {Object.entries(fc.extraByTank).map(([tank, q]) => (
+              <div className="qr-srow" key={tank}>
+                <span>🛢️ → {tank}</span>
+                <b>{kg(q)}</b>
+              </div>
+            ))}
+            {fc.flagged > 0 && (
+              <div className="qr-srow">
+                <span className="qr-r">⚠️ {fc.flagged} {word("fcFlagged", lang)}</span>
+              </div>
+            )}
+            <button className="qr-btn2" style={{ width: "100%", marginTop: 8 }} onClick={() => copy(vyaparText())}>
+              🧾 {word("vyapar", lang)}
+            </button>
+          </>
+        ) : (
+          <div className="qr-empty">{word("none", lang)}</div>
+        )}
+        {mfc.count > 0 && (
+          <div className="qr-srow">
+            <span>
+              {word("month", lang)}: ×{mfc.count}
+              <span className="qr-sub">
+                {Object.entries(mfc.bySeed)
+                  .map(([k, x]) => `${seedName(k)} ${kg(x.seedKg)}→${kg(x.oilKg)}`)
+                  .join(" · ")}
+              </span>
+            </span>
+            <b className="qr-g">{rs(mfc.amount)}</b>
+          </div>
+        )}
+      </div>
 
       <div className="qr-card">
         <h2>

@@ -156,6 +156,26 @@ html.dark .qr-favs-head { color: #ffd54a; }
 .qr-right > .qr-card:first-child, .qr-right > .qr-sheet + .qr-card { margin-top: 0; }
 .qr .qr-sheet.inline { position: static; inset: auto; transform: none; animation: none; max-height: none; max-width: none; margin: 6px 0 14px; border-radius: 18px; border: 2px solid var(--qr-jw); box-shadow: 0 6px 24px rgba(0,0,0,.18); z-index: auto; }
 
+/* always-open Workspace card */
+.qr-work { margin-top: 10px; border-radius: 18px; padding: 8px; background: var(--qr-card); border: 2px solid var(--qr-tool); }
+.qr-work-head { color: var(--qr-ink); }
+.qr-work-tools { margin: 0 2px 8px; }
+.qr-work-tools .qr-chip { min-width: 64px; padding: 4px 8px; font-size: 13px; }
+.qr-work-tools .qr-chip .ci { font-size: 20px; }
+.qr-work-body .qr-sheet.inline { margin: 0; border: 1px solid var(--qr-line); box-shadow: none; }
+.qr-note { min-height: 180px; resize: vertical; font-size: 16px; }
+
+/* side by side: forms column + tables column on very wide screens */
+.qr-rforms .qr-sheet.inline, .qr-rforms .qr-work { max-width: 720px; }
+.qr-right .qr-rforms > .qr-work:first-child { margin-top: 0; }
+@media (min-width: 1500px) {
+  .qr-wrap.split { max-width: 1800px; }
+  .qr-split { grid-template-columns: minmax(360px, 480px) minmax(0, 1fr); }
+  .qr-right { display: grid; grid-template-columns: minmax(420px, 600px) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .qr-rforms .qr-sheet.inline, .qr-rforms .qr-work { max-width: none; }
+  .qr-rtables > .qr-card:first-child { margin-top: 6px; }
+}
+
 /* thermal-printer slip (≈ 3-inch / 80 mm, also fine on A4) */
 .qr-print { display: none; }
 @media print {

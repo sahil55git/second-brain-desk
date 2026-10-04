@@ -496,6 +496,7 @@ model ScaleConnectionProfile {
 
 enum RegisterKind {
   SALE        // money in
+  FRESH_CRUSH // money in — oil crushed from the shop's own seed in front of the customer
   UDHAAR_IN   // money in — old credit collected
   PURCHASE    // money out
   EXPENSE     // money out
@@ -523,6 +524,10 @@ model RegisterEntry {
   partyName String?
   partyId   String?
   party     Party?  @relation("PartyRegister", fields: [partyId], references: [id], onDelete: SetNull)
+
+  // Kind-specific extra data. FRESH_CRUSH: { seedKg, oilKg, soldKg?, extraKg,
+  // extraTo?, cakeKg } — see FreshCrushDetails in lib/register.ts.
+  details Json?
 
   notes         String?
   createdByName String?
