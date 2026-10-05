@@ -192,6 +192,37 @@ Code: `app/register/`, `components/register/QuickRegister.tsx`,
 `lib/__tests__/register.test.ts`), `lib/registerServer.ts`,
 `lib/registerI18n.ts`.
 
+## Reports & Dashboard (`/reports`) and Settings (`/settings`) — Owner only
+
+**Reports hub** (📊 in the header): one page for every business process,
+built from `lib/bizReports.ts` (pure, unit-tested) over `/api/reports/hub`.
+
+- **Dashboard** with live widgets (auto-refresh 30 s / 1 min / 5 min / off,
+  green "Live" dot): today's sales, cash that should be in the counter,
+  expenses, fresh crush, job-work dues both ways, udhaar outstanding, khali,
+  oil produced (7 d), low stock; *Needs attention* (overdue job-work,
+  cash counts off by ≥ ₹300, flagged barrels / fresh-crush loss > 2%,
+  low book stock, udhaar); 7-day charts; top items; today's transactions.
+  Widgets can be hidden and re-ordered ("Arrange widgets"), per device.
+- **Tabs**: Sales · Purchase · Expenses · Job-Work · Manufacturing · Stock ·
+  Cash · Udhaar · Day book, each with a date range (today / yesterday /
+  7 d / 30 d / this month / last month / custom), KPI cards, daily chart,
+  breakdown tables and a ⬇ CSV for every table; Print / Save PDF.
+- GST desks (invoices, bills, Expense desk) and the Quick Register are
+  shown **side by side and combined**, never silently merged, so a counter
+  sale that was also invoiced is visible.
+- **Stock** = opening + purchase bills − sales invoices for Item-master
+  items; physical oil from the latest Daily Closing tally; counter
+  quantities and fresh-crush seed/oil/tank listed separately.
+
+**Settings** (⚙️): shop-wide Quick Register config (pigmee, default
+language, defaults for new devices: layout / favourites / workspace),
+saved rates (edit / remove), item libraries per type (add / rename /
+remove), opening-cash overrides, this device's register and dashboard
+preferences, Business profile & scale connections (existing form), the
+fixed business rules with their source (read-only), and a one-click full
+JSON backup. No database change.
+
 ## Not yet built (Phase 2+)
 
 Deliberately deferred, so nothing here gets silently forgotten:

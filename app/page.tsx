@@ -131,6 +131,16 @@ export default async function Home() {
           >
             📒 Quick Register
           </a>
+          {isOwner && (
+            <>
+              <a href="/reports" className="px-3 py-1.5 text-sm font-semibold rounded-md border border-black/10 dark:border-white/15">
+                📊 Reports
+              </a>
+              <a href="/settings" className="px-3 py-1.5 text-sm font-semibold rounded-md border border-black/10 dark:border-white/15">
+                ⚙️ Settings
+              </a>
+            </>
+          )}
           <CustomizeButton />
           <SignOutButton />
         </div>

@@ -104,6 +104,10 @@ export interface RegisterConfigData {
   pigmeeDefault: number;
   defaultLangMode: LangMode;
   openings: Record<string, number>; // date -> manual opening-cash override
+  // Shop-wide defaults for a device that has never been set up (Settings).
+  defaultLayout: "auto" | "side" | "stack";
+  defaultFavs: string[];
+  defaultWork: string;
 }
 
 export const DEFAULT_CONFIG: RegisterConfigData = {
@@ -112,6 +116,9 @@ export const DEFAULT_CONFIG: RegisterConfigData = {
   pigmeeDefault: 1000,
   defaultLangMode: "both",
   openings: {},
+  defaultLayout: "auto",
+  defaultFavs: ["SALE", "EXPENSE", "jwNew"],
+  defaultWork: "calc",
 };
 
 export function normalizeConfig(raw: unknown): RegisterConfigData {
@@ -123,6 +130,9 @@ export function normalizeConfig(raw: unknown): RegisterConfigData {
     pigmeeDefault: typeof r.pigmeeDefault === "number" ? r.pigmeeDefault : DEFAULT_CONFIG.pigmeeDefault,
     defaultLangMode: lang === "en" || lang === "kn" || lang === "both" ? lang : "both",
     openings: { ...(r.openings || {}) },
+    defaultLayout: r.defaultLayout === "side" || r.defaultLayout === "stack" ? r.defaultLayout : "auto",
+    defaultFavs: Array.isArray(r.defaultFavs) ? r.defaultFavs.filter((x) => typeof x === "string").slice(0, 20) : [...DEFAULT_CONFIG.defaultFavs],
+    defaultWork: typeof r.defaultWork === "string" ? r.defaultWork : "calc",
   };
 }
 
