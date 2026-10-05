@@ -160,6 +160,10 @@ export const W = {
   fcFlagged: ["entries with loss over 2%", "2% ಕ್ಕಿಂತ ಹೆಚ್ಚು ನಷ್ಟದ ದಾಖಲೆ"],
   vyapar: ["Copy Vyapar day-closing sheet", "ವ್ಯಾಪಾರ್ ಸಾರಾಂಶ ಕಾಪಿ"],
   workspace: ["Workspace — always open", "ಕೆಲಸದ ಜಾಗ — ಯಾವಾಗಲೂ ತೆರೆದಿದೆ"],
+  wsFloat: ["Float", "ತೇಲಿಸು"],
+  wsDock: ["Dock", "ಜೋಡಿಸು"],
+  wsOpacity: ["Window see-through", "ಕಿಟಕಿ ಪಾರದರ್ಶಕತೆ"],
+  resizeCols: ["Drag to resize (double-click to reset)", "ಗಾತ್ರ ಬದಲಿಸಲು ಎಳೆಯಿರಿ"],
   notepad: ["Notepad", "ನೋಟ್‌ಪ್ಯಾಡ್"],
   wsNoteHint: ["Notes stay on this device only and are not saved to the register.", "ಟಿಪ್ಪಣಿ ಈ ಸಾಧನದಲ್ಲಿ ಮಾತ್ರ."],
 } as const;

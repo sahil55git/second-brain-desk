@@ -16,9 +16,24 @@ export const WIDGETS: { id: WidgetId; label: string }[] = [
   { id: "recent", label: "Today's transactions" },
 ];
 
+export type WidgetSize = "s" | "m" | "l" | "xl" | "full";
+// Width in a 12-column grid (phones always use full width).
+export const SIZE_SPAN: Record<WidgetSize, number> = { s: 3, m: 4, l: 6, xl: 8, full: 12 };
+export const DEFAULT_SIZES: Record<WidgetId, WidgetSize> = {
+  kpis: "full",
+  attention: "full",
+  sales7: "m",
+  cashToday: "m",
+  expenses7: "m",
+  oil7: "m",
+  topItems: "m",
+  recent: "full",
+};
+
 export interface HubPrefs {
   widgets: WidgetId[];
   hidden: WidgetId[];
+  sizes: Partial<Record<WidgetId, WidgetSize>>;
   refreshSec: number; // 0 = off
   defaultRange: Preset;
 }
@@ -27,6 +42,7 @@ export const HUB_PREFS_KEY = "hub-prefs";
 export const DEFAULT_HUB_PREFS: HubPrefs = {
   widgets: WIDGETS.map((w) => w.id),
   hidden: [],
+  sizes: {},
   refreshSec: 60,
   defaultRange: "7d",
 };
@@ -42,6 +58,11 @@ export function loadHubPrefs(): HubPrefs {
     return {
       widgets: order,
       hidden: (Array.isArray(raw.hidden) ? raw.hidden : []).filter((w: WidgetId) => known.has(w)),
+      sizes: Object.fromEntries(
+        Object.entries(raw.sizes && typeof raw.sizes === "object" ? raw.sizes : {}).filter(
+          ([k, v]) => known.has(k as WidgetId) && ["s", "m", "l", "xl", "full"].includes(v as string)
+        )
+      ),
       refreshSec: [0, 30, 60, 300].includes(raw.refreshSec) ? raw.refreshSec : 60,
       defaultRange: ["today", "yesterday", "7d", "30d", "month", "lastMonth"].includes(raw.defaultRange) ? raw.defaultRange : "7d",
     };

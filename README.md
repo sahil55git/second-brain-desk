@@ -223,6 +223,33 @@ preferences, Business profile & scale connections (existing form), the
 fixed business rules with their source (read-only), and a one-click full
 JSON backup. No database change.
 
+## Appearance (`/appearance`, 🎨 — every user, saved per device)
+
+Themes and look for every screen (desk, Quick Register, Reports, Settings),
+from `lib/appearance.ts` (pure, tested) applied by `lib/customize.tsx` as CSS
+variables on `<html>`:
+
+- **11 themes** (Parchment, Ocean Slate, Sage Field, Sepia Ledger, Ash,
+  Midnight, Dawn, Mahadev Gold, Mustard Field, Glass Sky, High contrast),
+  light / dark / auto, accent colours, background families.
+- **Make your own theme** from 4 colours (background, text, panels,
+  accent) with a live contrast check (WCAG 4.5 : 1) and Linear-style
+  shareable theme codes (`#bg,#fg,#panel,#accent`).
+- **Text size** 85–140 % (whole interface), **button icon size**,
+  **font** (system, Inter, rounded Baloo, serif, monospace, Noto Sans
+  Kannada), **spacing** (compact / comfortable / spacious), **corner
+  roundness**, register **button style** (solid / soft tint / outline).
+- **Panel transparency** (glass panels), **background pattern** (glow,
+  sunrise, dots, grid), **high contrast**, **reduced motion**.
+- Quick Register: **drag the divider** to resize the two columns (double-
+  click resets); **⧉ Float** the workspace into a movable, resizable,
+  see-through window; the workspace can also be resized in place.
+- Dashboard: **Arrange widgets** — drag to re-order (mouse or touch) and
+  size each widget S / M / L / XL / Full, or hide it.
+
+The money colours (green in, red out, orange not-expense, blue job-work)
+stay fixed on every theme so the counter reads the same way.
+
 ## Not yet built (Phase 2+)
 
 Deliberately deferred, so nothing here gets silently forgotten:

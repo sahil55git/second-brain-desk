@@ -5,7 +5,7 @@
 // routes, so every entry lands in the same Postgres database as the rest of
 // Second Brain Desk.
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
   CAN_TYPES,
@@ -132,8 +132,20 @@ interface Prefs {
   favs: string[];
   closed: string[];
   work: WorkTool;
+  leftW: number | null; // side-by-side: width of the buttons column (drag the divider)
+  float: { on: boolean; x: number; y: number; w: number; h: number; op: number }; // floating workspace window
 }
-const DEFAULT_PREFS: Prefs = { layout: "auto", favs: [], closed: [], work: "calc" };
+const DEFAULT_PREFS: Prefs = {
+  layout: "auto",
+  favs: [],
+  closed: [],
+  work: "calc",
+  leftW: null,
+  float: { on: false, x: 120, y: 120, w: 440, h: 560, op: 1 },
+};
+// The page is scaled by the Appearance "text size" (CSS zoom on <body>), so
+// pointer positions must be divided by it to get layout pixels.
+const pageZoom = () => (typeof document !== "undefined" ? parseFloat(getComputedStyle(document.body).zoom || "1") || 1 : 1);
 const PREFS_KEY = "qr-prefs";
 
 // "modal" = bottom sheet over the page (phones / one-column layout);
@@ -381,7 +393,7 @@ export default function QuickRegister() {
   useEffect(() => {
     try {
       const raw = JSON.parse(localStorage.getItem(PREFS_KEY) || "null");
-      if (raw && typeof raw === "object") setPrefsState({ ...DEFAULT_PREFS, ...raw });
+      if (raw && typeof raw === "object") setPrefsState({ ...DEFAULT_PREFS, ...raw, float: { ...DEFAULT_PREFS.float, ...(raw.float || {}) } });
       else {
         setHasLocalPrefs(false);
         setPrefsState({ ...DEFAULT_PREFS, favs: ["SALE", "EXPENSE", "jwNew"] });
@@ -406,6 +418,29 @@ export default function QuickRegister() {
   const canSide = useMedia("(min-width: 760px)");
   const wide = useMedia("(min-width: 1100px)");
   const sideBySide = canSide && (prefs.layout === "side" || (prefs.layout === "auto" && wide));
+  const splitRef = useRef<HTMLDivElement>(null);
+  const floatRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+  // Drag the divider between the buttons column and the forms / tables.
+  const startSplit = (e: React.PointerEvent) => {
+    const box = splitRef.current?.getBoundingClientRect();
+    if (!box) return;
+    e.preventDefault();
+    setDragging(true);
+    const z = pageZoom();
+    const move = (ev: PointerEvent) => {
+      const w = Math.round(Math.max(300, Math.min(900, (ev.clientX - box.left) / z, box.width / z - 380)));
+      setPrefsState((p) => ({ ...p, leftW: w }));
+    };
+    const up = () => {
+      setDragging(false);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setPrefs((p) => p);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
   // A device that was never set up starts from the shop-wide defaults
   // chosen in Settings (layout, favourites, workspace tool).
   useEffect(() => {
@@ -1008,12 +1043,57 @@ export default function QuickRegister() {
     ) : (
       <EntrySheet key={`${tool}-${wsKey}`} kind={tool} day={day} lang={lang} date={date} onClose={wsReset} onSaved={wsSaved} toast={toast} />
     );
+  const floating = prefs.float.on && canSide;
+  const startMove = (e: React.PointerEvent) => {
+    if (!floating || (e.target as HTMLElement).closest("button,input,select")) return;
+    const z = pageZoom();
+    const sx = e.clientX / z - prefs.float.x;
+    const sy = e.clientY / z - prefs.float.y;
+    const move = (ev: PointerEvent) => {
+      const x = Math.max(0, Math.min(window.innerWidth / z - 120, ev.clientX / z - sx));
+      const y = Math.max(0, Math.min(window.innerHeight / z - 60, ev.clientY / z - sy));
+      setPrefsState((p) => ({ ...p, float: { ...p.float, x, y } }));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setPrefs((p) => p); // save final position
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
   const workspaceBlock = (
     <div className="qr-work" aria-label={word("workspace", lang)}>
-      <div className="qr-head qr-work-head">
+      <div className="qr-head qr-work-head" onPointerDown={startMove}>
         <span>
           🧰 <Txt k="workspace" lang={lang} />
         </span>
+        {canSide && (
+          <span className="acts">
+            {floating && (
+              <label title={word("wsOpacity", lang)}>
+                ◐
+                <input
+                  type="range"
+                  min={0.35}
+                  max={1}
+                  step={0.05}
+                  value={prefs.float.op}
+                  onChange={(e) => setPrefs((p) => ({ ...p, float: { ...p.float, op: Number(e.target.value) } }))}
+                  aria-label={word("wsOpacity", lang)}
+                  style={{ width: 80 }}
+                />
+              </label>
+            )}
+            <button
+              className="qr-pill"
+              onClick={() => setPrefs((p) => ({ ...p, float: { ...p.float, on: !p.float.on } }))}
+              title={floating ? word("wsDock", lang) : word("wsFloat", lang)}
+            >
+              {floating ? "⇲ " + word("wsDock", lang) : "⧉ " + word("wsFloat", lang)}
+            </button>
+          </span>
+        )}
       </div>
       <div className="qr-chips qr-work-tools" role="tablist">
         {WORK_TOOLS.map((w) => {
@@ -1139,6 +1219,9 @@ export default function QuickRegister() {
           <button className="qr-pill" onClick={() => setLang(nextLang[lang])} aria-label={word("language", lang)}>
             🗣️ {langLabel[lang]}
           </button>
+          <a className="qr-pill" href="/appearance" title="Appearance: themes, text size, colours" aria-label="Appearance">
+            🎨
+          </a>
           {isOwner && (
             <>
               <a className="qr-pill" href="/reports" title="Reports & dashboard">
@@ -1165,16 +1248,35 @@ export default function QuickRegister() {
         )}
 
         {sideBySide ? (
-          <div className="qr-split">
+          <div
+            className="qr-split has-splitter"
+            ref={splitRef}
+            style={prefs.leftW ? ({ "--qr-left-w": `${prefs.leftW}px` } as React.CSSProperties) : undefined}
+          >
             <div className="qr-left">
               {favouritesBlock}
               {boardBlock}
               {summaryBlock}
             </div>
+            <div
+              className={`qr-splitter${dragging ? " drag" : ""}`}
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={word("resizeCols", lang)}
+              title={word("resizeCols", lang)}
+              tabIndex={0}
+              onPointerDown={startSplit}
+              onDoubleClick={() => setPrefs((p) => ({ ...p, leftW: null }))}
+              onKeyDown={(e) => {
+                const cur = prefs.leftW || splitRef.current?.querySelector<HTMLElement>(".qr-left")?.offsetWidth || 480;
+                if (e.key === "ArrowLeft") setPrefs((p) => ({ ...p, leftW: Math.max(300, cur - 20) }));
+                if (e.key === "ArrowRight") setPrefs((p) => ({ ...p, leftW: Math.min(900, cur + 20) }));
+              }}
+            />
             <div className="qr-right">
               <div className="qr-rforms">
                 <SheetModeCtx.Provider value="inline">{sheetEl}</SheetModeCtx.Provider>
-                {workspaceBlock}
+                {!floating && workspaceBlock}
               </div>
               <div className="qr-rtables">
                 {jobWorkBlock}
@@ -1186,7 +1288,7 @@ export default function QuickRegister() {
           <>
             {favouritesBlock}
             {boardBlock}
-            {workspaceBlock}
+            {!floating && workspaceBlock}
             {summaryBlock}
             {entriesBlock}
             {jobWorkBlock}
@@ -1195,6 +1297,20 @@ export default function QuickRegister() {
       </div>
 
       {!sideBySide && sheetEl}
+      {floating && (
+        <div
+          className="qr-float"
+          ref={floatRef}
+          style={{ left: prefs.float.x, top: prefs.float.y, width: prefs.float.w, height: prefs.float.h, opacity: prefs.float.op }}
+          onPointerUp={() => {
+            const el = floatRef.current;
+            if (el && (el.offsetWidth !== prefs.float.w || el.offsetHeight !== prefs.float.h))
+              setPrefs((p) => ({ ...p, float: { ...p.float, w: el.offsetWidth, h: el.offsetHeight } }));
+          }}
+        >
+          {workspaceBlock}
+        </div>
+      )}
       {toastMsg && (
         <div className="qr-toast" role="status">
           {toastMsg}

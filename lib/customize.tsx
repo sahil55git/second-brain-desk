@@ -9,6 +9,7 @@
 // data."
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { DEFAULT_LOOK, FONTS, clampLook, deriveSurface, fontHref, type Look } from "./appearance";
 import type { DeskKey } from "./desksConfig";
 
 export type ThemeMode = "auto" | "light" | "dark";
@@ -30,6 +31,9 @@ export interface Prefs {
   background: BackgroundKey;
   widgets: Partial<Record<DeskKey, ListPrefs>>;
   columns: Partial<Record<DeskKey, ListPrefs>>;
+  // Deep appearance (lib/appearance.ts): theme colours, font, text size,
+  // density, corners, transparency, contrast, motion, button style.
+  look: Look;
 }
 
 // Merges a saved order over the definition's natural id order: saved
@@ -94,6 +98,7 @@ const DEFAULT_PREFS: Prefs = {
   background: "default",
   widgets: {},
   columns: {},
+  look: DEFAULT_LOOK,
 };
 const STORAGE_KEY = "sbd_prefs_v1";
 
@@ -188,6 +193,7 @@ interface Ctx {
   prefs: Prefs;
   setPrefs: (p: Partial<Prefs>) => void;
   reset: () => void;
+  setLook: (patch: Partial<Look>) => void;
   setListPrefs: (kind: "widgets" | "columns", desk: DeskKey, patch: Partial<ListPrefs>) => void;
 }
 
@@ -200,7 +206,10 @@ export function CustomizeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) setPrefsState({ ...DEFAULT_PREFS, ...JSON.parse(raw) });
+      if (raw) {
+        const saved = JSON.parse(raw);
+        setPrefsState({ ...DEFAULT_PREFS, ...saved, look: clampLook(saved.look) });
+      }
     } catch {
       // ignore — start from defaults
     }
@@ -217,17 +226,63 @@ export function CustomizeProvider({ children }: { children: React.ReactNode }) {
 
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
-      const isDark = prefs.theme === "dark" || (prefs.theme === "auto" && mql.matches);
-      const bg = BACKGROUND_PALETTES[prefs.background] || BACKGROUND_PALETTES.default;
-      const surface = isDark ? bg.dark : bg.light;
-      const { ink, contrast } = deriveAccentShades(prefs.accent, isDark);
+      const look = clampLook(prefs.look);
+      const hc = look.contrast === "high";
+      let isDark = prefs.theme === "dark" || (prefs.theme === "auto" && mql.matches);
+      let tokens;
+      let accent = prefs.accent;
+      if (look.custom) {
+        // A full colour theme (preset like Midnight, or the user's own).
+        tokens = deriveSurface(look.custom.bg, look.custom.fg, look.custom.card, hc);
+        isDark = tokens.isDark;
+        accent = look.custom.accent;
+      } else {
+        const bg = BACKGROUND_PALETTES[prefs.background] || BACKGROUND_PALETTES.default;
+        const surface = isDark ? bg.dark : bg.light;
+        tokens = deriveSurface(surface.bg, surface.fg, null, hc);
+      }
+      const { ink, contrast } = deriveAccentShades(accent, isDark);
       const root = document.documentElement;
-      root.style.setProperty("--background", surface.bg);
-      root.style.setProperty("--foreground", surface.fg);
-      root.style.setProperty("--accent", prefs.accent);
+      root.style.setProperty("--background", tokens.bg);
+      root.style.setProperty("--foreground", tokens.fg);
+      root.style.setProperty("--ui-card", tokens.card);
+      root.style.setProperty("--ui-line", tokens.line);
+      root.style.setProperty("--ui-soft", tokens.soft);
+      root.style.setProperty("--accent", accent);
       root.style.setProperty("--accent-ink", ink);
       root.style.setProperty("--accent-contrast", contrast);
+      root.style.setProperty("--ui-zoom", String(look.textScale));
+      root.style.setProperty("--ui-icon", String(look.iconScale));
+      root.style.setProperty("--ui-r", String(look.radius));
+      root.style.setProperty("--ui-alpha", String(look.panelOpacity));
       root.classList.toggle("dark", isDark);
+      root.classList.toggle("light", !isDark);
+      root.classList.toggle("hc", hc);
+      root.classList.toggle("reduce-motion", look.motion === "reduced");
+      root.classList.toggle("glass", look.panelOpacity < 0.999);
+      root.dataset.density = look.density;
+      root.dataset.tiles = look.tileStyle;
+      root.dataset.pattern = look.pattern;
+      const stack = FONTS[look.font]?.stack;
+      if (stack) {
+        root.style.setProperty("--ui-font", stack);
+        root.dataset.font = look.font;
+      } else {
+        root.style.removeProperty("--ui-font");
+        delete root.dataset.font;
+      }
+      // Load the chosen web font once (falls back to system fonts offline).
+      const href = fontHref(look.font);
+      let link = document.getElementById("ui-font-link") as HTMLLinkElement | null;
+      if (href) {
+        if (!link) {
+          link = document.createElement("link");
+          link.id = "ui-font-link";
+          link.rel = "stylesheet";
+          document.head.appendChild(link);
+        }
+        if (link.href !== href) link.href = href;
+      } else if (link) link.remove();
     };
     apply();
     mql.addEventListener("change", apply);
@@ -239,6 +294,7 @@ export function CustomizeProvider({ children }: { children: React.ReactNode }) {
       prefs,
       setPrefs: (p) => setPrefsState((prev) => ({ ...prev, ...p })),
       reset: () => setPrefsState(DEFAULT_PREFS),
+      setLook: (patch) => setPrefsState((prev) => ({ ...prev, look: clampLook({ ...prev.look, ...patch }) })),
       setListPrefs: (kind, desk, patch) =>
         setPrefsState((prev) => {
           const cur = prev[kind][desk] ?? { order: [], hidden: [] };

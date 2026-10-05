@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import SettingsDesk from "@/components/SettingsDesk";
+import AppearancePanel from "@/components/AppearancePanel";
 import type { BusinessSettingsDTO } from "@/lib/types";
 import {
   CATALOG,
@@ -25,13 +26,14 @@ import { JOBWORK_OVERDUE_DAYS } from "@/lib/reports";
 import { DEFAULT_HUB_PREFS, WIDGETS, loadHubPrefs, saveHubPrefs, type HubPrefs, type Preset } from "@/lib/hubPrefs";
 import { registerItemName } from "@/lib/bizReports";
 
-type Section = "register" | "rates" | "library" | "device" | "dashboard" | "business" | "rules" | "data";
+type Section = "appearance" | "register" | "rates" | "library" | "device" | "dashboard" | "business" | "rules" | "data";
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "register", label: "📒 Quick Register" },
   { key: "rates", label: "₹ Saved rates" },
   { key: "library", label: "⭐ Item library" },
   { key: "device", label: "📱 This device" },
   { key: "dashboard", label: "📈 Dashboard & reports" },
+  { key: "appearance", label: "🎨 Appearance" },
   { key: "business", label: "🏢 Business & scales" },
   { key: "rules", label: "📏 Business rules" },
   { key: "data", label: "💾 Data & backup" },
@@ -469,6 +471,7 @@ export default function SettingsHub() {
           )}
 
           {section === "data" && <DataCard />}
+          {section === "appearance" && <AppearancePanel />}
         </div>
       </div>
     </div>

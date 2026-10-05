@@ -43,6 +43,12 @@ export default function CustomizeButton() {
                 ✕
               </button>
             </div>
+            <a
+              href="/appearance"
+              className="block mb-4 rounded-md border border-[var(--accent)] px-3 py-2 text-sm font-semibold text-[var(--accent-ink)]"
+            >
+              🎨 More: themes, fonts, text size, spacing, transparency →
+            </a>
 
             <div className="mb-5">
               <div className="text-xs opacity-70 mb-2 font-medium">Theme</div>
