@@ -23,7 +23,14 @@ import type {
   PurchaseBillDTO,
   SalesInvoiceDTO,
 } from "./types";
-import { CASH_GAP_THRESHOLD_INR, KHALI_SPLIT, STANDARD_RATE, expectedSettlementWithRate } from "./calculations";
+import {
+  CASH_GAP_THRESHOLD_INR,
+  KHALI_SPLIT,
+  STANDARD_RATE,
+  STOCK_GAP_CHIP_THRESHOLD_KG,
+  STOCK_PRODUCTS,
+  expectedSettlementWithRate,
+} from "./calculations";
 import { computeBarrelYield } from "./mfgCalculations";
 import { JOBWORK_OVERDUE_DAYS } from "./reports";
 import {
@@ -512,7 +519,10 @@ export function stockReport(d: BizData, asOf: string) {
 // Cash (counts + counter movements)
 // ---------------------------------------------------------------------------
 export function cashReport(d: BizData, s: DateSpan) {
-  const counts = d.closings.filter((c) => inSpan(c.date, s)).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  // Stock-only rows (Quick Register stock tally before a cash count) carry no cash.
+  const counts = d.closings
+    .filter((c) => inSpan(c.date, s) && (c as { source?: string | null }).source !== "register-stock")
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
   const reg = d.register.filter((x) => inSpan(x.date, s));
   let cashIn = 0,
     cashOut = 0,
@@ -649,6 +659,10 @@ export function attentionList(d: BizData, today: string, nowMs = Date.now()): At
     out.push({ id: `cash-${c.id}`, severity: "critical", area: "Cash", message: `${c.session === "AFTERNOON" ? "Tally 1" : "Tally 2"} today: ₹${Math.abs(c.cashDiffInr)} ${c.cashDiffInr > 0 ? "short" : "extra"} (≥ ₹${CASH_GAP_THRESHOLD_INR})` });
   const st = stockReport(d, today);
   for (const i of st.items.filter((x) => x.low)) out.push({ id: `stk-${i.id}`, severity: "caution", area: "Stock", message: `${i.name}: ${i.book} ${i.unit} in book stock — at/below reorder level ${i.reorderLevel}` });
+  const tally = stockTallyReport(d, { from: "0000-01-01", to: today });
+  if (tally.latest)
+    for (const r of tally.latest.rows.filter((x) => x.flagged))
+      out.push({ id: `tally-${r.product}`, severity: "caution", area: "Stock tally", message: `${r.product}: gap ${r.gap} kg (${tally.latest.session}, ${tally.latest.date}) — recount or check the scale report` });
   const u = udhaarReport(d, today);
   for (const r of u.rows.filter((x) => x.balance > 0).slice(0, 5)) out.push({ id: `ud-${r.name}`, severity: "info", area: "Udhaar", message: `${r.name} owes ₹${r.balance} (last ${r.last})` });
   const order = { critical: 0, caution: 1, info: 2 };
@@ -663,4 +677,56 @@ export function toCsvRows(rows: Record<string, unknown>[]): string {
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return [head.join(","), ...rows.map((r) => head.map((h) => esc(r[h])).join(","))].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Physical stock tally (Daily Closing desk / Quick Register stock tally)
+// ---------------------------------------------------------------------------
+type StockCell = { today?: number | null; yesterday?: number | null; sale?: number | null; reportSale?: number | null; gap?: number | null; diff?: number | null };
+const productLabel = (k: string) => STOCK_PRODUCTS.find((p) => p.key === k)?.label || k;
+
+export function stockTallyReport(d: BizData, s: DateSpan) {
+  const withStock = d.closings
+    .filter((c) => c.stock && Object.keys(c.stock).length)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const rows = withStock
+    .filter((c) => inSpan(c.date, s))
+    .flatMap((c) =>
+      Object.entries(c.stock as Record<string, StockCell>).map(([key, v]) => {
+        const gap = v.gap ?? v.diff ?? null;
+        return {
+          date: c.date,
+          session: c.session === "AFTERNOON" ? "Tally 1" : "Tally 2",
+          product: productLabel(key),
+          yesterday: v.yesterday ?? null,
+          today: v.today ?? null,
+          sale: v.sale ?? null,
+          reportSale: v.reportSale ?? null,
+          gap: gap === null ? null : r2(gap),
+          flagged: gap !== null && Math.abs(gap) >= STOCK_GAP_CHIP_THRESHOLD_KG,
+        };
+      })
+    );
+  const latest = withStock.find((c) => c.date <= s.to) || null;
+  const latestRows = latest
+    ? STOCK_PRODUCTS.map((p) => {
+        const v = (latest.stock as Record<string, StockCell>)[p.key];
+        const gap = v ? v.gap ?? v.diff ?? null : null;
+        return {
+          product: p.label,
+          today: v?.today ?? null,
+          yesterday: v?.yesterday ?? null,
+          sale: v?.sale ?? null,
+          reportSale: v?.reportSale ?? null,
+          gap: gap === null ? null : r2(gap),
+          flagged: gap !== null && Math.abs(gap) >= STOCK_GAP_CHIP_THRESHOLD_KG,
+        };
+      })
+    : [];
+  return {
+    rows,
+    flaggedCount: rows.filter((r) => r.flagged).length,
+    latest: latest ? { date: latest.date, session: latest.session === "AFTERNOON" ? "Tally 1" : "Tally 2", rows: latestRows } : null,
+    threshold: STOCK_GAP_CHIP_THRESHOLD_KG,
+  };
 }

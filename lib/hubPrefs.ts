@@ -3,11 +3,13 @@
 // date range and the live auto-refresh interval. Edited from the dashboard
 // ("Arrange widgets") and from /settings.
 export type Preset = "today" | "yesterday" | "7d" | "30d" | "month" | "lastMonth";
-export type WidgetId = "kpis" | "attention" | "sales7" | "expenses7" | "oil7" | "cashToday" | "topItems" | "recent";
+export type WidgetId = "kpis" | "monthTotals" | "attention" | "stockTally" | "sales7" | "expenses7" | "oil7" | "cashToday" | "topItems" | "recent";
 
 export const WIDGETS: { id: WidgetId; label: string }[] = [
   { id: "kpis", label: "Key numbers (today)" },
+  { id: "monthTotals", label: "Totals — this month" },
   { id: "attention", label: "Needs attention" },
+  { id: "stockTally", label: "Stock tally (physical vs system)" },
   { id: "sales7", label: "Sales chart — 7 days" },
   { id: "cashToday", label: "Cash today" },
   { id: "expenses7", label: "Expenses chart — 7 days" },
@@ -21,7 +23,9 @@ export type WidgetSize = "s" | "m" | "l" | "xl" | "full";
 export const SIZE_SPAN: Record<WidgetSize, number> = { s: 3, m: 4, l: 6, xl: 8, full: 12 };
 export const DEFAULT_SIZES: Record<WidgetId, WidgetSize> = {
   kpis: "full",
+  monthTotals: "full",
   attention: "full",
+  stockTally: "l",
   sales7: "m",
   cashToday: "m",
   expenses7: "m",

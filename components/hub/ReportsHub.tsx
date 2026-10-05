@@ -22,6 +22,8 @@ import {
   type DateSpan,
 } from "@/lib/bizReports";
 import { businessDate } from "@/lib/register";
+import { stockTallyReport } from "@/lib/bizReports";
+import { blobToBase64, download as downloadBlob, excelBlob, nativeShare, pdfBlob, shareLink, type ExportTable } from "@/lib/exporters";
 import { CASH_GAP_THRESHOLD_INR } from "@/lib/calculations";
 import { JOBWORK_OVERDUE_DAYS } from "@/lib/reports";
 import {
@@ -106,7 +108,21 @@ function Bars({ series, money = true, height = 140 }: { series: { date: string; 
   );
 }
 
-function Table({ cols, rows, empty = "Nothing in this period" }: { cols: { key: string; label: string; num?: boolean; fmt?: (v: unknown, r: Record<string, unknown>) => React.ReactNode }[]; rows: Record<string, unknown>[]; empty?: string }) {
+function Table({
+  cols,
+  rows,
+  empty = "Nothing in this period",
+  sum,
+}: {
+  cols: { key: string; label: string; num?: boolean; fmt?: (v: unknown, r: Record<string, unknown>) => React.ReactNode }[];
+  rows: Record<string, unknown>[];
+  empty?: string;
+  sum?: string[]; // columns to total in a footer row
+}) {
+  const totals =
+    sum && rows.length
+      ? Object.fromEntries(sum.map((k) => [k, Math.round(rows.reduce((a, r) => a + (Number(r[k]) || 0), 0) * 100) / 100]))
+      : null;
   return (
     <div className="hub-tablewrap">
       <table className="hub-table">
@@ -138,6 +154,17 @@ function Table({ cols, rows, empty = "Nothing in this period" }: { cols: { key: 
             </tr>
           )}
         </tbody>
+        {totals && (
+          <tfoot>
+            <tr>
+              {cols.map((c, i) => (
+                <td key={c.key} className={c.num ? "num" : ""}>
+                  {i === 0 ? <b>Total ({rows.length})</b> : c.key in totals ? <b>{c.fmt ? c.fmt(totals[c.key], {}) : String(totals[c.key])}</b> : ""}
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   );
@@ -298,11 +325,186 @@ export default function ReportsHub() {
       dCash: cashReport(data, { from: t, to: t }),
       dBook: dayBook(data, { from: t, to: t }),
       attention: attentionList(data, t),
+      tally: stockTallyReport(data, span),
+      dTally: stockTallyReport(data, { from: t, to: t }),
+      mSales: salesReport(data, presetSpan("month")),
+      mExp: expenseReport(data, presetSpan("month")),
+      mPur: purchaseReport(data, presetSpan("month")),
+      mCash: cashReport(data, presetSpan("month")),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, span.from, span.to, t]);
 
   const label = `${span.from}${span.to !== span.from ? ` → ${span.to}` : ""}`;
+
+  // ------------------------- exports & sharing ---------------------------
+  const [busy, setBusy] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [integr, setIntegr] = useState<{ discord: boolean; telegram: boolean; webhook: boolean } | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/share")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => setIntegr(j?.data ?? null))
+      .catch(() => setIntegr(null));
+  }, []);
+  const flash = (m: string) => {
+    setNote(m);
+    window.setTimeout(() => setNote(null), 3500);
+  };
+  const M = (key: string, label: string, sum = true) => ({ key, label, num: true, money: true, sum });
+  const N = (key: string, label: string, sum = true) => ({ key, label, num: true, sum });
+  const T = (key: string, label: string) => ({ key, label });
+  const tabLabel = TABS.find((x) => x.key === tab)?.label || "Report";
+
+  const exportTables = (which: Tab): ExportTable[] => {
+    if (!R) return [];
+    switch (which) {
+      case "dashboard":
+        return [
+          {
+            title: "Key numbers today",
+            cols: [T("k", "Measure"), M("v", "Value", false)],
+            rows: [
+              { k: "Sales today", v: R.dToday.total },
+              { k: "Should be in counter", v: counterNow ?? 0 },
+              { k: "Expenses today", v: R.dExpToday.total },
+              { k: "Fresh crush today", v: R.dToday.freshCrush },
+              { k: "Job-work: shop owes", v: R.dJw.shopOwes },
+              { k: "Job-work: customers owe", v: R.dJw.customersOwe },
+              { k: "Udhaar outstanding", v: R.dUdhaar.outstanding },
+            ],
+          },
+          { title: "Needs attention", cols: [T("area", "Area"), T("message", "Detail")], rows: R.attention as unknown as Record<string, unknown>[] },
+          { title: "Today's transactions", cols: [T("source", "Source"), T("type", "Type"), T("party", "Party"), T("detail", "Detail"), T("mode", "Mode"), M("in", "In"), M("out", "Out")], rows: R.dBook.rows },
+        ];
+      case "sales":
+        return [
+          { title: "Sales by item", cols: [T("key", "Item"), N("qty", "Qty", false), T("unit", "Unit"), N("count", "Entries"), M("amount", "Amount")], rows: R.sales.byItem },
+          { title: "Sales by customer", cols: [T("key", "Customer"), N("count", "Entries"), M("amount", "Amount")], rows: R.sales.byParty },
+          { title: "All sales", cols: [T("date", "Date"), T("source", "Source"), T("ref", "Ref"), T("party", "Party"), T("item", "Item"), T("qty", "Qty"), T("mode", "Mode"), M("amount", "Amount")], rows: R.sales.rows },
+        ];
+      case "purchase":
+        return [
+          { title: "Purchases by item", cols: [T("key", "Item"), N("qty", "Qty", false), T("unit", "Unit"), M("amount", "Amount")], rows: R.purchase.byItem },
+          { title: "Purchases by supplier", cols: [T("key", "Supplier"), N("count", "Entries"), M("amount", "Amount")], rows: R.purchase.bySupplier },
+          { title: "All purchases", cols: [T("date", "Date"), T("source", "Source"), T("ref", "Bill"), T("party", "Supplier"), T("item", "Item"), T("qty", "Qty"), T("mode", "Mode"), M("amount", "Amount")], rows: R.purchase.rows },
+        ];
+      case "expenses":
+        return [
+          { title: "Expenses by category", cols: [T("key", "Category"), N("count", "Entries"), M("amount", "Amount")], rows: R.expenses.byCategory },
+          { title: "All expenses", cols: [T("date", "Date"), T("source", "Source"), T("item", "Category"), T("party", "Paid to"), T("mode", "Mode"), M("amount", "Amount")], rows: R.expenses.rows },
+        ];
+      case "jobwork":
+        return [
+          { title: "Job-work unsettled", cols: [T("customer", "Customer"), T("date", "Intake"), N("ageDays", "Age days", false), N("seedKg", "Seed kg"), T("cake", "Cake"), M("due", "Due")], rows: R.jobwork.outstanding },
+          { title: "Top customers", cols: [T("key", "Customer"), N("count", "Intakes"), N("seedKg", "Seed kg"), M("settled", "Settled")], rows: R.jobwork.byCustomer },
+        ];
+      case "mfg":
+        return [
+          { title: "Barrels", cols: [T("date", "Date"), T("barrel", "Barrel"), T("product", "Product"), N("seedKg", "Seed kg"), N("oilKg", "Oil kg"), N("efficiencyPct", "Eff %", false), T("band", "Band"), T("flagged", "Flagged")], rows: R.mfg.rows },
+          { title: "Fresh crush", cols: [T("date", "Date"), T("seed", "Oil"), N("seedKg", "Seed kg"), N("oilKg", "Oil kg"), N("yieldPct", "Yield %", false), T("soldQty", "Sold"), N("extraKg", "To tank kg"), T("extraTo", "Tank / barrel"), N("cakeKg", "Cake kg"), M("amount", "Amount")], rows: R.mfg.freshRows },
+        ];
+      case "stock":
+        return [
+          { title: "Book stock", cols: [T("name", "Item"), T("unit", "Unit"), N("opening", "Opening", false), N("inQty", "In", false), N("outQty", "Out", false), N("book", "Book stock", false), N("reorderLevel", "Reorder at", false)], rows: R.stock.items },
+          { title: `Latest stock tally ${R.tally.latest ? `(${R.tally.latest.date} ${R.tally.latest.session})` : ""}`, cols: [T("product", "Product"), N("yesterday", "Yesterday", false), N("today", "Today", false), N("sale", "Sale", false), N("reportSale", "Report sale", false), N("gap", "Gap", false), T("flagged", "Check")], rows: R.tally.latest?.rows || [] },
+          { title: "Stock tally history", cols: [T("date", "Date"), T("session", "Count"), T("product", "Product"), N("yesterday", "Yesterday", false), N("today", "Today", false), N("sale", "Sale", false), N("reportSale", "Report sale", false), N("gap", "Gap", false), T("flagged", "Check")], rows: R.tally.rows },
+        ];
+      case "cash":
+        return [
+          {
+            title: "Cash totals",
+            cols: [T("k", "Measure"), M("v", "Amount", false)],
+            rows: [
+              { k: "Cash in", v: R.cash.cashIn },
+              { k: "Cash out", v: R.cash.cashOut },
+              { k: "Net cash (in - out)", v: R.cash.cashIn - R.cash.cashOut },
+              { k: "UPI in", v: R.cash.upiIn },
+              { k: "UPI out", v: R.cash.upiOut },
+              { k: "Udhaar given", v: R.cash.creditGiven },
+              { k: "Pigmee", v: R.cash.pigmee },
+              { k: "Sahil took", v: R.cash.ownerDraw },
+            ],
+          },
+          { title: "Cash counts", cols: [T("date", "Date"), T("session", "Count"), M("system", "System", false), M("counter", "Counted", false), M("diff", "Short(+)/Extra(-)", false)], rows: R.cash.counts },
+        ];
+      case "udhaar":
+        return [
+          { title: "Udhaar by person", cols: [T("name", "Name"), M("given", "Given"), M("received", "Received"), M("balance", "Balance"), T("last", "Last activity")], rows: R.udhaar.rows },
+          { title: "Credit invoices", cols: [T("date", "Date"), T("invoiceNo", "Invoice"), T("party", "Party"), M("amount", "Amount")], rows: R.udhaar.creditInvoices },
+        ];
+      default:
+        return [{ title: "Day book", cols: [T("date", "Date"), T("source", "Source"), T("type", "Type"), T("party", "Party"), T("detail", "Detail"), T("mode", "Mode"), M("in", "In"), M("out", "Out")], rows: R.daybook.rows }];
+    }
+  };
+
+  const summaryText = (): string => {
+    if (!R) return "";
+    const L = [`*Mahadev Traders — ${tabLabel}* (${tab === "dashboard" ? t : label})`];
+    if (tab === "dashboard") {
+      L.push(`Sales today: ${rs(R.dToday.total)} | Expenses: ${rs(R.dExpToday.total)}`);
+      L.push(`Should be in counter: ${counterNow === null ? "-" : rs(counterNow)}`);
+      L.push(`Job-work: shop owes ${rs(R.dJw.shopOwes)}, ${R.dJw.outstanding.length} unsettled`);
+      L.push(`Udhaar outstanding: ${rs(R.dUdhaar.outstanding)}`);
+      if (R.attention.length) L.push("", "⚠️ Needs attention:", ...R.attention.slice(0, 8).map((a) => `• ${a.area}: ${a.message}`));
+    } else if (tab === "cash") {
+      L.push(`Cash in ${rs(R.cash.cashIn)} | Cash out ${rs(R.cash.cashOut)} | Net ${rs(R.cash.cashIn - R.cash.cashOut)}`, `UPI ${rs(R.cash.upiIn)} / ${rs(R.cash.upiOut)} | Udhaar given ${rs(R.cash.creditGiven)}`);
+    } else if (tab === "sales") L.push(`Total sales ${rs(R.sales.total)} (invoices ${rs(R.sales.invoiceTotal)}, counter ${rs(R.sales.counterTotal)}, fresh crush ${rs(R.sales.freshCrush)})`);
+    else if (tab === "purchase") L.push(`Total purchases ${rs(R.purchase.total)} | on udhaar ${rs(R.purchase.onCredit)}`);
+    else if (tab === "expenses") L.push(`Total expenses ${rs(R.expenses.total)} | salary ${rs(R.expenses.salary)}`);
+    else if (tab === "daybook") L.push(`Money in ${rs(R.daybook.totalIn)} | Money out ${rs(R.daybook.totalOut)} | Net ${rs(R.daybook.totalIn - R.daybook.totalOut)} | ${R.daybook.rows.length} transactions`);
+    else if (tab === "stock" && R.tally.latest)
+      L.push(`Stock tally ${R.tally.latest.date} ${R.tally.latest.session}: ${R.tally.latest.rows.filter((r) => r.flagged).length} gap(s) ≥ ${R.tally.threshold} kg`, ...R.tally.latest.rows.filter((r) => r.flagged).map((r) => `• ${r.product}: gap ${r.gap} kg`));
+    else if (tab === "jobwork") L.push(`Shop owes ${rs(R.jobwork.shopOwes)} | customers owe ${rs(R.jobwork.customersOwe)} | ${R.jobwork.overdue} overdue`);
+    else if (tab === "udhaar") L.push(`Outstanding udhaar ${rs(R.udhaar.outstanding)}`, ...R.udhaar.rows.filter((r) => r.balance > 0).slice(0, 10).map((r) => `• ${r.name}: ${rs(r.balance)}`));
+    else if (tab === "mfg") L.push(`Oil produced ${kgs(R.mfg.totalOilKg)} | barrels ${R.mfg.batches} | fresh crush ${R.mfg.fresh.count}`);
+    return L.join("\n");
+  };
+  const fileBase = () => `mahadev_${tab}_${tab === "dashboard" ? t : label.replace(/ → /, "_to_")}`;
+  const doExcel = async (all = false) => {
+    setBusy("excel");
+    try {
+      const tables = all ? TABS.flatMap((x) => exportTables(x.key).map((tb) => ({ ...tb, title: `${x.label} - ${tb.title}` }))) : exportTables(tab);
+      downloadBlob(`${all ? `mahadev_all-reports_${label.replace(/ → /, "_to_")}` : fileBase()}.xlsx`, await excelBlob(tables));
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "Excel export failed");
+    }
+    setBusy(null);
+  };
+  const makePdf = () => pdfBlob(`Mahadev Traders - ${tabLabel}`, `${tab === "dashboard" ? t : label} - generated ${new Date().toLocaleString("en-IN")}`, exportTables(tab));
+  const doPdf = async () => {
+    setBusy("pdf");
+    try {
+      downloadBlob(`${fileBase()}.pdf`, await makePdf());
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "PDF export failed");
+    }
+    setBusy(null);
+  };
+  const sendServer = async (channel: "discord" | "telegram" | "webhook") => {
+    setBusy(channel);
+    try {
+      const pdf = channel === "webhook" ? null : await makePdf();
+      const res = await fetch("/api/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channel,
+          text: summaryText(),
+          fileName: `${fileBase()}.pdf`,
+          fileBase64: pdf ? await blobToBase64(pdf) : undefined,
+          report: channel === "webhook" ? { tab, span, tables: exportTables(tab) } : undefined,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      flash(res.ok ? `Sent to ${channel} ✓` : j.error || "Send failed");
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "Send failed");
+    }
+    setBusy(null);
+    setShareOpen(false);
+  };
 
   // ---------------------------- widgets ----------------------------------
   const widget = (id: WidgetId): React.ReactNode => {
@@ -322,6 +524,44 @@ export default function ReportsHub() {
             <Kpi label="Oil produced (7 days)" value={kgs(R.dMfg7.totalOilKg)} sub={`${R.dMfg7.batches} barrels · ${R.dMfg7.fresh.count} fresh crush`} />
             <Kpi label="Low stock items" value={String(R.dStock.lowCount)} tone={R.dStock.lowCount ? "r" : undefined} />
           </div>
+        );
+      case "monthTotals":
+        return (
+          <Card title={`🧮 Totals — this month (${presetSpan("month").from.slice(0, 7)})`}>
+            <div className="hub-kpis" style={{ marginBottom: 0 }}>
+              <Kpi label="Total sales" value={rs(R.mSales.total)} sub={`${R.mSales.invoiceCount} invoices · ${R.mSales.counterCount} counter`} tone="g" />
+              <Kpi label="Total purchases" value={rs(R.mPur.total)} tone="r" />
+              <Kpi label="Total expenses" value={rs(R.mExp.total)} sub={R.mExp.salary ? `incl. salary ${rs(R.mExp.salary)}` : undefined} tone="r" />
+              <Kpi label="Total cash in" value={rs(R.mCash.cashIn)} tone="g" />
+              <Kpi label="Total cash out" value={rs(R.mCash.cashOut)} tone="r" />
+              <Kpi label="Net cash (in − out)" value={rs(R.mCash.cashIn - R.mCash.cashOut)} tone={R.mCash.cashIn - R.mCash.cashOut >= 0 ? "g" : "r"} />
+              <Kpi label="UPI in / out" value={`${rs(R.mCash.upiIn)} / ${rs(R.mCash.upiOut)}`} />
+              <Kpi label="Pigmee + Sahil took" value={rs(R.mCash.pigmee + R.mCash.ownerDraw)} tone="o" />
+            </div>
+          </Card>
+        );
+      case "stockTally":
+        return (
+          <Card
+            title="📦 Stock tally — physical vs system"
+            right={<span className="hub-m">{R.dTally.latest ? `${R.dTally.latest.date} · ${R.dTally.latest.session}` : "not counted today"}</span>}
+          >
+            {R.dTally.latest ? (
+              <Table
+                cols={[
+                  { key: "product", label: "Product" },
+                  { key: "yesterday", label: "Yesterday", num: true, fmt: (v) => (v === null ? "—" : String(v)) },
+                  { key: "today", label: "Counted", num: true, fmt: (v) => (v === null ? "—" : String(v)) },
+                  { key: "sale", label: "Sale", num: true, fmt: (v) => (v === null || v === undefined ? "—" : String(v)) },
+                  { key: "reportSale", label: "Scale report", num: true, fmt: (v) => (v === null || v === undefined ? "—" : String(v)) },
+                  { key: "gap", label: "Gap kg", num: true, fmt: (v, r) => (v === null ? "—" : <b className={r.flagged ? "r" : "g"}>{String(v)}</b>) },
+                ]}
+                rows={R.dTally.latest.rows.filter((r) => r.today !== null)}
+              />
+            ) : (
+              <div className="hub-empty">No stock counted today — Quick Register → 📦 Stock tally</div>
+            )}
+          </Card>
         );
       case "attention":
         return (
@@ -384,7 +624,7 @@ export default function ReportsHub() {
       case "topItems":
         return (
           <Card title="🏷️ Top selling items — 7 days">
-            <Table cols={[{ key: "key", label: "Item" }, { key: "qty", label: "Qty", num: true }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.d7.byItem.slice(0, 8)} />
+            <Table cols={[{ key: "key", label: "Item" }, { key: "qty", label: "Qty", num: true }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.d7.byItem.slice(0, 8)} sum={["amount"]} />
           </Card>
         );
       case "recent":
@@ -399,8 +639,7 @@ export default function ReportsHub() {
                 { key: "in", label: "In", num: true, fmt: (v) => ((v as number) ? rs(v as number) : "") },
                 { key: "out", label: "Out", num: true, fmt: (v) => ((v as number) ? rs(v as number) : "") },
               ]}
-              rows={R.dBook.rows.slice(0, 12)}
-            />
+              rows={R.dBook.rows.slice(0, 12)} sum={["in", "out"]} />
           </Card>
         );
     }
@@ -474,6 +713,60 @@ export default function ReportsHub() {
           <span className="hub-m">{label}</span>
         </div>
       )}
+
+      <div className="hub-export" aria-label="Download and share">
+        <button className="hub-btn" disabled={!R || !!busy} onClick={() => doExcel(false)}>
+          {busy === "excel" ? "Preparing…" : "⬇ Excel"}
+        </button>
+        <button className="hub-btn" disabled={!R || !!busy} onClick={doPdf}>
+          {busy === "pdf" ? "Preparing…" : "⬇ PDF"}
+        </button>
+        <button className="hub-btn" disabled={!R || !!busy} onClick={() => doExcel(true)} title="Every tab for this period in one Excel workbook">
+          ⬇ All reports (Excel)
+        </button>
+        <span className="hub-share">
+          <button className="hub-btn primary" disabled={!R} onClick={() => setShareOpen((v) => !v)} aria-expanded={shareOpen}>
+            📤 Share ▾
+          </button>
+          {shareOpen && (
+            <div className="hub-share-menu" role="menu">
+              <a role="menuitem" href={shareLink("whatsapp", summaryText())} target="_blank" rel="noreferrer">🟢 WhatsApp</a>
+              <a role="menuitem" href={shareLink("telegram", summaryText())} target="_blank" rel="noreferrer">✈️ Telegram</a>
+              <a role="menuitem" href={shareLink("email", summaryText(), `Mahadev Traders — ${tabLabel} (${label})`)}>✉️ Email</a>
+              <button
+                role="menuitem"
+                onClick={async () => {
+                  setBusy("native");
+                  const pdf = await makePdf().catch(() => null);
+                  const r = await nativeShare(summaryText(), pdf ? { blob: pdf, name: `${fileBase()}.pdf` } : undefined);
+                  if (r === "unsupported") flash("This browser has no share sheet — use WhatsApp / Email, or download the PDF.");
+                  setBusy(null);
+                  setShareOpen(false);
+                }}
+              >
+                📱 Phone share (with PDF)
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  navigator.clipboard?.writeText(summaryText()).then(() => flash("Summary copied ✓"), () => flash("Could not copy"));
+                  setShareOpen(false);
+                }}
+              >
+                📋 Copy summary text
+              </button>
+              <div className="sep">Send automatically (set up in Settings → Integrations)</div>
+              {(["discord", "telegram", "webhook"] as const).map((c) => (
+                <button key={c} role="menuitem" disabled={!integr?.[c] || !!busy} onClick={() => sendServer(c)} title={integr?.[c] ? "" : "Not set up yet"}>
+                  {c === "discord" ? "🎮 Discord channel" : c === "telegram" ? "🤖 Telegram bot" : "🔗 Webhook (Zapier / other software)"}
+                  {busy === c ? " — sending…" : integr?.[c] ? "" : " (not set up)"}
+                </button>
+              ))}
+            </div>
+          )}
+        </span>
+        {note && <span className="hub-m">{note}</span>}
+      </div>
 
       {!R ? (
         <div className="hub-empty">{error ? "" : "Loading…"}</div>
@@ -578,14 +871,14 @@ export default function ReportsHub() {
           </Card>
           <div className="hub-grid2">
             <Card title="By item" right={<CsvBtn name={`sales-by-item_${label}.csv`} rows={R.sales.byItem} />}>
-              <Table cols={[{ key: "key", label: "Item" }, { key: "qty", label: "Qty", num: true }, { key: "unit", label: "Unit" }, { key: "count", label: "Entries", num: true }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.sales.byItem} />
+              <Table cols={[{ key: "key", label: "Item" }, { key: "qty", label: "Qty", num: true }, { key: "unit", label: "Unit" }, { key: "count", label: "Entries", num: true }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.sales.byItem} sum={["amount"]} />
             </Card>
             <Card title="By customer" right={<CsvBtn name={`sales-by-customer_${label}.csv`} rows={R.sales.byParty} />}>
-              <Table cols={[{ key: "key", label: "Customer" }, { key: "count", label: "Entries", num: true }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.sales.byParty} />
+              <Table cols={[{ key: "key", label: "Customer" }, { key: "count", label: "Entries", num: true }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.sales.byParty} sum={["amount"]} />
             </Card>
           </div>
           <Card title="All sales" right={<CsvBtn name={`sales_${label}.csv`} rows={R.sales.rows} />}>
-            <Table cols={[{ key: "date", label: "Date" }, { key: "source", label: "Source" }, { key: "ref", label: "Ref" }, { key: "party", label: "Party" }, { key: "item", label: "Item" }, { key: "qty", label: "Qty" }, { key: "mode", label: "Mode" }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.sales.rows} />
+            <Table cols={[{ key: "date", label: "Date" }, { key: "source", label: "Source" }, { key: "ref", label: "Ref" }, { key: "party", label: "Party" }, { key: "item", label: "Item" }, { key: "qty", label: "Qty" }, { key: "mode", label: "Mode" }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.sales.rows} sum={["amount"]} />
           </Card>
         </>
       ) : tab === "purchase" ? (
@@ -601,14 +894,14 @@ export default function ReportsHub() {
           </Card>
           <div className="hub-grid2">
             <Card title="By item" right={<CsvBtn name={`purchase-by-item_${label}.csv`} rows={R.purchase.byItem} />}>
-              <Table cols={[{ key: "key", label: "Item" }, { key: "qty", label: "Qty", num: true }, { key: "unit", label: "Unit" }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.purchase.byItem} />
+              <Table cols={[{ key: "key", label: "Item" }, { key: "qty", label: "Qty", num: true }, { key: "unit", label: "Unit" }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.purchase.byItem} sum={["amount"]} />
             </Card>
             <Card title="By supplier" right={<CsvBtn name={`purchase-by-supplier_${label}.csv`} rows={R.purchase.bySupplier} />}>
-              <Table cols={[{ key: "key", label: "Supplier" }, { key: "count", label: "Entries", num: true }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.purchase.bySupplier} />
+              <Table cols={[{ key: "key", label: "Supplier" }, { key: "count", label: "Entries", num: true }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.purchase.bySupplier} sum={["amount"]} />
             </Card>
           </div>
           <Card title="All purchases" right={<CsvBtn name={`purchases_${label}.csv`} rows={R.purchase.rows} />}>
-            <Table cols={[{ key: "date", label: "Date" }, { key: "source", label: "Source" }, { key: "ref", label: "Bill" }, { key: "party", label: "Supplier" }, { key: "item", label: "Item" }, { key: "qty", label: "Qty" }, { key: "mode", label: "Mode" }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.purchase.rows} />
+            <Table cols={[{ key: "date", label: "Date" }, { key: "source", label: "Source" }, { key: "ref", label: "Bill" }, { key: "party", label: "Supplier" }, { key: "item", label: "Item" }, { key: "qty", label: "Qty" }, { key: "mode", label: "Mode" }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.purchase.rows} sum={["amount"]} />
           </Card>
         </>
       ) : tab === "expenses" ? (
@@ -625,10 +918,10 @@ export default function ReportsHub() {
           </Card>
           <div className="hub-grid2">
             <Card title="By category" right={<CsvBtn name={`expenses-by-category_${label}.csv`} rows={R.expenses.byCategory} />}>
-              <Table cols={[{ key: "key", label: "Category" }, { key: "count", label: "Entries", num: true }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.expenses.byCategory} />
+              <Table cols={[{ key: "key", label: "Category" }, { key: "count", label: "Entries", num: true }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.expenses.byCategory} sum={["amount"]} />
             </Card>
             <Card title="All expenses" right={<CsvBtn name={`expenses_${label}.csv`} rows={R.expenses.rows} />}>
-              <Table cols={[{ key: "date", label: "Date" }, { key: "source", label: "Source" }, { key: "item", label: "Category" }, { key: "party", label: "Paid to" }, { key: "mode", label: "Mode" }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.expenses.rows} />
+              <Table cols={[{ key: "date", label: "Date" }, { key: "source", label: "Source" }, { key: "item", label: "Category" }, { key: "party", label: "Paid to" }, { key: "mode", label: "Mode" }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.expenses.rows} sum={["amount"]} />
             </Card>
           </div>
         </>
@@ -659,11 +952,10 @@ export default function ReportsHub() {
                   { key: "due", label: "Due", num: true, fmt: money },
                 ]}
                 rows={R.jobwork.outstanding}
-                empty="Everything settled ✓"
-              />
+                empty="Everything settled ✓" sum={["due", "seedKg"]} />
             </Card>
             <Card title="Top customers (seed kg)">
-              <Table cols={[{ key: "key", label: "Customer" }, { key: "count", label: "Intakes", num: true }, { key: "seedKg", label: "Seed kg", num: true }, { key: "settled", label: "Settled", num: true, fmt: money }]} rows={R.jobwork.byCustomer} />
+              <Table cols={[{ key: "key", label: "Customer" }, { key: "count", label: "Intakes", num: true }, { key: "seedKg", label: "Seed kg", num: true }, { key: "settled", label: "Settled", num: true, fmt: money }]} rows={R.jobwork.byCustomer} sum={["seedKg", "settled"]} />
             </Card>
           </div>
         </>
@@ -680,7 +972,7 @@ export default function ReportsHub() {
             <Bars series={R.mfg.series} money={false} />
           </Card>
           <Card title="By product (barrels)">
-            <Table cols={[{ key: "key", label: "Product" }, { key: "batches", label: "Barrels", num: true }, { key: "complete", label: "Complete", num: true }, { key: "flagged", label: "Flagged", num: true }, { key: "seedKg", label: "Seed kg", num: true }, { key: "oilKg", label: "Oil kg", num: true }, { key: "yieldPct", label: "Yield %", num: true }]} rows={R.mfg.byProduct} />
+            <Table cols={[{ key: "key", label: "Product" }, { key: "batches", label: "Barrels", num: true }, { key: "complete", label: "Complete", num: true }, { key: "flagged", label: "Flagged", num: true }, { key: "seedKg", label: "Seed kg", num: true }, { key: "oilKg", label: "Oil kg", num: true }, { key: "yieldPct", label: "Yield %", num: true }]} rows={R.mfg.byProduct} sum={["seedKg", "oilKg"]} />
           </Card>
           <Card title="Barrels" right={<CsvBtn name={`barrels_${label}.csv`} rows={R.mfg.rows} />}>
             <Table
@@ -694,8 +986,7 @@ export default function ReportsHub() {
                 { key: "band", label: "Band", fmt: (v) => String(v ?? "—") },
                 { key: "flagged", label: "Flag", fmt: (v) => (v ? <b className="r">⚠ flagged</b> : "") },
               ]}
-              rows={R.mfg.rows}
-            />
+              rows={R.mfg.rows} sum={["seedKg", "oilKg"]} />
           </Card>
           <Card title="🫗 Fresh crush (our seed)" right={<CsvBtn name={`fresh-crush_${label}.csv`} rows={R.mfg.freshRows} />}>
             <Table
@@ -712,8 +1003,7 @@ export default function ReportsHub() {
                 { key: "lossFlag", label: "Loss", fmt: (v) => (v ? <b className="r">⚠ &gt;2%</b> : "ok") },
                 { key: "amount", label: "Amount", num: true, fmt: money },
               ]}
-              rows={R.mfg.freshRows}
-            />
+              rows={R.mfg.freshRows} sum={["amount", "seedKg", "oilKg", "extraKg", "cakeKg"]} />
           </Card>
         </>
       ) : tab === "stock" ? (
@@ -728,6 +1018,37 @@ export default function ReportsHub() {
             Book stock = opening + purchase bills − sales invoices, for items linked to the Item master, as of {span.to}. Quick Register
             entries are counter records (not linked to the master), listed separately so nothing is double-counted.
           </div>
+          <Card
+            title={`📦 Stock tally ${R.tally.latest ? `— ${R.tally.latest.date} · ${R.tally.latest.session}` : ""}`}
+            right={<span className="hub-m">gap flag ≥ {R.tally.threshold} kg</span>}
+          >
+            <Table
+              cols={[
+                { key: "product", label: "Product" },
+                { key: "yesterday", label: "Yesterday", num: true, fmt: (v) => (v === null ? "—" : String(v)) },
+                { key: "today", label: "Counted", num: true, fmt: (v) => (v === null ? "—" : String(v)) },
+                { key: "sale", label: "Sale (yday − today)", num: true, fmt: (v) => (v === null || v === undefined ? "—" : String(v)) },
+                { key: "reportSale", label: "Scale report sale", num: true, fmt: (v) => (v === null || v === undefined ? "—" : String(v)) },
+                { key: "gap", label: "Gap kg", num: true, fmt: (v, r) => (v === null ? "—" : <b className={r.flagged ? "r" : "g"}>{String(v)}</b>) },
+              ]}
+              rows={R.tally.latest?.rows || []}
+              empty="No physical stock count yet — Quick Register → 📦 Stock tally, or the Daily Closing desk"
+            />
+          </Card>
+          <Card title={`Stock tally history (${label})`} right={<span className="hub-m">{R.tally.flaggedCount} flagged</span>}>
+            <Table
+              cols={[
+                { key: "date", label: "Date" },
+                { key: "session", label: "Count" },
+                { key: "product", label: "Product" },
+                { key: "today", label: "Counted", num: true, fmt: (v) => (v === null ? "—" : String(v)) },
+                { key: "sale", label: "Sale", num: true, fmt: (v) => (v === null || v === undefined ? "—" : String(v)) },
+                { key: "reportSale", label: "Report", num: true, fmt: (v) => (v === null || v === undefined ? "—" : String(v)) },
+                { key: "gap", label: "Gap", num: true, fmt: (v, r) => (v === null ? "—" : <b className={r.flagged ? "r" : ""}>{String(v)}</b>) },
+              ]}
+              rows={R.tally.rows}
+            />
+          </Card>
           <Card title="Book stock (Item master)" right={<CsvBtn name={`stock_${span.to}.csv`} rows={R.stock.items} />}>
             <Table
               cols={[
@@ -751,7 +1072,7 @@ export default function ReportsHub() {
               <Table cols={[{ key: "item", label: "Item" }, { key: "unit", label: "Unit" }, { key: "inQty", label: "Bought", num: true }, { key: "outQty", label: "Sold", num: true }]} rows={R.stock.counter} />
             </Card>
             <Card title="Fresh crush — seed used & oil made (all time)">
-              <Table cols={[{ key: "seed", label: "Seed" }, { key: "seedKg", label: "Seed kg", num: true }, { key: "oilKg", label: "Oil kg", num: true }, { key: "toTankKg", label: "To tank kg", num: true }, { key: "cakeKg", label: "Cake kg", num: true }]} rows={R.stock.freshSeedUsed} />
+              <Table cols={[{ key: "seed", label: "Seed" }, { key: "seedKg", label: "Seed kg", num: true }, { key: "oilKg", label: "Oil kg", num: true }, { key: "toTankKg", label: "To tank kg", num: true }, { key: "cakeKg", label: "Cake kg", num: true }]} rows={R.stock.freshSeedUsed} sum={["seedKg", "oilKg", "cakeKg", "toTankKg"]} />
             </Card>
             <Card title="Fresh-crush oil moved to tanks / barrels">
               <Table cols={[{ key: "tank", label: "Tank / barrel" }, { key: "kg", label: "kg", num: true }]} rows={Object.entries(R.stock.toTank).map(([tank, kg]) => ({ tank, kg }))} />
@@ -763,6 +1084,7 @@ export default function ReportsHub() {
           <div className="hub-kpis">
             <Kpi label="Cash in" value={rs(R.cash.cashIn)} tone="g" />
             <Kpi label="Cash out" value={rs(R.cash.cashOut)} tone="r" />
+            <Kpi label="Net cash (in − out)" value={rs(R.cash.cashIn - R.cash.cashOut)} tone={R.cash.cashIn - R.cash.cashOut >= 0 ? "g" : "r"} />
             <Kpi label="UPI in / out" value={`${rs(R.cash.upiIn)} / ${rs(R.cash.upiOut)}`} />
             <Kpi label="Udhaar given" value={rs(R.cash.creditGiven)} tone="o" />
             <Kpi label="Pigmee" value={rs(R.cash.pigmee)} />
@@ -792,10 +1114,10 @@ export default function ReportsHub() {
           </div>
           <div className="hub-note">From the Quick Register: udhaar sales minus &ldquo;Udhaar received&rdquo;, matched by the name typed. Use the same spelling each time.</div>
           <Card title="Udhaar by person" right={<CsvBtn name={`udhaar_${span.to}.csv`} rows={R.udhaar.rows} />}>
-            <Table cols={[{ key: "name", label: "Name" }, { key: "given", label: "Udhaar given", num: true, fmt: money }, { key: "received", label: "Received", num: true, fmt: money }, { key: "balance", label: "Balance", num: true, fmt: (v) => <b className={(v as number) > 0 ? "o" : "g"}>{rs(v as number)}</b> }, { key: "last", label: "Last activity" }]} rows={R.udhaar.rows} empty="No udhaar recorded" />
+            <Table cols={[{ key: "name", label: "Name" }, { key: "given", label: "Udhaar given", num: true, fmt: money }, { key: "received", label: "Received", num: true, fmt: money }, { key: "balance", label: "Balance", num: true, fmt: (v) => <b className={(v as number) > 0 ? "o" : "g"}>{rs(v as number)}</b> }, { key: "last", label: "Last activity" }]} rows={R.udhaar.rows} empty="No udhaar recorded" sum={["given", "received", "balance"]} />
           </Card>
           <Card title="Credit invoices (Sales desk)">
-            <Table cols={[{ key: "date", label: "Date" }, { key: "invoiceNo", label: "Invoice" }, { key: "party", label: "Party" }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.udhaar.creditInvoices} empty="None" />
+            <Table cols={[{ key: "date", label: "Date" }, { key: "invoiceNo", label: "Invoice" }, { key: "party", label: "Party" }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.udhaar.creditInvoices} empty="None" sum={["amount"]} />
           </Card>
         </>
       ) : (
@@ -803,7 +1125,11 @@ export default function ReportsHub() {
           <div className="hub-kpis">
             <Kpi label="Money in" value={rs(R.daybook.totalIn)} tone="g" />
             <Kpi label="Money out" value={rs(R.daybook.totalOut)} tone="r" />
+            <Kpi label="Net (in − out)" value={rs(R.daybook.totalIn - R.daybook.totalOut)} tone={R.daybook.totalIn - R.daybook.totalOut >= 0 ? "g" : "r"} />
             <Kpi label="Transactions" value={String(R.daybook.rows.length)} />
+          </div>
+          <div className="hub-note">
+            In / Out are transaction values, including udhaar (credit) and UPI. For the money actually in the counter, see the Cash tab.
           </div>
           <Card title="Day book — every transaction, newest first" right={<CsvBtn name={`daybook_${label}.csv`} rows={R.daybook.rows} />}>
             <Table
@@ -818,8 +1144,7 @@ export default function ReportsHub() {
                 { key: "in", label: "In", num: true, fmt: (v) => ((v as number) ? rs(v as number) : "") },
                 { key: "out", label: "Out", num: true, fmt: (v) => ((v as number) ? rs(v as number) : "") },
               ]}
-              rows={R.daybook.rows}
-            />
+              rows={R.daybook.rows} sum={["in", "out"]} />
           </Card>
         </>
       )}

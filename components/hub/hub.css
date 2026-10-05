@@ -131,3 +131,14 @@ html[data-density="compact"] .ap-tile { padding: 6px 4px; } html[data-density="s
 .ap-color code { margin-left: auto; font-size: 12px; color: var(--h-soft); }
 .hub-w.arranging { touch-action: none; user-select: none; }
 .hub-w.dragging { opacity: .55; }
+
+/* export / share toolbar */
+.hub-export { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 12px; }
+.hub-share { position: relative; }
+.hub-share-menu { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; min-width: 270px; background: var(--h-card); border: 1px solid var(--h-line); border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.25); padding: 6px; display: flex; flex-direction: column; }
+.hub-share-menu a, .hub-share-menu button { text-align: left; background: none; border: none; color: inherit; padding: 8px 10px; border-radius: 8px; font: inherit; font-size: 14px; cursor: pointer; text-decoration: none; }
+.hub-share-menu a:hover, .hub-share-menu button:hover:not(:disabled) { background: var(--h-base); }
+.hub-share-menu button:disabled { opacity: .5; cursor: not-allowed; }
+.hub-share-menu .sep { font-size: 11px; color: var(--h-soft); padding: 8px 10px 2px; border-top: 1px solid var(--h-line); margin-top: 4px; }
+.hub-table tfoot td { border-top: 2px solid var(--h-line); border-bottom: none; background: var(--h-base); }
+@media print { .hub-export { display: none !important; } }
