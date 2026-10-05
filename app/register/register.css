@@ -141,8 +141,24 @@ html.dark .qr-favs-head { color: #ffd54a; }
 .qr-sec .qr-lists { margin-top: 0; }
 
 /* job-work table (same columns as the Job-Work Desk) */
-.qr-tablewrap { overflow-x: auto; margin-top: 10px; border: 1px solid var(--qr-line); border-radius: 12px; }
-.qr-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 760px; }
+.qr-tablewrap { overflow-x: auto; margin-top: 10px; border: 1px solid var(--qr-line); border-radius: 12px; container-type: inline-size; }
+.qr-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+/* auto-fit: on a narrow panel, Auto/Vehicle, Notes and Actions fold into
+   the Customer and Status cells instead of making the table scroll */
+.qr-table .w { display: none; }
+.qr-table .fold { display: block; }
+.qr-table .n { font-size: 12px; color: var(--qr-soft); margin-top: 2px; }
+.qr-table .acts { margin-top: 4px; white-space: nowrap; }
+.qr-table .t-date { white-space: nowrap; font-size: 13px; }
+@container (min-width: 820px) {
+  .qr-table .w { display: table-cell; }
+  .qr-table .fold { display: none; }
+}
+.qr-table td { overflow-wrap: anywhere; }
+@container (max-width: 440px) {
+  .qr .qr-table th, .qr .qr-table td { padding: 6px 4px; font-size: 13px; }
+  .qr .qr-table th .qr-sub { display: none; }
+}
 .qr-table th { text-align: left; background: var(--qr-base); padding: 8px; font-size: 13px; font-weight: 800; vertical-align: bottom; }
 .qr-table td { padding: 8px; border-top: 1px solid var(--qr-line); vertical-align: top; }
 .qr-table .nowrap { white-space: nowrap; }

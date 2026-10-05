@@ -377,16 +377,21 @@ export default function QuickRegister() {
   const [sheet, setSheet] = useState<Sheet>(null);
   const [editFavs, setEditFavs] = useState(false);
   const [prefs, setPrefsState] = useState<Prefs>(DEFAULT_PREFS);
+  const [hasLocalPrefs, setHasLocalPrefs] = useState(true);
   useEffect(() => {
     try {
       const raw = JSON.parse(localStorage.getItem(PREFS_KEY) || "null");
       if (raw && typeof raw === "object") setPrefsState({ ...DEFAULT_PREFS, ...raw });
-      else setPrefsState({ ...DEFAULT_PREFS, favs: ["SALE", "EXPENSE", "jwNew"] });
+      else {
+        setHasLocalPrefs(false);
+        setPrefsState({ ...DEFAULT_PREFS, favs: ["SALE", "EXPENSE", "jwNew"] });
+      }
     } catch {
       /* storage blocked — keep defaults */
     }
   }, []);
   const setPrefs = useCallback((fn: (p: Prefs) => Prefs) => {
+    setHasLocalPrefs(true);
     setPrefsState((p) => {
       const next = fn(p);
       try {
@@ -401,6 +406,14 @@ export default function QuickRegister() {
   const canSide = useMedia("(min-width: 760px)");
   const wide = useMedia("(min-width: 1100px)");
   const sideBySide = canSide && (prefs.layout === "side" || (prefs.layout === "auto" && wide));
+  // A device that was never set up starts from the shop-wide defaults
+  // chosen in Settings (layout, favourites, workspace tool).
+  useEffect(() => {
+    if (hasLocalPrefs || !day) return;
+    const c = day.config;
+    const work = (["calc", "notepad", "FRESH_CRUSH", "SALE", "EXPENSE", "PURCHASE", "jwNew", "count"] as const).find((w) => w === c.defaultWork);
+    setPrefsState((p) => ({ ...p, layout: c.defaultLayout, favs: c.defaultFavs, work: work || "calc" }));
+  }, [hasLocalPrefs, day]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [lang, setLangState] = useState<LangMode>("both");
   const [now, setNow] = useState(Date.now());
@@ -824,10 +837,12 @@ export default function QuickRegister() {
   );
 
   // Job-work ledger laid out exactly like the Job-Work Desk table.
-  const th = (k: WordKey) => {
+  // "w" columns show only when the table has room; on a narrow panel their
+  // content folds into the Customer / Status cells, so nothing scrolls.
+  const th = (k: WordKey, cls?: string) => {
     const w = words(k, lang);
     return (
-      <th>
+      <th className={cls}>
         {w.main}
         {w.sub && <span className="qr-sub">{w.sub}</span>}
       </th>
@@ -860,12 +875,12 @@ export default function QuickRegister() {
             <tr>
               {th("colTime")}
               {th("colCustomer")}
-              {th("colVehicle")}
+              {th("colVehicle", "w")}
               {th("colSeed")}
               {th("colCake")}
-              {th("colNotes")}
+              {th("colNotes", "w")}
               {th("colStatus")}
-              {th("colActions")}
+              {th("colActions", "w")}
             </tr>
           </thead>
           <tbody>
@@ -877,32 +892,49 @@ export default function QuickRegister() {
               );
               return (
                 <tr key={j.id}>
-                  <td className="nowrap">
-                    {new Date(j.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" })},{" "}
-                    {hm(j.createdAt)}
+                  <td className="t-date">
+                    {new Date(j.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" })}
+                    <span className="qr-sub">{hm(j.createdAt)}</span>
                   </td>
                   <td>
                     <b>{j.customer}</b>
                     {j.advanceCustomerInr > 0 && <span className="qr-m"> (adv ₹{j.advanceCustomerInr})</span>}
                     {cansCharge > 0 && <span className="qr-m"> (cans ₹{cansCharge})</span>}
+                    {(j.vehicleNo || j.advanceAutoInr > 0) && (
+                      <span className="n fold">
+                        🛺 {j.vehicleNo || "—"}
+                        {j.advanceAutoInr > 0 && ` (adv ₹${j.advanceAutoInr})`}
+                      </span>
+                    )}
+                    {j.notes && <span className="n fold">📝 {j.notes}</span>}
                   </td>
-                  <td>
+                  <td className="w">
                     {j.vehicleNo || "—"}
                     {j.advanceAutoInr > 0 && <span className="qr-m"> (adv ₹{j.advanceAutoInr})</span>}
                   </td>
                   <td>{j.seedKg}</td>
                   <td>{word(j.cakeOwnership === "SHOP" ? "cakeShopShort" : "cakeCustomerShort", lang)}</td>
-                  <td>{j.notes || "—"}</td>
-                  <td className="nowrap">
+                  <td className="w">{j.notes || "—"}</td>
+                  <td>
                     {j.settled ? (
-                      <b className="qr-g">{word("paid", lang)}</b>
+                      <b className="qr-g nowrap">{word("paid", lang)}</b>
                     ) : (
-                      <b className="qr-o">
+                      <b className="qr-o nowrap">
                         {word("due", lang)} {rs(due)}
                       </b>
                     )}
+                    <span className="fold acts">
+                      {!j.settled && (
+                        <button className="qr-link o" disabled={dbOffline} onClick={() => setSheet({ t: "jwpay", id: j.id })}>
+                          {word("pay", lang)}
+                        </button>
+                      )}
+                      <button className="qr-link" disabled={dbOffline} onClick={() => setSheet({ t: "jw", id: j.id })}>
+                        {word("edit", lang)}
+                      </button>
+                    </span>
                   </td>
-                  <td className="nowrap">
+                  <td className="nowrap w">
                     {!j.settled && (
                       <button className="qr-link o" disabled={dbOffline} onClick={() => setSheet({ t: "jwpay", id: j.id })}>
                         {word("pay", lang)}
@@ -1108,9 +1140,17 @@ export default function QuickRegister() {
             🗣️ {langLabel[lang]}
           </button>
           {isOwner && (
-            <a className="qr-pill" href="/">
-              {word("fullDesk", lang)} ↗
-            </a>
+            <>
+              <a className="qr-pill" href="/reports" title="Reports & dashboard">
+                📊
+              </a>
+              <a className="qr-pill" href="/settings" title="Settings">
+                ⚙️
+              </a>
+              <a className="qr-pill" href="/">
+                {word("fullDesk", lang)} ↗
+              </a>
+            </>
           )}
         </div>
 
