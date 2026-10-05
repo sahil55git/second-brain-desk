@@ -75,3 +75,25 @@ select:hover:not(:focus),
 textarea:hover:not(:focus) {
   border-color: color-mix(in srgb, var(--foreground) 35%, transparent);
 }
+
+/* ---------------------------------------------------------------------------
+   Appearance (lib/appearance.ts, applied by lib/customize.tsx)
+   --------------------------------------------------------------------------- */
+/* Text size: scales the whole interface like the browser's zoom, so every
+   screen (desk, Quick Register, Reports) grows together. */
+body { zoom: var(--ui-zoom, 1); }
+html[data-font] body,
+html[data-font] .qr,
+html[data-font] .hub { font-family: var(--ui-font) !important; }
+/* Background patterns behind every screen */
+html[data-pattern="gradient"] body { background-image: radial-gradient(1200px 600px at 10% -10%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%), radial-gradient(900px 500px at 110% 10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%); background-attachment: fixed; }
+html[data-pattern="sunrise"] body { background-image: linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, var(--background)) 0%, var(--background) 55%); background-attachment: fixed; }
+html[data-pattern="dots"] body { background-image: radial-gradient(color-mix(in srgb, var(--foreground) 14%, transparent) 1px, transparent 1.4px); background-size: 18px 18px; }
+html[data-pattern="grid"] body { background-image: linear-gradient(color-mix(in srgb, var(--foreground) 7%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--foreground) 7%, transparent) 1px, transparent 1px); background-size: 24px 24px; }
+html[data-pattern="gradient"] .qr, html[data-pattern="sunrise"] .qr,
+html[data-pattern="dots"] .qr, html[data-pattern="grid"] .qr { background: transparent; }
+html[data-pattern="gradient"] .qr-top, html[data-pattern="sunrise"] .qr-top { background: color-mix(in srgb, var(--background) 82%, transparent); backdrop-filter: blur(8px); }
+/* Reduced motion */
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+/* High contrast: stronger outlines everywhere */
+html.hc *:focus-visible { outline: 3px solid var(--accent) !important; outline-offset: 2px; }

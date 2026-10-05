@@ -24,7 +24,19 @@ import {
 import { businessDate } from "@/lib/register";
 import { CASH_GAP_THRESHOLD_INR } from "@/lib/calculations";
 import { JOBWORK_OVERDUE_DAYS } from "@/lib/reports";
-import { DEFAULT_HUB_PREFS, HUB_PREFS_KEY, WIDGETS, loadHubPrefs, saveHubPrefs, type HubPrefs, type Preset, type WidgetId } from "@/lib/hubPrefs";
+import {
+  DEFAULT_HUB_PREFS,
+  DEFAULT_SIZES,
+  HUB_PREFS_KEY,
+  SIZE_SPAN,
+  WIDGETS,
+  loadHubPrefs,
+  saveHubPrefs,
+  type HubPrefs,
+  type Preset,
+  type WidgetId,
+  type WidgetSize,
+} from "@/lib/hubPrefs";
 
 const rs = (n: number | null | undefined) => "₹" + Math.round(Number(n) || 0).toLocaleString("en-IN");
 const kgs = (n: number | null | undefined) => `${(Math.round((Number(n) || 0) * 10) / 10).toLocaleString("en-IN")} kg`;
@@ -175,6 +187,37 @@ export default function ReportsHub() {
   const [error, setError] = useState<string | null>(null);
   const [counterNow, setCounterNow] = useState<number | null>(null);
   const [editWidgets, setEditWidgets] = useState(false);
+  const [dragId, setDragId] = useState<WidgetId | null>(null);
+  const [overId, setOverId] = useState<WidgetId | null>(null);
+  // Pointer-based drag (works with mouse, touch screens and pens — HTML5
+  // drag-and-drop doesn't work on phones/tablets).
+  const startDrag = (e: React.PointerEvent, id: WidgetId) => {
+    if ((e.target as HTMLElement).closest("button,input,select,a")) return;
+    e.preventDefault();
+    setDragId(id);
+    let over: WidgetId | null = null;
+    const move = (ev: PointerEvent) => {
+      const el = (document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null)?.closest<HTMLElement>("[data-wid]");
+      over = (el?.dataset.wid as WidgetId) || null;
+      setOverId(over);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setDragId(null);
+      setOverId(null);
+      if (over && over !== id) {
+        const target = over;
+        updatePrefs((p) => {
+          const list = p.widgets.filter((w) => w !== id);
+          list.splice(list.indexOf(target), 0, id);
+          return { ...p, widgets: list };
+        });
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
 
   useEffect(() => {
     const p = loadHubPrefs();
@@ -395,6 +438,7 @@ export default function ReportsHub() {
           <a className="hub-btn" href="/register">📒 Quick Register</a>
           <a className="hub-btn" href="/">🗂️ Full desk</a>
           <a className="hub-btn" href="/settings">⚙️ Settings</a>
+          <a className="hub-btn" href="/appearance">🎨 Appearance</a>
           <button className="hub-btn" onClick={load}>⟳ Refresh</button>
           <button className="hub-btn" onClick={() => window.print()}>🖨️ Print</button>
         </nav>
@@ -477,12 +521,41 @@ export default function ReportsHub() {
               </div>
             </div>
           )}
-          <div className="hub-dash">
-            {visibleWidgets.map((id) => (
-              <div key={id} className={`hub-w hub-w-${id}`}>
-                {widget(id)}
-              </div>
-            ))}
+          {editWidgets && (
+            <div className="hub-note">Drag a widget to move it. Use S · M · L · XL · Full on each widget to change its width.</div>
+          )}
+          <div className="hub-dash g12">
+            {visibleWidgets.map((id) => {
+              const size: WidgetSize = prefs.sizes[id] || DEFAULT_SIZES[id];
+              return (
+                <div
+                  key={id}
+                  className={`hub-w hub-w-${id}${editWidgets ? " arranging" : ""}${overId === id && dragId !== id ? " drag-over" : ""}${dragId === id ? " dragging" : ""}`}
+                  style={{ ["--span" as string]: SIZE_SPAN[size] } as React.CSSProperties}
+                  data-wid={id}
+                  onPointerDown={(e) => editWidgets && startDrag(e, id)}
+                >
+                  {editWidgets && (
+                    <div className="hub-wbar" aria-label="Widget size">
+                      {(["s", "m", "l", "xl", "full"] as WidgetSize[]).map((sz) => (
+                        <button
+                          key={sz}
+                          className={size === sz ? "on" : ""}
+                          onClick={() => updatePrefs((p) => ({ ...p, sizes: { ...p.sizes, [id]: sz } }))}
+                          title={`Width: ${sz.toUpperCase()}`}
+                        >
+                          {sz === "full" ? "Full" : sz.toUpperCase()}
+                        </button>
+                      ))}
+                      <button title="Hide" onClick={() => updatePrefs((p) => ({ ...p, hidden: [...p.hidden, id] }))}>
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                  {widget(id)}
+                </div>
+              );
+            })}
           </div>
         </>
       ) : tab === "sales" ? (
