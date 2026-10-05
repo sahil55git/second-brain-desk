@@ -155,3 +155,19 @@ describe("cash, udhaar, day book, attention", () => {
     expect(toCsvRows([{ a: "x,y", b: 1 }])).toBe('a,b\n"x,y",1');
   });
 });
+
+import { stockTallyReport } from "../bizReports";
+describe("stock tally report", () => {
+  it("lists counts, gaps and flags ≥ 0.5 kg, and feeds the attention list", () => {
+    const d = base();
+    d.closings.push({
+      ...d.closings[0], id: "c2", session: "NIGHT", cashMismatch: false, createdAt: "2026-10-04T15:00:00.000Z",
+      stock: { sf: { today: 100, yesterday: 120, sale: 20, reportSale: 19, gap: 1, yesterdaySource: "auto" }, k2: { today: 40, yesterday: 40.2, diff: -0.2, yesterdaySource: "auto" } } as never,
+    });
+    const t = stockTallyReport(d, { from: "2026-10-04", to: "2026-10-04" });
+    expect(t.rows).toHaveLength(2);
+    expect(t.flaggedCount).toBe(1);
+    expect(t.latest?.rows.find((r) => r.product === "Sunflower")).toMatchObject({ gap: 1, flagged: true });
+    expect(attentionList(d, "2026-10-04", NOW).some((a) => a.area === "Stock tally" && a.message.startsWith("Sunflower"))).toBe(true);
+  });
+});

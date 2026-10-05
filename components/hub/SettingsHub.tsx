@@ -26,7 +26,7 @@ import { JOBWORK_OVERDUE_DAYS } from "@/lib/reports";
 import { DEFAULT_HUB_PREFS, WIDGETS, loadHubPrefs, saveHubPrefs, type HubPrefs, type Preset } from "@/lib/hubPrefs";
 import { registerItemName } from "@/lib/bizReports";
 
-type Section = "appearance" | "register" | "rates" | "library" | "device" | "dashboard" | "business" | "rules" | "data";
+type Section = "integrations" | "appearance" | "register" | "rates" | "library" | "device" | "dashboard" | "business" | "rules" | "data";
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "register", label: "📒 Quick Register" },
   { key: "rates", label: "₹ Saved rates" },
@@ -34,6 +34,7 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: "device", label: "📱 This device" },
   { key: "dashboard", label: "📈 Dashboard & reports" },
   { key: "appearance", label: "🎨 Appearance" },
+  { key: "integrations", label: "🔗 Share & integrations" },
   { key: "business", label: "🏢 Business & scales" },
   { key: "rules", label: "📏 Business rules" },
   { key: "data", label: "💾 Data & backup" },
@@ -51,6 +52,7 @@ const TILE_CHOICES: { key: string; label: string }[] = [
   { key: "PIGMEE", label: "🏦 Pigmee" },
   { key: "OWNER_DRAW", label: "🧔 Sahil took" },
   { key: "count", label: "💵 Count cash" },
+  { key: "stock", label: "📦 Stock tally" },
   { key: "calc", label: "🧮 Calculator" },
   { key: "reports", label: "🖨️ Reports" },
 ];
@@ -63,6 +65,7 @@ const WORK_CHOICES = [
   { key: "PURCHASE", label: "🛒 Purchase" },
   { key: "jwNew", label: "🌾 New intake" },
   { key: "count", label: "💵 Count cash" },
+  { key: "stock", label: "📦 Stock tally" },
 ];
 const LIB_KINDS: RegisterKind[] = ["SALE", "FRESH_CRUSH", "PURCHASE", "EXPENSE", "PAYMENT"];
 const KIND_LABEL: Partial<Record<RegisterKind, string>> = {
@@ -472,6 +475,7 @@ export default function SettingsHub() {
 
           {section === "data" && <DataCard />}
           {section === "appearance" && <AppearancePanel />}
+          {section === "integrations" && <IntegrationsCard />}
         </div>
       </div>
     </div>
@@ -627,5 +631,73 @@ function DataCard() {
       </div>
       {msg && <div className="hub-m">{msg}</div>}
     </section>
+  );
+}
+
+function IntegrationsCard() {
+  const [st, setSt] = useState<{ discord: boolean; telegram: boolean; webhook: boolean } | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/share")
+      .then((r) => r.json())
+      .then((j) => setSt(j.data ?? null))
+      .catch(() => setSt(null));
+  }, []);
+  async function test(channel: "discord" | "telegram" | "webhook") {
+    setMsg("Sending…");
+    const r = await fetch("/api/share", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel, text: "✅ Test message from Mahadev Traders — Second Brain Desk" }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setMsg(r.ok ? `Sent to ${channel} ✓ — check it arrived` : j.error || "Failed");
+  }
+  const row = (key: "discord" | "telegram" | "webhook", name: string, how: React.ReactNode) => (
+    <div className="set-row" style={{ alignItems: "flex-start" }}>
+      <span className="lab">
+        {name} — {st?.[key] ? <b className="g">connected</b> : <b className="o">not set up</b>}
+        <small>{how}</small>
+      </span>
+      <button className="hub-btn sm" disabled={!st?.[key]} onClick={() => test(key)}>
+        Send test
+      </button>
+    </div>
+  );
+  return (
+    <>
+      <section className="hub-card">
+        <h3>Share without any setup</h3>
+        <div className="hub-m small">
+          Every report has <b>📤 Share</b>: WhatsApp, Telegram and Email open with the summary filled in; <b>Phone share</b> attaches
+          the PDF to WhatsApp / Gmail / Drive on mobile. <b>⬇ Excel</b> and <b>⬇ PDF</b> download files you can send anywhere.
+        </div>
+      </section>
+      <section className="hub-card">
+        <h3>Automatic sending (one-time setup by the owner)</h3>
+        <div className="hub-m small" style={{ marginBottom: 6 }}>
+          Secret keys are kept in Vercel, never in the app&apos;s database or on phones. Vercel → project <b>mahadev-second-brain</b> →
+          Settings → Environment Variables → add the variable(s) below → Redeploy.
+        </div>
+        {row("discord", "🎮 Discord channel", <>Discord channel → Edit → Integrations → Webhooks → New Webhook → Copy URL. Variable: <code>DISCORD_WEBHOOK_URL</code></>)}
+        {row(
+          "telegram",
+          "🤖 Telegram bot",
+          <>
+            Message <b>@BotFather</b> → /newbot → copy the token (<code>TELEGRAM_BOT_TOKEN</code>). Add the bot to your group, send it a message,
+            then open <code>api.telegram.org/bot&lt;token&gt;/getUpdates</code> to read the chat id (<code>TELEGRAM_CHAT_ID</code>).
+          </>
+        )}
+        {row(
+          "webhook",
+          "🔗 Webhook — other software",
+          <>
+            Any URL that accepts JSON, e.g. a Zapier / Make / n8n &ldquo;Catch hook&rdquo; to push reports into Google Sheets, Gmail or
+            another app. Variable: <code>REPORT_WEBHOOK_URL</code>
+          </>
+        )}
+        {msg && <div className="hub-m">{msg}</div>}
+      </section>
+    </>
   );
 }

@@ -250,6 +250,40 @@ variables on `<html>`:
 The money colours (green in, red out, orange not-expense, blue job-work)
 stay fixed on every theme so the counter reads the same way.
 
+## Totals, downloads, sharing, stock tally, voice
+
+- **Totals**: every money table in Reports has a **Total** footer row; Cash
+  and Day book show **Net (in − out)**; the dashboard has a **Totals — this
+  month** widget (sales, purchases, expenses, cash in / out / net, UPI,
+  pigmee + owner draw).
+- **Downloads** on every report tab: **⬇ Excel** (real .xlsx, one sheet per
+  table, TOTAL rows), **⬇ PDF** (tables with totals and page numbers —
+  standard PDF fonts, so "Rs" and English names), **⬇ All reports (Excel)**
+  (one workbook, every tab), and per-table CSV. (`lib/exporters.ts`,
+  `write-excel-file`, `jspdf` + `jspdf-autotable`.)
+- **📤 Share**: WhatsApp / Telegram / Email open with a summary filled in;
+  **Phone share** attaches the PDF on mobile; **Copy summary**. Automatic
+  sending to a **Discord** channel, a **Telegram bot**, or any **webhook**
+  (Zapier / Make / n8n → Google Sheets, Gmail, other software) via
+  `/api/share` — owner only; secrets are Vercel env vars
+  (`DISCORD_WEBHOOK_URL`, `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`,
+  `REPORT_WEBHOOK_URL`). Status, how-to and "Send test" in Settings →
+  Share & integrations.
+- **📦 Stock tally** (Quick Register tile + workspace tool): the Daily
+  Closing desk's 10-product physical count for Tally 1 / Tally 2 — yesterday
+  is filled automatically, Sale = yesterday − today, Gap = sale − scale
+  report, gaps ≥ 0.5 kg turn red (same functions and threshold as the desk,
+  `lib/stockTally.ts`). Counts can be **uploaded from Excel / CSV**; a blank
+  sheet can be downloaded. Saved on that session's `DailyClosing` row (a
+  later cash count fills the same row; stock-only rows never affect opening
+  cash). Dashboard widget **Stock tally**, attention flags, and Stock tab
+  history.
+- **🎤 Voice** (Chrome / Edge / Android): say e.g. "sale karadi 10 kg at 250
+  udhaar to Suresh", "expense diesel 500", "ಖರ್ಚು ಡೀಸೆಲ್ ೫೦೦", "pigmee one
+  thousand", "count cash", "stock tally". The form opens pre-filled; nothing
+  is saved until Save is tapped (`lib/voice.ts`, tested). Speech is
+  processed by the browser's speech service.
+
 ## Not yet built (Phase 2+)
 
 Deliberately deferred, so nothing here gets silently forgotten:

@@ -40,6 +40,11 @@ import {
   type RegisterKind,
 } from "@/lib/register";
 import { pairLabel, word, words, type WordKey } from "@/lib/registerI18n";
+import { STOCK_PRODUCTS, computeProductTally } from "@/lib/calculations";
+import { STOCK_KN, csvToTable, isFlagged, parseTallyRows } from "@/lib/stockTally";
+import { parseVoice, type VoiceAction } from "@/lib/voice";
+
+type EntryInit = Partial<Pick<Extract<VoiceAction, { type: "entry" }>, "item" | "qty" | "unit" | "rate" | "amount" | "mode" | "party">>;
 
 // ---------------------------------------------------------------------------
 // Types returned by GET /api/register
@@ -99,7 +104,8 @@ interface DayBundle {
 }
 
 type Sheet =
-  | { t: "entry"; kind: RegisterKind }
+  | { t: "entry"; kind: RegisterKind; init?: EntryInit }
+  | { t: "stock" }
   | { t: "jw"; id?: string }
   | { t: "fresh" }
   | { t: "jwpay"; id: string }
@@ -121,11 +127,12 @@ type TileKey =
   | "PIGMEE"
   | "OWNER_DRAW"
   | "count"
+  | "stock"
   | "calc"
   | "reports";
 type SectionKey = "summary" | "entries" | "jobwork";
 // What the always-open Workspace card shows.
-type WorkTool = "calc" | "notepad" | "FRESH_CRUSH" | "SALE" | "EXPENSE" | "PURCHASE" | "jwNew" | "count";
+type WorkTool = "calc" | "notepad" | "FRESH_CRUSH" | "SALE" | "EXPENSE" | "PURCHASE" | "jwNew" | "count" | "stock";
 type LayoutMode = "auto" | "side" | "stack";
 interface Prefs {
   layout: LayoutMode;
@@ -446,7 +453,7 @@ export default function QuickRegister() {
   useEffect(() => {
     if (hasLocalPrefs || !day) return;
     const c = day.config;
-    const work = (["calc", "notepad", "FRESH_CRUSH", "SALE", "EXPENSE", "PURCHASE", "jwNew", "count"] as const).find((w) => w === c.defaultWork);
+    const work = (["calc", "notepad", "FRESH_CRUSH", "SALE", "EXPENSE", "PURCHASE", "jwNew", "count", "stock"] as const).find((w) => w === c.defaultWork);
     setPrefsState((p) => ({ ...p, layout: c.defaultLayout, favs: c.defaultFavs, work: work || "calc" }));
   }, [hasLocalPrefs, day]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -597,6 +604,7 @@ export default function QuickRegister() {
     PIGMEE: { k: "PIGMEE", icon: "🏦", group: "oth", open: () => setSheet({ t: "entry", kind: "PIGMEE" }), needsDb: true },
     OWNER_DRAW: { k: "OWNER_DRAW", icon: "🧔", group: "oth", open: () => setSheet({ t: "entry", kind: "OWNER_DRAW" }), needsDb: true },
     count: { k: "count", icon: "💵", group: "tool", open: () => setSheet({ t: "count" }), needsDb: true },
+    stock: { k: "stockTally", icon: "📦", group: "tool", open: () => setSheet({ t: "stock" }), needsDb: true },
     calc: { k: "calc", icon: "🧮", group: "tool", open: () => setSheet({ t: "calc" }) },
     reports: { k: "reports", icon: "🖨️", group: "tool", open: () => setSheet({ t: "report" }) },
   };
@@ -765,6 +773,7 @@ export default function QuickRegister() {
 
       <div className="qr-tools">
         <Tile id="count" />
+        <Tile id="stock" />
         <Tile id="calc" />
         <Tile id="reports" />
       </div>
@@ -995,6 +1004,76 @@ export default function QuickRegister() {
     </Section>
   );
 
+  // ------------------------------ voice ---------------------------------
+  // Uses the browser's speech recogniser (Chrome / Edge / Android; audio is
+  // processed by the browser's speech service). The parsed command only
+  // OPENS the right form, pre-filled — the person still checks and saves.
+  const [voiceOn, setVoiceOn] = useState(false);
+  const [heard, setHeard] = useState("");
+  const [voiceOk, setVoiceOk] = useState(false);
+  useEffect(() => {
+    const w = window as unknown as Record<string, unknown>;
+    setVoiceOk(!!(w.SpeechRecognition || w.webkitSpeechRecognition));
+  }, []);
+  const recRef = useRef<{ stop: () => void } | null>(null);
+  const runVoice = (text: string) => {
+    const a = parseVoice(text);
+    if (a.type === "unknown") return toast(`${word("voiceUnknown", lang)}: “${text}”`);
+    if (a.type === "open") {
+      if (a.target === "reports") window.location.href = isOwner ? "/reports" : "/register";
+      else if (a.target === "jw") setSheet({ t: "jw" });
+      else setSheet({ t: a.target });
+      return;
+    }
+    if (a.kind === "FRESH_CRUSH") return setSheet({ t: "fresh" });
+    const { type: _t, kind, ...init } = a;
+    void _t;
+    setSheet({ t: "entry", kind, init });
+    toast(word("voiceCheck", lang));
+  };
+  const startVoice = () => {
+    const w = window as unknown as Record<string, new () => {
+      lang: string;
+      interimResults: boolean;
+      maxAlternatives: number;
+      onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void;
+      onerror: (e: { error: string }) => void;
+      onend: () => void;
+      start: () => void;
+      stop: () => void;
+    }>;
+    const Rec = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!Rec) return;
+    if (voiceOn) {
+      recRef.current?.stop();
+      return;
+    }
+    const rec = new Rec();
+    rec.lang = lang === "kn" ? "kn-IN" : "en-IN";
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    let finalText = "";
+    rec.onresult = (e) => {
+      let t = "";
+      for (let i = 0; i < e.results.length; i++) {
+        t += e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText = t;
+      }
+      setHeard(t);
+    };
+    rec.onerror = (e) => {
+      if (e.error !== "aborted" && e.error !== "no-speech") toast(`🎤 ${e.error}`);
+    };
+    rec.onend = () => {
+      setVoiceOn(false);
+      if (finalText.trim()) runVoice(finalText);
+    };
+    recRef.current = rec;
+    setHeard("");
+    setVoiceOn(true);
+    rec.start();
+  };
+
   // ---------------------------- workspace ------------------------------
   // An always-open card: pick a tool once and it stays on screen (per device).
   const [wsKey, setWsKey] = useState(0);
@@ -1013,6 +1092,7 @@ export default function QuickRegister() {
     { key: "PURCHASE", icon: "🛒", k: "PURCHASE" },
     { key: "jwNew", icon: "🌾", k: "jwNew" },
     { key: "count", icon: "💵", k: "count" },
+    { key: "stock", icon: "📦", k: "stockTally" },
   ];
   const tool = prefs.work;
   const wsBody =
@@ -1024,6 +1104,8 @@ export default function QuickRegister() {
       <FreshCrushSheet key={wsKey} day={day} lang={lang} date={date} onClose={wsReset} onSaved={wsSaved} toast={toast} />
     ) : tool === "jwNew" ? (
       <JobWorkSheet key={wsKey} day={day} lang={lang} onClose={wsReset} onSaved={wsSaved} toast={toast} />
+    ) : tool === "stock" ? (
+      <StockSheet key={wsKey} lang={lang} date={date} onClose={wsReset} onSaved={(m) => { toast(m); load(); wsReset(); }} toast={toast} />
     ) : tool === "count" ? (
       <CountSheet
         key={wsKey}
@@ -1129,7 +1211,9 @@ export default function QuickRegister() {
   const sheetEl = !sheet ? null : sheet.t === "calc" ? (
     <CalcSheet lang={lang} onClose={() => setSheet(null)} />
   ) : !day ? null : sheet.t === "entry" ? (
-    <EntrySheet key={sheet.kind} kind={sheet.kind} day={day} lang={lang} date={date} onClose={() => setSheet(null)} onSaved={() => done()} toast={toast} />
+    <EntrySheet key={sheet.kind + JSON.stringify(sheet.init || {})} kind={sheet.kind} init={sheet.init} day={day} lang={lang} date={date} onClose={() => setSheet(null)} onSaved={() => done()} toast={toast} />
+  ) : sheet.t === "stock" ? (
+    <StockSheet lang={lang} date={date} onClose={() => setSheet(null)} onSaved={(m) => done(m)} toast={toast} />
   ) : sheet.t === "fresh" ? (
     <FreshCrushSheet day={day} lang={lang} date={date} onClose={() => setSheet(null)} onSaved={() => done()} toast={toast} />
   ) : sheet.t === "jw" ? (
@@ -1219,6 +1303,11 @@ export default function QuickRegister() {
           <button className="qr-pill" onClick={() => setLang(nextLang[lang])} aria-label={word("language", lang)}>
             🗣️ {langLabel[lang]}
           </button>
+          {voiceOk && (
+            <button className={`qr-pill${voiceOn ? " rec" : ""}`} onClick={startVoice} title={word("voice", lang)} aria-label={word("voice", lang)} aria-pressed={voiceOn}>
+              🎤
+            </button>
+          )}
           <a className="qr-pill" href="/appearance" title="Appearance: themes, text size, colours" aria-label="Appearance">
             🎨
           </a>
@@ -1311,6 +1400,18 @@ export default function QuickRegister() {
           {workspaceBlock}
         </div>
       )}
+      {voiceOn && (
+        <div className="qr-voice" role="status" aria-live="polite">
+          <div className="mic" aria-hidden>
+            🎤
+          </div>
+          <div className="qr-hint">{word("voiceListening", lang)}</div>
+          <div className="heard">{heard || "…"}</div>
+          <button className="qr-btn2" onClick={() => recRef.current?.stop()}>
+            ✓ {word("done", lang)}
+          </button>
+        </div>
+      )}
       {toastMsg && (
         <div className="qr-toast" role="status">
           {toastMsg}
@@ -1326,6 +1427,7 @@ export default function QuickRegister() {
 // ---------------------------------------------------------------------------
 function EntrySheet({
   kind,
+  init,
   day,
   lang,
   date,
@@ -1334,6 +1436,7 @@ function EntrySheet({
   toast,
 }: {
   kind: RegisterKind;
+  init?: EntryInit; // pre-filled by a voice command — still needs Save
   day: DayBundle;
   lang: LangMode;
   date: string;
@@ -1357,15 +1460,17 @@ function EntrySheet({
         ];
 
   const [totalMode, setTotalMode] = useState<"itemwise" | "total">("itemwise");
-  const [item, setItem] = useState<string | null>(items[0]?.key || null);
+  const [item, setItem] = useState<string | null>(init?.item && items.some((i) => i.key === init.item) ? init.item : items[0]?.key || null);
   const [otherName, setOtherName] = useState("");
-  const [qty, setQty] = useState("");
-  const [unit, setUnit] = useState("kg");
+  const [qty, setQty] = useState(init?.qty ? String(init.qty) : "");
+  const [unit, setUnit] = useState(init?.unit || "kg");
   const savedRate = (it: string | null) => {
     const r = it ? day.config.rates[rateKey(kind, it)] : undefined;
     return r ? String(r) : "";
   };
-  const [rate, setRate] = useState(() => savedRate(items[0]?.key || null));
+  const [rate, setRate] = useState(() =>
+    init?.rate ? String(init.rate) : savedRate(init?.item && items.some((i) => i.key === init.item) ? init.item : items[0]?.key || null)
+  );
   // If the day's data refreshes while the sheet is open (e.g. the previous
   // save is still reloading), fill a still-empty rate from the saved one.
   useEffect(() => {
@@ -1373,10 +1478,11 @@ function EntrySheet({
     const r = day.config.rates[rateKey(kind, item)];
     if (r) setRate((cur) => (cur === "" ? String(r) : cur));
   }, [day.config.rates, item, kind]);
-  const [amount, setAmount] = useState(kind === "PIGMEE" ? String(day.config.pigmeeDefault || "") : "");
-  const [amtTouched, setAmtTouched] = useState(kind === "PIGMEE");
-  const [mode, setMode] = useState<Mode>("CASH");
-  const [party, setParty] = useState("");
+  const voiceAmount = init?.amount && !(init.qty && init.rate) ? String(init.amount) : null;
+  const [amount, setAmount] = useState(voiceAmount ?? (kind === "PIGMEE" ? String(day.config.pigmeeDefault || "") : ""));
+  const [amtTouched, setAmtTouched] = useState(kind === "PIGMEE" || !!voiceAmount);
+  const [mode, setMode] = useState<Mode>(init?.mode || "CASH");
+  const [party, setParty] = useState(init?.party || "");
   const [notes, setNotes] = useState("");
   const [drawKind, setDrawKind] = useState<"partial" | "full">("partial");
   const [busy, setBusy] = useState(false);
@@ -1988,6 +2094,218 @@ function CountSheet({
         </div>
       )}
       <button className="qr-save tool" onClick={save} disabled={busy || counted <= 0}>
+        ✓ {word(busy ? "saving" : "save", lang)}
+      </button>
+    </SheetFrame>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Quick stock tally — the Daily Closing desk's 10-product oil-stock count,
+// with the desk's own Sale / Gap maths and its 0.5 kg flag. Saved on the
+// same DailyClosing row as that session's cash count.
+// ---------------------------------------------------------------------------
+function StockSheet({
+  lang,
+  date,
+  onClose,
+  onSaved,
+  toast,
+}: {
+  lang: LangMode;
+  date: string;
+  onClose: () => void;
+  onSaved: (msg: string) => void;
+  toast: (m: string) => void;
+}) {
+  const hour = Number(new Date().toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }));
+  const [session, setSession] = useState<"AFTERNOON" | "NIGHT">(hour >= 16 ? "NIGHT" : "AFTERNOON");
+  const [yesterday, setYesterday] = useState<Record<string, number | null>>({});
+  const [vals, setVals] = useState<Record<string, { today: string; reportSale: string }>>({});
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api<{
+      data: {
+        yesterday: Record<string, Record<string, number | null>>;
+        sessions: Record<string, { stock: Record<string, { today?: number | null; reportSale?: number | null }> } | null>;
+      };
+    }>(`/api/register/stock?date=${date}`)
+      .then((r) => {
+        setYesterday(r.data.yesterday[session] || {});
+        const existing = r.data.sessions[session]?.stock;
+        setVals({});
+        if (existing)
+          setVals(
+            Object.fromEntries(
+              Object.entries(existing).map(([k, v]) => [k, { today: v.today == null ? "" : String(v.today), reportSale: v.reportSale == null ? "" : String(v.reportSale) }])
+            )
+          );
+        setLoaded(true);
+      })
+      .catch((e) => toast(e.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, session]);
+
+  const n = (v: string | undefined) => (v === undefined || v === "" || Number.isNaN(Number(v)) ? null : Number(v));
+  const rows = STOCK_PRODUCTS.map((p) => {
+    const v = vals[p.key] || { today: "", reportSale: "" };
+    const c = computeProductTally(p, n(v.today), n(v.reportSale), yesterday[p.key] ?? null, "auto");
+    return { p, v, c, flagged: isFlagged(c) };
+  });
+  const counted = rows.filter((r) => r.c.today !== null).length;
+  const flagged = rows.filter((r) => r.flagged).length;
+  const set = (k: string, field: "today" | "reportSale", value: string) =>
+    setVals((cur) => ({ ...cur, [k]: { today: cur[k]?.today ?? "", reportSale: cur[k]?.reportSale ?? "", [field]: value } }));
+
+  async function importFile(f: File) {
+    try {
+      let table: unknown[][];
+      if (/\.csv$|\.txt$/i.test(f.name)) table = csvToTable(await f.text());
+      else {
+        const { readSheet } = await import("read-excel-file/universal");
+        table = (await readSheet(f)) as unknown[][];
+      }
+      const r = parseTallyRows(table);
+      if (!r.matched) return toast(word("stNone", lang));
+      setVals((cur) => {
+        const next = { ...cur };
+        for (const [k, v] of Object.entries(r.input)) next[k] = { today: v.today == null ? "" : String(v.today), reportSale: v.reportSale == null ? "" : String(v.reportSale) };
+        return next;
+      });
+      toast(`✓ ${r.matched}${r.skipped.length ? ` · skipped: ${r.skipped.join(", ")}` : ""}`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : word("error", lang));
+    }
+  }
+  function template() {
+    const csv = ["Product,Today (counted),Report sale", ...STOCK_PRODUCTS.map((p) => `${p.label},,`)].join("\n");
+    const url = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "stock-tally-sheet.csv";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async function save() {
+    if (!counted) return toast(word("stNone", lang));
+    setBusy(true);
+    try {
+      const stock = Object.fromEntries(rows.filter((r) => r.c.today !== null).map((r) => [r.p.key, { today: n(r.v.today), reportSale: n(r.v.reportSale) }]));
+      const res = await api<{ data: { flagged: number } }>("/api/register/stock", { method: "POST", body: JSON.stringify({ date, session, stock }) });
+      onSaved(`${word("stSaved", lang)} ✓${res.data.flagged ? ` — ⚠️ ${res.data.flagged} ${word("stGaps", lang)}` : ""}`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : word("error", lang));
+      setBusy(false);
+    }
+  }
+
+  const label = (p: { key: string; label: string }) => {
+    const l = pairLabel(p.label, STOCK_KN[p.key] || p.label, lang);
+    return (
+      <>
+        {l.main}
+        {l.sub && <span className="qr-sub">{l.sub}</span>}
+      </>
+    );
+  };
+  const fmt = (v: number | null | undefined) => (v === null || v === undefined ? "—" : String(Math.round(v * 100) / 100));
+
+  return (
+    <SheetFrame icon="📦" k="stockTally" lang={lang} onClose={onClose}>
+      <div className="qr-f">
+        <Chips
+          lang={lang}
+          value={session}
+          onPick={setSession}
+          options={[
+            { key: "AFTERNOON", icon: "🌤️", en: "Tally 1 (midday)", kn: "ಎಣಿಕೆ 1 (ಮಧ್ಯಾಹ್ನ)" },
+            { key: "NIGHT", icon: "🌙", en: "Tally 2 (closing)", kn: "ಎಣಿಕೆ 2 (ಮುಚ್ಚುವ)" },
+          ]}
+        />
+      </div>
+      <div className="qr-hint" style={{ marginBottom: 8 }}>{word("stHint", lang)}</div>
+      <div className="qr-btnrow" style={{ marginTop: 0, marginBottom: 8 }}>
+        <label className="qr-btn2" style={{ textAlign: "center", cursor: "pointer" }}>
+          📤 {word("stImport", lang)}
+          <input type="file" accept=".csv,.txt,.xlsx" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && importFile(e.target.files[0])} />
+        </label>
+        <button className="qr-btn2" onClick={template}>
+          📄 {word("stTemplate", lang)}
+        </button>
+      </div>
+      <div className="qr-tablewrap qr-stock">
+        <table className="qr-table">
+          <thead>
+            <tr>
+              <th>{words("stProduct", lang).main}</th>
+              <th className="num">{words("stYesterday", lang).main}</th>
+              <th>{words("stCounted", lang).main}</th>
+              <th>{words("stReport", lang).main}</th>
+              <th className="num">{words("stGap", lang).main}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ p, v, c, flagged: f }) => (
+              <tr key={p.key} className={f ? "flag" : ""}>
+                <td>
+                  <b>{label(p)}</b>
+                </td>
+                <td className="num">{fmt(c.yesterday)}</td>
+                <td>
+                  <input
+                    className="qr-cell"
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="0.1"
+                    value={v.today}
+                    onChange={(e) => set(p.key, "today", e.target.value)}
+                    aria-label={`${p.label} counted`}
+                  />
+                </td>
+                <td>
+                  {p.hasReportSale ? (
+                    <input
+                      className="qr-cell"
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step="0.1"
+                      value={v.reportSale}
+                      onChange={(e) => set(p.key, "reportSale", e.target.value)}
+                      aria-label={`${p.label} report sale`}
+                    />
+                  ) : (
+                    <span className="qr-m">—</span>
+                  )}
+                </td>
+                <td className="num">
+                  {c.today === null ? (
+                    "—"
+                  ) : (
+                    <b className={f ? "qr-r" : "qr-g"}>
+                      {fmt(c.gap ?? c.diff)}
+                      <span className="qr-sub">
+                        {words("stSale", lang).main} {fmt(c.sale ?? null)}
+                      </span>
+                    </b>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className={`qr-res ${flagged ? "bad" : counted ? "ok" : ""}`}>
+        <span>
+          {counted}/{STOCK_PRODUCTS.length} {words("stCounted", lang).main.toLowerCase()}
+        </span>
+        <span>{flagged ? `⚠️ ${flagged} ${word("stGaps", lang)}` : counted ? "✓" : ""}</span>
+      </div>
+      <button className="qr-save tool" onClick={save} disabled={busy || !loaded}>
         ✓ {word(busy ? "saving" : "save", lang)}
       </button>
     </SheetFrame>

@@ -42,6 +42,26 @@ export async function POST(req: NextRequest) {
       now.getTime()
     );
     const { systemCash, diff, flagged } = cashGapFlag(buckets, counted);
+    // If a stock-only row already exists for this session (stock tally taken
+    // first), fill in its cash instead of creating a second row.
+    const stockOnly = await prisma.dailyClosing.findFirst({
+      where: { date: body.date, session, source: "register-stock" },
+      orderBy: { createdAt: "desc" },
+    });
+    if (stockOnly) {
+      return prisma.dailyClosing.update({
+        where: { id: stockOnly.id },
+        data: {
+          ...buckets,
+          counterCashInr: counted,
+          systemCashInr: systemCash,
+          cashDiffInr: diff,
+          cashMismatch: flagged,
+          denoms: { ...denoms, coins } as Prisma.InputJsonValue,
+          source: "register",
+        },
+      });
+    }
     return prisma.dailyClosing.create({
       data: {
         date: body.date,

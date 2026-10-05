@@ -80,7 +80,8 @@ export async function movementsFor(date: string) {
 
 export async function computeOpening(date: string, cfg: RegisterConfigData) {
   const closings = await prisma.dailyClosing.findMany({
-    where: { session: "NIGHT", date: { lt: date } },
+    // Stock-only rows (no cash counted) never set the opening cash.
+    where: { session: "NIGHT", date: { lt: date }, OR: [{ source: null }, { source: { not: "register-stock" } }] },
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     take: 1,
   });
@@ -109,7 +110,10 @@ export async function loadDay(date: string) {
     await Promise.all([
       movementsFor(date),
       computeOpening(date, cfg),
-      prisma.dailyClosing.findMany({ where: { date }, orderBy: { createdAt: "asc" } }),
+      prisma.dailyClosing.findMany({
+        where: { date, OR: [{ source: null }, { source: { not: "register-stock" } }] },
+        orderBy: { createdAt: "asc" },
+      }),
       prisma.jobWorkIntake.findMany({ orderBy: { createdAt: "desc" }, take: 30 }),
       prisma.jobWorkIntake.findMany({ where: { settled: false }, orderBy: { createdAt: "desc" } }),
       prisma.jobWorkIntake.aggregate({ where: { cakeOwnership: "SHOP" }, _sum: { seedKg: true } }),
