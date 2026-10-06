@@ -1,0 +1,24 @@
+/* Tally hub — reuses the stock/cash desk look (.stk-*, .csh-*) */
+.tly-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 10px; }
+.tly-tab { flex: 0 0 auto; border: 1px solid var(--h-line); background: var(--h-card); color: inherit; border-radius: 12px; padding: 8px 12px; font-weight: 800; font-size: 14px; cursor: pointer; text-align: left; line-height: 1.2; }
+.tly-tab small { display: block; font-weight: 600; font-size: 11px; color: var(--h-soft); }
+.tly-tab.on { background: var(--h-acc); color: #fff; border-color: var(--h-acc); } .tly-tab.on small { color: #fff; opacity: .9; }
+.tly-tab.done small { color: var(--h-g); } .tly-tab.on.done small { color: #fff; }
+.tly-tab.bad small { color: var(--h-r); font-weight: 800; }
+.tly-sec { font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--h-soft); margin: 12px 0 6px; }
+.tly-card { background: var(--h-card); border: 1px solid var(--h-line); border-left: 5px solid var(--h-line); border-radius: calc(14px * var(--ui-r, 1)); padding: 10px 12px; display: grid; gap: 8px; }
+.tly-card.ok { border-left-color: var(--h-g); } .tly-card.bad { border-left-color: var(--h-r); background: color-mix(in srgb, var(--h-r) 7%, var(--h-card)); } .tly-card.low { border-left-color: #d98a00; background: color-mix(in srgb, #d98a00 8%, var(--h-card)); }
+.tly-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.tly-nm { font-weight: 800; font-size: 16px; line-height: 1.15; }
+.tly-note { font-size: 12px; color: var(--h-soft); }
+.tly-msg { font-size: 12.5px; font-weight: 700; color: var(--h-r); }
+.tly-facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; font-size: 11px; color: var(--h-soft); text-align: center; }
+.tly-facts b { display: block; font-size: 14px; color: var(--foreground); font-variant-numeric: tabular-nums; }
+.tly-in { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tly-in.two { grid-template-columns: 1fr 1fr; } .tly-in.one { grid-template-columns: 1fr; }
+.tly-in label { font-size: 11px; font-weight: 700; color: var(--h-soft); display: block; margin-bottom: 2px; }
+.tly-in input { width: 100%; min-width: 0; font-size: 16px; font-weight: 700; text-align: center; }
+.tly-in input.big { font-size: 24px; }
+.tly-add { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+.tly-add input { min-width: 0; flex: 1 1 160px; }
+.tly-hint { font-size: 13px; color: var(--h-soft); margin: 0 0 8px; }

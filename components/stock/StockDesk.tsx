@@ -277,6 +277,7 @@ export default function StockDesk({ initialDate, initialSession }: { initialDate
         <nav className="hub-links">
           <a className="hub-btn" href="/register">📒 Quick Register</a>
           <a className="hub-btn" href="/reports?tab=stock">📊 Stock reports</a>
+          <a className="hub-btn" href="/tallies">🧮 All tallies</a>
           <a className="hub-btn" href="/">🗂️ Full desk</a>
         </nav>
       </header>

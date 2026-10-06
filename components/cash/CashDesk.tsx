@@ -110,6 +110,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
         <nav className="hub-links">
           <a className="hub-btn" href="/register">📒 Quick Register</a>
           <a className="hub-btn" href={`/stock?date=${date}&session=${session}`}>📦 Stock tally</a>
+          <a className="hub-btn" href="/tallies">🧮 All tallies</a>
           <a className="hub-btn" href="/">🗂️ Full desk</a>
         </nav>
       </header>
