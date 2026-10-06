@@ -19,8 +19,12 @@ import {
 import {
   DENOMINATIONS,
   KIND_SIDE,
+  PAY_CHANNELS,
   UNITS,
   businessDate,
+  channelToMode,
+  entryChannel,
+  splitInfo,
   dayTotals,
   denominationTotal,
   freshCrushStats,
@@ -35,6 +39,7 @@ import {
   type CashEvent,
   type LangMode,
   type Mode,
+  type PayChannel,
   type RegisterConfigData,
   type RegisterEntryLike,
   type RegisterKind,
@@ -262,14 +267,16 @@ function Chips<V extends string>({
   value,
   onPick,
   lang,
+  compact,
 }: {
   options: { key: V; icon: string; en: string; kn: string }[];
   value: V | null;
   onPick: (v: V) => void;
   lang: LangMode;
+  compact?: boolean;
 }) {
   return (
-    <div className="qr-chips" role="radiogroup">
+    <div className={`qr-chips${compact ? " compact" : ""}`} role="radiogroup">
       {options.map((o) => {
         const l = pairLabel(o.en, o.kn, lang);
         return (
@@ -291,6 +298,190 @@ function Chips<V extends string>({
       })}
     </div>
   );
+}
+
+// Compact drop-down menu (with search when the list is long) — replaces big
+// tile grids so forms stay short.
+function PickMenu<V extends string>({
+  options,
+  value,
+  onPick,
+  lang,
+  searchAt = 7,
+}: {
+  options: { key: V; icon: string; en: string; kn: string }[];
+  value: V | null;
+  onPick: (v: V) => void;
+  lang: LangMode;
+  searchAt?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: Event) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("touchstart", away);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("touchstart", away);
+    };
+  }, [open]);
+  const sel = options.find((o) => o.key === value);
+  const needle = q.trim().toLowerCase();
+  const shown = needle ? options.filter((o) => `${o.en} ${o.kn}`.toLowerCase().includes(needle)) : options;
+  const label = (o: { en: string; kn: string }) => {
+    const l = pairLabel(o.en, o.kn, lang);
+    return (
+      <span className="qr-pl">
+        {l.main}
+        {l.sub && <span className="qr-sub">{l.sub}</span>}
+      </span>
+    );
+  };
+  return (
+    <div
+      className="qr-pick"
+      ref={ref}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.nativeEvent.stopPropagation(); // close only the menu, not the whole form
+          setOpen(false);
+        }
+      }}
+    >
+      <button type="button" className="qr-pickbtn" aria-haspopup="listbox" aria-expanded={open} onClick={() => { setOpen((v) => !v); setQ(""); }}>
+        <span className="ci" aria-hidden>
+          {sel?.icon ?? "▾"}
+        </span>
+        {sel ? label(sel) : <span className="qr-pl">—</span>}
+        <span className="car" aria-hidden>
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div className="qr-menu" role="listbox">
+          {options.length >= searchAt && (
+            <input autoFocus value={q} placeholder={word("pickSearch", lang)} onChange={(e) => setQ(e.target.value)} />
+          )}
+          {shown.map((o) => (
+            <button
+              key={o.key}
+              type="button"
+              role="option"
+              aria-selected={value === o.key}
+              className={`qr-opt${value === o.key ? " sel" : ""}`}
+              onClick={() => {
+                onPick(o.key);
+                setOpen(false);
+              }}
+            >
+              <span className="ci" aria-hidden>
+                {o.icon}
+              </span>
+              {label(o)}
+            </button>
+          ))}
+          {!shown.length && <div className="qr-none">—</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Payment channel for a sale: one channel, or split across several.
+const PAY_OPTS: { key: PayChannel; icon: string; en: string; kn: string }[] = [
+  { key: "CASH", icon: "💵", en: "Cash", kn: "ನಗದು" },
+  { key: "UPI", icon: "📱", en: "UPI", kn: "UPI" },
+  { key: "OWNER_PHONEPE", icon: "🟣", en: "Owner PhonePe", kn: "ಮಾಲೀಕರ PhonePe" },
+  { key: "CREDIT", icon: "📒", en: "Udhaar", kn: "ಉದ್ರಿ" },
+];
+type PayState = { chan: PayChannel; splitOn: boolean; parts: Partial<Record<PayChannel, string>> };
+const initPay = (m?: Mode): PayState => ({ chan: m === "UPI" || m === "CREDIT" ? m : "CASH", splitOn: false, parts: {} });
+
+/** Fields to merge into the POST body, or an error word to toast. */
+function payBody(total: number, p: PayState, party: string): { body: Record<string, unknown> } | { err: WordKey } {
+  if (!p.splitOn) return { body: { paymentMode: channelToMode(p.chan), payChannel: p.chan } };
+  const splits = PAY_CHANNELS.map((c) => ({ channel: c, amount: parseFloat(p.parts[c] || "") || 0 })).filter((x) => x.amount > 0);
+  const sum = Math.round(splits.reduce((a, x) => a + x.amount, 0) * 100) / 100;
+  if (!splits.length || Math.abs(sum - total) > 0.01) return { err: "splitBad" };
+  if (splits.some((x) => x.channel === "CREDIT") && !party.trim()) return { err: "splitNeedName" };
+  if (splits.length === 1) return { body: { paymentMode: channelToMode(splits[0].channel), payChannel: splits[0].channel } };
+  return { body: { paymentMode: "CASH", splits } };
+}
+
+function PayPicker({ lang, total, state, onChange }: { lang: LangMode; total: number; state: PayState; onChange: (s: PayState) => void }) {
+  const assigned = Math.round(PAY_CHANNELS.reduce((a, c) => a + (parseFloat(state.parts[c] || "") || 0), 0) * 100) / 100;
+  const left = Math.round(((total || 0) - assigned) * 100) / 100;
+  return (
+    <div className="qr-f">
+      <label>
+        <Txt k="how" lang={lang} />
+      </label>
+      {!state.splitOn ? (
+        <div className="qr-chips compact" role="radiogroup">
+          {PAY_OPTS.map((o) => {
+            const l = pairLabel(o.en, o.kn, lang);
+            return (
+              <button key={o.key} type="button" role="radio" aria-checked={state.chan === o.key} className={`qr-chip${state.chan === o.key ? " sel" : ""}`} onClick={() => onChange({ ...state, chan: o.key })}>
+                <span className="ci" aria-hidden>{o.icon}</span>
+                {l.main}
+                {l.sub && <span className="qr-sub">{l.sub}</span>}
+              </button>
+            );
+          })}
+          <button type="button" className="qr-chip" onClick={() => onChange({ ...state, splitOn: true, parts: { [state.chan]: total > 0 ? String(total) : "" } })}>
+            <span className="ci" aria-hidden>➗</span>
+            <Txt k="splitPay" lang={lang} />
+          </button>
+        </div>
+      ) : (
+        <div className="qr-paysplit">
+          {PAY_OPTS.map((o) => {
+            const l = pairLabel(o.en, o.kn, lang);
+            return (
+              <div className="qr-splitrow" key={o.key}>
+                <span className="lab">
+                  {o.icon} {l.main}
+                </span>
+                <input
+                  className="qr-num"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  value={state.parts[o.key] ?? ""}
+                  onChange={(e) => onChange({ ...state, parts: { ...state.parts, [o.key]: e.target.value } })}
+                />
+                <button
+                  type="button"
+                  className="qr-mini"
+                  disabled={left <= 0}
+                  onClick={() => onChange({ ...state, parts: { ...state.parts, [o.key]: String(Math.round(((parseFloat(state.parts[o.key] || "") || 0) + left) * 100) / 100) } })}
+                >
+                  + <Txt k="splitFill" lang={lang} />
+                </button>
+              </div>
+            );
+          })}
+          <div className={`qr-splitsum ${Math.abs(left) < 0.01 && total > 0 ? "ok" : "bad"}`}>
+            {Math.abs(left) < 0.01 && total > 0 ? <Txt k="splitDone" lang={lang} /> : <>{word("splitLeft", lang)}: {rs(left)}</>}
+          </div>
+          <button type="button" className="qr-linkbtn" onClick={() => onChange({ chan: PAY_CHANNELS.find((c) => parseFloat(state.parts[c] || "") > 0) || "CASH", splitOn: false, parts: {} })}>
+            ✕ <Txt k="splitPay" lang={lang} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function payLabel(e: { paymentMode: string; details?: unknown }, lang: LangMode): string {
+  const c = entryChannel(e);
+  const sp = splitInfo(e.details);
+  return word(c as WordKey, lang) + (sp && sp.n > 1 ? ` ${sp.i}/${sp.n}` : "");
 }
 
 function SheetFrame({
@@ -358,8 +549,8 @@ function PartyField({
         <Txt k={label} lang={lang} />
       </label>
       {top.length > 0 && (
-        <div className="qr-chips" style={{ marginBottom: 6 }}>
-          {top.map((n) => (
+        <div className="qr-chips compact" style={{ marginBottom: 6 }}>
+          {top.slice(0, 4).map((n) => (
             <button key={n} type="button" className={`qr-chip${value === n ? " sel" : ""}`} onClick={() => onChange(n)}>
               👤 {n}
             </button>
@@ -560,8 +751,8 @@ export default function QuickRegister() {
         {bits ? " — " + bits : ""}
         <span className="a">
           {rs(e.amountInr)}
-          {e.paymentMode !== "CASH" && KIND_SIDE[e.kind] !== "oth" && (
-            <span className="m"> ({word(e.paymentMode as WordKey, lang)})</span>
+          {(e.paymentMode !== "CASH" || splitInfo(e.details)) && KIND_SIDE[e.kind] !== "oth" && (
+            <span className="m"> ({payLabel(e, lang)})</span>
           )}
         </span>
       </button>
@@ -833,6 +1024,12 @@ export default function QuickRegister() {
         </span>
         <span>
           📒 {word("CREDIT", lang)} <b>{rs(totals.creditGiven)}</b>
+          {totals.ownerPhonePeIn > 0 && (
+            <>
+              {" "}
+              · 🟣 {word("OWNER_PHONEPE", lang)} <b>{rs(totals.ownerPhonePeIn)}</b>
+            </>
+          )}
         </span>
       </div>
       <div className="qr-srow">
@@ -1482,6 +1679,9 @@ function EntrySheet({
   const [amount, setAmount] = useState(voiceAmount ?? (kind === "PIGMEE" ? String(day.config.pigmeeDefault || "") : ""));
   const [amtTouched, setAmtTouched] = useState(kind === "PIGMEE" || !!voiceAmount);
   const [mode, setMode] = useState<Mode>(init?.mode || "CASH");
+  // Sales: cash / UPI / owner PhonePe / udhaar, or split across them.
+  const [pay, setPay] = useState<PayState>(() => initPay(init?.mode));
+  const [showNote, setShowNote] = useState(false);
   const [party, setParty] = useState(init?.party || "");
   const [notes, setNotes] = useState("");
   const [drawKind, setDrawKind] = useState<"partial" | "full">("partial");
@@ -1503,6 +1703,12 @@ function EntrySheet({
     const amt = parseFloat(amountValue);
     if (!(amt > 0)) return toast(word("needAmount", lang));
     if (item === "other" && showItemwise && !otherName.trim()) return toast(word("itemName", lang));
+    let payFields: Record<string, unknown> = { paymentMode: mode };
+    if (kind === "SALE") {
+      const pb = payBody(amt, pay, party);
+      if ("err" in pb) return toast(word(pb.err, lang));
+      payFields = pb.body;
+    }
     setBusy(true);
     try {
       await api("/api/register", {
@@ -1511,7 +1717,7 @@ function EntrySheet({
           date,
           kind,
           amountInr: amt,
-          paymentMode: mode,
+          ...payFields,
           totalSale: kind === "SALE" && totalMode === "total",
           item: showItemwise ? item : null,
           itemLabel: showItemwise && item === "other" ? otherName.trim() : null,
@@ -1535,6 +1741,7 @@ function EntrySheet({
       {kind === "SALE" && (
         <div className="qr-f">
           <Chips
+            compact
             lang={lang}
             value={totalMode}
             onPick={setTotalMode}
@@ -1551,7 +1758,7 @@ function EntrySheet({
           <label>
             <Txt k="what" lang={lang} />
           </label>
-          <Chips
+          <PickMenu
             lang={lang}
             value={item}
             options={items}
@@ -1562,20 +1769,16 @@ function EntrySheet({
               setAmtTouched(false);
             }}
           />
-        </div>
-      )}
-      {showItemwise && item === "other" && (
-        <div className="qr-f">
-          <label>
-            <Txt k="itemName" lang={lang} />
-          </label>
-          <input className="qr-txt" value={otherName} onChange={(e) => setOtherName(e.target.value)} autoFocus />
+          {item === "other" && (
+            <input className="qr-txt" style={{ marginTop: 6 }} placeholder={word("itemName", lang)} value={otherName} onChange={(e) => setOtherName(e.target.value)} autoFocus />
+          )}
         </div>
       )}
 
       {kind === "OWNER_DRAW" && (
         <div className="qr-f">
           <Chips
+            compact
             lang={lang}
             value={drawKind}
             onPick={setDrawKind}
@@ -1588,43 +1791,24 @@ function EntrySheet({
       )}
 
       {showItemwise && hasQty && (
-        <>
-          <div className="qr-f">
-            <label>
+        <div className="qr-grid3 qr-f">
+          <div>
+            <label className="qr-lbl">
               <Txt k="qty" lang={lang} />
             </label>
-            <input
-              className="qr-num"
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step="0.1"
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-            />
+            <input className="qr-num" type="number" inputMode="decimal" min={0} step="0.1" value={qty} onChange={(e) => setQty(e.target.value)} />
           </div>
-          <div className="qr-f">
-            <Chips lang={lang} value={unit} onPick={setUnit} options={UNITS} />
+          <div>
+            <label className="qr-lbl">{lang === "kn" ? unitObj.kn : unitObj.en}</label>
+            <PickMenu lang={lang} value={unit} onPick={setUnit} options={UNITS} searchAt={99} />
           </div>
-          <div className="qr-f">
-            <label>
+          <div>
+            <label className="qr-lbl">
               {words("rate", lang).main} {lang === "kn" ? unitObj.kn : unitObj.en}
-              {words("rate", lang).sub && (
-                <span className="qr-sub">
-                  {words("rate", lang).sub} {unitObj.kn}
-                </span>
-              )}
             </label>
-            <input
-              className="qr-num"
-              type="number"
-              inputMode="decimal"
-              min={0}
-              value={rate}
-              onChange={(e) => setRate(e.target.value)}
-            />
+            <input className="qr-num" type="number" inputMode="decimal" min={0} value={rate} onChange={(e) => setRate(e.target.value)} />
           </div>
-        </>
+        </div>
       )}
 
       <div className="qr-f">
@@ -1645,12 +1829,15 @@ function EntrySheet({
         />
       </div>
 
-      {side !== "oth" && (
+      {side !== "oth" && kind === "SALE" && (
+        <PayPicker lang={lang} total={parseFloat(amountValue) || 0} state={pay} onChange={setPay} />
+      )}
+      {side !== "oth" && kind !== "SALE" && (
         <div className="qr-f">
           <label>
             <Txt k="how" lang={lang} />
           </label>
-          <Chips lang={lang} value={mode} onPick={setMode} options={modes} />
+          <Chips compact lang={lang} value={mode} onPick={setMode} options={modes} />
         </div>
       )}
 
@@ -1658,12 +1845,20 @@ function EntrySheet({
         <PartyField value={party} onChange={setParty} top={day.topParties} all={day.allParties} lang={lang} />
       )}
 
-      <div className="qr-f">
-        <label>
-          <Txt k="note" lang={lang} />
-        </label>
-        <input className="qr-txt" value={notes} onChange={(e) => setNotes(e.target.value)} />
-      </div>
+      {showNote || notes ? (
+        <div className="qr-f">
+          <label>
+            <Txt k="note" lang={lang} />
+          </label>
+          <input className="qr-txt" value={notes} onChange={(e) => setNotes(e.target.value)} autoFocus={showNote} />
+        </div>
+      ) : (
+        <div className="qr-f">
+          <button type="button" className="qr-linkbtn" onClick={() => setShowNote(true)}>
+            <Txt k="addNote" lang={lang} />
+          </button>
+        </div>
+      )}
 
       <button className={`qr-save ${side === "in" ? "" : side === "out" ? "out" : "oth"}`} onClick={save} disabled={busy}>
         ✓ {word(busy ? "saving" : "save", lang)}
@@ -2227,6 +2422,9 @@ function StockSheet({
         />
       </div>
       <div className="qr-hint" style={{ marginBottom: 8 }}>{word("stHint", lang)}</div>
+      <a className="qr-linkbtn" href="/stock" target="_blank" rel="noreferrer" style={{ display: "inline-block", marginBottom: 8 }}>
+        ↗ Open full stock tally window
+      </a>
       <div className="qr-btnrow" style={{ marginTop: 0, marginBottom: 8 }}>
         <label className="qr-btn2" style={{ textAlign: "center", cursor: "pointer" }}>
           📤 {word("stImport", lang)}
@@ -2353,7 +2551,7 @@ function FreshCrushSheet({
   const [extraTouched, setExtraTouched] = useState(false);
   const [extraTo, setExtraTo] = useState("");
   const [cake, setCake] = useState("");
-  const [mode, setMode] = useState<Mode>("CASH");
+  const [pay, setPay] = useState<PayState>(() => initPay());
   const [party, setParty] = useState("");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
@@ -2383,6 +2581,8 @@ function FreshCrushSheet({
     if (!valid) return toast(word("fcBadNumbers", lang));
     const amt = parseFloat(amountValue);
     if (!(amt > 0)) return toast(word("needAmount", lang));
+    const pb = payBody(amt, pay, party);
+    if ("err" in pb) return toast(word(pb.err, lang));
     setBusy(true);
     try {
       await api("/api/register", {
@@ -2396,7 +2596,7 @@ function FreshCrushSheet({
           unit,
           rateInr: n(rate) > 0 ? n(rate) : null, // remembered per seed AND unit by the API
           amountInr: amt,
-          paymentMode: mode,
+          ...pb.body,
           partyName: party.trim() || null,
           notes: notes.trim() || null,
           details: valid,
@@ -2436,7 +2636,7 @@ function FreshCrushSheet({
         <label>
           <Txt k="fcSeed" lang={lang} />
         </label>
-        <Chips
+        <PickMenu
           lang={lang}
           value={seed}
           options={seeds}
@@ -2465,6 +2665,7 @@ function FreshCrushSheet({
       <span className="qr-lbl">② <Txt k="fcStep2" lang={lang} /></span>
       <div className="qr-f">
         <Chips
+          compact
           lang={lang}
           value={unit}
           onPick={(u) => {
@@ -2508,21 +2709,7 @@ function FreshCrushSheet({
           }}
         />
       </div>
-      <div className="qr-f">
-        <label>
-          <Txt k="how" lang={lang} />
-        </label>
-        <Chips
-          lang={lang}
-          value={mode}
-          onPick={setMode}
-          options={[
-            { key: "CASH" as Mode, icon: "💵", en: "Cash", kn: "ನಗದು" },
-            { key: "UPI" as Mode, icon: "📱", en: "UPI", kn: "UPI" },
-            { key: "CREDIT" as Mode, icon: "📒", en: "Udhaar", kn: "ಉದ್ರಿ" },
-          ]}
-        />
-      </div>
+      <PayPicker lang={lang} total={parseFloat(amountValue) || 0} state={pay} onChange={setPay} />
       <PartyField value={party} onChange={setParty} top={day.topParties} all={day.allParties} lang={lang} />
 
       <span className="qr-lbl">③ <Txt k="fcStep3" lang={lang} /></span>
@@ -3014,7 +3201,7 @@ function ReportSheet({
             <span>
               {KIND_SIDE[e.kind] === "in" ? "+" : "-"}
               {rs(e.amountInr)}
-              {e.paymentMode !== "CASH" && KIND_SIDE[e.kind] !== "oth" ? ` ${e.paymentMode}` : ""}
+              {(e.paymentMode !== "CASH" || splitInfo(e.details)) && KIND_SIDE[e.kind] !== "oth" ? ` ${payLabel(e, "en")}` : ""}
             </span>
           </div>
         ))}

@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState } from "react";
 import SettingsDesk from "@/components/SettingsDesk";
 import AppearancePanel from "@/components/AppearancePanel";
+import ImportExportCard from "@/components/hub/ImportExportCard";
 import type { BusinessSettingsDTO } from "@/lib/types";
 import {
   CATALOG,
@@ -26,7 +27,7 @@ import { JOBWORK_OVERDUE_DAYS } from "@/lib/reports";
 import { DEFAULT_HUB_PREFS, WIDGETS, loadHubPrefs, saveHubPrefs, type HubPrefs, type Preset } from "@/lib/hubPrefs";
 import { registerItemName } from "@/lib/bizReports";
 
-type Section = "integrations" | "appearance" | "register" | "rates" | "library" | "device" | "dashboard" | "business" | "rules" | "data";
+type Section = "integrations" | "appearance" | "register" | "rates" | "library" | "device" | "dashboard" | "business" | "rules" | "data" | "io";
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "register", label: "📒 Quick Register" },
   { key: "rates", label: "₹ Saved rates" },
@@ -37,6 +38,7 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: "integrations", label: "🔗 Share & integrations" },
   { key: "business", label: "🏢 Business & scales" },
   { key: "rules", label: "📏 Business rules" },
+  { key: "io", label: "📥 Import / Export" },
   { key: "data", label: "💾 Data & backup" },
 ];
 
@@ -178,6 +180,7 @@ export default function SettingsHub() {
         </div>
         <nav className="hub-links">
           <a className="hub-btn" href="/register">📒 Quick Register</a>
+          <a className="hub-btn" href="/stock">📦 Stock tally</a>
           <a className="hub-btn" href="/reports">📊 Reports</a>
           <a className="hub-btn" href="/">🗂️ Full desk</a>
         </nav>
@@ -473,6 +476,7 @@ export default function SettingsHub() {
             </section>
           )}
 
+          {section === "io" && <ImportExportCard flash={flash} />}
           {section === "data" && <DataCard />}
           {section === "appearance" && <AppearancePanel />}
           {section === "integrations" && <IntegrationsCard />}
