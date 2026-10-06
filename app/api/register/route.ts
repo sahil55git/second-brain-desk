@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, isValidDate, loadConfig, loadDay, saveConfig } from "@/lib/registerServer";
-import { ALL_KINDS, KIND_SIDE, learnItem, normalizeFreshCrush, rateKey, type RegisterKind } from "@/lib/register";
+import { ALL_KINDS, KIND_SIDE, channelToMode, learnItem, normalizeFreshCrush, normalizeSplit, rateKey, type RegisterKind } from "@/lib/register";
 
 export const dynamic = "force-dynamic";
 
@@ -43,8 +43,19 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+  // Split payment (sales only): one row per payment channel, all linked.
+  let splitParts: ReturnType<typeof normalizeSplit> | null = null;
+  if ((kind === "SALE" || kind === "FRESH_CRUSH") && Array.isArray(body.splits) && body.splits.length > 1) {
+    splitParts = normalizeSplit(amount, body.splits);
+    if (!splitParts.ok) return NextResponse.json({ error: splitParts.error }, { status: 400 });
+    if (splitParts.parts.some((p) => p.channel === "CREDIT") && !(typeof body.partyName === "string" && body.partyName.trim())) {
+      return NextResponse.json({ error: "Enter the customer's name for the udhaar part." }, { status: 400 });
+    }
+  }
   const side = KIND_SIDE[kind];
-  const mode = side === "oth" ? "CASH" : MODES.includes(body.paymentMode) ? body.paymentMode : "CASH";
+  // A sale taken fully on the owner's personal PhonePe: mode OTHER + channel tag.
+  const ownerPhonePe = (kind === "SALE" || kind === "FRESH_CRUSH") && body.payChannel === "OWNER_PHONEPE";
+  const mode = ownerPhonePe ? "OTHER" : side === "oth" ? "CASH" : MODES.includes(body.paymentMode) ? body.paymentMode : "CASH";
   const qty = Number(body.qty);
   const rate = Number(body.rateInr);
   const unit = UNITS.includes(body.unit) ? body.unit : null;
@@ -95,6 +106,42 @@ export async function POST(req: NextRequest) {
         ).id;
     }
 
+    if (splitParts && splitParts.ok && splitParts.parts.length > 1) {
+      const gid = `sp_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+      const n = splitParts.parts.length;
+      const rows = await prisma.$transaction(
+        splitParts.parts.map((p, idx) =>
+          prisma.registerEntry.create({
+            data: {
+              date: body.date,
+              kind,
+              item,
+              itemLabel,
+              // Quantity and rate go on the first row only, so stock and
+              // item reports never count the same oil twice.
+              qty: idx === 0 && !totalSale && Number.isFinite(qty) && qty > 0 ? qty : null,
+              unit: idx === 0 && !totalSale && Number.isFinite(qty) && qty > 0 ? unit || "kg" : null,
+              rateInr: idx === 0 && !totalSale && Number.isFinite(rate) && rate > 0 ? rate : null,
+              amountInr: p.amount,
+              paymentMode: channelToMode(p.channel),
+              totalSale,
+              partyName,
+              partyId,
+              notes,
+              details: {
+                // fresh-crush production numbers live on the first row only
+                ...(idx === 0 && details ? details : {}),
+                split: { id: gid, i: idx + 1, n, total: amount },
+                ...(p.channel === "OWNER_PHONEPE" ? { channel: "OWNER_PHONEPE" } : {}),
+              },
+              createdByName: user.name || null,
+            },
+          })
+        )
+      );
+      return rows[0];
+    }
+
     return prisma.registerEntry.create({
       data: {
         date: body.date,
@@ -112,7 +159,7 @@ export async function POST(req: NextRequest) {
         partyId,
         notes,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        details: (details as any) ?? undefined,
+        details: ((ownerPhonePe ? { ...(details || {}), channel: "OWNER_PHONEPE" } : details) as any) ?? undefined,
         createdByName: user.name || null,
       },
     });
