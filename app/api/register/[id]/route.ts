@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
-import { businessDate } from "@/lib/register";
+import { businessDate, splitInfo } from "@/lib/register";
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser(req);
@@ -19,7 +19,13 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       { status: 403 }
     );
   }
-  const result = await safeDbCall(() => prisma.registerEntry.delete({ where: { id: params.id } }));
+  // A split-payment sale is several linked rows: deleting one removes them all.
+  const group = splitInfo(found.data.details);
+  const result = await safeDbCall(() =>
+    group
+      ? prisma.registerEntry.deleteMany({ where: { details: { path: ["split", "id"], equals: group.id } } })
+      : prisma.registerEntry.delete({ where: { id: params.id } })
+  );
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 503 });
   return NextResponse.json({ ok: true });
 }

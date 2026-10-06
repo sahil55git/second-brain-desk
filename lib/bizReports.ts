@@ -36,6 +36,7 @@ import { JOBWORK_OVERDUE_DAYS } from "./reports";
 import {
   KIND_SIDE,
   businessDate,
+  entryChannel,
   freshCrushStats,
   freshCrushTotals,
   normalizeFreshCrush,
@@ -529,6 +530,7 @@ export function cashReport(d: BizData, s: DateSpan) {
     upiIn = 0,
     upiOut = 0,
     creditGiven = 0,
+    ownerPhonePe = 0,
     pigmee = 0,
     ownerDraw = 0;
   for (const e of reg) {
@@ -540,10 +542,12 @@ export function cashReport(d: BizData, s: DateSpan) {
       else cashOut += e.amountInr;
     } else if (e.paymentMode === "CREDIT") {
       if (side === "in") creditGiven += e.amountInr;
-    } else if (side === "in") upiIn += e.amountInr;
+    } else if (entryChannel(e) === "OWNER_PHONEPE") ownerPhonePe += e.amountInr;
+    else if (side === "in") upiIn += e.amountInr;
     else upiOut += e.amountInr;
   }
   return {
+    ownerPhonePe: r2(ownerPhonePe),
     cashIn: r2(cashIn),
     cashOut: r2(cashOut),
     upiIn: r2(upiIn),

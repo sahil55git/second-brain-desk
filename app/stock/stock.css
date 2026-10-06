@@ -1,0 +1,32 @@
+/* Stock tally desk — built on the hub look (.hub) */
+.stk-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.stk-seg { display: inline-flex; border: 1px solid var(--h-line); border-radius: 999px; overflow: hidden; }
+.stk-seg button { border: none; background: var(--h-card); color: inherit; padding: 6px 14px; font-weight: 700; font-size: 14px; cursor: pointer; }
+.stk-seg button.on { background: var(--h-acc); color: #fff; }
+.stk-saved { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--h-line); }
+.stk-saved.ok { color: var(--h-g); border-color: var(--h-g); }
+.stk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.stk-card { background: var(--h-card); border: 1px solid var(--h-line); border-left: 5px solid var(--h-line); border-radius: calc(14px * var(--ui-r, 1)); padding: 10px 12px; display: grid; gap: 8px; }
+.stk-card.ok { border-left-color: var(--h-g); } .stk-card.bad { border-left-color: var(--h-r); background: color-mix(in srgb, var(--h-r) 7%, var(--h-card)); } .stk-card.todo { border-left-color: var(--h-line); }
+.stk-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.stk-name { font-weight: 800; font-size: 16px; line-height: 1.15; }
+.stk-name small { display: block; font-weight: 600; color: var(--h-soft); font-size: 12px; }
+.stk-chip { font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 999px; white-space: nowrap; background: color-mix(in srgb, var(--h-soft) 14%, transparent); color: var(--h-soft); }
+.stk-chip.ok { background: color-mix(in srgb, var(--h-g) 16%, transparent); color: var(--h-g); }
+.stk-chip.bad { background: color-mix(in srgb, var(--h-r) 16%, transparent); color: var(--h-r); }
+.stk-big { width: 100%; font-size: 26px; font-weight: 800; text-align: center; padding: 6px; }
+.stk-lab { font-size: 12px; font-weight: 700; color: var(--h-soft); display: block; margin-bottom: 2px; }
+.stk-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stk-two input { width: 100%; font-size: 17px; font-weight: 700; text-align: center; min-width: 0; }
+.stk-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 12px; color: var(--h-soft); text-align: center; }
+.stk-facts b { display: block; font-size: 15px; color: var(--foreground); }
+.stk-facts b.r { color: var(--h-r); } .stk-facts b.g { color: var(--h-g); }
+.stk-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.stk-guided { max-width: 520px; margin: 0 auto; }
+.stk-guided .stk-big { font-size: 40px; padding: 12px; }
+.stk-dots { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; margin: 8px 0; }
+.stk-dots button { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--h-line); background: transparent; padding: 0; cursor: pointer; }
+.stk-dots button.done { background: var(--h-g); border-color: var(--h-g); } .stk-dots button.cur { border-color: var(--h-acc); transform: scale(1.3); } .stk-dots button.gap { background: var(--h-r); border-color: var(--h-r); }
+.stk-sticky { position: sticky; bottom: 0; z-index: 5; background: var(--h-base); padding: 8px 0; margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border-top: 1px solid var(--h-line); }
+.stk-table td.num, .stk-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.stk-table tr.flag td { background: color-mix(in srgb, var(--h-r) 8%, transparent); }

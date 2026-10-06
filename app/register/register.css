@@ -265,3 +265,41 @@ html.hc .qr .qr-tile { box-shadow: inset 0 0 0 2px #ffffff; }
 @keyframes qr-pulse { 50% { transform: scale(1.15); } }
 .qr-voice .heard { font-size: 20px; font-weight: 800; min-height: 28px; margin: 8px 0; }
 .qr-pill.rec { background: #c8352e; color: #fff; border-color: #c8352e; }
+
+/* ---- compact pickers, dropdown menus, split payment ---- */
+.qr-chips.compact { gap: 6px; }
+.qr-chips.compact .qr-chip { min-width: 0; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: calc(12px * var(--ui-r, 1)); font-size: 15px; }
+.qr-chips.compact .qr-chip .ci { display: inline; font-size: 18px; }
+.qr-chips.compact .qr-chip .qr-sub { display: inline; font-size: 12px; margin-left: 2px; }
+.qr-pick { position: relative; }
+.qr-pickbtn { width: 100%; display: flex; align-items: center; gap: 8px; text-align: left; border: 2px solid var(--qr-line); background: var(--qr-base); color: var(--qr-ink); border-radius: calc(12px * var(--ui-r, 1)); padding: 9px 10px; font-size: 17px; font-weight: 700; font-family: inherit; cursor: pointer; min-height: 48px; }
+.qr-pickbtn .ci { font-size: 22px; line-height: 1; }
+.qr-pickbtn .qr-pl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qr-pickbtn .qr-pl .qr-sub { display: inline; margin-left: 6px; font-size: 13px; }
+.qr-pickbtn .car { opacity: .6; font-size: 12px; }
+.qr-pickbtn[aria-expanded="true"] { border-color: var(--qr-in); }
+.qr-menu { position: absolute; z-index: 40; left: 0; right: 0; top: calc(100% + 4px); max-height: min(46vh, 340px); overflow: auto; background: var(--qr-card); color: var(--qr-ink); border: 2px solid var(--qr-line); border-radius: calc(12px * var(--ui-r, 1)); box-shadow: 0 10px 30px rgba(0,0,0,.28); padding: 4px; min-width: 200px; }
+.qr-menu input { width: 100%; font-size: 16px; padding: 8px 10px; border: 1px solid var(--qr-line); border-radius: 8px; background: var(--qr-base); color: var(--qr-ink); margin-bottom: 4px; font-family: inherit; }
+.qr-opt { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: none; background: transparent; color: var(--qr-ink); padding: 9px 10px; border-radius: 8px; font-size: 16px; font-weight: 600; font-family: inherit; cursor: pointer; }
+.qr-opt:hover, .qr-opt.hi { background: var(--qr-in-bg); }
+.qr-opt.sel { box-shadow: inset 0 0 0 2px var(--qr-in); }
+.qr-opt .ci { font-size: 20px; width: 26px; text-align: center; }
+.qr-opt .qr-sub { display: inline; margin-left: 6px; font-size: 13px; }
+.qr-none { padding: 10px; opacity: .6; font-size: 14px; }
+.qr-paysplit { border: 2px dashed var(--qr-line); border-radius: calc(12px * var(--ui-r, 1)); padding: 8px; margin-top: 8px; }
+.qr-paysplit { min-width: 0; overflow: hidden; }
+.qr-splitrow { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) auto; gap: 6px; align-items: center; margin-bottom: 6px; }
+.qr-splitrow input { min-width: 0; }
+.qr-splitrow .lab { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qr-mini .qr-sub, .qr-linkbtn .qr-sub { display: inline; font-size: inherit; margin-left: 4px; }
+.qr-splitrow .qr-num { font-size: 20px; padding: 5px; }
+.qr-splitrow .lab { font-weight: 700; font-size: 15px; }
+.qr-mini { border: 1px solid var(--qr-line); background: var(--qr-base); color: var(--qr-ink); border-radius: 8px; padding: 6px 8px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.qr-splitsum { font-weight: 800; font-size: 15px; text-align: right; }
+.qr-splitsum.ok { color: var(--qr-in); } .qr-splitsum.bad { color: var(--qr-out); }
+.qr-linkbtn { background: none; border: none; color: var(--qr-soft); font-weight: 700; font-size: 14px; padding: 2px 0; cursor: pointer; text-decoration: underline; font-family: inherit; }
+.qr-sh + .qr-f, .qr-sheet .qr-f { margin-bottom: 9px; }
+
+
+.qr-grid3 .qr-num, .qr-grid2 .qr-num { min-height: 48px; }
+.qr-grid3 > div, .qr-grid2 > div { min-width: 0; }
