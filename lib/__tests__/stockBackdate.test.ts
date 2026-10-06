@@ -13,3 +13,13 @@ describe("sessionStamp / back-dated stock", () => {
     expect(r?.computed.yesterday).toBe(120);
   });
 });
+
+import { cashCutoffMs } from "../register";
+describe("cashCutoffMs", () => {
+  const now = new Date("2026-10-06T12:00:00+05:30").getTime();
+  it("today uses now", () => expect(cashCutoffMs("2026-10-06", "NIGHT", now)).toBe(now));
+  it("past closing counts the whole day, midday only to 1 pm", () => {
+    expect(cashCutoffMs("2026-10-05", "NIGHT", now)).toBe(new Date("2026-10-05T23:59:59.999+05:30").getTime());
+    expect(cashCutoffMs("2026-10-05", "AFTERNOON", now)).toBe(new Date("2026-10-05T13:00:00+05:30").getTime());
+  });
+});

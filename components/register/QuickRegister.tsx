@@ -2235,6 +2235,10 @@ function CountSheet({
         </span>
         <span>{rs(day.opening.value)}</span>
       </div>
+      <a className="qr-btn2 qr-openwin" href={`/cash?date=${date}&session=${session}`} target="_blank" rel="noreferrer">
+        🗄️ {lang === "kn" ? "ಪೂರ್ಣ ಕ್ಯಾಶ್ ವಿಂಡೋ ತೆರೆಯಿರಿ" : "Open full cash window"}
+        <small>{lang === "kn" ? "ನೋಟು ಎಣಿಕೆ · ನಿನ್ನೆಯ ತಡ ಎಂಟ್ರಿ" : "Note-by-note count · yesterday's late entry"}</small>
+      </a>
       <button className="qr-btn2" style={{ width: "100%", marginTop: 6 }} onClick={editOpening}>
         ✏️ {word("editOpening", lang)}
       </button>

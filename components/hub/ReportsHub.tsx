@@ -676,6 +676,7 @@ export default function ReportsHub() {
         <nav className="hub-links">
           <a className="hub-btn" href="/register">📒 Quick Register</a>
           <a className="hub-btn" href="/stock">📦 Stock tally</a>
+          <a className="hub-btn" href="/cash">💵 Cash tally</a>
           <a className="hub-btn" href="/">🗂️ Full desk</a>
           <a className="hub-btn" href="/settings">⚙️ Settings</a>
           <a className="hub-btn" href="/appearance">🎨 Appearance</a>
