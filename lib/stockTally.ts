@@ -117,3 +117,13 @@ export function csvToTable(text: string): string[][] {
       return out.map((c) => c.trim());
     });
 }
+
+/**
+ * Position of a count in time: its business date + session (midday 1 pm,
+ * closing 9 pm, IST). Counts are ordered by this — not by when they were
+ * typed in — so a closing count entered the next morning for yesterday still
+ * sits in the right place and "yesterday's stock" is looked up correctly.
+ */
+export function sessionStamp(date: string, session: string): Date {
+  return new Date(`${date}T${session === "NIGHT" ? "21:00" : "13:00"}:00+05:30`);
+}

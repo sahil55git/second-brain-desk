@@ -9,7 +9,8 @@ import { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, isValidDate } from "@/lib/registerServer";
 import { STOCK_PRODUCTS } from "@/lib/calculations";
-import { buildTally, type TallyInput } from "@/lib/stockTally";
+import { buildTally, sessionStamp, type TallyInput } from "@/lib/stockTally";
+import { businessDate } from "@/lib/register";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +36,8 @@ export async function GET(req: NextRequest) {
     const yesterdayFor = (session: "AFTERNOON" | "NIGHT") => {
       const rows = prior
         .filter((p) => !(p.date === date && p.session === session && SOURCES.includes(p.source || "")))
-        .map((p) => ({ createdAt: p.createdAt, stock: (p.stock as Record<string, TallyInput>) || null }));
-      const t = buildTally(rows, {}, new Date());
+        .map((p) => ({ createdAt: sessionStamp(p.date, p.session), stock: (p.stock as Record<string, TallyInput>) || null }));
+      const t = buildTally(rows, {}, sessionStamp(date, session));
       return Object.fromEntries(t.rows.map((r) => [r.key, r.computed.yesterday]));
     };
     const last = (session: "AFTERNOON" | "NIGHT") =>
@@ -59,6 +60,14 @@ export async function POST(req: NextRequest) {
   if (!session || !isValidDate(body.date)) {
     return NextResponse.json({ error: "date and session (AFTERNOON|NIGHT) are required" }, { status: 400 });
   }
+  // A count may be entered late (e.g. yesterday's closing count typed the next
+  // morning). Never for the future; staff may go back one day, the owner further.
+  const todayIst = businessDate(Date.now());
+  const yesterdayIst = businessDate(Date.now() - 86400000);
+  if (body.date > todayIst) return NextResponse.json({ error: "A stock count cannot be dated in the future." }, { status: 400 });
+  if (!user.isOwner && body.date < yesterdayIst) {
+    return NextResponse.json({ error: "Staff can enter today's or yesterday's stock. Ask the owner for older days." }, { status: 403 });
+  }
   const input: Record<string, TallyInput> = {};
   for (const p of STOCK_PRODUCTS) {
     const r = body.stock?.[p.key];
@@ -76,16 +85,17 @@ export async function POST(req: NextRequest) {
       where: { date: body.date, session, source: { in: SOURCES } },
       orderBy: { createdAt: "desc" },
     });
+    const at = sessionStamp(body.date, session);
     const prior = await prisma.dailyClosing.findMany({
-      where: { createdAt: { lt: now }, ...(existing ? { NOT: { id: existing.id } } : {}) },
-      orderBy: { createdAt: "desc" },
+      where: { date: { lte: body.date }, ...(existing ? { NOT: { id: existing.id } } : {}) },
+      orderBy: { date: "desc" },
       take: 60,
-      select: { createdAt: true, stock: true },
+      select: { date: true, session: true, stock: true },
     });
     const tally = buildTally(
-      prior.map((p) => ({ createdAt: p.createdAt, stock: (p.stock as Record<string, TallyInput>) || null })),
+      prior.map((p) => ({ createdAt: sessionStamp(p.date, p.session), stock: (p.stock as Record<string, TallyInput>) || null })),
       input,
-      now
+      at
     );
     const stock: Record<string, unknown> = {};
     for (const r of tally.rows) if (r.computed.today !== null) stock[r.key] = r.computed;
@@ -94,7 +104,8 @@ export async function POST(req: NextRequest) {
     const row = existing
       ? await prisma.dailyClosing.update({ where: { id: existing.id }, data: { stock: stock as Prisma.InputJsonValue } })
       : await prisma.dailyClosing.create({
-          data: { date: body.date, session, stock: stock as Prisma.InputJsonValue, source: "register-stock", createdAt: now },
+          // back-dated counts take their own date's time slot so later lookups order them correctly
+          data: { date: body.date, session, stock: stock as Prisma.InputJsonValue, source: "register-stock", createdAt: body.date === todayIst ? now : at },
         });
     return { row, counted: tally.counted, flagged: tally.flagged };
   });

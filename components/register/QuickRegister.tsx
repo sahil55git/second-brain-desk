@@ -2315,6 +2315,10 @@ function StockSheet({
 }) {
   const hour = Number(new Date().toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }));
   const [session, setSession] = useState<"AFTERNOON" | "NIGHT">(hour >= 16 ? "NIGHT" : "AFTERNOON");
+  // Which day this count is for: today, or yesterday (late entry of yesterday's closing).
+  const todayStr = todayIST();
+  const yesterdayStr = businessDate(Date.now() - 86400000);
+  const [day, setDay] = useState<string>(date === yesterdayStr ? yesterdayStr : todayStr);
   const [yesterday, setYesterday] = useState<Record<string, number | null>>({});
   const [vals, setVals] = useState<Record<string, { today: string; reportSale: string }>>({});
   const [loaded, setLoaded] = useState(false);
@@ -2326,7 +2330,7 @@ function StockSheet({
         yesterday: Record<string, Record<string, number | null>>;
         sessions: Record<string, { stock: Record<string, { today?: number | null; reportSale?: number | null }> } | null>;
       };
-    }>(`/api/register/stock?date=${date}`)
+    }>(`/api/register/stock?date=${day}`)
       .then((r) => {
         setYesterday(r.data.yesterday[session] || {});
         const existing = r.data.sessions[session]?.stock;
@@ -2341,7 +2345,7 @@ function StockSheet({
       })
       .catch((e) => toast(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, session]);
+  }, [day, session]);
 
   const n = (v: string | undefined) => (v === undefined || v === "" || Number.isNaN(Number(v)) ? null : Number(v));
   const rows = STOCK_PRODUCTS.map((p) => {
@@ -2389,7 +2393,7 @@ function StockSheet({
     setBusy(true);
     try {
       const stock = Object.fromEntries(rows.filter((r) => r.c.today !== null).map((r) => [r.p.key, { today: n(r.v.today), reportSale: n(r.v.reportSale) }]));
-      const res = await api<{ data: { flagged: number } }>("/api/register/stock", { method: "POST", body: JSON.stringify({ date, session, stock }) });
+      const res = await api<{ data: { flagged: number } }>("/api/register/stock", { method: "POST", body: JSON.stringify({ date: day, session, stock }) });
       onSaved(`${word("stSaved", lang)} ✓${res.data.flagged ? ` — ⚠️ ${res.data.flagged} ${word("stGaps", lang)}` : ""}`);
     } catch (e) {
       toast(e instanceof Error ? e.message : word("error", lang));
@@ -2421,9 +2425,29 @@ function StockSheet({
           ]}
         />
       </div>
+      <div className="qr-f">
+        <Chips
+          lang={lang}
+          value={day === yesterdayStr ? "Y" : "T"}
+          onPick={(k) => {
+            setLoaded(false);
+            setDay(k === "Y" ? yesterdayStr : todayStr);
+          }}
+          options={[
+            { key: "T", icon: "📅", en: "Today", kn: "ಇಂದು" },
+            { key: "Y", icon: "🕘", en: "Yesterday (late entry)", kn: "ನಿನ್ನೆ (ತಡ ಎಂಟ್ರಿ)" },
+          ]}
+        />
+      </div>
+      {day !== todayStr && (
+        <div className="qr-hint" style={{ marginBottom: 8 }}>
+          🕘 {lang === "kn" ? `ನಿನ್ನೆಯ (${day}) ಎಣಿಕೆ — ಇಂದಿನ ಆರಂಭದ ಸ್ಟಾಕ್‌ಗೆ ಸೇರುತ್ತದೆ.` : `Late entry for ${day} — carries into today's opening stock.`}
+        </div>
+      )}
       <div className="qr-hint" style={{ marginBottom: 8 }}>{word("stHint", lang)}</div>
-      <a className="qr-linkbtn" href="/stock" target="_blank" rel="noreferrer" style={{ display: "inline-block", marginBottom: 8 }}>
-        ↗ Open full stock tally window
+      <a className="qr-btn2 qr-openwin" href={`/stock?date=${day}&session=${session}`} target="_blank" rel="noreferrer">
+        🗄️ {lang === "kn" ? "ಪೂರ್ಣ ಸ್ಟಾಕ್ ವಿಂಡೋ ತೆರೆಯಿರಿ" : "Open full stock window"}
+        <small>{lang === "kn" ? "ಎಲ್ಲಾ ಉತ್ಪನ್ನಗಳ ಪೂರ್ಣ ಮುಚ್ಚುವ ಸ್ಟಾಕ್ ಎಣಿಕೆ" : "Complete closing stock · all products · tomorrow's opening"}</small>
       </a>
       <div className="qr-btnrow" style={{ marginTop: 0, marginBottom: 8 }}>
         <label className="qr-btn2" style={{ textAlign: "center", cursor: "pointer" }}>

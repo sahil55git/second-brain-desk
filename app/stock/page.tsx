@@ -7,6 +7,8 @@ import "./stock.css";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Stock tally — Second Brain Desk" };
 
-export default function StockPage() {
-  return <StockDesk />;
+export default function StockPage({ searchParams }: { searchParams?: { date?: string; session?: string } }) {
+  const d = searchParams?.date && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.date) ? searchParams.date : undefined;
+  const s = searchParams?.session === "NIGHT" || searchParams?.session === "AFTERNOON" ? searchParams.session : undefined;
+  return <StockDesk initialDate={d} initialSession={s} />;
 }
