@@ -191,6 +191,63 @@ export interface RegisterEntryLike {
   item?: string | null;
   createdAt: string | Date;
   date?: string;
+  details?: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// Split payment — one sale paid across several channels. It is stored as one
+// RegisterEntry per channel (so every cash/UPI/udhaar report stays correct),
+// all sharing details.split.id. The owner's personal PhonePe is not shop
+// cash and not shop UPI, so it is stored as mode OTHER + details.channel.
+// ---------------------------------------------------------------------------
+export type PayChannel = "CASH" | "UPI" | "OWNER_PHONEPE" | "CREDIT";
+export const PAY_CHANNELS: PayChannel[] = ["CASH", "UPI", "OWNER_PHONEPE", "CREDIT"];
+export interface SplitPart {
+  channel: PayChannel;
+  amount: number;
+}
+const money2 = (n: number) => Math.round(n * 100) / 100;
+
+export function channelToMode(c: PayChannel): Mode {
+  return c === "OWNER_PHONEPE" ? "OTHER" : c;
+}
+
+/** The channel a stored entry was paid through. */
+export function entryChannel(e: { paymentMode: string; details?: unknown }): PayChannel {
+  const d = e.details as { channel?: unknown } | null | undefined;
+  if (e.paymentMode === "OTHER" && d && d.channel === "OWNER_PHONEPE") return "OWNER_PHONEPE";
+  return e.paymentMode === "UPI" || e.paymentMode === "CREDIT" ? e.paymentMode : "CASH";
+}
+
+/** Split group info of a stored entry, if it belongs to one. */
+export function splitInfo(details: unknown): { id: string; i: number; n: number } | null {
+  const sp = (details as { split?: { id?: unknown; i?: unknown; n?: unknown } } | null | undefined)?.split;
+  return sp && typeof sp.id === "string" ? { id: sp.id, i: Number(sp.i) || 1, n: Number(sp.n) || 1 } : null;
+}
+
+/**
+ * Validates the parts of a split payment against the sale total. Zero parts
+ * are dropped; each channel may appear once; the parts must add up to the
+ * total (to the paisa). One remaining part is just a normal single payment.
+ */
+export function normalizeSplit(total: number, raw: unknown): { ok: true; parts: SplitPart[] } | { ok: false; error: string } {
+  if (!Array.isArray(raw)) return { ok: false, error: "Split payment must be a list" };
+  const parts: SplitPart[] = [];
+  for (const p of raw) {
+    const channel = (p as { channel?: unknown })?.channel as PayChannel;
+    const amount = money2(Number((p as { amount?: unknown })?.amount));
+    if (!PAY_CHANNELS.includes(channel)) return { ok: false, error: "Unknown payment channel in split" };
+    if (!Number.isFinite(amount) || amount < 0) return { ok: false, error: "Split amounts must be numbers" };
+    if (amount === 0) continue;
+    if (parts.some((x) => x.channel === channel)) return { ok: false, error: "Use each payment type only once" };
+    parts.push({ channel, amount });
+  }
+  if (!parts.length) return { ok: false, error: "Enter at least one payment amount" };
+  const sum = money2(parts.reduce((a, p) => a + p.amount, 0));
+  if (Math.abs(sum - money2(total)) > 0.01) {
+    return { ok: false, error: `Payments add up to ₹${sum} but the sale is ₹${money2(total)}` };
+  }
+  return { ok: true, parts };
 }
 
 /** Effect of one register entry on the physical counter cash. */
@@ -262,6 +319,7 @@ export interface DayTotals {
   upiOut: number;
   creditGiven: number; // udhaar sales
   creditTaken: number; // purchases on credit
+  ownerPhonePeIn: number; // sale money received on the owner's personal PhonePe
   pigmee: number;
   ownerDraw: number;
   jwIn: number;
@@ -277,6 +335,7 @@ export function dayTotals(entries: RegisterEntryLike[], jwEvents: CashEvent[] = 
     upiOut: 0,
     creditGiven: 0,
     creditTaken: 0,
+    ownerPhonePeIn: 0,
     pigmee: 0,
     ownerDraw: 0,
     jwIn: 0,
@@ -294,7 +353,8 @@ export function dayTotals(entries: RegisterEntryLike[], jwEvents: CashEvent[] = 
     } else if (e.paymentMode === "CREDIT") {
       if (side === "in") t.creditGiven += e.amountInr;
       else t.creditTaken += e.amountInr;
-    } else if (side === "in") t.upiIn += e.amountInr;
+    } else if (entryChannel(e) === "OWNER_PHONEPE") t.ownerPhonePeIn += e.amountInr;
+    else if (side === "in") t.upiIn += e.amountInr;
     else t.upiOut += e.amountInr;
   }
   for (const ev of jwEvents) {
