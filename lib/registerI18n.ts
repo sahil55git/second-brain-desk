@@ -173,6 +173,9 @@ export const W = {
   workspace: ["Workspace — always open", "ಕೆಲಸದ ಜಾಗ — ಯಾವಾಗಲೂ ತೆರೆದಿದೆ"],
   stockTally: ["Stock tally", "ಸ್ಟಾಕ್ ಎಣಿಕೆ"],
   mfgDesk: ["Manufacturing", "ತಯಾರಿಕೆ"],
+  newBarrel: ["New barrel", "ಹೊಸ ಬ್ಯಾರೆಲ್"],
+  barrelSteps: ["Barrel steps", "ಬ್ಯಾರೆಲ್ ಹಂತ"],
+  openBarrels: ["open", "ಬಾಕಿ"],
   quickLinks: ["Quick links", "ಶೀಘ್ರ ಲಿಂಕ್‌ಗಳು"],
   allTallies: ["All tallies", "ಎಲ್ಲಾ ಎಣಿಕೆ"],
   stHint: [

@@ -45,6 +45,7 @@ import {
   type RegisterKind,
 } from "@/lib/register";
 import { pairLabel, word, words, type WordKey } from "@/lib/registerI18n";
+import { PLACES } from "@/lib/bidarPlaces";
 import { STOCK_PRODUCTS, computeProductTally } from "@/lib/calculations";
 import { STOCK_KN, csvToTable, isFlagged, parseTallyRows } from "@/lib/stockTally";
 import { parseVoice, type VoiceAction } from "@/lib/voice";
@@ -528,6 +529,29 @@ function SheetFrame({
   );
 }
 
+// Tap-to-pick Bidar villages / towns under a customer name. While the box is
+// empty it shows the nearest places; once you type it narrows the list. Your own
+// saved customers come first, then the built-in Bidar list (so it works even
+// before the places are added as customers in Settings).
+function PlaceChips({ value, onPick, known }: { value: string; onPick: (v: string) => void; known: string[] }) {
+  const q = value.trim().toLowerCase();
+  const names = Array.from(new Set([...known, ...PLACES.map((p) => p.name)]));
+  const list = (q ? names.filter((n) => n.toLowerCase().includes(q) && n.toLowerCase() !== q) : PLACES.slice(0, 10).map((p) => p.name))
+    .sort((a, b) => Number(b.toLowerCase().startsWith(q)) - Number(a.toLowerCase().startsWith(q)))
+    .slice(0, 8);
+  if (!list.length) return null;
+  return (
+    <div className="qr-chips compact" style={{ marginTop: 6 }} aria-label="Villages and towns">
+      <span className="qr-m" style={{ alignSelf: "center" }}>📍</span>
+      {list.map((n) => (
+        <button key={n} type="button" className="qr-chip" onClick={() => onPick(n)}>
+          {n}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function PartyField({
   value,
   onChange,
@@ -535,7 +559,9 @@ function PartyField({
   all,
   lang,
   label = "who",
+  places = false,
 }: {
+  places?: boolean;
   value: string;
   onChange: (v: string) => void;
   top: string[];
@@ -569,6 +595,7 @@ function PartyField({
           <option key={n} value={n} />
         ))}
       </datalist>
+      {places && <PlaceChips value={value} onPick={onChange} known={all} />}
     </div>
   );
 }
@@ -901,6 +928,19 @@ export default function QuickRegister() {
   };
 
   const unsettled = (day?.jobWork || []).filter((j) => !j.settled);
+  // open (unfinished) barrels, for the Manufacturing block; blank if it can't be read
+  const [openBarrels, setOpenBarrels] = useState<number | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/manufacturing")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!live || !j || !Array.isArray(j.data)) return;
+        setOpenBarrels(j.data.filter((b: { step4Kg: number | null }) => b.step4Kg == null).length);
+      })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
   const nextLang: Record<LangMode, LangMode> = { both: "en", en: "kn", kn: "both" };
   const langLabel: Record<LangMode, string> = { both: "EN+ಕ", en: "EN", kn: "ಕನ್ನಡ" };
   const nextLayout: Record<LayoutMode, LayoutMode> = { auto: "side", side: "stack", stack: "auto" };
@@ -973,6 +1013,29 @@ export default function QuickRegister() {
         <div className="qr-row2">
           <Tile id="jwNew" />
           <Tile id="jwSettle" />
+        </div>
+      </div>
+
+      <div className="qr-strip jw">
+        <div className="qr-head">
+          <span>
+            🏭 <Txt k="mfgDesk" lang={lang} />
+          </span>
+          <span className="qr-m" style={{ fontSize: 13 }}>
+            {openBarrels === null ? "" : `${openBarrels} ${word("openBarrels", lang)}`}
+          </span>
+        </div>
+        <div className="qr-row2">
+          <a className="qr-tile g-tool" href="/mfg?new=1">
+            <span className="ic" aria-hidden>➕</span>
+            <span className="p">{words("newBarrel", lang).main}</span>
+            {words("newBarrel", lang).sub && <span className="s">{words("newBarrel", lang).sub}</span>}
+          </a>
+          <a className="qr-tile g-tool" href="/mfg">
+            <span className="ic" aria-hidden>🛢️</span>
+            <span className="p">{words("barrelSteps", lang).main}</span>
+            {words("barrelSteps", lang).sub && <span className="s">{words("barrelSteps", lang).sub}</span>}
+          </a>
         </div>
       </div>
 
@@ -1888,7 +1951,7 @@ function EntrySheet({
       )}
 
       {side !== "oth" && (
-        <PartyField value={party} onChange={setParty} top={day.topParties} all={day.allParties} lang={lang} />
+        <PartyField value={party} onChange={setParty} top={day.topParties} all={day.allParties} lang={lang} places />
       )}
 
       {showNote || notes ? (
@@ -2006,6 +2069,7 @@ function JobWorkSheet({
         top={day.topParties}
         all={Array.from(new Set([...day.jobWork.map((j) => j.customer), ...day.allParties]))}
         lang={lang}
+        places
       />
       <div className="qr-f">
         <label>
