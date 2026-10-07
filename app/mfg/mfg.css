@@ -1,0 +1,23 @@
+/* Manufacturing quick desk — reuses .stk-* / .tly-* / hub look */
+.mq-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.mq-step { border: 1px solid var(--h-line); border-radius: 10px; padding: 6px 6px 8px; text-align: center; display: grid; gap: 3px; }
+.mq-step.done { border-color: var(--h-g); background: color-mix(in srgb, var(--h-g) 8%, transparent); }
+.mq-step.next { border-color: var(--h-acc); box-shadow: 0 0 0 2px color-mix(in srgb, var(--h-acc) 35%, transparent); }
+.mq-step .n { font-size: 12px; font-weight: 800; }
+.mq-step .h { font-size: 10.5px; color: var(--h-soft); line-height: 1.1; }
+.mq-step .v { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; min-height: 20px; }
+.mq-step .w { font-size: 10.5px; color: var(--h-soft); }
+.mq-step input { width: 100%; min-width: 0; font-size: 16px; font-weight: 700; text-align: center; }
+.mq-due { font-size: 13px; font-weight: 700; color: var(--h-soft); }
+.mq-due.late { color: #b97400; }
+.mq-oil { display: flex; gap: 6px; flex-wrap: wrap; }
+.mq-oil button { border: 1px solid var(--h-line); background: var(--h-card); color: inherit; border-radius: 999px; padding: 5px 12px; font-weight: 700; font-size: 14px; cursor: pointer; }
+.mq-oil button.on { background: var(--h-acc); color: #fff; border-color: var(--h-acc); }
+.mq-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; align-items: end; }
+.mq-form label { font-size: 12px; font-weight: 700; color: var(--h-soft); display: block; margin-bottom: 2px; }
+.mq-form input { width: 100%; min-width: 0; font-size: 16px; }
+.mq-sup { display: grid; grid-template-columns: 2fr 1fr; gap: 6px; }
+.mq-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 4px; font-size: 11px; color: var(--h-soft); text-align: center; }
+.mq-metrics b { display: block; font-size: 15px; color: var(--foreground); }
+.mq-flag { font-size: 12.5px; font-weight: 700; color: var(--h-r); }
+@media (max-width: 520px) { .mq-steps { grid-template-columns: repeat(2, 1fr); } }
