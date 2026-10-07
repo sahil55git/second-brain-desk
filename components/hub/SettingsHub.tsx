@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import SettingsDesk from "@/components/SettingsDesk";
 import AppearancePanel from "@/components/AppearancePanel";
 import ImportExportCard from "@/components/hub/ImportExportCard";
+import PlacesCard from "@/components/hub/PlacesCard";
 import type { BusinessSettingsDTO } from "@/lib/types";
 import {
   CATALOG,
@@ -478,7 +479,12 @@ export default function SettingsHub() {
             </section>
           )}
 
-          {section === "io" && <ImportExportCard flash={flash} />}
+          {section === "io" && (
+            <>
+              <ImportExportCard flash={flash} />
+              <PlacesCard flash={flash} />
+            </>
+          )}
           {section === "data" && <DataCard />}
           {section === "appearance" && <AppearancePanel />}
           {section === "integrations" && <IntegrationsCard />}

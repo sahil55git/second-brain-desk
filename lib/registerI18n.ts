@@ -172,6 +172,9 @@ export const W = {
   vyapar: ["Copy Vyapar day-closing sheet", "ವ್ಯಾಪಾರ್ ಸಾರಾಂಶ ಕಾಪಿ"],
   workspace: ["Workspace — always open", "ಕೆಲಸದ ಜಾಗ — ಯಾವಾಗಲೂ ತೆರೆದಿದೆ"],
   stockTally: ["Stock tally", "ಸ್ಟಾಕ್ ಎಣಿಕೆ"],
+  mfgDesk: ["Manufacturing", "ತಯಾರಿಕೆ"],
+  quickLinks: ["Quick links", "ಶೀಘ್ರ ಲಿಂಕ್‌ಗಳು"],
+  allTallies: ["All tallies", "ಎಲ್ಲಾ ಎಣಿಕೆ"],
   stHint: [
     "Weigh / count each product. Sale = yesterday − today; Gap = sale − scale report. Gaps of 0.5 kg or more turn red.",
     "ಪ್ರತಿ ಉತ್ಪನ್ನ ತೂಕ ಮಾಡಿ. ಮಾರಾಟ = ನಿನ್ನೆ − ಇಂದು; ವ್ಯತ್ಯಾಸ = ಮಾರಾಟ − ಸ್ಕೇಲ್ ವರದಿ. 0.5 ಕೆಜಿ ಮೇಲೆ ಕೆಂಪು.",
