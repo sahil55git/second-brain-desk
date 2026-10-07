@@ -800,6 +800,35 @@ export default function QuickRegister() {
     reports: { k: "reports", icon: "🖨️", group: "tool", open: () => setSheet({ t: "report" }) },
   };
 
+  // Quick links (/go) and home-screen shortcuts arrive as /register?open=sale etc.
+  // Open that form once the day has loaded, then tidy the address.
+  const deepRef = useRef(false);
+  useEffect(() => {
+    if (deepRef.current || !day) return;
+    deepRef.current = true;
+    const key = new URLSearchParams(window.location.search).get("open");
+    if (!key) return;
+    const by: Record<string, () => void> = {
+      sale: () => setSheet({ t: "entry", kind: "SALE" }),
+      crush: () => setSheet({ t: "fresh" }),
+      udhaar: () => setSheet({ t: "entry", kind: "UDHAAR_IN" }),
+      purchase: () => setSheet({ t: "entry", kind: "PURCHASE" }),
+      expense: () => setSheet({ t: "entry", kind: "EXPENSE" }),
+      payment: () => setSheet({ t: "entry", kind: "PAYMENT" }),
+      pigmee: () => setSheet({ t: "entry", kind: "PIGMEE" }),
+      draw: () => setSheet({ t: "entry", kind: "OWNER_DRAW" }),
+      jobwork: () => setSheet({ t: "jw" }),
+      jwsettle: () => setTimeout(scrollToLedger, 400),
+      cash: () => setSheet({ t: "count" }),
+      stock: () => setSheet({ t: "stock" }),
+      calc: () => setSheet({ t: "calc" }),
+    };
+    const go = by[key];
+    if (go && !dbOffline) go();
+    window.history.replaceState(null, "", window.location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [day]);
+
   const toggleFav = (key: TileKey) =>
     setPrefs((p) => ({
       ...p,
@@ -967,6 +996,23 @@ export default function QuickRegister() {
         <Tile id="stock" />
         <Tile id="calc" />
         <Tile id="reports" />
+      </div>
+      <div className="qr-tools">
+        <a className="qr-tile g-tool" href="/mfg">
+          <span className="ic" aria-hidden>🏭</span>
+          <span className="p">{words("mfgDesk", lang).main}</span>
+          {words("mfgDesk", lang).sub && <span className="s">{words("mfgDesk", lang).sub}</span>}
+        </a>
+        <a className="qr-tile g-tool" href="/tallies">
+          <span className="ic" aria-hidden>🧮</span>
+          <span className="p">{words("allTallies", lang).main}</span>
+          {words("allTallies", lang).sub && <span className="s">{words("allTallies", lang).sub}</span>}
+        </a>
+        <a className="qr-tile g-tool" href="/go">
+          <span className="ic" aria-hidden>🔗</span>
+          <span className="p">{words("quickLinks", lang).main}</span>
+          {words("quickLinks", lang).sub && <span className="s">{words("quickLinks", lang).sub}</span>}
+        </a>
       </div>
     </>
   );
