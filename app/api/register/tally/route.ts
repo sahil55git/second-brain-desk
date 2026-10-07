@@ -9,7 +9,8 @@ import { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
 import { cashGapFlag } from "@/lib/calculations";
 import { computeOpening, getUser, isValidDate, loadConfig, movementsFor } from "@/lib/registerServer";
-import { DENOMINATIONS, denominationTotal, toClosingBuckets, type RegisterEntryLike } from "@/lib/register";
+import { DENOMINATIONS, businessDate, cashCutoffMs, denominationTotal, toClosingBuckets, type RegisterEntryLike } from "@/lib/register";
+import { sessionStamp } from "@/lib/stockTally";
 
 export async function POST(req: NextRequest) {
   const user = await getUser(req);
@@ -19,6 +20,12 @@ export async function POST(req: NextRequest) {
   const session = body.session === "NIGHT" ? "NIGHT" : body.session === "AFTERNOON" ? "AFTERNOON" : null;
   if (!session || !isValidDate(body.date)) {
     return NextResponse.json({ error: "date and session (AFTERNOON|NIGHT) are required" }, { status: 400 });
+  }
+  // Late entry: never the future; staff may go back one day, the owner further.
+  const todayIst = businessDate(Date.now());
+  if (body.date > todayIst) return NextResponse.json({ error: "A cash count cannot be dated in the future." }, { status: 400 });
+  if (!user.isOwner && body.date < businessDate(Date.now() - 86400000)) {
+    return NextResponse.json({ error: "Staff can enter today's or yesterday's cash count. Ask the owner for older days." }, { status: 403 });
   }
   const denoms: Record<string, number> = {};
   for (const d of DENOMINATIONS) {
@@ -39,7 +46,7 @@ export async function POST(req: NextRequest) {
       opening.value,
       entries as unknown as RegisterEntryLike[],
       jwEvents,
-      now.getTime()
+      cashCutoffMs(body.date, session, now.getTime())
     );
     const { systemCash, diff, flagged } = cashGapFlag(buckets, counted);
     // If a stock-only row already exists for this session (stock tally taken
@@ -73,7 +80,7 @@ export async function POST(req: NextRequest) {
         cashMismatch: flagged,
         denoms: { ...denoms, coins } as Prisma.InputJsonValue,
         source: "register",
-        createdAt: now,
+        createdAt: body.date === todayIst ? now : sessionStamp(body.date, session),
       },
     });
   });

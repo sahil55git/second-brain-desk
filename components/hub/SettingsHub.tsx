@@ -181,6 +181,8 @@ export default function SettingsHub() {
         <nav className="hub-links">
           <a className="hub-btn" href="/register">📒 Quick Register</a>
           <a className="hub-btn" href="/stock">📦 Stock tally</a>
+          <a className="hub-btn" href="/cash">💵 Cash tally</a>
+          <a className="hub-btn" href="/tallies">🧮 All tallies</a>
           <a className="hub-btn" href="/reports">📊 Reports</a>
           <a className="hub-btn" href="/">🗂️ Full desk</a>
         </nav>

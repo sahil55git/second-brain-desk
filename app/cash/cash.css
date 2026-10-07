@@ -1,0 +1,12 @@
+/* Cash tally desk — reuses the stock desk look (.stk-*) */
+.csh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.csh-card { background: var(--h-card); border: 1px solid var(--h-line); border-radius: calc(14px * var(--ui-r, 1)); padding: 10px; display: grid; gap: 6px; text-align: center; }
+.csh-card .d { font-size: 20px; font-weight: 800; }
+.csh-card input { width: 100%; font-size: 22px; font-weight: 800; text-align: center; min-width: 0; }
+.csh-card .t { font-size: 13px; color: var(--h-soft); font-variant-numeric: tabular-nums; }
+.csh-card .step { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.csh-sys { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; margin-top: 4px; }
+.csh-sys div { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--h-line); padding: 3px 0; font-size: 14px; }
+.csh-sys b { font-variant-numeric: tabular-nums; }
+.csh-verdict { font-weight: 800; font-size: 18px; }
+.csh-verdict.ok { color: var(--h-g); } .csh-verdict.bad { color: var(--h-r); }

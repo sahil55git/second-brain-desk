@@ -25,15 +25,18 @@ interface StockApi {
 type Vals = Record<string, { today: string; reportSale: string }>;
 
 const SESSION_LABEL: Record<Session, string> = { AFTERNOON: "Tally 1 · midday", NIGHT: "Tally 2 · closing" };
+const dayMinus = (n: number) => businessDate(Date.now() - n * 86400000);
 const num = (v: string | undefined) => (v === undefined || v.trim() === "" || Number.isNaN(Number(v)) ? null : Number(v));
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const fmt = (v: number | null | undefined) => (v === null || v === undefined ? "—" : String(r2(v)));
 const hm = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
 
-export default function StockDesk() {
-  const [date, setDate] = useState(() => businessDate(Date.now()));
+export default function StockDesk({ initialDate, initialSession }: { initialDate?: string; initialSession?: Session }) {
+  const [date, setDate] = useState(() => (initialDate && initialDate <= businessDate(Date.now()) ? initialDate : businessDate(Date.now())));
   const hour = Number(new Date().toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }));
-  const [session, setSession] = useState<Session>(hour >= 16 ? "NIGHT" : "AFTERNOON");
+  const [session, setSession] = useState<Session>(initialSession || (hour >= 16 ? "NIGHT" : "AFTERNOON"));
+  const today = businessDate(Date.now());
+  const backDated = date < today;
   const [view, setView] = useState<"cards" | "guided">("cards");
   const [api, setApi] = useState<StockApi | null>(null);
   const [vals, setVals] = useState<Vals>({});
@@ -145,6 +148,7 @@ export default function StockDesk() {
   // ---- today's present stock (what is SAVED for the day) -----------------
   const t1 = api?.sessions.AFTERNOON?.stock;
   const t2 = api?.sessions.NIGHT?.stock;
+  const openingTotal = r2(STOCK_PRODUCTS.reduce((a, p) => a + (t2?.[p.key]?.today ?? 0), 0));
   const present = STOCK_PRODUCTS.map((p) => {
     const a = t1?.[p.key];
     const b = t2?.[p.key];
@@ -273,12 +277,17 @@ export default function StockDesk() {
         <nav className="hub-links">
           <a className="hub-btn" href="/register">📒 Quick Register</a>
           <a className="hub-btn" href="/reports?tab=stock">📊 Stock reports</a>
+          <a className="hub-btn" href="/tallies">🧮 All tallies</a>
           <a className="hub-btn" href="/">🗂️ Full desk</a>
         </nav>
       </header>
 
       <div className="stk-bar">
-        <input type="date" value={date} max={businessDate(Date.now())} onChange={(e) => e.target.value && setDate(e.target.value)} aria-label="Date" />
+        <div className="stk-seg" role="tablist" aria-label="Day">
+          <button className={date === today ? "on" : ""} onClick={() => setDate(today)}>Today</button>
+          <button className={date === dayMinus(1) ? "on" : ""} onClick={() => setDate(dayMinus(1))}>Yesterday</button>
+        </div>
+        <input type="date" value={date} max={today} onChange={(e) => e.target.value && setDate(e.target.value)} aria-label="Date" />
         <div className="stk-seg" role="tablist">
           {(Object.keys(SESSION_LABEL) as Session[]).map((s) => (
             <button key={s} className={session === s ? "on" : ""} onClick={() => setSession(s)}>
@@ -290,6 +299,11 @@ export default function StockDesk() {
         <span className={`stk-saved ${savedN ? "ok" : ""}`}>T2 {savedN ? `saved ${hm(savedN.createdAt)}` : "not done"}</span>
       </div>
 
+      {backDated && (
+        <div className="hub-banner" style={{ borderColor: "var(--h-acc)" }}>
+          🕘 Late entry — you are tallying <b>{date}</b>, not today. It is saved against that day and carries into the next day&apos;s opening stock.
+        </div>
+      )}
       {err && <div className="hub-banner">{err}</div>}
       {msg && <div className="hub-banner" style={{ borderColor: "var(--h-g)", color: "var(--h-g)" }}>{msg}</div>}
 
@@ -319,7 +333,7 @@ export default function StockDesk() {
 
       <section className="hub-card">
         <div className="hub-card-head">
-          <h3>✍️ Enter today&apos;s count</h3>
+          <h3>✍️ {backDated ? `Enter count for ${date}` : "Enter today's count"} · {session === "NIGHT" ? "full closing stock" : "midday check"}</h3>
           <div className="hr stk-row">
             <div className="stk-seg">
               <button className={view === "cards" ? "on" : ""} onClick={() => setView("cards")}>▦ Cards</button>
@@ -366,6 +380,22 @@ export default function StockDesk() {
           <span className="hub-m">
             {counted}/{STOCK_PRODUCTS.length} counted{flagged ? ` · ⚠️ ${flagged} gap${flagged === 1 ? "" : "s"}` : counted ? " · no gaps" : ""} · saving again for the same session replaces it.
           </span>
+        </div>
+      </section>
+
+      <section className="hub-card" style={{ marginTop: 12 }}>
+        <div className="hub-card-head">
+          <h3>🌅 Opening stock for {date === today ? "tomorrow" : "the next day"}</h3>
+          <div className="hr stk-row">
+            <span className="hub-m">
+              {t2 ? <>from the closing count of {date} · <b>{openingTotal} kg</b></> : <>Not available — tally <b>closing</b> for {date} first.</>}
+            </span>
+            {!t2 && (
+              <button className="hub-btn sm" onClick={() => { setSession("NIGHT"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                🌙 Do closing tally
+              </button>
+            )}
+          </div>
         </div>
       </section>
 

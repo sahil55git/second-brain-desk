@@ -303,3 +303,7 @@ html.hc .qr .qr-tile { box-shadow: inset 0 0 0 2px #ffffff; }
 
 .qr-grid3 .qr-num, .qr-grid2 .qr-num { min-height: 48px; }
 .qr-grid3 > div, .qr-grid2 > div { min-width: 0; }
+
+/* Open full stock window — proper button in the stock sheet */
+.qr-openwin { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; text-decoration: none; margin-bottom: 8px; padding: 12px; font-size: 16px; font-weight: 800; background: var(--qr-in); color: #fff; border-color: transparent; }
+.qr-openwin small { font-size: 12px; font-weight: 500; opacity: .9; }

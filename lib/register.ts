@@ -607,3 +607,13 @@ export function freshCrushTotals(
   }
   return t;
 }
+
+/**
+ * Until when entries count towards a cash tally. Today: right now. A late
+ * (back-dated) tally: the midday one counts up to 1 pm of its day, the closing
+ * one counts the whole day — so it matches what was in the counter then.
+ */
+export function cashCutoffMs(date: string, session: "AFTERNOON" | "NIGHT", nowMs: number): number {
+  if (date === businessDate(nowMs)) return nowMs;
+  return session === "AFTERNOON" ? new Date(`${date}T13:00:00+05:30`).getTime() : new Date(`${date}T23:59:59.999+05:30`).getTime();
+}
