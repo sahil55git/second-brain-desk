@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-const OWNER_ONLY_PATHS = ["/settings", "/reports"];
+const OWNER_ONLY_PATHS = ["/settings", "/reports", "/records"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
