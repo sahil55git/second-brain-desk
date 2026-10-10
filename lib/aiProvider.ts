@@ -227,3 +227,52 @@ export async function runAi(system: string, user: string): Promise<AiResult> {
   }
   return { ok: false, provider: lastProvider, error: errors.join("  |  ") };
 }
+
+// ---------------------------------------------------------------------------
+// Photo reading (slip / bill scanner). Only Gemini among the free providers
+// above accepts images, so this needs GEMINI_API_KEY. Asks for JSON output
+// and tries the same model candidates as callGemini().
+// ---------------------------------------------------------------------------
+export async function readImageWithGemini(
+  system: string,
+  imageBase64: string,
+  imageMime: string,
+  userText = "Read this document."
+): Promise<AiResult> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) {
+    return {
+      ok: false,
+      provider: "none",
+      notConfigured: true,
+      error: "Reading photos needs a free GEMINI_API_KEY in Vercel (https://aistudio.google.com/apikey).",
+    };
+  }
+  const models = candidateModels(process.env.GEMINI_MODEL, GEMINI_MODELS);
+  return tryProviderModels("gemini", models, async (model) => {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    const body = {
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ role: "user", parts: [{ text: userText }, { inlineData: { mimeType: imageMime, data: imageBase64 } }] }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 1200, responseMimeType: "application/json" },
+    };
+    const res = await withTimeout((signal) =>
+      fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify(body),
+        signal,
+      })
+    );
+    if (!res.ok) {
+      const msg = await res.text().catch(() => res.statusText);
+      return { ok: false, provider: "gemini", error: `Gemini (${model}) ${res.status}: ${msg.slice(0, 200)}` };
+    }
+    const json = await res.json();
+    const text: string | undefined = json?.candidates?.[0]?.content?.parts
+      ?.map((p: { text?: string }) => p?.text ?? "")
+      .join("");
+    if (!text) return { ok: false, provider: "gemini", error: `Gemini (${model}) returned no text (blocked or empty).` };
+    return { ok: true, provider: "gemini", text: text.trim() };
+  });
+}

@@ -133,6 +133,22 @@ export async function loadDay(date: string) {
   const latest = (session: "AFTERNOON" | "NIGHT") =>
     closings.filter((c) => c.session === session).slice(-1)[0] || null;
 
+  // Which of today's entries carry a proof (✍️ / 🤳 / 👍 badge). Wrapped so the
+  // register keeps working even before `prisma db push` adds the table.
+  const proofs: Record<string, string[]> = {};
+  try {
+    const ids = entries.map((e) => e.id);
+    if (ids.length) {
+      const rows = await prisma.attachment.findMany({
+        where: { registerEntryId: { in: ids } },
+        select: { registerEntryId: true, kind: true },
+      });
+      for (const r of rows) if (r.registerEntryId) (proofs[r.registerEntryId] ||= []).push(r.kind);
+    }
+  } catch {
+    /* proofs table not created yet */
+  }
+
   return {
     date,
     config: cfg,
@@ -145,5 +161,6 @@ export async function loadDay(date: string) {
     khaliKg: ((khaliAgg._sum.seedKg || 0) * KHALI_SPLIT.khaliPct) / 100,
     topParties: partyCounts.map((p) => p.partyName as string).filter(Boolean),
     allParties: parties.map((p) => p.name),
+    proofs,
   };
 }

@@ -532,6 +532,9 @@ model RegisterEntry {
   notes         String?
   createdByName String?
 
+  // Proofs of payment / scanned slips attached to this entry (see Attachment).
+  attachments Attachment[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -548,4 +551,56 @@ model RegisterConfig {
   data Json
 
   updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Proofs & scans (lib/proofs.ts). One row per saved image:
+//  - proof of payment: SIGNATURE drawn on screen, RECIPIENT_PHOTO, or
+//    THUMB_PAPER (photo of an inked thumb / signed paper voucher), linked to
+//    the Quick Register money-out entry it proves;
+//  - scanned slips: WEIGHBRIDGE, WEIGHING, BILL, RECEIPT, with the fields the
+//    AI read (after the person checked them) in `fields`.
+// The image itself is filed in Google Drive (06_Scans_&_Proofs/<Category>/
+// <YYYY-MM>/) when the Drive upload is set up. Until it uploads, the image
+// is kept here in `dataUrl` so nothing is lost; a retry moves it to Drive
+// and clears `dataUrl`. Deleting the register entry keeps the proof
+// (registerEntryId -> null) so the audit trail survives.
+// ---------------------------------------------------------------------------
+model Attachment {
+  id   String @id @default(cuid())
+  kind String // ProofKind in lib/proofs.ts
+  date String // "YYYY-MM-DD" business date
+
+  registerEntryId String?
+  registerEntry   RegisterEntry? @relation(fields: [registerEntryId], references: [id], onDelete: SetNull)
+
+  fileName  String
+  folder    String // "06_Scans_&_Proofs/Payment_Signatures/2026-10"
+  mime      String
+  sizeBytes Int    @default(0)
+
+  driveFileId String?
+  driveUrl    String?
+  driveError  String?
+  dataUrl     String? // image kept here until it is uploaded to Drive
+
+  partyName String?
+  amountInr Float?
+  refNo     String? // slip / bill / receipt number
+  fields    Json? // scanned slip fields (checked by the person), ScanFields
+  aiFields  Json? // what the AI first read, kept for comparison
+  notes     String?
+
+  // Where / when it was captured (taken on the device, not typed).
+  capturedAt DateTime?
+  geo        Json? // { lat, lng, acc } when the phone allowed location
+  device     String?
+
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([date])
+  @@index([kind])
+  @@index([registerEntryId])
 }

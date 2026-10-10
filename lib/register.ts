@@ -108,6 +108,10 @@ export interface RegisterConfigData {
   defaultLayout: "auto" | "side" | "stack";
   defaultFavs: string[];
   defaultWork: string;
+  // Proof of payment (lib/proofs.ts): money-out kinds that must carry a
+  // signature / photo before they can be saved, at or above proofMinInr.
+  proofRequired: ("PAYMENT" | "PURCHASE" | "EXPENSE")[];
+  proofMinInr: number;
 }
 
 export const DEFAULT_CONFIG: RegisterConfigData = {
@@ -119,6 +123,8 @@ export const DEFAULT_CONFIG: RegisterConfigData = {
   defaultLayout: "auto",
   defaultFavs: ["SALE", "EXPENSE", "jwNew"],
   defaultWork: "calc",
+  proofRequired: [],
+  proofMinInr: 0,
 };
 
 export function normalizeConfig(raw: unknown): RegisterConfigData {
@@ -133,6 +139,10 @@ export function normalizeConfig(raw: unknown): RegisterConfigData {
     defaultLayout: r.defaultLayout === "side" || r.defaultLayout === "stack" ? r.defaultLayout : "auto",
     defaultFavs: Array.isArray(r.defaultFavs) ? r.defaultFavs.filter((x) => typeof x === "string").slice(0, 20) : [...DEFAULT_CONFIG.defaultFavs],
     defaultWork: typeof r.defaultWork === "string" ? r.defaultWork : "calc",
+    proofRequired: Array.isArray(r.proofRequired)
+      ? (["PAYMENT", "PURCHASE", "EXPENSE"] as const).filter((k) => (r.proofRequired as unknown[]).includes(k))
+      : [],
+    proofMinInr: typeof r.proofMinInr === "number" && r.proofMinInr >= 0 ? r.proofMinInr : 0,
   };
 }
 

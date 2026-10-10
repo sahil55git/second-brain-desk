@@ -142,3 +142,19 @@ html[data-density="compact"] .ap-tile { padding: 6px 4px; } html[data-density="s
 .hub-share-menu .sep { font-size: 11px; color: var(--h-soft); padding: 8px 10px 2px; border-top: 1px solid var(--h-line); margin-top: 4px; }
 .hub-table tfoot td { border-top: 2px solid var(--h-line); border-bottom: none; background: var(--h-base); }
 @media print { .hub-export { display: none !important; } }
+
+/* Proofs & scans (/records, Settings → Proofs & scans) */
+.rec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.rec-card { display: flex; gap: 12px; padding: 12px; margin: 0; }
+.rec-img { flex: 0 0 120px; height: 140px; border: 1px solid var(--h-line); border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: zoom-in; }
+.rec-img img { width: 100%; height: 100%; object-fit: contain; }
+.rec-ph { font-size: 34px; display: flex; flex-direction: column; align-items: center; color: var(--h-soft); }
+.rec-ph small { font-size: 11px; }
+.rec-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: 14px; }
+.rec-fields td { padding: 2px 6px; font-size: 13px; }
+.rec-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+.hub .qr-check { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; margin: 6px 0; cursor: pointer; }
+.hub .qr-check input { width: 18px; height: 18px; }
+.hub .qr-hint { font-size: 13px; color: var(--h-soft); margin: 2px 0 6px; }
+.hub .qr-linkbtn { background: none; border: none; color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; padding: 0; font: inherit; }
+@media (max-width: 520px) { .rec-card { flex-direction: column; } .rec-img { flex-basis: auto; width: 100%; height: 200px; } }
