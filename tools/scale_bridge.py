@@ -10,6 +10,12 @@ Run on the Windows computer that opens the Vercel business app:
 
 For an Essae SI-850 set to TCP Server on 192.168.50.248 port 4321:
     py tools/scale_bridge.py --si850 192.168.50.248:4321 --source SI850-KARADI
+
+Barrel receiving: send each STEADY weight of the platform scale to the app so a
+barrel's weight comes from the scale, not from typing (see docs/BARREL-RECEIVING.md):
+    set SCALE_PUSH_SECRET=<same value as in Vercel>
+    py tools/scale_bridge.py --si850-device PLATFORM-1@192.168.50.249:4321 ^
+        --push-url https://<your-app>/api/scale-ticks/ingest --push-source PLATFORM-1
 """
 
 from __future__ import annotations
@@ -18,17 +24,22 @@ import argparse
 import asyncio
 import json
 import math
+import os
 import re
 import struct
 from datetime import datetime, timezone
 
 import websockets
 
+from scale_ticks import TickPipeline
+
 
 WEIGHT_RE = re.compile(r"[-+]?\d+(?:\.\d+)?")
 browser_tabs: set = set()
 latest_packets: dict[str, dict] = {}
 device_status: dict[str, dict] = {}
+# Set in main when --push-url is given: sends each steady platform weight to the app.
+tick_pipeline: TickPipeline | None = None
 
 # Confirmed from an SI-850 capture and a live probe at 334.4 kg.
 SI850_HELLO = bytes.fromhex("11 01 00 00 ee ff")
@@ -93,6 +104,8 @@ async def poll_si850(host: str, port: int, scale_source: str, debug_raw: bool) -
             await broadcast(payload)
             await report_status(scale_source, "live", f"SI-850 at {host}:{port}")
             print(f"[SI-850] {scale_source}: {weight:.1f} kg")
+            if tick_pipeline is not None:
+                await tick_pipeline.observe(scale_source, weight)
         except (OSError, ValueError, asyncio.TimeoutError, asyncio.IncompleteReadError) as error:
             latest_packets.pop(scale_source, None)
             await report_status(scale_source, "error", str(error))
@@ -170,6 +183,8 @@ async def process_packet(packet: bytes, scale_source: str, emit_readings: bool, 
     }
     latest_packets[scale_source] = payload
     await broadcast(payload)
+    if tick_pipeline is not None:
+        await tick_pipeline.observe(scale_source, weight)
 
 
 async def handle_incoming_scale(
@@ -377,6 +392,10 @@ if __name__ == "__main__":
                         help="Repeat SOURCE@HOST:PORT to capture other TCP-server indicators (raw until verified)")
     parser.add_argument("--serial-device", type=parse_serial_device, action="append", default=[],
                         help="Repeat SOURCE@COM3:9600:8:N:1 for RS-232 or USB serial; raw capture until verified")
+    parser.add_argument("--push-url", help="App endpoint that stores steady weights, e.g. https://your-app.vercel.app/api/scale-ticks/ingest")
+    parser.add_argument("--push-secret", help="Shared secret (or set the SCALE_PUSH_SECRET environment variable)")
+    parser.add_argument("--push-source", action="append", default=[],
+                        help="Repeat for each scale whose steady weights are sent, e.g. PLATFORM-1. Tank scales should NOT be listed.")
     parser.add_argument("--list-serial", action="store_true", help="List Windows COM ports and exit")
     parser.add_argument("--browser-port", type=int, default=8765, help="Local WebSocket port used by Chrome")
     parser.add_argument("--emit-readings", action="store_true", help="Send parsed readings to the browser")
@@ -398,6 +417,21 @@ if __name__ == "__main__":
     sources = ([args.source] if args.si850 or args.tcp_client or args.scale_port else []) + [x[0] for x in args.si850_device + args.tcp_device + args.serial_device]
     if len(sources) != len(set(sources)):
         parser.error("each scale source must be unique")
+    if args.push_url:
+        secret = args.push_secret or os.environ.get("SCALE_PUSH_SECRET", "")
+        if len(secret) < 16:
+            parser.error("--push-url needs a secret of 16+ characters (--push-secret or SCALE_PUSH_SECRET)")
+        if not args.push_source:
+            parser.error("--push-url needs at least one --push-source SCALE_NAME")
+        unknown = [x for x in args.push_source if x not in sources]
+        if unknown:
+            parser.error(f"--push-source {', '.join(unknown)} is not one of the scales being read: {', '.join(sources)}")
+        if not (args.push_url.startswith("https://") or args.push_url.startswith("http://127.0.0.1")):
+            parser.error("--push-url must start with https://")
+        tick_pipeline = TickPipeline(args.push_url, secret, args.push_source)
+        print(f"[*] Steady weights from {', '.join(args.push_source)} will be sent to {args.push_url}")
+    elif args.push_source or args.push_secret:
+        parser.error("--push-source / --push-secret only work together with --push-url")
     # Unknown formats must be inspected before publishing numeric data.
     emit_readings = args.emit_readings
     try:
