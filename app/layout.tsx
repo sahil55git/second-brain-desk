@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./skins.css";
 import { CustomizeProvider } from "@/lib/customize";
 import AuthSessionProvider from "@/components/AuthSessionProvider";
 import { ScaleProvider } from "@/components/ScaleProvider";
@@ -12,13 +13,22 @@ export const metadata: Metadata = {
     "Coded rebuild of the Second Brain Desk business dashboard — Job-Work Desk, Manufacturing, Daily Closing & Reports.",
 };
 
+// Mirrors lib/customize.tsx + migrateLook: saved glass look, untouched original look → Neon glass.
+const PRE_PAINT = `(function(){try{var d=document.documentElement,p=JSON.parse(localStorage.getItem("sbd_prefs_v1")||"null"),l=p&&p.look;
+var skin=l&&l.skin;if(!p||(!(p.lookV>=2)&&(!l||((l.preset||"parchment")==="parchment"&&!l.custom))))skin="neon";
+if(skin&&skin!=="none"){d.dataset.skin=skin;var c={neon:["#070a1f","#e9edff"],frost:["#3a2a1f","#fbf4ea"],soft:["#eceeec","#1b1f1c"]}[skin];if(c){d.style.setProperty("--background",c[0]);d.style.setProperty("--foreground",c[1]);}d.classList.add(skin==="soft"?"light":"dark");}}catch(e){}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Paint the saved look (or the Neon glass default) before React loads, so the page never flashes. */}
+        <script dangerouslySetInnerHTML={{ __html: PRE_PAINT }} />
+      </head>
       <body className="antialiased">
         <AuthSessionProvider>
           <ScaleProvider>

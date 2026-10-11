@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { useCustomize, ACCENT_PRESETS, BACKGROUND_PALETTES, type BackgroundKey, type ThemeMode } from "@/lib/customize";
 import {
+  CLASSIC_LOOK,
   DEFAULT_LOOK,
   FONTS,
   THEME_PRESETS,
@@ -65,7 +66,15 @@ export default function AppearancePanel() {
 
   const applyPreset = (p: ThemePreset) => {
     setPrefs({ theme: p.mode, accent: p.accent, ...(p.background ? { background: p.background } : {}) });
-    setLook({ ...(p.look || {}), preset: p.key, custom: p.colors || null });
+    // Leaving a glass look for a classic theme also drops the glass-only shape settings.
+    const leavingGlass = look.skin !== "none" && !p.look?.skin;
+    setLook({
+      ...(leavingGlass ? { font: CLASSIC_LOOK.font, radius: CLASSIC_LOOK.radius, panelOpacity: CLASSIC_LOOK.panelOpacity } : {}),
+      skin: "none",
+      ...(p.look || {}),
+      preset: p.key,
+      custom: p.colors || null,
+    });
   };
   const current: CustomTheme =
     look.custom ||

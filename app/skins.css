@@ -1,0 +1,423 @@
+/* ===========================================================================
+   Glass looks ("skins") — lib/appearance.ts `Look.skin`, set by
+   lib/customize.tsx as <html data-skin="neon|frost|soft">.
+
+   neon  — dark navy, see-through glowing glass cards, neon blue / violet / pink light
+   frost — smoky frosted glass over a warm bronze background, lime accent, thin big numbers
+   soft  — bright soft-grey cards, big numbers, gentle shadows (easiest in daylight)
+
+   Every skin gives buttons and register tiles the "liquid glass" finish: a shine
+   on top, a darker base and a coloured glow underneath. The Quick Register's
+   meaning colours (green in, red out, orange not-expense, blue job-work) are
+   kept on every skin — only their finish changes.
+
+   Screens covered: main desk (/), Quick Register, Reports / Settings /
+   Appearance / Quick links (.hub), barrels (.bd-*), stock, tallies, cash,
+   manufacturing cards, login / setup.
+   =========================================================================== */
+
+/* ---------- per-skin tokens ---------- */
+html[data-skin] {
+  --sk-blur: 18px;
+  --sk-r: 18px;
+  --sk-num-weight: 700;
+}
+html[data-skin="neon"] {
+  --sk-bg: #070a1f;
+  --sk-glass: linear-gradient(150deg, rgba(46, 56, 128, 0.55), rgba(16, 20, 54, 0.5));
+  --sk-glass-solid: rgba(15, 19, 50, 0.94);
+  --sk-glass-2: rgba(120, 140, 255, 0.08);
+  --sk-edge: rgba(150, 170, 255, 0.24);
+  --sk-edge-strong: rgba(150, 170, 255, 0.45);
+  --sk-hi: rgba(255, 255, 255, 0.14);
+  --sk-shadow: 0 14px 40px rgba(3, 5, 25, 0.55);
+  --sk-glow: 0 0 24px rgba(109, 139, 255, 0.18);
+  --sk-input: rgba(8, 12, 36, 0.55);
+  --sk-soft: #a7b1dd;
+  --sk-num-weight: 700;
+  /* meaning colours, bright for text on dark glass / deep for tiles with white text */
+  --sk-in: #3ddc84; --sk-out: #ff6b7a; --sk-oth: #ffae4a; --sk-jw: #5cb0ff; --sk-tool: #a7b1dd;
+  --sk-in-d: #12985a; --sk-out-d: #d8344a; --sk-oth-d: #d6741a; --sk-jw-d: #2f6fe0; --sk-tool-d: #4b55a0;
+}
+html[data-skin="frost"] {
+  --sk-bg: #3a2a1f;
+  --sk-glass: linear-gradient(150deg, rgba(58, 44, 34, 0.5), rgba(24, 18, 14, 0.46));
+  --sk-glass-solid: rgba(36, 27, 21, 0.95);
+  --sk-glass-2: rgba(255, 240, 220, 0.07);
+  --sk-edge: rgba(255, 236, 210, 0.2);
+  --sk-edge-strong: rgba(255, 236, 210, 0.42);
+  --sk-hi: rgba(255, 255, 255, 0.16);
+  --sk-shadow: 0 18px 44px rgba(28, 16, 8, 0.42);
+  --sk-glow: 0 0 0 transparent;
+  --sk-input: rgba(20, 14, 10, 0.42);
+  --sk-soft: #e2cfb8;
+  --sk-r: 22px;
+  --sk-blur: 24px;
+  --sk-num-weight: 300;
+  --sk-in: #9be15d; --sk-out: #ff7a6b; --sk-oth: #ffb35c; --sk-jw: #7cc4ff; --sk-tool: #e2cfb8;
+  --sk-in-d: #3f8f2a; --sk-out-d: #c43b2e; --sk-oth-d: #c06a18; --sk-jw-d: #2f6aa8; --sk-tool-d: #6b5442;
+}
+html[data-skin="soft"] {
+  --sk-bg: #eceeec;
+  --sk-glass: linear-gradient(180deg, #fbfcfb, #f4f6f4);
+  --sk-glass-solid: #fbfcfb;
+  --sk-glass-2: #ffffff;
+  --sk-edge: rgba(20, 30, 22, 0.06);
+  --sk-edge-strong: rgba(20, 30, 22, 0.16);
+  --sk-hi: rgba(255, 255, 255, 0.9);
+  --sk-shadow: 0 1px 2px rgba(20, 30, 22, 0.04), 0 14px 34px rgba(20, 30, 22, 0.07);
+  --sk-glow: 0 0 0 transparent;
+  --sk-input: #ffffff;
+  --sk-soft: #5d665f;
+  --sk-r: 24px;
+  --sk-blur: 0px;
+  --sk-num-weight: 400;
+  --sk-in: #15803d; --sk-out: #c62f2a; --sk-oth: #b45f0d; --sk-jw: #1d5fa8; --sk-tool: #3e4c59;
+  --sk-in-d: #16a34a; --sk-out-d: #dc3a33; --sk-oth-d: #df7b12; --sk-jw-d: #2563eb; --sk-tool-d: #475569;
+}
+
+/* ---------- page backgrounds ---------- */
+html[data-skin] body { background-color: var(--sk-bg); background-attachment: fixed; min-height: 100vh; }
+html[data-skin="neon"] body {
+  background-image:
+    radial-gradient(1.2px 1.2px at 12% 18%, rgba(255, 255, 255, 0.55), transparent 60%),
+    radial-gradient(1px 1px at 72% 34%, rgba(255, 255, 255, 0.45), transparent 60%),
+    radial-gradient(1.4px 1.4px at 38% 76%, rgba(255, 210, 255, 0.5), transparent 60%),
+    radial-gradient(1px 1px at 88% 82%, rgba(190, 220, 255, 0.5), transparent 60%),
+    radial-gradient(900px 620px at 8% -6%, rgba(124, 58, 237, 0.42), transparent 62%),
+    radial-gradient(820px 620px at 104% 22%, rgba(37, 99, 235, 0.36), transparent 60%),
+    radial-gradient(760px 520px at 46% 108%, rgba(236, 72, 153, 0.24), transparent 62%);
+  background-size: 240px 240px, 310px 310px, 270px 270px, 360px 360px, auto, auto, auto;
+}
+html[data-skin="frost"] body {
+  background-image:
+    radial-gradient(900px 640px at 14% 4%, rgba(246, 214, 176, 0.75), transparent 62%),
+    radial-gradient(760px 560px at 92% 18%, rgba(214, 160, 110, 0.55), transparent 60%),
+    radial-gradient(900px 700px at 70% 100%, rgba(66, 42, 28, 0.85), transparent 62%),
+    linear-gradient(165deg, #b98e6c 0%, #7d5a42 48%, #2f2119 100%);
+}
+html[data-skin="soft"] body {
+  background-image:
+    radial-gradient(900px 500px at 50% -10%, #ffffff, transparent 70%),
+    radial-gradient(600px 400px at 100% 100%, rgba(22, 163, 74, 0.06), transparent 70%);
+}
+
+/* ---------- the glass surface (one recipe, many class names) ---------- */
+/* (coloured notice boxes — amber warnings, red errors, green success — keep their colour) */
+html[data-skin] :is(
+  main :is(.rounded-xl.border, .rounded-lg.border, section.border):not([class*="bg-amber"]):not([class*="bg-red"]):not([class*="bg-emerald"]):not([class*="bg-green"]):not([class*="bg-yellow"]):not([class*="bg-sky"]):not([class*="bg-blue"]),
+  .hub-card, .hub-kpi, .bd-card, .stk-card, .tly-card, .csh-card,
+  .qr .qr-card, .qr .qr-stat, .qr .qr-jwrow, .qr .qr-work, .qr .qr-favs-wrap
+) {
+  background: var(--sk-glass) !important;
+  border: 1px solid var(--sk-edge) !important;
+  border-radius: calc(var(--sk-r) * var(--ui-r, 1));
+  box-shadow: inset 0 1px 0 var(--sk-hi), var(--sk-shadow), var(--sk-glow);
+  -webkit-backdrop-filter: blur(var(--sk-blur)) saturate(140%);
+  backdrop-filter: blur(var(--sk-blur)) saturate(140%);
+}
+/* Cards inside cards stay flat — only the outer card is glass. */
+html[data-skin] :is(.hub-card, .bd-card, main .rounded-xl.border) :is(.rounded-xl.border, .rounded-lg.border):not([class*="bg-amber"]):not([class*="bg-red"]):not([class*="bg-emerald"]):not([class*="bg-green"]):not([class*="bg-yellow"]):not([class*="bg-sky"]):not([class*="bg-blue"]) {
+  background: var(--sk-glass-2) !important;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* Secondary text a touch brighter than the derived one, for glass over colour */
+/* (!important: the theme sets --ui-soft inline on <html>) */
+html[data-skin]:is([data-skin="neon"], [data-skin="frost"]) { --ui-soft: var(--sk-soft) !important; }
+
+/* Big numbers: thin and large on frost / soft, bold on neon */
+html[data-skin] :is(.hub-kpi .v, .qr .qr-stat .v, .stk-big) {
+  font-weight: var(--sk-num-weight);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+html[data-skin]:is([data-skin="frost"], [data-skin="soft"]) :is(.hub-kpi .v, .qr .qr-stat .v) { font-size: 30px; line-height: 1.1; }
+html[data-skin] .hub-kpi { border-left-width: 1px !important; position: relative; overflow: hidden; }
+/* The KPI colour moves from a thick left bar to a soft glow in the corner */
+html[data-skin] .hub-kpi::before {
+  content: ""; position: absolute; width: 120px; height: 120px; right: -40px; top: -50px; border-radius: 50%;
+  background: var(--k-c, var(--accent)); opacity: 0.22; filter: blur(30px); pointer-events: none;
+}
+html[data-skin] .hub-kpi.g { --k-c: var(--sk-in); } html[data-skin] .hub-kpi.r { --k-c: var(--sk-out); }
+html[data-skin] .hub-kpi.o { --k-c: var(--sk-oth); } html[data-skin] .hub-kpi.b { --k-c: var(--sk-jw); }
+html[data-skin] .hub-kpi.g .v { color: var(--sk-in); } html[data-skin] .hub-kpi.r .v { color: var(--sk-out); }
+html[data-skin="soft"] .hub-kpi.g .v, html[data-skin="soft"] .hub-kpi.r .v { color: inherit; }
+
+/* ---------- inputs ---------- */
+html[data-skin] :is(main, .hub, .bd-wrap) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]), select, textarea) {
+  background-color: var(--sk-input);
+  border-color: var(--sk-edge-strong);
+  border-radius: calc(12px * var(--ui-r, 1));
+}
+html[data-skin="soft"] :is(main, .hub, .bd-wrap) :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border-color: rgba(20, 30, 22, 0.12);
+  box-shadow: inset 0 1px 2px rgba(20, 30, 22, 0.04);
+}
+html[data-skin] :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* ---------- liquid glass buttons ---------- */
+/* --lq: the button's colour. Shine on top, deeper base, coloured glow under. */
+html[data-skin] :is(
+  main .bg-\[var\(--accent\)\], .hub-btn.primary, .bd-btn.primary, .hub-range > button.on, .bd-chip.on, .qr .qr-save, .sb-cta
+) {
+  --lq: var(--accent);
+  color: var(--accent-contrast, #fff) !important;
+  border: 1px solid color-mix(in srgb, var(--lq) 55%, #ffffff 25%) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0.06) 46%, rgba(255, 255, 255, 0) 52%),
+    linear-gradient(180deg, color-mix(in srgb, var(--lq) 82%, #ffffff) 0%, var(--lq) 55%, color-mix(in srgb, var(--lq) 78%, #000000) 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.22),
+    0 8px 22px -6px color-mix(in srgb, var(--lq) 75%, transparent),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
+  transition: transform 0.12s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+html[data-skin] :is(main .bg-\[var\(--accent\)\], .hub-btn.primary, .bd-btn.primary, .qr .qr-save, .sb-cta):hover:not(:disabled) {
+  filter: brightness(1.06) saturate(1.05);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.22),
+    0 12px 30px -6px color-mix(in srgb, var(--lq) 85%, transparent),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+}
+html[data-skin] :is(main .bg-\[var\(--accent\)\], .hub-btn.primary, .bd-btn.primary, .qr .qr-save, .sb-cta):active:not(:disabled) { transform: translateY(1px) scale(0.99); }
+/* lime / light accents: dark text, no text shadow */
+html[data-skin="frost"] :is(main .bg-\[var\(--accent\)\], .hub-btn.primary, .bd-btn.primary, .hub-range > button.on, .bd-chip.on, .sb-cta) { text-shadow: none; }
+html[data-skin] main .bg-\[var\(--accent\)\], html[data-skin] .hub-btn.primary, html[data-skin] .bd-btn.primary, html[data-skin] .sb-cta { border-radius: 999px; }
+
+/* Secondary buttons: clear glass pills */
+html[data-skin] :is(main button.border, main a.border, .hub-btn:not(.primary), .bd-btn:not(.primary), .hub-range > button:not(.on), .qr .qr-pill, .qr .qr-btn2, .qr .qr-mini, .qr .qr-x) {
+  background: var(--sk-glass-2) !important;
+  border: 1px solid var(--sk-edge-strong) !important;
+  box-shadow: inset 0 1px 0 var(--sk-hi);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+html[data-skin] :is(main button.border, main a.border, .hub-btn:not(.primary), .bd-btn:not(.primary)) { border-radius: 999px; }
+html[data-skin="soft"] :is(main button.border, main a.border, .hub-btn:not(.primary), .bd-btn:not(.primary), .hub-range > button:not(.on), .qr .qr-pill, .qr .qr-btn2, .qr .qr-mini, .qr .qr-x) {
+  background: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(20, 30, 22, 0.06);
+}
+html[data-skin] :is(main button.border, main a.border, .hub-btn:not(.primary), .bd-btn:not(.primary)):hover {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent) !important;
+  box-shadow: inset 0 1px 0 var(--sk-hi), 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* ---------- main desk (/) ---------- */
+.sb-logo {
+  display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; flex: none;
+  font-weight: 900; font-size: 20px; color: var(--accent-contrast, #fff);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 80%, #fff), var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 6px 16px -4px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.sb-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+html[data-skin] .sb-head {
+  position: sticky; top: 10px; z-index: 30;
+  padding: 12px 14px; align-items: center !important;
+  background: var(--sk-glass); border: 1px solid var(--sk-edge);
+  border-radius: calc(22px * var(--ui-r, 1));
+  box-shadow: inset 0 1px 0 var(--sk-hi), var(--sk-shadow), var(--sk-glow);
+  -webkit-backdrop-filter: blur(var(--sk-blur)) saturate(150%);
+  backdrop-filter: blur(var(--sk-blur)) saturate(150%);
+  flex-wrap: wrap;
+}
+html[data-skin="soft"] .sb-head { -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); background: rgba(251, 252, 251, 0.82); }
+html[data-skin] .sb-head h1 { font-size: 22px; letter-spacing: -0.01em; }
+html[data-skin="neon"] .sb-head h1 {
+  background: linear-gradient(90deg, #ffffff, #c7d2ff 55%, #f0abfc);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+/* Desk tabs: a glass segmented control, like the reference navigation pills */
+html[data-skin] .sb-tabs {
+  border: 1px solid var(--sk-edge) !important;
+  background: var(--sk-glass-2);
+  padding: 5px; gap: 4px !important;
+  border-radius: 999px;
+  width: fit-content; max-width: 100%;
+  overflow-x: auto; flex-wrap: nowrap !important;
+  scrollbar-width: none;
+  box-shadow: inset 0 1px 0 var(--sk-hi);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+html[data-skin] .sb-tabs::-webkit-scrollbar { display: none; }
+html[data-skin="soft"] .sb-tabs { background: #ffffff; box-shadow: 0 1px 2px rgba(20, 30, 22, 0.06); }
+html[data-skin] .sb-tabs > button {
+  border: none !important; margin: 0 !important; border-radius: 999px; white-space: nowrap;
+  padding: 8px 14px; opacity: 0.78;
+}
+html[data-skin] .sb-tabs > button:hover { opacity: 1; background: var(--sk-glass-2); }
+html[data-skin] .sb-tabs > button.on {
+  opacity: 1; color: var(--accent-contrast, #fff) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 50%),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 80%, #fff), var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 6px 18px -6px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+html[data-skin="soft"] .sb-tabs > button.on { background: #1b1f1c; color: #ffffff !important; box-shadow: none; }
+
+/* Tables inside desks: lighter lines, soft row hover */
+html[data-skin] main table :is(th) { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.75; }
+html[data-skin] main table tbody tr { transition: background 0.15s; }
+html[data-skin] main table tbody tr:hover { background: var(--sk-glass-2); }
+html[data-skin] main :is(.border-b, .border-t) { border-color: var(--sk-edge) !important; }
+
+/* ---------- reports / settings / quick links (.hub) ---------- */
+html[data-skin] .hub-tabs {
+  border: 1px solid var(--sk-edge); background: var(--sk-glass-2); border-radius: 999px; padding: 5px; width: fit-content; max-width: 100%;
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+html[data-skin] .hub-tabs button { border-radius: 999px; border-bottom: none !important; }
+html[data-skin] .hub-tabs button.on {
+  color: var(--accent-contrast, #fff);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 50%), var(--accent);
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+html[data-skin="soft"] .hub-tabs { background: #fff; }
+html[data-skin="soft"] .hub-tabs button.on { background: #1b1f1c; color: #fff; box-shadow: none; }
+html[data-skin] .hub-note { background: var(--sk-glass-2); border-color: var(--sk-edge-strong); }
+html[data-skin] .hub-table th, html[data-skin] .hub-table td { border-color: var(--sk-edge); }
+html[data-skin] .hub-chart .bar { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 60%, transparent)); }
+/* Quick links tiles: liquid glass in their own colour */
+html[data-skin] .go-tile {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.05) 46%, rgba(255, 255, 255, 0) 52%),
+    linear-gradient(180deg, color-mix(in srgb, var(--go-c) 82%, #fff) 0%, var(--go-c) 60%, color-mix(in srgb, var(--go-c) 75%, #000) 100%);
+  border: 1px solid color-mix(in srgb, var(--go-c) 50%, #fff 30%);
+  border-radius: calc(20px * var(--ui-r, 1));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -4px 10px rgba(0, 0, 0, 0.2), 0 12px 26px -10px color-mix(in srgb, var(--go-c) 85%, transparent);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+/* ---------- Quick Register ---------- */
+html[data-skin] .qr {
+  background: transparent;
+  --qr-base: var(--sk-input);
+  --qr-in: var(--sk-in); --qr-out: var(--sk-out); --qr-oth: var(--sk-oth); --qr-jw: var(--sk-jw); --qr-tool: var(--sk-tool-d);
+  --qr-in-bg: color-mix(in srgb, var(--sk-in) 16%, transparent); --qr-out-bg: color-mix(in srgb, var(--sk-out) 16%, transparent);
+  --qr-oth-bg: color-mix(in srgb, var(--sk-oth) 16%, transparent); --qr-jw-bg: color-mix(in srgb, var(--sk-jw) 16%, transparent);
+  --qr-line: var(--sk-edge-strong);
+}
+html[data-skin="soft"] .qr { --qr-base: #ffffff; --qr-line: rgba(20, 30, 22, 0.12); }
+html[data-skin] .qr .qr-top {
+  background: var(--sk-glass); border: 1px solid var(--sk-edge); border-radius: calc(20px * var(--ui-r, 1));
+  padding: 8px 10px; margin-top: 8px; top: 8px;
+  box-shadow: inset 0 1px 0 var(--sk-hi), var(--sk-shadow);
+  -webkit-backdrop-filter: blur(var(--sk-blur)) saturate(150%); backdrop-filter: blur(var(--sk-blur)) saturate(150%);
+}
+html[data-skin="soft"] .qr .qr-top { background: rgba(251, 252, 251, 0.86); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+
+/* Money-in / money-out / job-work / not-expense groups: glass panels with a glowing coloured edge */
+html[data-skin] .qr :is(.qr-col, .qr-strip) {
+  background: var(--sk-glass) !important;
+  border-width: 1.5px !important;
+  border-radius: calc(var(--sk-r) * var(--ui-r, 1));
+  -webkit-backdrop-filter: blur(var(--sk-blur)) saturate(140%); backdrop-filter: blur(var(--sk-blur)) saturate(140%);
+}
+html[data-skin] .qr .qr-col.in { border-color: color-mix(in srgb, var(--sk-in) 70%, transparent) !important; box-shadow: inset 0 1px 0 var(--sk-hi), 0 0 26px -6px color-mix(in srgb, var(--sk-in) 55%, transparent), var(--sk-shadow); }
+html[data-skin] .qr .qr-col.out { border-color: color-mix(in srgb, var(--sk-out) 70%, transparent) !important; box-shadow: inset 0 1px 0 var(--sk-hi), 0 0 26px -6px color-mix(in srgb, var(--sk-out) 55%, transparent), var(--sk-shadow); }
+html[data-skin] .qr .qr-strip.jw { border-color: color-mix(in srgb, var(--sk-jw) 70%, transparent) !important; box-shadow: inset 0 1px 0 var(--sk-hi), 0 0 26px -6px color-mix(in srgb, var(--sk-jw) 55%, transparent), var(--sk-shadow); }
+html[data-skin] .qr .qr-strip.oth { border-color: color-mix(in srgb, var(--sk-oth) 70%, transparent) !important; box-shadow: inset 0 1px 0 var(--sk-hi), 0 0 26px -6px color-mix(in srgb, var(--sk-oth) 50%, transparent), var(--sk-shadow); }
+html[data-skin="soft"] .qr :is(.qr-col, .qr-strip) { box-shadow: var(--sk-shadow) !important; border-color: transparent !important; }
+html[data-skin="soft"] .qr :is(.qr-col.in, .qr-strip.jw, .qr-col.out, .qr-strip.oth) { border-top: 4px solid var(--g-c) !important; }
+html[data-skin="soft"] .qr .qr-col.in { --g-c: var(--sk-in-d); } html[data-skin="soft"] .qr .qr-col.out { --g-c: var(--sk-out-d); }
+html[data-skin="soft"] .qr .qr-strip.jw { --g-c: var(--sk-jw-d); } html[data-skin="soft"] .qr .qr-strip.oth { --g-c: var(--sk-oth-d); }
+
+/* Register buttons (tiles): liquid glass in the group's own colour (only for the default "solid" button style) */
+html[data-skin] .qr :is(.qr-col.in .qr-tile, .qr-tile.g-in) { --tile-d: var(--sk-in-d); }
+html[data-skin] .qr :is(.qr-col.out .qr-tile, .qr-tile.g-out) { --tile-d: var(--sk-out-d); }
+html[data-skin] .qr :is(.qr-strip.jw .qr-tile, .qr-tile.g-jw) { --tile-d: var(--sk-jw-d); }
+html[data-skin] .qr :is(.qr-strip.oth .qr-tile, .qr-tile.g-oth) { --tile-d: var(--sk-oth-d); }
+html[data-skin] .qr :is(.qr-tools .qr-tile, .qr-tile.g-tool) { --tile-d: var(--sk-tool-d); }
+html[data-skin][data-tiles="solid"] .qr .qr-tile {
+  color: #ffffff;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.06) 44%, rgba(255, 255, 255, 0) 50%),
+    linear-gradient(180deg, color-mix(in srgb, var(--tile-d) 78%, #ffffff) 0%, var(--tile-d) 58%, color-mix(in srgb, var(--tile-d) 72%, #000000) 100%);
+  border: 1px solid color-mix(in srgb, var(--tile-d) 55%, #ffffff 30%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -4px 10px rgba(0, 0, 0, 0.22),
+    0 10px 22px -10px color-mix(in srgb, var(--tile-d) 90%, transparent);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+  transition: transform 0.12s ease, filter 0.2s ease, box-shadow 0.2s ease;
+}
+html[data-skin][data-tiles="solid"] .qr .qr-tile:hover { filter: brightness(1.07); }
+html[data-skin] .qr .qr-tile .ic { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25)); }
+
+/* Save button keeps the form's meaning colour */
+/* (button.qr-save is more specific than the shared liquid-glass rule, so it wins) */
+html[data-skin] .qr button.qr-save { --lq: var(--sk-in-d); border-radius: calc(18px * var(--ui-r, 1)); color: #fff !important; }
+html[data-skin] .qr button.qr-save.out { --lq: var(--sk-out-d); }
+html[data-skin] .qr button.qr-save.oth { --lq: var(--sk-oth-d); }
+html[data-skin] .qr button.qr-save.jw { --lq: var(--sk-jw-d); }
+html[data-skin] .qr button.qr-save.tool { --lq: var(--sk-tool-d); }
+
+/* Lists, entries, small panels */
+html[data-skin] .qr .qr-lcol { -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: calc(16px * var(--ui-r, 1)); }
+html[data-skin] .qr .qr-ent { background: var(--sk-glass-2); border-color: var(--sk-edge); border-radius: calc(12px * var(--ui-r, 1)); }
+html[data-skin="soft"] .qr .qr-ent { background: #ffffff; }
+html[data-skin] .qr .qr-tablewrap { border-color: var(--sk-edge); border-radius: calc(14px * var(--ui-r, 1)); }
+html[data-skin] .qr .qr-table th { background: var(--sk-glass-2); }
+
+/* Forms (bottom sheet / inline): nearly solid glass so text stays easy to read */
+html[data-skin] .qr .qr-sheet {
+  background: var(--sk-glass-solid) !important;
+  border: 1px solid var(--sk-edge-strong);
+  box-shadow: inset 0 1px 0 var(--sk-hi), 0 -10px 40px rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(24px) saturate(150%); backdrop-filter: blur(24px) saturate(150%);
+}
+html[data-skin] .qr .qr-sheet.inline { box-shadow: inset 0 1px 0 var(--sk-hi), var(--sk-shadow), var(--sk-glow); border-color: var(--sk-edge-strong); }
+html[data-skin] .qr .qr-veil { background: rgba(3, 5, 20, 0.55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+html[data-skin] .qr :is(.qr-num, .qr-txt, .qr-pickbtn, .qr-dt input, .qr-menu input) {
+  background: var(--sk-input); border-color: var(--sk-edge-strong); border-width: 1.5px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+html[data-skin] .qr :is(.qr-num, .qr-txt, .qr-pickbtn):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent); }
+html[data-skin] .qr .qr-menu { background: var(--sk-glass-solid); border-color: var(--sk-edge-strong); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
+html[data-skin] .qr .qr-chip { background: var(--sk-glass-2); border: 1.5px solid var(--sk-edge-strong); box-shadow: inset 0 1px 0 var(--sk-hi); }
+html[data-skin="soft"] .qr .qr-chip { background: #ffffff; }
+html[data-skin] .qr .qr-chip.sel {
+  border-color: var(--qr-in); background: color-mix(in srgb, var(--sk-in) 18%, transparent);
+  box-shadow: inset 0 1px 0 var(--sk-hi), 0 0 0 1px var(--qr-in), 0 0 18px -4px color-mix(in srgb, var(--sk-in) 70%, transparent);
+}
+html[data-skin] .qr .qr-cd { background: rgba(0, 0, 0, 0.45); color: #ffffff; box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.35); }
+html[data-skin="soft"] .qr .qr-cd { background: #1b1f1c; }
+html[data-skin] .qr .qr-ck button { background: var(--sk-glass-2); border: 1px solid var(--sk-edge); box-shadow: inset 0 1px 0 var(--sk-hi); }
+html[data-skin] .qr .qr-ck .eq { --lq: var(--sk-in-d); background: linear-gradient(180deg, rgba(255,255,255,.3), rgba(255,255,255,0) 50%), var(--sk-in-d); color: #fff; }
+html[data-skin] .qr .qr-toast { background: var(--sk-glass-solid); color: inherit; border: 1px solid var(--sk-edge-strong); box-shadow: var(--sk-shadow); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+html[data-skin="soft"] .qr .qr-toast { background: #1b1f1c; color: #ffffff; }
+html[data-skin] .qr .qr-chk, html[data-skin] .qr .qr-draft, html[data-skin] .qr .qr-res { border-radius: calc(14px * var(--ui-r, 1)); }
+html[data-skin] .qr .qr-answer { background: var(--sk-glass-2); border-color: var(--sk-edge-strong); }
+/* Gold favourites edge glows too */
+html[data-skin] .qr .qr-favs-wrap { border-color: rgba(255, 213, 74, 0.6) !important; }
+
+/* ---------- login / setup ---------- */
+html[data-skin] main.min-h-screen form.rounded-xl, html[data-skin] main.min-h-screen > div.rounded-xl { padding: 28px; }
+
+/* ---------- motion / contrast safety ---------- */
+html[data-skin].reduce-motion * { transition: none !important; }
+/* High contrast beats glass: solid surfaces, strong borders */
+html[data-skin].hc :is(main .rounded-xl.border, .hub-card, .hub-kpi, .bd-card, .qr .qr-card, .qr .qr-col, .qr .qr-strip, .qr .qr-sheet) {
+  background: var(--ui-card) !important; -webkit-backdrop-filter: none; backdrop-filter: none; border-color: var(--foreground) !important;
+}
+/* Printing: no glass, no glow */
+@media print {
+  html[data-skin] body { background: #fff !important; }
+  html[data-skin] * { box-shadow: none !important; text-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+}
+
+/* ---------- warning / notice banners: solid glass so coloured text stays readable on any background ---------- */
+html[data-skin] :is(.hub-banner, .qr .qr-banner) {
+  background: var(--sk-glass-solid) !important;
+  color: var(--sk-oth) !important;
+  border: 1px solid color-mix(in srgb, var(--sk-oth) 70%, transparent) !important;
+  border-left-width: 4px !important;
+}

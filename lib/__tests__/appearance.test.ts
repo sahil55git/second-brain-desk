@@ -1,5 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { THEME_PRESETS, clampLook, contrastRatio, deriveSurface, fontHref, mixHex, parseThemeCode, themeCode } from "../appearance";
+import { CLASSIC_LOOK, DEFAULT_LOOK, THEME_PRESETS, clampLook, contrastRatio, deriveSurface, fontHref, mixHex, parseThemeCode, themeCode } from "../appearance";
+import { migrateLook } from "../customize";
+
+describe("glass looks", () => {
+  it("the default is Neon glass, and every glass preset carries its skin", () => {
+    expect(DEFAULT_LOOK.skin).toBe("neon");
+    expect(DEFAULT_LOOK.preset).toBe("neon-glass");
+    for (const k of ["neon-glass", "warm-frost", "soft-light"]) expect(THEME_PRESETS.find((p) => p.key === k)?.look?.skin).toBeTruthy();
+    expect(clampLook({ skin: "sparkly" }).skin).toBe("none");
+  });
+  it("a device on the untouched original look moves to Neon glass, keeping its text size", () => {
+    const m = migrateLook({ look: { ...CLASSIC_LOOK, textScale: 1.2 } });
+    expect(m.skin).toBe("neon");
+    expect(m.custom).toEqual(DEFAULT_LOOK.custom);
+    expect(m.textScale).toBe(1.2);
+  });
+  it("a device where someone chose a theme keeps it, and nothing changes after version 2", () => {
+    expect(migrateLook({ look: { ...CLASSIC_LOOK, preset: "midnight" } }).skin).toBe("none");
+    expect(migrateLook({ look: { ...CLASSIC_LOOK }, lookV: 2 }).skin).toBe("none");
+    expect(migrateLook(null).skin).toBe("neon"); // brand-new device
+  });
+});
 
 describe("appearance", () => {
   it("theme codes round-trip (Linear-style)", () => {

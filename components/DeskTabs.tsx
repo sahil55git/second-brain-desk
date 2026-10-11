@@ -95,12 +95,13 @@ export default function DeskTabs({
 
   return (
     <div>
-      <nav className="flex flex-wrap gap-2 mb-6 border-b border-black/10 dark:border-white/10">
+      <nav className="sb-tabs flex flex-wrap gap-2 mb-6 border-b border-black/10 dark:border-white/10">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActive(tab.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            aria-current={active === tab.key ? "page" : undefined}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${active === tab.key ? "on " : ""}${
               active === tab.key
                 ? "border-[var(--accent)] text-[var(--accent-ink)]"
                 : "border-transparent opacity-60 hover:opacity-100"
