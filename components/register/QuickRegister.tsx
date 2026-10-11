@@ -49,8 +49,27 @@ import { PLACES } from "@/lib/bidarPlaces";
 import { STOCK_PRODUCTS, computeProductTally } from "@/lib/calculations";
 import { STOCK_KN, csvToTable, isFlagged, parseTallyRows } from "@/lib/stockTally";
 import { parseVoice, type VoiceAction } from "@/lib/voice";
+import { PaymentProof, DeviceCopySettings } from "@/components/register/ProofParts";
+import {
+  PROOF_META,
+  SCAN_FIELDS,
+  SCAN_KINDS,
+  proofNeeded,
+  scanEntryKind,
+  scanSummary,
+  scanWarnings,
+  type ProofKind,
+  type ScanFields,
+  type ScanKind,
+} from "@/lib/proofs";
+import { getGeo, geoOn, preparePhoto, saveCopyOnDevice, uploadProof, type Captured } from "@/lib/proofClient";
 
-type EntryInit = Partial<Pick<Extract<VoiceAction, { type: "entry" }>, "item" | "qty" | "unit" | "rate" | "amount" | "mode" | "party">>;
+// Pre-fill for an entry form: from a voice command, or from a scanned slip
+// (linkProofId attaches that scan to the entry once it is saved).
+type EntryInit = Partial<Pick<Extract<VoiceAction, { type: "entry" }>, "item" | "qty" | "unit" | "rate" | "amount" | "mode" | "party">> & {
+  linkProofId?: string;
+  note?: string;
+};
 
 // ---------------------------------------------------------------------------
 // Types returned by GET /api/register
@@ -107,6 +126,7 @@ interface DayBundle {
   khaliKg: number;
   topParties: string[];
   allParties: string[];
+  proofs?: Record<string, string[]>; // entry id -> proof kinds attached
 }
 
 type Sheet =
@@ -118,6 +138,7 @@ type Sheet =
   | { t: "count" }
   | { t: "calc" }
   | { t: "report" }
+  | { t: "scan" }
   | null;
 
 // Per-device screen preferences (layout, favourite tiles, folded sections).
@@ -135,7 +156,8 @@ type TileKey =
   | "count"
   | "stock"
   | "calc"
-  | "reports";
+  | "reports"
+  | "scan";
 type SectionKey = "summary" | "entries" | "jobwork";
 // What the always-open Workspace card shows.
 type WorkTool = "calc" | "notepad" | "FRESH_CRUSH" | "SALE" | "EXPENSE" | "PURCHASE" | "jwNew" | "count" | "stock";
@@ -773,6 +795,11 @@ export default function QuickRegister() {
     return (
       <button key={e.id} className="qr-ent" onClick={() => remove(e)} title={word("deleteQ", lang)}>
         {KIND_ICON[e.kind]} <span className="m">{hm(e.createdAt)}</span>
+        {(day?.proofs?.[e.id] || []).length > 0 && (
+          <span className="qr-badge" title={word("proofTitle", lang)}>
+            {Array.from(new Set(day?.proofs?.[e.id] || [])).map((k) => PROOF_META[k as ProofKind]?.icon || "📎").join("")}
+          </span>
+        )}
         <br />
         {word(e.kind as WordKey, lang)}
         {bits ? " — " + bits : ""}
@@ -825,6 +852,7 @@ export default function QuickRegister() {
     stock: { k: "stockTally", icon: "📦", group: "tool", open: () => setSheet({ t: "stock" }), needsDb: true },
     calc: { k: "calc", icon: "🧮", group: "tool", open: () => setSheet({ t: "calc" }) },
     reports: { k: "reports", icon: "🖨️", group: "tool", open: () => setSheet({ t: "report" }) },
+    scan: { k: "scan", icon: "📸", group: "tool", open: () => setSheet({ t: "scan" }), needsDb: true },
   };
 
   // Quick links (/go) and home-screen shortcuts arrive as /register?open=sale etc.
@@ -849,6 +877,7 @@ export default function QuickRegister() {
       cash: () => setSheet({ t: "count" }),
       stock: () => setSheet({ t: "stock" }),
       calc: () => setSheet({ t: "calc" }),
+      scan: () => setSheet({ t: "scan" }),
     };
     const go = by[key];
     if (go && !dbOffline) go();
@@ -1057,6 +1086,7 @@ export default function QuickRegister() {
       <div className="qr-tools">
         <Tile id="count" />
         <Tile id="stock" />
+        <Tile id="scan" />
         <Tile id="calc" />
         <Tile id="reports" />
       </div>
@@ -1384,8 +1414,8 @@ export default function QuickRegister() {
   // An always-open card: pick a tool once and it stays on screen (per device).
   const [wsKey, setWsKey] = useState(0);
   const wsReset = () => setWsKey((k) => k + 1);
-  const wsSaved = () => {
-    toast(word("saved", lang));
+  const wsSaved = (msg?: string) => {
+    toast(msg || word("saved", lang));
     load();
     wsReset();
   };
@@ -1517,7 +1547,19 @@ export default function QuickRegister() {
   const sheetEl = !sheet ? null : sheet.t === "calc" ? (
     <CalcSheet lang={lang} onClose={() => setSheet(null)} />
   ) : !day ? null : sheet.t === "entry" ? (
-    <EntrySheet key={sheet.kind + JSON.stringify(sheet.init || {})} kind={sheet.kind} init={sheet.init} day={day} lang={lang} date={date} onClose={() => setSheet(null)} onSaved={() => done()} toast={toast} />
+    <EntrySheet key={sheet.kind + JSON.stringify(sheet.init || {})} kind={sheet.kind} init={sheet.init} day={day} lang={lang} date={date} onClose={() => setSheet(null)} onSaved={(m) => done(m)} toast={toast} />
+  ) : sheet.t === "scan" ? (
+    <ScanSheet
+      lang={lang}
+      date={date}
+      onClose={() => setSheet(null)}
+      onSaved={(m) => done(m)}
+      onMakeEntry={(kind, init) => {
+        setSheet({ t: "entry", kind, init });
+        toast(word("voiceCheck", lang));
+      }}
+      toast={toast}
+    />
   ) : sheet.t === "stock" ? (
     <StockSheet lang={lang} date={date} onClose={() => setSheet(null)} onSaved={(m) => done(m)} toast={toast} />
   ) : sheet.t === "fresh" ? (
@@ -1621,6 +1663,9 @@ export default function QuickRegister() {
             <>
               <a className="qr-pill" href="/reports" title="Reports & dashboard">
                 📊
+              </a>
+              <a className="qr-pill" href="/records" title={word("records", lang)}>
+                🗂️
               </a>
               <a className="qr-pill" href="/settings" title="Settings">
                 ⚙️
@@ -1747,7 +1792,7 @@ function EntrySheet({
   lang: LangMode;
   date: string;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (msg?: string) => void;
   toast: (m: string) => void;
 }) {
   const side = KIND_SIDE[kind];
@@ -1792,9 +1837,12 @@ function EntrySheet({
   const [pay, setPay] = useState<PayState>(() => initPay(init?.mode));
   const [showNote, setShowNote] = useState(false);
   const [party, setParty] = useState(init?.party || "");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(init?.note || "");
   const [drawKind, setDrawKind] = useState<"partial" | "full">("partial");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<false | "entry" | "proof">(false);
+  // Proof of payment (signature / photos) for money going out.
+  const proofKind = kind === "PAYMENT" || kind === "PURCHASE" || kind === "EXPENSE";
+  const [proofs, setProofs] = useState<Captured[]>([]);
 
   // Auto amount = qty × rate, computed on every render (no lag) until the
   // amount is typed by hand.
@@ -1808,19 +1856,25 @@ function EntrySheet({
   const showItemwise = !(kind === "SALE" && totalMode === "total");
   const unitObj = UNITS.find((u) => u.key === unit) || UNITS[0];
 
+  // Owner's rule (Settings): cash leaving the counter needs a proof.
+  const proofRequired =
+    proofKind && mode === "CASH" && proofNeeded(day.config.proofRequired || [], kind, parseFloat(amountValue) || 0, day.config.proofMinInr || 0);
+
   async function save() {
     const amt = parseFloat(amountValue);
     if (!(amt > 0)) return toast(word("needAmount", lang));
     if (item === "other" && showItemwise && !otherName.trim()) return toast(word("itemName", lang));
+    if (proofRequired && !proofs.length) return toast(word("proofNeeded", lang));
     let payFields: Record<string, unknown> = { paymentMode: mode };
     if (kind === "SALE") {
       const pb = payBody(amt, pay, party);
       if ("err" in pb) return toast(word(pb.err, lang));
       payFields = pb.body;
     }
-    setBusy(true);
+    setBusy("entry");
+    let entryId: string | null = null;
     try {
-      await api("/api/register", {
+      const res = await api<{ data: { id: string } }>("/api/register", {
         method: "POST",
         body: JSON.stringify({
           date,
@@ -1838,11 +1892,38 @@ function EntrySheet({
           drawKind: kind === "OWNER_DRAW" ? drawKind : null,
         }),
       });
-      onSaved();
+      entryId = res.data?.id || null;
     } catch (e) {
       toast(e instanceof Error ? e.message : word("error", lang));
       setBusy(false);
+      return;
     }
+    // The entry is saved. Now attach the proofs; a failed upload never loses
+    // the picture — it is downloaded to the device instead.
+    let msg = word("saved", lang);
+    if (entryId && (proofs.length || init?.linkProofId)) {
+      setBusy("proof");
+      let failed = 0;
+      let kept = false;
+      for (const p of proofs) {
+        try {
+          const r = await uploadProof(p, { date, registerEntryId: entryId, partyName: party.trim() || null, amountInr: amt });
+          if (!r.drive.ok) kept = true;
+        } catch {
+          failed++;
+          await saveCopyOnDevice(p.kind, date, p.dataUrl, `${date}_${p.kind}_${Date.now()}.${p.dataUrl.startsWith("data:image/png") ? "png" : "jpg"}`);
+        }
+      }
+      if (init?.linkProofId) {
+        try {
+          await api(`/api/attachments/${init.linkProofId}`, { method: "PATCH", body: JSON.stringify({ registerEntryId: entryId }) });
+        } catch {
+          failed++;
+        }
+      }
+      msg = failed ? word("proofFailed", lang) : proofs.length ? `${word("proofSaved", lang)}${kept ? " " + word("proofKept", lang) : ""}` : msg;
+    }
+    onSaved(msg);
   }
 
   return (
@@ -1969,8 +2050,22 @@ function EntrySheet({
         </div>
       )}
 
-      <button className={`qr-save ${side === "in" ? "" : side === "out" ? "out" : "oth"}`} onClick={save} disabled={busy}>
-        ✓ {word(busy ? "saving" : "save", lang)}
+      {proofKind && (
+        <PaymentProof
+          lang={lang}
+          title={word(kind as WordKey, "en")}
+          amount={parseFloat(amountValue) || 0}
+          party={party}
+          required={!!proofRequired}
+          value={proofs}
+          onChange={setProofs}
+          toast={toast}
+        />
+      )}
+      {init?.linkProofId && <div className="qr-hint">📎 {word("scanLinked", lang)}</div>}
+
+      <button className={`qr-save ${side === "in" ? "" : side === "out" ? "out" : "oth"}`} onClick={save} disabled={!!busy}>
+        ✓ {busy === "proof" ? word("proofSaving", lang) : word(busy ? "saving" : "save", lang)}
       </button>
     </SheetFrame>
   );
@@ -3383,6 +3478,244 @@ function ReportSheet({
           ) : null;
         })}
       </div>
+    </SheetFrame>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Scan slip / bill — photo → AI reads the fields → person checks → saved and
+// filed in Google Drive (06_Scans_&_Proofs/<type>/<month>), optionally turned
+// straight into a Purchase / Expense entry with the scan attached.
+// ---------------------------------------------------------------------------
+function ScanSheet({
+  lang,
+  date,
+  onClose,
+  onSaved,
+  onMakeEntry,
+  toast,
+}: {
+  lang: LangMode;
+  date: string;
+  onClose: () => void;
+  onSaved: (msg?: string) => void;
+  onMakeEntry: (kind: RegisterKind, init: EntryInit) => void;
+  toast: (m: string) => void;
+}) {
+  const [kind, setKind] = useState<ScanKind>("WEIGHBRIDGE");
+  const [photo, setPhoto] = useState<Captured | null>(null);
+  const [reading, setReading] = useState(false);
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const [aiFields, setAiFields] = useState<ScanFields | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [confidence, setConfidence] = useState<string | null>(null);
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const camRef = useRef<HTMLInputElement>(null);
+  const galRef = useRef<HTMLInputElement>(null);
+
+  const typed = (k: ScanKind, v: Record<string, string>): ScanFields => {
+    const out: ScanFields = {};
+    for (const f of SCAN_FIELDS[k]) {
+      const raw = (v[f.key] ?? "").trim();
+      out[f.key] = raw === "" ? null : f.type === "number" ? (Number.isFinite(Number(raw)) ? Number(raw) : null) : raw;
+    }
+    return out;
+  };
+
+  async function read(k: ScanKind, dataUrl: string) {
+    setReading(true);
+    setAiError(null);
+    setConfidence(null);
+    try {
+      const r = await api<{ fields: ScanFields; aiError?: string; confidence?: string }>("/api/scan", {
+        method: "POST",
+        body: JSON.stringify({ kind: k, dataUrl }),
+      });
+      const next: Record<string, string> = {};
+      for (const f of SCAN_FIELDS[k]) next[f.key] = r.fields[f.key] == null ? "" : String(r.fields[f.key]);
+      setVals(next);
+      setAiFields(r.aiError ? null : r.fields);
+      setAiError(r.aiError || null);
+      setConfidence(r.confidence || null);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : word("error", lang));
+    } finally {
+      setReading(false);
+    }
+  }
+
+  async function onFile(f: File | undefined) {
+    if (!f) return;
+    try {
+      const dataUrl = await preparePhoto(f);
+      const geo = geoOn() ? await getGeo(2500) : null;
+      const c: Captured = { kind, dataUrl, capturedAt: new Date().toISOString(), geo };
+      setPhoto(c);
+      read(kind, dataUrl);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : word("error", lang));
+    }
+  }
+
+  const fields = typed(kind, vals);
+  const warnings = photo ? scanWarnings(kind, fields) : [];
+  const sum = scanSummary(kind, fields);
+
+  async function save(makeEntry: boolean) {
+    if (!photo) return;
+    setBusy(true);
+    try {
+      const r = await uploadProof(
+        { ...photo, kind },
+        {
+          date,
+          partyName: sum.party,
+          amountInr: sum.amountInr,
+          refNo: sum.ref,
+          fields,
+          aiFields,
+          notes: notes.trim() || null,
+        }
+      );
+      const where = r.drive.ok ? word("driveSaved", lang) : word("proofKept", lang);
+      if (makeEntry) {
+        const k = scanEntryKind(kind);
+        const extra = [
+          `${PROOF_META[kind].en}${sum.ref ? " " + sum.ref : ""}`,
+          typeof fields.vehicleNo === "string" ? fields.vehicleNo : "",
+          kind === "WEIGHBRIDGE" && typeof fields.material === "string" ? fields.material : "",
+          kind === "RECEIPT" && typeof fields.purpose === "string" ? fields.purpose : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        onMakeEntry(k, {
+          // A weighbridge slip gives the weight, not the price of the goods.
+          amount: kind === "WEIGHBRIDGE" ? undefined : sum.amountInr ?? undefined,
+          qty: k === "PURCHASE" && sum.qtyKg ? sum.qtyKg : undefined,
+          unit: k === "PURCHASE" && sum.qtyKg ? "kg" : undefined,
+          party: sum.party ?? undefined,
+          linkProofId: r.saved.id,
+          note: extra,
+        });
+      } else {
+        onSaved(`${word("saved", lang)} · ${where}`);
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : word("error", lang));
+      setBusy(false);
+    }
+  }
+
+  const kindOpts = SCAN_KINDS.map((k) => ({ key: k, icon: PROOF_META[k].icon, en: PROOF_META[k].en, kn: PROOF_META[k].kn }));
+
+  return (
+    <SheetFrame icon="📸" k="scan" lang={lang} onClose={onClose}>
+      <div className="qr-f">
+        <label>
+          <Txt k="scanType" lang={lang} />
+        </label>
+        <Chips
+          compact
+          lang={lang}
+          value={kind}
+          options={kindOpts}
+          onPick={(k) => {
+            setKind(k);
+            if (photo) read(k, photo.dataUrl);
+            else setVals({});
+          }}
+        />
+      </div>
+
+      {!photo ? (
+        <div className="qr-f qr-grid2">
+          <button type="button" className="qr-btn2 qr-bigbtn" onClick={() => camRef.current?.click()}>
+            📷 <Txt k="scanTake" lang={lang} />
+          </button>
+          <button type="button" className="qr-btn2 qr-bigbtn" onClick={() => galRef.current?.click()}>
+            🖼️ <Txt k="scanGallery" lang={lang} />
+          </button>
+        </div>
+      ) : (
+        <div className="qr-f qr-scanview">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo.dataUrl} alt={PROOF_META[kind].en} />
+          <button
+            type="button"
+            className="qr-mini"
+            onClick={() => {
+              setPhoto(null);
+              setVals({});
+              setAiError(null);
+              setAiFields(null);
+            }}
+          >
+            ↺ <Txt k="scanRetake" lang={lang} />
+          </button>
+        </div>
+      )}
+      <input ref={camRef} hidden type="file" accept="image/*" capture="environment" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
+      <input ref={galRef} hidden type="file" accept="image/*" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
+
+      {photo && (
+        <>
+          {reading ? (
+            <div className="qr-hint">⏳ {word("scanReading", lang)}</div>
+          ) : (
+            <div className={`qr-hint ${aiError || confidence === "low" ? "qr-warnline" : ""}`}>
+              {aiError ? `⚠️ ${word("scanNoAi", lang)} (${aiError.slice(0, 120)})` : confidence === "low" ? `⚠️ ${word("scanLow", lang)}` : `👀 ${word("scanCheck", lang)}`}
+            </div>
+          )}
+          <div className="qr-scanfields">
+            {SCAN_FIELDS[kind].map((f) => {
+              const l = pairLabel(f.en, f.kn, lang);
+              const warn = warnings.some((w) => w.key === f.key);
+              const changed = aiFields && String(aiFields[f.key] ?? "") !== (vals[f.key] ?? "");
+              return (
+                <div key={f.key} className={`qr-sf${warn ? " warn" : ""}`}>
+                  <label className="qr-lbl">
+                    {l.main}
+                    {l.sub && <span className="qr-sub">{l.sub}</span>}
+                    {changed && <span className="qr-m"> ✎</span>}
+                  </label>
+                  <input
+                    className={f.type === "number" ? "qr-num" : "qr-txt"}
+                    type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
+                    inputMode={f.type === "number" ? "decimal" : undefined}
+                    value={vals[f.key] ?? ""}
+                    disabled={reading}
+                    onChange={(e) => setVals((v) => ({ ...v, [f.key]: e.target.value }))}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          {warnings.map((w) => (
+            <div key={w.key + w.en} className="qr-warnline">
+              ⚠️ {lang === "kn" ? w.kn : w.en}
+            </div>
+          ))}
+          <div className="qr-f">
+            <label>
+              <Txt k="note" lang={lang} />
+            </label>
+            <input className="qr-txt" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          <DeviceCopySettings lang={lang} compact />
+          <div className="qr-grid2">
+            <button className="qr-save tool" disabled={busy || reading} onClick={() => save(false)}>
+              ✓ {word(busy ? "saving" : "scanSave", lang)}
+            </button>
+            <button className="qr-save out" disabled={busy || reading} onClick={() => save(true)}>
+              ✓ {word("scanSaveEntry", lang)}
+            </button>
+          </div>
+          <div className="qr-hint">
+            {scanEntryKind(kind) === "EXPENSE" ? `→ ${word("EXPENSE", lang)}` : `→ ${word("PURCHASE", lang)}`}
+          </div>
+        </>
+      )}
     </SheetFrame>
   );
 }

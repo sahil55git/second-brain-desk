@@ -307,3 +307,34 @@ html.hc .qr .qr-tile { box-shadow: inset 0 0 0 2px #ffffff; }
 /* Open full stock window — proper button in the stock sheet */
 .qr-openwin { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; text-decoration: none; margin-bottom: 8px; padding: 12px; font-size: 16px; font-weight: 800; background: var(--qr-in); color: #fff; border-color: transparent; }
 .qr-openwin small { font-size: 12px; font-weight: 500; opacity: .9; }
+
+/* ---------------- Proofs & scans ---------------- */
+.qr-proof { border: 1px dashed var(--qr-line); border-radius: calc(12px * var(--ui-r, 1)); padding: 10px; background: color-mix(in srgb, var(--qr-out) 4%, var(--qr-card)); }
+.qr-proof.need { border: 2px solid var(--qr-out); }
+.qr-need { color: var(--qr-out); font-weight: 800; }
+.qr-check { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; margin-top: 8px; color: var(--qr-soft); cursor: pointer; }
+.qr-check input { width: 20px; height: 20px; }
+.qr-thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.qr-thumb { position: relative; width: 112px; border: 1px solid var(--qr-line); border-radius: 10px; overflow: hidden; background: #fff; }
+.qr-thumb img { display: block; width: 100%; height: 84px; object-fit: contain; background: #fff; }
+.qr-thumb .cap { display: block; font-size: 11px; font-weight: 700; padding: 3px 5px; color: #333; background: #f4f4f4; }
+.qr-thumb .x { position: absolute; top: 3px; right: 3px; width: 26px; height: 26px; border-radius: 50%; border: none; background: rgba(0,0,0,.6); color: #fff; font-size: 13px; cursor: pointer; }
+.qr-badge { margin-left: 6px; font-size: 13px; }
+
+.qr-sigwrap { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 10px; }
+.qr-sigbox { width: min(760px, 100%); background: var(--qr-card); color: var(--qr-ink); border-radius: 16px; padding: 12px; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+.qr-sighead { font-size: 20px; font-weight: 800; margin-bottom: 4px; }
+.qr-sigcanvas { display: block; width: 100%; height: min(46vh, 280px); background: #fff; border: 2px solid var(--qr-line); border-radius: 10px; touch-action: none; margin-top: 8px; cursor: crosshair; }
+.qr-sigline { font-size: 12px; color: var(--qr-soft); margin: 2px 0 8px 8px; }
+.qr-sigbtns { display: grid; grid-template-columns: 1fr 1fr 1.6fr; gap: 8px; }
+.qr-sigbtns .qr-sigok { background: var(--qr-in); color: #fff; border-color: var(--qr-in); }
+
+.qr-bigbtn { padding: 18px 10px; font-size: 18px; }
+.qr-scanview { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.qr-scanview img { max-width: 100%; max-height: 280px; border-radius: 10px; border: 1px solid var(--qr-line); background: #fff; object-fit: contain; }
+.qr-scanfields { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 8px 0; }
+.qr-sf.warn input { border-color: var(--qr-oth); box-shadow: 0 0 0 2px color-mix(in srgb, var(--qr-oth) 35%, transparent); }
+.qr-sf .qr-num, .qr-sf .qr-txt { width: 100%; font-size: 17px; }
+.qr-warnline { color: var(--qr-oth); font-weight: 700; font-size: 14px; margin: 4px 0; }
+.qr-devcopy { margin: 6px 0 10px; }
+.qr.qr-portal { min-height: 0; background: none; }

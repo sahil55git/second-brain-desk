@@ -284,6 +284,71 @@ stay fixed on every theme so the counter reads the same way.
   is saved until Save is tapped (`lib/voice.ts`, tested). Speech is
   processed by the browser's speech service.
 
+## Proofs & scans (signatures, payment photos, slip / bill scanner)
+
+Two counter tools against mistakes and misuse of cash, plus the paperwork
+that normally gets lost:
+
+- **🛡️ Proof of payment** — on the Quick Register **Payment / Salary**,
+  **Purchase** and **Expense** forms: ✍️ **signature** on the screen (finger
+  or stylus), 🤳 **photo of the person paid**, or 👍 **photo of a thumb
+  impression / signed paper voucher** (for people who can't sign). Each
+  picture gets a printed strip under it — date, time, amount, name, who
+  entered it — and the phone's location if allowed. The proof is saved right
+  after the entry and linked to it (✍️ 🤳 👍 badge in Today's entries).
+  - **Owner rule** (Settings → 🛡️ Proofs & scans): make proof compulsory
+    for chosen kinds, for **cash** entries from ₹X up. UPI / udhaar are
+    never blocked.
+  - Staff can't delete proofs or back-date them; deleting an entry keeps
+    its proof (audit trail).
+- **📸 Scan slip / bill** (tile on the register, quick link, `?open=scan`):
+  weighbridge slip, weighing slip, bill / invoice, receipt. Gemini reads the
+  fields (slip no., vehicle, gross / tare / net, party, GSTIN, totals…);
+  the person checks every number — mismatches are flagged (gross − tare ≠
+  net, kg × rate ≠ amount, GSTIN check digit, taxable + GST ≠ total) and
+  any number changed by hand is kept next to what the AI read (✎). **Save
+  + make register entry** opens a Purchase / Expense form pre-filled with
+  the scan attached. Without `GEMINI_API_KEY` the photo is still saved and
+  the fields are typed by hand.
+- **🗂️ Proofs & scans page** (`/records`, Owner): every record with its
+  Drive link and fields, CSV, and a **"Cash paid without proof"** list for
+  any period.
+
+**Where files go** — Google Drive, each kind in its own folder:
+`My_Oil_Business_Second_Brain/06_Scans_&_Proofs/<Payment_Signatures |
+Payment_Recipient_Photos | Payment_Thumb_&_Vouchers | Weighbridge_Slips |
+Weighing_Slips | Bills_&_Invoices | Receipts>/<YYYY-MM>/`, plus a
+`scans_and_proofs_log` Sheet (one row per file). File names read
+`2026-10-10_14-32-05_Signature_Ramesh_Rs5000.png`. **Phone / PC copy**
+(per device, optional): phones download to Downloads with the folder name
+in front (`Payment_Signatures__2026-10-10_…`); Chrome / Edge on a computer
+can pick a folder and get the same sub-folders.
+
+**Set-up** (Owner, once):
+1. `npx prisma db push` against the database — adds the `Attachment`
+   table (additive; nothing existing changes). Until then the register
+   works as before and proofs show a "run db push" message.
+2. Google Drive: paste `tools/drive-upload.gs` into a new Apps Script
+   project (script.google.com) as the Drive owner, set its `SECRET`, Deploy
+   → Web app (Execute as **Me**, access **Anyone**), then in Vercel add
+   `DRIVE_UPLOAD_URL` (the /exec URL) and `DRIVE_UPLOAD_SECRET` →
+   Redeploy → Settings → Proofs & scans → **Send test file**. Until then
+   pictures are kept in the database and **Upload waiting pictures**
+   moves them to Drive later.
+3. Slip reading uses the existing free `GEMINI_API_KEY`.
+
+A drawn signature or a fingerprint-style photo is good supporting evidence,
+not an IT-Act "electronic signature". For people who can't sign, the paper
+voucher with an inked thumb impression and a witness, photographed with 👍,
+remains the strongest record. A USB fingerprint scanner is a possible later
+phase (see the project notes); it is not part of this build.
+
+Code: `lib/proofs.ts` (pure, tested in `lib/__tests__/proofs.test.ts`),
+`lib/proofClient.ts`, `lib/attachmentServer.ts`, `lib/driveUpload.ts`,
+`components/register/ProofParts.tsx`, `ScanSheet` in
+`components/register/QuickRegister.tsx`, `components/proofs/RecordsDesk.tsx`,
+`app/api/attachments/*`, `app/api/scan`, `tools/drive-upload.gs`.
+
 ## Not yet built (Phase 2+)
 
 Deliberately deferred, so nothing here gets silently forgotten:

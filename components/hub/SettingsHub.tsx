@@ -27,10 +27,12 @@ import { CAN_TYPES, CASH_GAP_THRESHOLD_INR, KHALI_SPLIT, STANDARD_RATE } from "@
 import { JOBWORK_OVERDUE_DAYS } from "@/lib/reports";
 import { DEFAULT_HUB_PREFS, WIDGETS, loadHubPrefs, saveHubPrefs, type HubPrefs, type Preset } from "@/lib/hubPrefs";
 import { registerItemName } from "@/lib/bizReports";
+import { DeviceCopySettings } from "@/components/register/ProofParts";
 
-type Section = "integrations" | "appearance" | "register" | "rates" | "library" | "device" | "dashboard" | "business" | "rules" | "data" | "io";
+type Section = "integrations" | "appearance" | "register" | "rates" | "library" | "device" | "dashboard" | "business" | "rules" | "data" | "io" | "proofs";
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "register", label: "📒 Quick Register" },
+  { key: "proofs", label: "🛡️ Proofs & scans" },
   { key: "rates", label: "₹ Saved rates" },
   { key: "library", label: "⭐ Item library" },
   { key: "device", label: "📱 This device" },
@@ -488,6 +490,7 @@ export default function SettingsHub() {
           {section === "data" && <DataCard />}
           {section === "appearance" && <AppearancePanel />}
           {section === "integrations" && <IntegrationsCard />}
+          {section === "proofs" && cfg && <ProofsCard cfg={cfg} save={save} />}
         </div>
       </div>
     </div>
@@ -709,6 +712,117 @@ function IntegrationsCard() {
           </>
         )}
         {msg && <div className="hub-m">{msg}</div>}
+      </section>
+    </>
+  );
+}
+
+// Proofs & scans: the shop-wide "proof needed" rule, the Google Drive link,
+// and this device's copy settings.
+function ProofsCard({ cfg, save }: { cfg: RegisterConfigData; save: (p: Partial<RegisterConfigData>) => Promise<void> }) {
+  const [st, setSt] = useState<{ configured: boolean; pending: number | null; dbError: string | null } | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const loadSt = useCallback(() => {
+    fetch("/api/attachments/drive")
+      .then((r) => r.json())
+      .then((j) => setSt(j.data ?? null))
+      .catch(() => setSt(null));
+  }, []);
+  useEffect(loadSt, [loadSt]);
+  async function act(action: "test" | "retry") {
+    setMsg(action === "test" ? "Sending a test file…" : "Uploading…");
+    const r = await fetch("/api/attachments/drive", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) setMsg(j.error || "Failed");
+    else if (action === "test") setMsg("Test file saved ✓ — look in Drive → My_Oil_Business_Second_Brain → 06_Scans_&_Proofs → _Test");
+    else setMsg(`Uploaded ${j.data.uploaded}${j.data.failed ? `, ${j.data.failed} failed (${j.data.firstError})` : ""}. Still waiting: ${j.data.pending ?? "?"}`);
+    loadSt();
+  }
+  return (
+    <>
+      <section className="hub-card">
+        <h3>Proof of payment — shop-wide rule</h3>
+        <div className="hub-m small" style={{ marginBottom: 6 }}>
+          On these Quick Register forms, a <b>cash</b> entry cannot be saved until a signature, a photo of the person paid, or a photo of a
+          thumb-impression / signed voucher is taken. UPI and udhaar are never blocked. Proof can always be added even when not required.
+        </div>
+        <div className="set-row">
+          <span className="lab">Proof needed for</span>
+          <Chips
+            multi
+            options={[
+              { key: "PAYMENT", label: "🤝 Payment / Salary" },
+              { key: "PURCHASE", label: "🛒 Purchase" },
+              { key: "EXPENSE", label: "🧾 Expense" },
+            ]}
+            value={cfg.proofRequired}
+            onChange={(v) => save({ proofRequired: v as RegisterConfigData["proofRequired"] })}
+          />
+        </div>
+        <div className="set-row">
+          <span className="lab">
+            Only from ₹
+            <small>0 = every cash amount. E.g. 500 = small expenses like tea need no proof.</small>
+          </span>
+          <input type="number" min={0} defaultValue={cfg.proofMinInr} onBlur={(e) => save({ proofMinInr: Math.max(0, Number(e.target.value) || 0) })} style={{ width: 120 }} />
+        </div>
+        <div className="hub-m small">
+          See every proof, and every cash payment that has none, in <a href="/records">🗂️ Proofs &amp; scans</a>.
+        </div>
+      </section>
+
+      <section className="hub-card">
+        <h3>
+          Google Drive —{" "}
+          {st == null ? "…" : st.configured ? <b className="g">connected</b> : <b className="o">not set up</b>}
+        </h3>
+        {st?.dbError && <div className="hub-banner">{st.dbError}</div>}
+        <div className="hub-m small" style={{ marginBottom: 8 }}>
+          Files go to <b>My_Oil_Business_Second_Brain → 06_Scans_&amp;_Proofs</b>, one folder per kind (Payment_Signatures,
+          Payment_Recipient_Photos, Payment_Thumb_&amp;_Vouchers, Weighbridge_Slips, Weighing_Slips, Bills_&amp;_Invoices, Receipts), a
+          sub-folder per month, plus a <b>scans_and_proofs_log</b> Sheet with one row per file. Until Drive is connected, pictures are kept
+          safely in the app and can be uploaded later.
+        </div>
+        <ol className="hub-m small" style={{ paddingLeft: 18, marginTop: 0 }}>
+          <li>
+            On a computer, signed in to the Google account that owns the Second Brain folder, open <b>script.google.com</b> → New project.
+          </li>
+          <li>
+            Paste the file <code>tools/drive-upload.gs</code> from the app&apos;s code (GitHub → second-brain-desk → tools). Change{" "}
+            <code>SECRET</code> to a long random phrase.
+          </li>
+          <li>
+            Deploy → New deployment → Web app → Execute as <b>Me</b>, Who has access <b>Anyone</b> → Deploy → allow → copy the URL.
+          </li>
+          <li>
+            Vercel → mahadev-second-brain → Settings → Environment Variables: <code>DRIVE_UPLOAD_URL</code> = that URL,{" "}
+            <code>DRIVE_UPLOAD_SECRET</code> = the same secret → Redeploy.
+          </li>
+          <li>Come back here and tap Send test file.</li>
+        </ol>
+        <div className="rec-acts">
+          <button className="hub-btn" disabled={!st?.configured} onClick={() => act("test")}>
+            Send test file
+          </button>
+          <button className="hub-btn" disabled={!st?.configured || !st?.pending} onClick={() => act("retry")}>
+            ☁️ Upload waiting pictures ({st?.pending ?? 0})
+          </button>
+        </div>
+        {msg && <div className="hub-m" style={{ marginTop: 6 }}>{msg}</div>}
+      </section>
+
+      <section className="hub-card">
+        <h3>Slip &amp; bill reading (AI)</h3>
+        <div className="hub-m small">
+          📸 <b>Scan slip / bill</b> on the Quick Register reads weighbridge slips, weighing slips, bills (incl. GSTIN) and receipts with the
+          same free <code>GEMINI_API_KEY</code> the AI terminals use. The person always checks the numbers before saving; any number they
+          change is marked ✎ next to what the AI read. Without a key, the photo is still saved and the details are typed by hand.
+        </div>
+      </section>
+
+      <section className="hub-card">
+        <h3>This device</h3>
+        <DeviceCopySettings lang="en" />
       </section>
     </>
   );

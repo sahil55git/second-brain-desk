@@ -33,6 +33,7 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "payment", icon: "🤝", title: "Payment", kn: "ಪಾವತಿ", desc: "Salary / supplier payment", href: "/register?open=payment", group: "entry" },
   { id: "pigmee", icon: "🏦", title: "Pigmee / bank", kn: "ಪಿಗ್ಮಿ", desc: "Cash to bank, not an expense", href: "/register?open=pigmee", group: "entry" },
   { id: "draw", icon: "🧔", title: "Owner draw", kn: "ಮಾಲೀಕ ತೆಗೆದದ್ದು", desc: "Cash taken by owner", href: "/register?open=draw", group: "entry" },
+  { id: "scan", icon: "📸", title: "Scan slip / bill", kn: "ಚೀಟಿ / ಬಿಲ್ ಸ್ಕ್ಯಾನ್", desc: "Weighbridge, weighing slip, bill, receipt", href: "/register?open=scan", group: "entry" },
   { id: "register", icon: "📒", title: "Quick Register", kn: "ಕ್ವಿಕ್ ರಿಜಿಸ್ಟರ್", desc: "Today's full screen", href: "/register", group: "entry" },
   // Job-work
   { id: "jwnew", icon: "🌾", title: "New job-work", kn: "ಹೊಸ ಜಾಬ್-ವರ್ಕ್", desc: "Customer seed received", href: "/register?open=jobwork", group: "jobwork" },
@@ -51,6 +52,7 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "mfg", icon: "🏭", title: "Manufacturing", kn: "ತಯಾರಿಕೆ", desc: "Barrels, steps, yield", href: "/mfg", group: "mfg" },
   { id: "mfgnew", icon: "➕", title: "New barrel", kn: "ಹೊಸ ಬ್ಯಾರಲ್", desc: "Start a batch", href: "/mfg?new=1", group: "mfg" },
   // Office
+  { id: "records", icon: "🗂️", title: "Proofs & scans", kn: "ಪುರಾವೆ ಮತ್ತು ಸ್ಕ್ಯಾನ್", desc: "Signatures, slips, bills; cash paid without proof", href: "/records", group: "office", ownerOnly: true },
   { id: "reports", icon: "📊", title: "Reports", kn: "ವರದಿ", desc: "Sales, stock, udhar, cash", href: "/reports", group: "office", ownerOnly: true },
   { id: "settings", icon: "⚙️", title: "Settings", kn: "ಸೆಟ್ಟಿಂಗ್ಸ್", desc: "Items, rates, import / export", href: "/settings", group: "office", ownerOnly: true },
   { id: "desk", icon: "🗂️", title: "Full desk", kn: "ಪೂರ್ಣ ಡೆಸ್ಕ್", desc: "Job-work, closing, manufacturing", href: "/", group: "office" },
@@ -59,7 +61,7 @@ export const QUICK_LINKS: QuickLink[] = [
 export const GROUP_ORDER: LinkGroup[] = ["entry", "jobwork", "tally", "mfg", "office"];
 
 /** Sheets Quick Register can open from ?open=<key>. */
-export const REGISTER_OPEN_KEYS = ["sale", "crush", "udhaar", "purchase", "expense", "payment", "pigmee", "draw", "jobwork", "jwsettle", "cash", "stock", "calc"] as const;
+export const REGISTER_OPEN_KEYS = ["sale", "crush", "udhaar", "purchase", "expense", "payment", "pigmee", "draw", "jobwork", "jwsettle", "cash", "stock", "calc", "scan"] as const;
 export type RegisterOpenKey = (typeof REGISTER_OPEN_KEYS)[number];
 
 /** Which links to show this person. */
