@@ -37,6 +37,6 @@ export const config = {
   // Everything except: NextAuth's own API routes, the login/setup pages
   // and their APIs, and Next.js internals/static assets.
   matcher: [
-    "/((?!api/auth|api/setup|login|setup|_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/).*)",
+    "/((?!api/auth|api/setup|api/scale-ticks/ingest|login|setup|_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/).*)",
   ],
 };

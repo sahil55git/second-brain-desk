@@ -349,6 +349,10 @@ Code: `lib/proofs.ts` (pure, tested in `lib/__tests__/proofs.test.ts`),
 `components/register/QuickRegister.tsx`, `components/proofs/RecordsDesk.tsx`,
 `app/api/attachments/*`, `app/api/scan`, `tools/drive-upload.gs`.
 
+## Barrel receiving
+
+Oil bought in barrels: barcode label per barrel, full and empty weight from the platform scale, net oil checked against the supplier's challan, blind receiving for staff. Pages `/barrels` and `/barrels/labels`; setup and rules in [docs/BARREL-RECEIVING.md](docs/BARREL-RECEIVING.md). Needs `npx prisma db push`, `SCALE_PUSH_SECRET`, and the bridge started with `--push-url`.
+
 ## Not yet built (Phase 2+)
 
 Deliberately deferred, so nothing here gets silently forgotten:
