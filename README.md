@@ -383,3 +383,7 @@ job-work records. It is **not** a substitute for the accountant's Vyapar
 reconciliation or for professional tax advice — treat anything it computes
 as informational, and double-check anything compliance-relevant before
 acting on it.
+
+
+### Database tables are created on deploy
+`npm run build` runs `scripts/db-push.js` on Vercel, which applies additive schema changes (`prisma db push`, no data-loss flag) so new tables exist automatically. If it fails, the build log says so; run `npx prisma db push` by hand.
