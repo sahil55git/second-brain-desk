@@ -114,6 +114,12 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
 .bd-lhead, .bd-lline { width: 100%; display: flex; justify-content: space-between; font-size: 8pt; }
 .bd-lhead b { font-size: 8.5pt; }
 .bd-lcode { font-size: 10pt; font-weight: 700; letter-spacing: .5px; }
+.bd-lbar { width: 100%; }
+.bd-lbottom { width: 100%; display: flex; justify-content: space-between; align-items: flex-end; gap: 2mm; }
+.bd-ltext { min-width: 0; flex: 1; text-align: left; }
+.bd-ltext .bd-lline { justify-content: flex-start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bd-lqr svg { width: 15mm !important; height: 15mm !important; display: block; }
+.bd-labels.thermal .bd-lqr svg { width: 13.5mm !important; height: 13.5mm !important; }
 .bd-lline.small { font-size: 7pt; color: #333; }
 .bd-labels.thermal .bd-lhead, .bd-labels.thermal .bd-lline { font-size: 6.5pt; }
 .bd-labels.thermal .bd-lcode { font-size: 8.5pt; }
@@ -130,3 +136,93 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
 /* Kannada helper text sits beside the English inside buttons, not under it */
 .bd-btn .bd-kn, .bd-steps .bd-kn { display: inline; margin-left: 6px; }
 .bd-kpi .l .bd-kn { display: inline; margin-left: 4px; }
+
+/* weighment slip + lot report (print pages) */
+.bd-printpage { padding: 12px; color: #000; background: #fff; min-height: 100vh; font-family: Arial, Helvetica, sans-serif; }
+.bd-slips { display: grid; gap: 14px; justify-content: center; }
+.bd-slips.thermal .bd-slip { width: 74mm; }
+.bd-slips.a4 { grid-template-columns: repeat(2, 92mm); }
+.bd-slips.a4 .bd-slip { width: 92mm; }
+.bd-slip { box-sizing: border-box; border: 1px dashed #999; padding: 3mm; font-size: 9.5pt; color: #000; background: #fff; break-inside: avoid; page-break-inside: avoid; }
+.bd-slips.thermal .bd-slip { break-after: page; }
+.bd-sh { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1.5px solid #000; padding-bottom: 1.5mm; margin-bottom: 2mm; }
+.bd-sh b { font-size: 11pt; } .bd-sh span { font-size: 8.5pt; }
+.bd-scodes { display: flex; align-items: center; justify-content: space-between; gap: 3mm; }
+.bd-scodes > span:first-child { flex: 1; min-width: 0; }
+.bd-sqr svg { width: 19mm !important; height: 19mm !important; display: block; }
+.bd-sbig { text-align: center; font-weight: 800; font-size: 13pt; letter-spacing: .5px; margin: 1.5mm 0 2mm; }
+.bd-sinfo { width: 100%; border-collapse: collapse; font-size: 9pt; }
+.bd-sinfo td { padding: .6mm 0; vertical-align: top; } .bd-sinfo td:first-child { color: #444; width: 24mm; }
+.bd-sw { width: 100%; border-collapse: collapse; margin-top: 2.5mm; border-top: 1px solid #000; }
+.bd-sw td { padding: 1mm 0; } .bd-sw small { display: block; font-size: 7.5pt; color: #444; }
+.bd-sw .n { text-align: right; font-size: 14pt; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bd-sw .sub td { font-size: 7.5pt; color: #333; padding: 0 0 1.5mm; border-bottom: 1px solid #ccc; }
+.bd-sw .net td { border-top: 1.5px solid #000; padding-top: 1.5mm; font-size: 11pt; } .bd-sw .net .n { font-size: 17pt; }
+.bd-seq { text-align: right; font-size: 8.5pt; color: #333; }
+.bd-sign { display: flex; justify-content: space-between; gap: 6mm; margin-top: 9mm; }
+.bd-sign span { flex: 1; border-top: 1px solid #000; font-size: 7.5pt; padding-top: 1mm; text-align: center; }
+.bd-sign.wide { margin-top: 18mm; }
+.bd-sfoot { font-size: 7pt; color: #555; margin-top: 2mm; text-align: right; }
+
+.bd-report { max-width: 190mm; margin: 0 auto; font-size: 9.5pt; }
+.bd-rhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 8mm; border-bottom: 2px solid #000; padding-bottom: 3mm; margin-bottom: 4mm; }
+.bd-rco { font-weight: 800; letter-spacing: 1px; font-size: 11pt; }
+.bd-report h2 { margin: 1mm 0 2mm; font-size: 16pt; }
+.bd-rqr { text-align: center; } .bd-rqr svg { max-width: 100%; }
+.bd-rqr > span:first-child svg { width: 26mm !important; height: 26mm !important; }
+.bd-rtable { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+.bd-rtable th, .bd-rtable td { border: 1px solid #777; padding: 1.2mm 1.6mm; text-align: left; vertical-align: top; }
+.bd-rtable th { background: #eee; font-size: 8pt; } .bd-rtable th small { display: block; font-weight: 400; color: #444; }
+.bd-rtable .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bd-rtable tfoot td { font-weight: 800; background: #f4f4f4; }
+.bd-rsum { display: flex; gap: 8mm; flex-wrap: wrap; margin: 4mm 0 2mm; font-size: 10pt; }
+.bd-rflags { margin: 2mm 0 0; padding-left: 5mm; font-size: 8.5pt; }
+@media print {
+  .bd-printpage { padding: 0; }
+  .bd-slip { border: none; }
+  .bd-slips.a4 { gap: 4mm; }
+}
+
+/* tabs, register, barrel record */
+.bd-steps.bd-tabs { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.bd-tabs button { font-size: 15px !important; }
+.bd-h3 { margin: 14px 0 8px; font-size: 16px; }
+.bd-dt { width: auto; }
+.bd-bad { color: var(--bd-r); font-weight: 700; }
+.bd-register td small, .bd-register th small { display: block; font-weight: 500; }
+.bd-cardtop { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 8px; }
+.bd-bigcode { font-size: 24px; font-weight: 900; letter-spacing: .5px; margin-bottom: 6px; }
+.bd-codes { display: flex; gap: 10px; align-items: center; background: #fff; border-radius: 10px; padding: 6px; }
+.bd-codes svg { max-width: 150px; }
+.bd-eq { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 8px; align-items: stretch; margin: 10px 0; }
+.bd-eqbox { border: 1px solid var(--bd-line); border-radius: 12px; padding: 10px 12px; text-align: center; }
+.bd-eqbox.net.ok { border: 2px solid var(--bd-g); background: color-mix(in srgb, var(--bd-g) 8%, var(--bd-card)); }
+.bd-eqbox .l { font-size: 13px; font-weight: 800; } .bd-eqbox .l small { display: block; font-weight: 500; color: var(--bd-soft); font-size: 11px; }
+.bd-eqbox .v { font-size: 30px; font-weight: 900; font-variant-numeric: tabular-nums; } .bd-eqbox .v small { font-size: 14px; font-weight: 700; }
+.bd-eqbox .s { font-size: 11px; color: var(--bd-soft); }
+.bd-op { align-self: center; font-size: 26px; font-weight: 800; color: var(--bd-soft); }
+@media (max-width: 560px) {
+  .bd-eq { grid-template-columns: 1fr; } .bd-op { display: none; }
+  .bd-slips.a4 { grid-template-columns: 1fr; }
+}
+@media print {
+  .bd-wrap { max-width: none; padding: 0; }
+  .bd-register { font-size: 9pt; }
+  .bd-printkpis .bd-kpi { break-inside: avoid; }
+}
+
+/* the print/label pages sit outside .bd-wrap, so give them the same colours for buttons and chips */
+.bd-labelpage, .bd-printpage {
+  --bd-card: #ffffff; --bd-line: #cfd6d2; --bd-soft: #5f6b66; --bd-base: #f4f6f4;
+  --bd-g: #1e8a4c; --bd-r: #c8352e; --bd-o: #c9731e; --bd-b: #1d5fa8; --bd-acc: #d97706;
+}
+.bd-labelpage .bd-m, .bd-printpage .bd-m { color: #555; }
+.bd-sh { display: block; }
+.bd-sh b { display: block; font-size: 12pt; white-space: nowrap; } .bd-sh span { display: block; margin-top: .5mm; }
+.bd-scale .bd-kn { display: inline; margin-left: 4px; }
+.bd-search { text-transform: none !important; letter-spacing: 0 !important; }
+.bd-onlymobile { display: none; }
+@media (max-width: 560px) {
+  .bd-register th:nth-child(2), .bd-register td:nth-child(2) { display: none; }
+  .bd-onlymobile { display: block; }
+}

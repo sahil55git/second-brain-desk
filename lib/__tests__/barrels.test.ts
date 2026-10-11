@@ -129,10 +129,10 @@ describe("barrel flags", () => {
     expect(allowedDiffKg(200)).toBe(1); // 0.5% of 200
     expect(allowedDiffKg(20)).toBe(0.5); // floor
   });
-  it("lists a barrel that has been full for too long", () => {
-    const old = new Date(NOW - 30 * 3600_000).toISOString();
+  it("lets a barrel wait for days, and lists one that has waited too long", () => {
+    const old = new Date(NOW - 40 * 86_400_000).toISOString();
     expect(barrelFlags(B(1, { grossKg: 218, grossAt: old }), null, NOW).map((x) => x.code)).toEqual(["STILL_FULL"]);
-    const recent = new Date(NOW - 2 * 3600_000).toISOString();
+    const recent = new Date(NOW - 10 * 86_400_000).toISOString();
     expect(barrelFlags(B(1, { grossKg: 218, grossAt: recent }), null, NOW)).toHaveLength(0);
   });
 });
@@ -199,5 +199,75 @@ describe("misc", () => {
     expect(tickFresh(NOW - 30_000, NOW)).toBe(true);
     expect(tickFresh(NOW - (BARREL_DEFAULTS.tickMaxAgeSec + 1) * 1000, NOW)).toBe(false);
     expect(tickFresh(NOW + 60_000, NOW)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Register, weigh time and QR-link additions
+// ---------------------------------------------------------------------------
+import { checkWeighedAt, registerCsv, registerRows, registerTotals, type ShapedReceipt } from "@/lib/barrels";
+
+describe("typed weighing time", () => {
+  const now = Date.parse("2026-10-11T08:00:00Z");
+  it("defaults to now and accepts a recent time", () => {
+    expect((checkWeighedAt(undefined, now) as { at: Date }).at.getTime()).toBe(now);
+    expect((checkWeighedAt("2026-10-10T05:00:00Z", now) as { at: Date }).at.toISOString()).toBe("2026-10-10T05:00:00.000Z");
+  });
+  it("refuses the future, the distant past and rubbish", () => {
+    expect(checkWeighedAt("2026-10-11T09:00:00Z", now)).toHaveProperty("error");
+    expect(checkWeighedAt("2026-08-01T00:00:00Z", now)).toHaveProperty("error");
+    expect(checkWeighedAt("not a date", now)).toHaveProperty("error");
+  });
+  it("flags a weight whose time is far from when it was saved", () => {
+    const rec = new Date(now).toISOString();
+    const odd = barrelFlags(B(1, { grossKg: 192, grossAt: "2026-10-09T08:00:00Z", grossRecordedAt: rec, grossSource: "MANUAL" }), null, now);
+    expect(odd.map((f) => f.code)).toContain("BACKDATED");
+    const fine = barrelFlags(B(1, { grossKg: 192, grossAt: new Date(now - 60_000).toISOString(), grossRecordedAt: rec, grossSource: "SCALE" }), null, now);
+    expect(fine.map((f) => f.code)).not.toContain("BACKDATED");
+  });
+});
+
+describe("barrel register", () => {
+  const NOWMS = Date.parse("2026-10-11T08:00:00Z");
+  const lot = (barrels: ReturnType<typeof B>[], extra: Record<string, unknown> = {}) =>
+    ({
+      id: "lot1", lotNo: "R261001-1", date: "2026-10-01", status: "OPEN", supplierName: "Sri Balaji", product: "Sunflower oil", vehicleNo: "KA38A1", challanNo: "C-9", tankTarget: null,
+      rateInrPerKg: null, declaredNetKg: null, declaredBarrels: null,
+      barrels: barrels.map((b) => ({ ...b, net: barrelNet(b), state: barrelState(b) })),
+      summary: receiptSummary({ declaredNetKg: null, declaredBarrels: null, rateInrPerKg: null }, barrels, NOWMS),
+      ...extra,
+    }) as unknown as ShapedReceipt;
+  const day = (n: number) => new Date(NOWMS - n * 86_400_000).toISOString();
+  const done = (seq: number, gross: number, empty: number) => B(seq, { grossKg: gross, grossAt: day(10), grossSource: "SCALE", emptyKg: empty, emptyAt: day(9), emptySource: "SCALE" });
+
+  it("gives gross − tare = net per barrel, like barrel 1: 192 − 12 = 180", () => {
+    const rows = registerRows([lot([done(1, 192, 12)])], NOWMS);
+    expect(rows[0]).toMatchObject({ code: barrelCode("R261010-1", 1), grossKg: 192, emptyKg: 12, netKg: 180, state: "DONE", waitingDays: null });
+  });
+  it("counts days waiting and estimates oil inside a barrel that is still full", () => {
+    const waiting = B(2, { grossKg: 190, grossAt: day(5), grossSource: "SCALE" });
+    const rows = registerRows([lot([done(1, 192, 12), waiting])], NOWMS);
+    const r = rows.find((x) => x.seq === 2)!;
+    expect(r.state).toBe("FULL");
+    expect(r.waitingDays).toBe(5);
+    expect(r.netKg).toBeNull();
+    expect(r.estNetKg).toBe(178); // 190 − the lot's typical empty barrel (12)
+  });
+  it("gives no estimate when there is no empty barrel to compare with", () => {
+    const rows = registerRows([lot([B(1, { grossKg: 190, grossAt: day(2), grossSource: "SCALE" })])], NOWMS);
+    expect(rows[0].estNetKg).toBeNull();
+  });
+  it("totals gross, tare and net over emptied barrels only, so they always agree", () => {
+    const rows = registerRows([lot([done(1, 192, 12), done(2, 200.5, 12.5), B(3, { grossKg: 190, grossAt: day(40), grossSource: "SCALE" })])], NOWMS);
+    const t = registerTotals(rows);
+    expect(t).toMatchObject({ barrels: 3, emptied: 2, waiting: 1, waitingOldestDays: 40, grossKg: 392.5, tareKg: 24.5, netKg: 368 });
+    expect(t.grossKg - t.tareKg).toBeCloseTo(t.netKg, 5);
+  });
+  it("keeps the supplier's figures out of staff rows (they arrive as null) and out of the staff CSV", () => {
+    const rows = registerRows([lot([done(1, 192, 12)])], NOWMS);
+    const csv = registerCsv(rows, false);
+    expect(csv).not.toContain("Supplier kg");
+    expect(csv.split("\r\n")[1]).toContain("180");
+    expect(registerCsv(rows, true)).toContain("Supplier kg");
   });
 });

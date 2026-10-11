@@ -2,123 +2,30 @@
 
 // Barrel receiving desk (/barrels).
 //
-// Oil bought in barrels: start a lot → print a barcode label for every barrel
-// → weigh each barrel FULL on the platform scale → pour it into the tank →
-// weigh it EMPTY → the desk adds up the net oil and (for the owner) compares
-// it with the supplier's challan.
+// Oil bought in barrels: start a lot → print a barcode + QR label for every barrel →
+// weigh each barrel FULL (oil + barrel) on the platform scale → later, whenever the
+// barrel is emptied into the tank, weigh it EMPTY (tare). Net oil = full − empty.
+// Barrels can wait days between the two weighings; the desk lists what is waiting and
+// lets you scan any barrel at any time. The owner also sees the supplier's challan
+// figures and any shortage; staff receive "blind".
 //
-// Weights come from the scale itself: the scale bridge posts each steady
-// reading to the server, and "Save weight" uses that reading — the browser
-// never types the number. Typing a weight is a flagged fallback.
+// Weights come from the scale itself: the scale bridge posts each steady reading to
+// the server, and "Save weight" uses that reading — the browser never types the
+// number. Typing a weight is a flagged fallback.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  barrelState,
-  parseBarrelCode,
-  tickFresh,
-  type BarrelState,
-  type Flag,
-  type Phase,
-  type ReceiptSummary,
-} from "@/lib/barrels";
-import { useScale } from "@/components/ScaleProvider";
-import BarcodeScanner, { cameraScanSupported } from "@/components/barrels/BarcodeScanner";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { findBarrelCode, registerRows, registerTotals, type Flag, type ShapedReceipt } from "@/lib/barrels";
+import BarrelCard from "@/components/barrels/BarrelCard";
+import BarrelRegister from "@/components/barrels/BarrelRegister";
+import WeighPanel from "@/components/barrels/WeighPanel";
 import { preparePhoto, stampLines, uploadProof } from "@/lib/proofClient";
 import { businessDate } from "@/lib/register";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-interface BarrelRow {
-  id: string;
-  seq: number;
-  code: string;
-  supplierMark: string | null;
-  declaredNetKg: number | null;
-  grossKg: number | null;
-  grossAt: string | null;
-  grossBy: string | null;
-  grossSource: string | null;
-  grossScale: string | null;
-  grossNote: string | null;
-  emptyKg: number | null;
-  emptyAt: string | null;
-  emptyBy: string | null;
-  emptySource: string | null;
-  emptyScale: string | null;
-  emptyNote: string | null;
-  net: number | null;
-  state: BarrelState;
-}
-interface Lot {
-  id: string;
-  lotNo: string;
-  date: string;
-  supplierName: string;
-  product: string;
-  vehicleNo: string | null;
-  challanNo: string | null;
-  rateInrPerKg: number | null;
-  declaredNetKg: number | null;
-  declaredBarrels: number | null;
-  tankTarget: string | null;
-  status: string;
-  closeNote: string | null;
-  notes: string | null;
-  createdBy: string;
-  barrels: BarrelRow[];
-  summary: ReceiptSummary;
-}
-interface Tick {
-  id: string;
-  source: string;
-  weightKg: number;
-  settledAt: string;
-  usedAt: string | null;
-  usedBarrelCode: string | null;
-}
-interface EventRow {
-  id: string;
-  action: string;
-  barrelCode: string | null;
-  detail: Record<string, unknown> | null;
-  by: string;
-  at: string;
-}
+import { api, kg, L, pad, rs, STATE_CHIP, when, type EventRow, type Lot } from "@/components/barrels/shared";
 
 const PRODUCTS = ["Sunflower oil", "Rice bran oil", "Soyabean oil", "Groundnut oil", "Mustard oil", "Karadi (safflower) oil", "Goldrop"];
 const TANKS = ["Sunflower tank", "Karadi tank 1", "K2"];
 
-const kg = (n: number | null | undefined) => (n == null ? "—" : `${Math.round(n * 100) / 100}`);
-const rs = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
-const when = (t: string | null) =>
-  t ? new Date(t).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }) : "";
-
-async function api<T = unknown>(path: string, init?: RequestInit & { json?: unknown }): Promise<T & { error?: string }> {
-  const res = await fetch(path, {
-    ...init,
-    headers: init?.json ? { "Content-Type": "application/json" } : undefined,
-    body: init?.json ? JSON.stringify(init.json) : undefined,
-    cache: "no-store",
-  });
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(j.error || `Something went wrong (${res.status})`);
-  return j;
-}
-
-const L = ({ en, kn }: { en: string; kn: string }) => (
-  <>
-    {en}
-    <span className="bd-kn">{kn}</span>
-  </>
-);
-
-const STATE_CHIP: Record<string, { en: string; kn: string; cls: string }> = {
-  NOT_STARTED: { en: "Not started", kn: "ಶುರುವಾಗಿಲ್ಲ", cls: "" },
-  WEIGHING_IN: { en: "Weighing full", kn: "ತುಂಬಿದ ತೂಕ ನಡೆಯುತ್ತಿದೆ", cls: "o" },
-  UNLOADING: { en: "Emptying", kn: "ಖಾಲಿ ಮಾಡುತ್ತಿದ್ದಾರೆ", cls: "b" },
-  RECONCILED: { en: "All weighed", kn: "ಎಲ್ಲಾ ತೂಕ ಆಯಿತು", cls: "g" },
-};
+type View = { t: "home" } | { t: "register"; status?: "waiting" | "all" } | { t: "new" } | { t: "lot"; id: string } | { t: "barrel"; code: string; back: View };
 
 // ---------------------------------------------------------------------------
 // Page
@@ -128,8 +35,9 @@ export default function BarrelDesk() {
   const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [view, setView] = useState<{ t: "list" } | { t: "new" } | { t: "lot"; id: string }>({ t: "list" });
+  const [view, setView] = useState<View>({ t: "home" });
   const [showClosed, setShowClosed] = useState(false);
+  const [preset, setPreset] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -150,10 +58,16 @@ export default function BarrelDesk() {
     return () => clearInterval(t);
   }, [load]);
 
-  // Deep link: /barrels?lot=R261010-1
+  // Deep link: /barrels?barrel=R261010-1-03 is what the QR on a barrel label opens.
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get("lot");
-    if (q && lots.length) {
+    const b = findBarrelCode(new URLSearchParams(window.location.search).get("barrel") || "");
+    if (b) setView({ t: "barrel", code: b.code, back: { t: "home" } });
+  }, []);
+  // Deep link: /barrels?lot=R261010-1 opens that lot once the list has loaded.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const q = sp.get("lot");
+    if (q && !sp.get("barrel") && lots.length) {
       const hit = lots.find((l) => l.lotNo === q || l.id === q);
       if (hit) setView({ t: "lot", id: hit.id });
     }
@@ -163,10 +77,12 @@ export default function BarrelDesk() {
 
   const replaceLot = (l: Lot) => setLots((all) => (all.some((x) => x.id === l.id) ? all.map((x) => (x.id === l.id ? l : x)) : [l, ...all]));
   const current = view.t === "lot" ? lots.find((l) => l.id === view.id) : undefined;
+  const home = () => { setView({ t: "home" }); load(); };
+  const tab = view.t === "register" ? "register" : view.t === "home" ? "home" : null;
 
   return (
     <div className="bd-wrap">
-      <header className="bd-top">
+      <header className="bd-top bd-noprint">
         <div>
           <a href="/go" className="bd-m small">
             ← Quick links
@@ -175,22 +91,55 @@ export default function BarrelDesk() {
             🛢️ <L en="Barrel receiving" kn="ಬ್ಯಾರಲ್ ಸ್ವೀಕಾರ" />
           </h1>
         </div>
-        {view.t === "list" && (
+        {view.t === "home" && (
           <button className="bd-btn primary big" onClick={() => setView({ t: "new" })}>
             ➕ <L en="New lot" kn="ಹೊಸ ಲೋಡ್" />
           </button>
         )}
       </header>
 
+      {(tab || view.t === "barrel") && (
+        <div className="bd-steps bd-tabs bd-noprint" role="tablist">
+          <button role="tab" aria-selected={tab === "home"} className={tab === "home" ? "on" : ""} onClick={home}>
+            ⚖️ <L en="Weigh" kn="ತೂಕ" />
+          </button>
+          <button role="tab" aria-selected={tab === "register"} className={tab === "register" ? "on" : ""} onClick={() => setView({ t: "register" })}>
+            📒 <L en="Barrel register" kn="ಬ್ಯಾರಲ್ ದಾಖಲೆ" />
+          </button>
+        </div>
+      )}
+
       {err && <div className="bd-err">{err}</div>}
 
-      {view.t === "list" && (
-        <LotList lots={lots} loading={loading} isOwner={isOwner} showClosed={showClosed} setShowClosed={setShowClosed} open={(id) => setView({ t: "lot", id })} />
+      {view.t === "home" && (
+        <>
+          <WeighPanel lots={lots} isOwner={isOwner} presetCode={preset} onSaved={replaceLot} />
+          <Waiting
+            lots={lots}
+            weigh={(code) => {
+              setPreset(code);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            seeAll={() => setView({ t: "register", status: "waiting" })}
+          />
+          <LotList lots={lots} loading={loading} isOwner={isOwner} showClosed={showClosed} setShowClosed={setShowClosed} open={(id) => setView({ t: "lot", id })} />
+        </>
+      )}
+      {view.t === "register" && <BarrelRegister key={view.status ?? "all"} initialStatus={view.status ?? "all"} open={(code) => setView({ t: "barrel", code, back: view })} />}
+      {view.t === "barrel" && (
+        <BarrelCard
+          code={view.code}
+          lots={lots}
+          isOwner={isOwner}
+          onBack={() => (view.back.t === "home" ? home() : setView(view.back))}
+          onSaved={replaceLot}
+          onOpenLot={(id) => setView({ t: "lot", id })}
+        />
       )}
       {view.t === "new" && (
         <NewLot
           isOwner={isOwner}
-          onCancel={() => setView({ t: "list" })}
+          onCancel={() => setView({ t: "home" })}
           onCreated={(l) => {
             replaceLot(l);
             setView({ t: "lot", id: l.id });
@@ -198,13 +147,71 @@ export default function BarrelDesk() {
         />
       )}
       {view.t === "lot" && current && (
-        <LotView lot={current} lots={lots} isOwner={isOwner} onChange={replaceLot} onBack={() => { setView({ t: "list" }); load(); }} onOpenLot={(id) => setView({ t: "lot", id })} />
+        <LotView
+          lot={current}
+          lots={lots}
+          isOwner={isOwner}
+          onChange={replaceLot}
+          onBack={home}
+          openBarrel={(code) => setView({ t: "barrel", code, back: { t: "lot", id: current.id } })}
+        />
       )}
       {view.t === "lot" && !current && !loading && (
         <div className="bd-card">
-          That lot is not in the list (it may be closed). <button className="bd-linkbtn" onClick={() => setView({ t: "list" })}>Back</button>
+          That lot is not in the list (it may be closed). <button className="bd-linkbtn" onClick={() => setView({ t: "home" })}>Back</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Barrels that are full and waiting to be emptied — they may wait many days
+// ---------------------------------------------------------------------------
+function Waiting({ lots, weigh, seeAll }: { lots: Lot[]; weigh: (code: string) => void; seeAll: () => void }) {
+  const rows = useMemo(() => registerRows(lots as unknown as ShapedReceipt[], Date.now()).filter((r) => r.state === "FULL" && r.lotStatus === "OPEN"), [lots]);
+  const [all, setAll] = useState(false);
+  if (!rows.length) return null;
+  const sorted = [...rows].sort((a, b) => (b.waitingDays ?? 0) - (a.waitingDays ?? 0));
+  const shown = all ? sorted : sorted.slice(0, 6);
+  const t = registerTotals(rows);
+  return (
+    <div className="bd-card">
+      <h3>
+        ⏳ <L en="Full barrels waiting to be emptied" kn="ಖಾಲಿ ಮಾಡಲು ಬಾಕಿ ಇರುವ ಬ್ಯಾರಲ್" />
+      </h3>
+      <div className="bd-m small">
+        {t.waiting} barrel(s) · oldest {t.waitingOldestDays ?? 0} day(s)
+        {t.waitingEstKg > 0 ? ` · ≈ ${kg(t.waitingEstKg)} kg of oil still inside (estimate)` : ""}
+      </div>
+      <div className="bd-tablewrap">
+        <table className="bd-table">
+          <thead>
+            <tr>
+              <th>Barrel</th>
+              <th>Supplier · oil</th>
+              <th>Full kg</th>
+              <th>Waiting since</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((r) => (
+              <tr key={r.code} className={(r.waitingDays ?? 0) >= 30 ? "warn" : ""}>
+                <td><b>{r.code}</b></td>
+                <td>{r.supplierName}<div className="bd-m tiny">{r.product}</div></td>
+                <td className="num">{kg(r.grossKg)}</td>
+                <td>{when(r.grossAt)}<div className="bd-m tiny">{r.waitingDays} day(s)</div></td>
+                <td><button className="bd-btn" onClick={() => weigh(r.code)}>Weigh empty</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="bd-row">
+        {sorted.length > 6 && <button className="bd-linkbtn" onClick={() => setAll((v) => !v)}>{all ? "Show fewer" : `Show all ${sorted.length}`}</button>}
+        <button className="bd-linkbtn" onClick={seeAll}>Open in the register →</button>
+      </div>
     </div>
   );
 }
@@ -241,10 +248,11 @@ function LotList({
       {loading && <div className="bd-m">Loading…</div>}
       {!loading && !lots.length && (
         <div className="bd-card bd-empty">
-          No barrels waiting. When a supplier&apos;s vehicle arrives, tap <b>New lot</b>.
+          No open lots. When a supplier&apos;s vehicle arrives, tap <b>New lot</b>.
           <div className="bd-kn2">ಸರಬರಾಜುದಾರರ ವಾಹನ ಬಂದಾಗ “ಹೊಸ ಲೋಡ್” ಒತ್ತಿ.</div>
         </div>
       )}
+      {lots.length > 0 && <h3 className="bd-h3">Lots</h3>}
       <div className="bd-lots">
         {lots.map((l) => {
           const s = l.summary;
@@ -381,113 +389,28 @@ function LotView({
   isOwner,
   onChange,
   onBack,
-  onOpenLot,
+  openBarrel,
 }: {
   lot: Lot;
   lots: Lot[];
   isOwner: boolean;
   onChange: (l: Lot) => void;
   onBack: () => void;
-  onOpenLot: (id: string) => void;
+  openBarrel: (code: string) => void;
 }) {
   const s = lot.summary;
-  const [phase, setPhase] = useState<Phase>("GROSS");
-  const [codeText, setCodeText] = useState("");
-  const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [manual, setManual] = useState(false);
-  const [manualKg, setManualKg] = useState("");
-  const [manualWhy, setManualWhy] = useState("");
-  const [reweigh, setReweigh] = useState(false);
-  const [why, setWhy] = useState("");
   const [events, setEvents] = useState<EventRow[] | null>(null);
   const [addN, setAddN] = useState("");
-  const codeRef = useRef<HTMLInputElement>(null);
-
-  // --- scale readings -------------------------------------------------------
-  const [ticks, setTicks] = useState<Tick[]>([]);
-  const [skew, setSkew] = useState(0);
-  const [, force] = useState(0);
-  const { selectedReading, connected: bridgeOn } = useScale();
-  useEffect(() => {
-    let alive = true;
-    const pull = () =>
-      api<{ data: Tick[]; serverNow: number }>("/api/scale-ticks")
-        .then((j) => {
-          if (!alive) return;
-          setTicks(j.data);
-          setSkew(j.serverNow - Date.now());
-        })
-        .catch(() => {});
-    pull();
-    const t = setInterval(() => document.visibilityState === "visible" && pull(), 2500);
-    const t2 = setInterval(() => force((n) => n + 1), 1000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-      clearInterval(t2);
-    };
-  }, []);
-  const nowServer = Date.now() + skew;
-  const usable = ticks.find((t) => !t.usedAt && tickFresh(new Date(t.settledAt).getTime(), nowServer));
-  const usableAge = usable ? Math.max(0, Math.round((nowServer - new Date(usable.settledAt).getTime()) / 1000)) : null;
-
-  // --- which barrel ---------------------------------------------------------
-  const parsed = parseBarrelCode(codeText);
-  const inThisLot = parsed ? lot.barrels.find((b) => b.code === parsed.code) : undefined;
-  const otherLot = parsed && !inThisLot ? lots.find((l) => l.barrels.some((b) => b.code === parsed.code)) : undefined;
-  const target = inThisLot;
-
-  const problem = useMemo(() => {
-    if (!target) return null;
-    if (phase === "GROSS" && target.grossKg != null && !reweigh) return `Barrel ${pad(target.seq)} is already weighed full (${kg(target.grossKg)} kg).`;
-    if (phase === "EMPTY" && target.grossKg == null) return `Barrel ${pad(target.seq)} has not been weighed full yet.`;
-    if (phase === "EMPTY" && target.emptyKg != null && !reweigh) return `Barrel ${pad(target.seq)} is already weighed empty (${kg(target.emptyKg)} kg).`;
-    return null;
-  }, [target, phase, reweigh]);
-
-  const refreshFrom = (data: Lot) => onChange(data);
-
-  const save = async (viaManual: boolean) => {
-    if (!target) return;
-    setBusy(true);
-    setMsg(null);
-    try {
-      const j = await api<{ data: Lot; kg: number }>("/api/barrels/weigh", {
-        method: "POST",
-        json: {
-          code: target.code,
-          phase,
-          source: viaManual ? "MANUAL" : "SCALE",
-          tickId: viaManual ? undefined : usable?.id,
-          kg: viaManual ? Number(manualKg) : undefined,
-          note: viaManual ? manualWhy : reweigh ? why : undefined,
-          reweigh,
-        },
-      });
-      refreshFrom(j.data);
-      setMsg({ ok: true, text: `Barrel ${pad(target.seq)} ${phase === "GROSS" ? "full" : "empty"}: ${kg(j.kg)} kg saved ✓` });
-      setCodeText("");
-      setManualKg("");
-      setManualWhy("");
-      setWhy("");
-      setReweigh(false);
-      setManual(false);
-      codeRef.current?.focus();
-    } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : "Could not save." });
-    } finally {
-      setBusy(false);
-    }
-  };
+  const [preset, setPreset] = useState<string | null>(null);
 
   const patch = async (json: Record<string, unknown>) => {
     setBusy(true);
     setMsg(null);
     try {
       const j = await api<{ data: Lot }>(`/api/barrels/${lot.id}`, { method: "PATCH", json });
-      refreshFrom(j.data);
+      onChange(j.data);
       return true;
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "Could not save." });
@@ -523,8 +446,7 @@ function LotView({
 
   const chip = STATE_CHIP[s.state];
   const closed = lot.status === "CLOSED";
-  const nextFull = lot.barrels.find((b) => b.state === "NEW");
-  const nextEmpty = lot.barrels.find((b) => b.state === "FULL");
+  const lotQ = encodeURIComponent(lot.lotNo);
 
   return (
     <>
@@ -563,8 +485,14 @@ function LotView({
         </div>
         <Flags flags={s.flags} />
         <div className="bd-row">
-          <a className="bd-btn" href={`/barrels/labels?lot=${encodeURIComponent(lot.lotNo)}`} target="_blank" rel="noreferrer">
+          <a className="bd-btn" href={`/barrels/labels?lot=${lotQ}`} target="_blank" rel="noreferrer">
             🏷️ <L en="Print barrel labels" kn="ಲೇಬಲ್ ಪ್ರಿಂಟ್" />
+          </a>
+          <a className="bd-btn" href={`/barrels/print?report=${lotQ}`} target="_blank" rel="noreferrer">
+            📄 <L en="Lot weighment report" kn="ತೂಕ ವರದಿ" />
+          </a>
+          <a className="bd-btn" href={`/barrels/print?slips=${lotQ}`} target="_blank" rel="noreferrer">
+            🧾 <L en="All slips" kn="ಎಲ್ಲಾ ಸ್ಲಿಪ್" />
           </a>
           <label className="bd-btn">
             📸 <L en="Challan photo" kn="ಚಲನ್ ಫೋಟೋ" />
@@ -579,133 +507,19 @@ function LotView({
             </span>
           )}
         </div>
+        {msg && <div className={msg.ok ? "bd-ok" : "bd-err"}>{msg.text}</div>}
       </div>
 
-      {/* ------------------------------------------------------------------ */}
-      {!closed && (
-        <div className="bd-card bd-weigh">
-          <div className="bd-steps" role="tablist">
-            <button role="tab" aria-selected={phase === "GROSS"} className={phase === "GROSS" ? "on" : ""} onClick={() => { setPhase("GROSS"); setReweigh(false); }}>
-              ① <L en="Full barrel" kn="ತುಂಬಿದ ಬ್ಯಾರಲ್" />
-              <small>before pouring</small>
-            </button>
-            <button role="tab" aria-selected={phase === "EMPTY"} className={phase === "EMPTY" ? "on" : ""} onClick={() => { setPhase("EMPTY"); setReweigh(false); }}>
-              ② <L en="Empty barrel" kn="ಖಾಲಿ ಬ್ಯಾರಲ್" />
-              <small>after pouring &amp; draining</small>
-            </button>
-          </div>
+      {!closed && <WeighPanel lots={lots} isOwner={isOwner} hintLot={lot} presetCode={preset} onSaved={onChange} />}
 
-          <div className="bd-scanrow">
-            <input
-              ref={codeRef}
-              className="bd-code"
-              value={codeText}
-              onChange={(e) => setCodeText(e.target.value)}
-              placeholder="Scan or type the barrel label…"
-              inputMode="text"
-              autoCapitalize="characters"
-              autoComplete="off"
-              aria-label="Barrel label code"
-            />
-            <button className="bd-btn big" onClick={() => setScanning(true)} disabled={!cameraScanSupported()} title={cameraScanSupported() ? "" : "This browser cannot read barcodes. Use a USB scanner or type."}>
-              📷 <L en="Scan" kn="ಸ್ಕ್ಯಾನ್" />
-            </button>
-          </div>
-          {phase === "GROSS" && nextFull && !codeText && <div className="bd-m small">Next unweighed: Barrel {pad(nextFull.seq)} <button className="bd-linkbtn" onClick={() => setCodeText(nextFull.code)}>use</button></div>}
-          {phase === "EMPTY" && nextEmpty && !codeText && <div className="bd-m small">Waiting to be weighed empty: Barrel {pad(nextEmpty.seq)} <button className="bd-linkbtn" onClick={() => setCodeText(nextEmpty.code)}>use</button></div>}
-
-          {codeText && !parsed && <div className="bd-err">That does not look like a barrel label.</div>}
-          {parsed && otherLot && (
-            <div className="bd-err">
-              That label belongs to lot {otherLot.lotNo} ({otherLot.supplierName}). <button className="bd-linkbtn" onClick={() => onOpenLot(otherLot.id)}>Open that lot</button>
-            </div>
-          )}
-          {parsed && !inThisLot && !otherLot && <div className="bd-err">No barrel with this label. Check the lot number.</div>}
-          {target && (
-            <div className="bd-target">
-              <b>Barrel {pad(target.seq)}</b> · {target.code}
-              <span className="bd-m"> · full {kg(target.grossKg)} kg · empty {kg(target.emptyKg)} kg</span>
-            </div>
-          )}
-          {problem && (
-            <div className="bd-err">
-              {problem}{" "}
-              {isOwner && !reweigh && (
-                <button className="bd-linkbtn" onClick={() => setReweigh(true)}>
-                  Weigh again (owner)
-                </button>
-              )}
-            </div>
-          )}
-          {reweigh && isOwner && (
-            <input className="bd-why" value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why weigh again? (kept in the record)" />
-          )}
-
-          <div className={`bd-scale ${usable ? "ready" : ""}`}>
-            {usable ? (
-              <>
-                <div className="bd-big">{kg(usable.weightKg)} <small>kg</small></div>
-                <div className="bd-m">
-                  <span className="bd-dot on" /> <L en="Steady" kn="ಸ್ಥಿರ" /> · {usable.source} · {usableAge}s ago
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="bd-big dim">— <small>kg</small></div>
-                <div className="bd-m">
-                  <span className="bd-dot" /> <L en="Waiting for a steady reading…" kn="ಸ್ಥಿರ ತೂಕಕ್ಕಾಗಿ ಕಾಯುತ್ತಿದೆ…" />
-                </div>
-                <div className="bd-m small">Put the barrel on the platform and keep it still for a few seconds.</div>
-              </>
-            )}
-            {bridgeOn && selectedReading && (
-              <div className="bd-m small">Live on the scale now: {kg(selectedReading.weight)} kg {selectedReading.stable ? "" : "(may still be moving)"}</div>
-            )}
-          </div>
-
-          <button
-            className="bd-btn primary huge"
-            disabled={busy || !target || !!problem || !usable || (reweigh && why.trim().length < 3)}
-            onClick={() => save(false)}
-          >
-            ✅ <L en={`Save ${phase === "GROSS" ? "full" : "empty"} weight`} kn="ತೂಕ ಉಳಿಸಿ" />
-            {usable && target ? ` — ${kg(usable.weightKg)} kg` : ""}
-          </button>
-          {!usable && !ticks.length && (
-            <div className="bd-m small">
-              No reading has come from the scale in the last 15 minutes. Check that the scale bridge is running on the shop PC (see docs/BARREL-RECEIVING.md).
-            </div>
-          )}
-
-          {msg && <div className={msg.ok ? "bd-ok" : "bd-err"}>{msg.text}</div>}
-
-          <div className="bd-manual">
-            <button className="bd-linkbtn" onClick={() => setManual((v) => !v)}>
-              {manual ? "Hide" : "Scale not working? Type the weight"}
-            </button>
-            {manual && (
-              <div className="bd-row">
-                <input className="bd-n" inputMode="decimal" placeholder="kg" value={manualKg} onChange={(e) => setManualKg(e.target.value)} aria-label="Weight in kg" />
-                <input className="bd-why" placeholder="Why? (required)" value={manualWhy} onChange={(e) => setManualWhy(e.target.value)} />
-                <button className="bd-btn" disabled={busy || !target || !!problem || !Number(manualKg) || manualWhy.trim().length < 3} onClick={() => save(true)}>
-                  Save typed weight
-                </button>
-              </div>
-            )}
-            {manual && <div className="bd-m small">A typed weight is marked in the record and the owner is shown a warning.</div>}
-          </div>
-        </div>
-      )}
-
-      {/* ------------------------------------------------------------------ */}
       <div className="bd-card">
         <div className="bd-tablewrap">
           <table className="bd-table">
             <thead>
               <tr>
                 <th>#</th>
-                <th>Full kg</th>
-                <th>Empty kg</th>
+                <th>Gross kg<small> oil+barrel</small></th>
+                <th>Tare kg<small> empty barrel</small></th>
                 <th>Net oil kg</th>
                 {isOwner && <th>Challan kg</th>}
                 <th>Status</th>
@@ -714,12 +528,12 @@ function LotView({
             </thead>
             <tbody>
               {lot.barrels.map((b) => {
-                const st = barrelState(b);
+                const st = b.state;
                 const fl = s.flags.filter((f) => f.seq === b.seq);
                 return (
                   <tr key={b.id} className={fl.some((f) => f.level === "alert") ? "alert" : fl.length ? "warn" : ""}>
                     <td>
-                      <b>{pad(b.seq)}</b>
+                      <button className="bd-linkbtn" onClick={() => openBarrel(b.code)}><b>{pad(b.seq)}</b></button>
                       <div className="bd-m tiny">{b.code}</div>
                     </td>
                     <td className="num">
@@ -740,18 +554,19 @@ function LotView({
                     )}
                     <td>{st === "NEW" ? "Not weighed" : st === "FULL" ? "Full, waiting" : "Done ✓"}</td>
                     <td>
-                      {!closed && (
+                      {!closed && st !== "DONE" && (
                         <button
                           className="bd-linkbtn"
                           onClick={() => {
-                            setCodeText(b.code);
-                            setPhase(st === "FULL" ? "EMPTY" : "GROSS");
+                            setPreset(b.code);
                             window.scrollTo({ top: 0, behavior: "smooth" });
                           }}
                         >
                           weigh
                         </button>
                       )}
+                      {" "}
+                      <a className="bd-linkbtn" href={`/barrels/print?slip=${encodeURIComponent(b.code)}`} target="_blank" rel="noreferrer">slip</a>
                     </td>
                   </tr>
                 );
@@ -769,25 +584,13 @@ function LotView({
             </tfoot>
           </table>
         </div>
+        <div className="bd-m small">Totals count only barrels that have both weights, so gross − tare = net always adds up.</div>
       </div>
 
-      {isOwner && (
-        <OwnerPanel lot={lot} busy={busy} closed={closed} patch={patch} events={events} loadEvents={loadEvents} />
-      )}
-      {scanning && (
-        <BarcodeScanner
-          onClose={() => setScanning(false)}
-          onCode={(c) => {
-            setCodeText(c);
-            setScanning(false);
-          }}
-        />
-      )}
+      {isOwner && <OwnerPanel lot={lot} busy={busy} closed={closed} patch={patch} events={events} loadEvents={loadEvents} />}
     </>
   );
 }
-
-const pad = (n: number) => String(n).padStart(2, "0");
 
 function Flags({ flags }: { flags: Flag[] }) {
   if (!flags.length) return null;
@@ -901,4 +704,3 @@ function OwnerPanel({
     </div>
   );
 }
-

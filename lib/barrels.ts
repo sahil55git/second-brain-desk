@@ -17,8 +17,12 @@ export const BARREL_DEFAULTS = {
   netToleranceMinKg: 0.5,
   /** An empty barrel this far from the lot's typical empty barrel is odd (oil left in it, or a swapped barrel). */
   emptyOutlierKg: 1.0,
-  /** A full barrel still not emptied + weighed after this many hours is listed as pending. */
-  maxOpenHours: 24,
+  /** Barrels may wait for days before they are emptied; only one waiting longer than this is flagged. */
+  maxOpenHours: 24 * 30,
+  /** A typed weight whose time differs from the moment it was saved by more than this is flagged. */
+  backdateMinutes: 15,
+  /** A typed weight can be dated at most this many days back. */
+  maxBackdateDays: 30,
   /** A scale reading can be used for a weighment only this long after it settled. */
   tickMaxAgeSec: 120,
 } as const;
@@ -36,6 +40,9 @@ export interface BarrelLike {
   emptyKg: number | null;
   emptyAt: Date | string | null;
   emptySource: string | null;
+  /** When the system saved each weight (grossAt/emptyAt = when it was weighed). Optional for old rows. */
+  grossRecordedAt?: Date | string | null;
+  emptyRecordedAt?: Date | string | null;
 }
 
 export interface ReceiptLike {
@@ -53,6 +60,7 @@ export type FlagCode =
   | "NET_SHORT"
   | "NET_EXCESS"
   | "STILL_FULL"
+  | "BACKDATED"
   | "LOT_SHORT"
   | "LOT_EXCESS"
   | "BARRELS_FEWER";
@@ -94,6 +102,19 @@ export function parseBarrelCode(raw: string): { lotNo: string; seq: number; code
   return { lotNo, seq, code: barrelCode(lotNo, seq) };
 }
 
+/** Find a barrel code inside whatever the scanner gave us: the bare code (barcode) or the QR link. */
+export function findBarrelCode(raw: string): { lotNo: string; seq: number; code: string } | null {
+  const direct = parseBarrelCode(raw);
+  if (direct) return direct;
+  const m = /R\d{6}-\d{1,3}-\d{2,3}/i.exec(String(raw || ""));
+  return m ? parseBarrelCode(m[0]) : null;
+}
+
+/** What the QR code on a barrel label holds: a link that opens the barrel's record. */
+export function barrelLink(origin: string, code: string): string {
+  return `${origin.replace(/\/+$/, "")}/barrels?barrel=${encodeURIComponent(code)}`;
+}
+
 // ---------------------------------------------------------------------------
 // Weights
 // ---------------------------------------------------------------------------
@@ -130,6 +151,16 @@ export function checkWeigh(
   if (b.emptyKg != null && !opts.reweigh) return "This barrel's empty weight is already saved. Only the owner can weigh it again.";
   if (kg >= b.grossKg) return "Empty barrel cannot weigh as much as (or more than) the full barrel.";
   return null;
+}
+
+/** A typed weight may carry the time it was really weighed (for example from a paper slip). */
+export function checkWeighedAt(input: unknown, nowMs: number, opts = BARREL_DEFAULTS): { at: Date } | { error: string } {
+  if (input == null || input === "") return { at: new Date(nowMs) };
+  const ms = typeof input === "number" ? input : Date.parse(String(input));
+  if (!Number.isFinite(ms)) return { error: "That date and time is not valid." };
+  if (ms > nowMs + 2 * 60_000) return { error: "The weighing time cannot be in the future." };
+  if (ms < nowMs - opts.maxBackdateDays * 86_400_000) return { error: `The weighing time cannot be more than ${opts.maxBackdateDays} days back.` };
+  return { at: new Date(ms) };
 }
 
 // ---------------------------------------------------------------------------
@@ -191,7 +222,13 @@ export function barrelFlags(
 
   const grossMs = toMs(b.grossAt);
   if (b.grossKg != null && b.emptyKg == null && grossMs != null && nowMs - grossMs > opts.maxOpenHours * 3600_000)
-    flags.push({ code: "STILL_FULL", level: "warn", seq: b.seq, msg: `${tag}: weighed full more than ${opts.maxOpenHours} hours ago and not yet emptied and weighed.` });
+    flags.push({ code: "STILL_FULL", level: "warn", seq: b.seq, msg: `${tag}: has been full and waiting ${Math.floor((nowMs - grossMs) / 86_400_000)} days — not yet emptied and weighed.` });
+  for (const [phase, at, rec] of [["full", b.grossAt, b.grossRecordedAt], ["empty", b.emptyAt, b.emptyRecordedAt]] as const) {
+    const a = toMs(at ?? null);
+    const r = toMs(rec ?? null);
+    if (a != null && r != null && Math.abs(r - a) > opts.backdateMinutes * 60_000)
+      flags.push({ code: "BACKDATED", level: "warn", seq: b.seq, msg: `${tag}: ${phase} weight is dated ${Math.round(Math.abs(r - a) / 60_000)} minutes ${a < r ? "before" : "after"} the moment it was saved.` });
+  }
   return flags;
 }
 
@@ -321,4 +358,145 @@ export function staffView<T extends ShapedReceipt>(r: T): T {
       flags: r.summary.flags.filter((f) => STAFF_FLAGS.includes(f.code)),
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Register: one row per barrel, across all lots — the "records" view.
+// ---------------------------------------------------------------------------
+export interface RegisterRow {
+  code: string;
+  seq: number;
+  barrelsInLot: number;
+  lotId: string;
+  lotNo: string;
+  lotDate: string;
+  lotStatus: string;
+  supplierName: string;
+  product: string;
+  vehicleNo: string | null;
+  challanNo: string | null;
+  tankTarget: string | null;
+  supplierMark: string | null;
+  grossKg: number | null;
+  grossAt: string | null;
+  grossBy: string | null;
+  grossSource: string | null;
+  grossScale: string | null;
+  grossNote: string | null;
+  emptyKg: number | null;
+  emptyAt: string | null;
+  emptyBy: string | null;
+  emptySource: string | null;
+  emptyScale: string | null;
+  emptyNote: string | null;
+  netKg: number | null;
+  state: BarrelState;
+  /** Days the barrel has been full and waiting (only while state = FULL). */
+  waitingDays: number | null;
+  /** Rough oil still inside a waiting barrel: full weight minus a typical empty barrel. Never a measured figure. */
+  estNetKg: number | null;
+  /** Supplier's figure for this barrel — owner only (null for staff). */
+  declaredNetKg: number | null;
+  diffKg: number | null;
+  flags: Flag[];
+}
+
+const iso = (d: Date | string | null | undefined) => (d == null ? null : new Date(d).toISOString());
+
+/** Flatten shaped lots into register rows. Staff-hidden fields are already null in `shaped`. */
+export function registerRows(lots: ShapedReceipt[], nowMs: number): RegisterRow[] {
+  const allEmpties = lots.flatMap((l) => l.barrels.filter((b) => b.emptyKg != null).map((b) => b.emptyKg as number));
+  const globalTare = allEmpties.length >= 3 ? median(allEmpties) : null;
+  const rows: RegisterRow[] = [];
+  for (const l of lots) {
+    const lotEmpties = l.barrels.filter((b) => b.emptyKg != null).map((b) => b.emptyKg as number);
+    const tare = lotEmpties.length ? median(lotEmpties) : globalTare;
+    for (const b of l.barrels) {
+      const state = barrelState(b);
+      const net = barrelNet(b);
+      const grossMs = toMs(b.grossAt);
+      const declared = b.declaredNetKg ?? null;
+      rows.push({
+        code: b.code,
+        seq: b.seq,
+        barrelsInLot: l.barrels.length,
+        lotId: String(l.id),
+        lotNo: String(l.lotNo),
+        lotDate: String(l.date),
+        lotStatus: String(l.status),
+        supplierName: String(l.supplierName),
+        product: String(l.product),
+        vehicleNo: (l.vehicleNo as string | null) ?? null,
+        challanNo: (l.challanNo as string | null) ?? null,
+        tankTarget: (l.tankTarget as string | null) ?? null,
+        supplierMark: (b.supplierMark as string | null) ?? null,
+        grossKg: b.grossKg,
+        grossAt: iso(b.grossAt),
+        grossBy: (b.grossBy as string | null) ?? null,
+        grossSource: b.grossSource,
+        grossScale: (b.grossScale as string | null) ?? null,
+        grossNote: (b.grossNote as string | null) ?? null,
+        emptyKg: b.emptyKg,
+        emptyAt: iso(b.emptyAt),
+        emptyBy: (b.emptyBy as string | null) ?? null,
+        emptySource: b.emptySource,
+        emptyScale: (b.emptyScale as string | null) ?? null,
+        emptyNote: (b.emptyNote as string | null) ?? null,
+        netKg: net,
+        state,
+        waitingDays: state === "FULL" && grossMs != null ? Math.max(0, Math.floor((nowMs - grossMs) / 86_400_000)) : null,
+        estNetKg: state === "FULL" && b.grossKg != null && tare != null && b.grossKg > tare ? round1(b.grossKg - tare) : null,
+        declaredNetKg: declared,
+        diffKg: net != null && declared != null ? round2(net - declared) : null,
+        flags: l.summary.flags.filter((f) => f.seq === b.seq),
+      });
+    }
+  }
+  return rows;
+}
+
+export interface RegisterTotals {
+  barrels: number;
+  waiting: number;
+  waitingOldestDays: number | null;
+  waitingEstKg: number;
+  emptied: number;
+  grossKg: number;
+  tareKg: number;
+  netKg: number;
+}
+
+/** Totals over rows. Gross/tare/net only add up barrels that have BOTH weights, so the three columns always agree. */
+export function registerTotals(rows: RegisterRow[]): RegisterTotals {
+  const done = rows.filter((r) => r.state === "DONE");
+  const waiting = rows.filter((r) => r.state === "FULL");
+  const days = waiting.map((r) => r.waitingDays ?? 0);
+  return {
+    barrels: rows.length,
+    waiting: waiting.length,
+    waitingOldestDays: days.length ? Math.max(...days) : null,
+    waitingEstKg: round1(waiting.reduce((s, r) => s + (r.estNetKg ?? 0), 0)),
+    emptied: done.length,
+    grossKg: round2(done.reduce((s, r) => s + (r.grossKg ?? 0), 0)),
+    tareKg: round2(done.reduce((s, r) => s + (r.emptyKg ?? 0), 0)),
+    netKg: round2(done.reduce((s, r) => s + (r.netKg ?? 0), 0)),
+  };
+}
+
+/** CSV text for the register (Excel-friendly). Staff rows carry no supplier figures because they are null. */
+export function registerCsv(rows: RegisterRow[], isOwner: boolean): string {
+  const q = (v: unknown) => {
+    const t = v == null ? "" : String(v);
+    return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const ist = (t: string | null) => (t ? new Date(t).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: false }) : "");
+  const head = ["Lot", "Lot date", "Barrel", "Supplier", "Oil", "Vehicle", "Challan", "Gross kg (oil+barrel)", "Gross weighed at", "Gross by", "Gross source", "Tare kg (empty barrel)", "Tare weighed at", "Tare by", "Tare source", "Net oil kg", "Status", "Days waiting"];
+  if (isOwner) head.push("Supplier kg", "Difference kg");
+  const lines = [head.map(q).join(",")];
+  for (const r of rows) {
+    const c: unknown[] = [r.lotNo, r.lotDate, r.code, r.supplierName, r.product, r.vehicleNo, r.challanNo, r.grossKg, ist(r.grossAt), r.grossBy, r.grossSource, r.emptyKg, ist(r.emptyAt), r.emptyBy, r.emptySource, r.netKg, r.state === "DONE" ? "Emptied" : r.state === "FULL" ? "Waiting to empty" : "Not weighed", r.waitingDays];
+    if (isOwner) c.push(r.declaredNetKg, r.diffKg);
+    lines.push(c.map(q).join(","));
+  }
+  return "\ufeff" + lines.join("\r\n");
 }

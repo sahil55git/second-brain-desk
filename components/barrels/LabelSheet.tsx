@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Barcode from "@/components/barrels/Barcode";
+import QrCode from "@/components/barrels/QrCode";
+import { barrelLink } from "@/lib/barrels";
 
 interface Lot {
   id: string;
@@ -20,7 +22,8 @@ export default function LabelSheet() {
   const [size, setSize] = useState<"a4" | "thermal">(sp.get("size") === "thermal" ? "thermal" : "a4");
   const [lot, setLot] = useState<Lot | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [only, setOnly] = useState<number[] | null>(null);
+  const [only, setOnly] = useState<number[] | null>(Number(sp.get("seq")) > 0 ? [Number(sp.get("seq"))] : null);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
 
   useEffect(() => {
     if (!lotKey) {
@@ -63,7 +66,7 @@ export default function LabelSheet() {
           {only && <button className="bd-btn" onClick={() => setOnly(null)}>Show all</button>}
         </div>
         <div className="bd-m small">
-          Stick one label on each barrel (on the side, not the lid) — cover it with clear tape because oil and handling wear paper labels. To reprint one barrel, tap its number:{" "}
+          Each label has a barcode (for a scanner gun) and a QR code (for any phone camera — it opens the barrel&apos;s record). Stick one label on each barrel (on the side, not the lid) — cover it with clear tape because oil and handling wear paper labels. To reprint one barrel, tap its number:{" "}
           {lot.barrels.map((b) => (
             <button key={b.id} className="bd-linkbtn" onClick={() => setOnly([b.seq])}>
               {String(b.seq).padStart(2, "0")}
@@ -78,15 +81,21 @@ export default function LabelSheet() {
               <b>MAHADEV TRADERS</b>
               <span>{lot.date.split("-").reverse().join("-")}</span>
             </div>
-            <Barcode value={b.code} moduleWidth={size === "thermal" ? 1.6 : 2} height={size === "thermal" ? 44 : 52} />
-            <div className="bd-lcode">{b.code}</div>
-            <div className="bd-lline">
-              <span>Barrel {String(b.seq).padStart(2, "0")} / {String(total).padStart(2, "0")}</span>
-              <span>{lot.product}</span>
-            </div>
-            <div className="bd-lline small">
-              <span>{lot.supplierName}</span>
-              <span>{lot.vehicleNo || ""}</span>
+            <Barcode className="bd-lbar" value={b.code} moduleWidth={2} height={size === "thermal" ? 66 : 76} />
+            <div className="bd-lbottom">
+              <div className="bd-ltext">
+                <div className="bd-lcode">{b.code}</div>
+                <div className="bd-lline">
+                  <span>Barrel {String(b.seq).padStart(2, "0")} / {String(total).padStart(2, "0")}</span>
+                </div>
+                <div className="bd-lline small">
+                  <span>{lot.product}</span>
+                </div>
+                <div className="bd-lline small">
+                  <span>{lot.supplierName}{lot.vehicleNo ? ` · ${lot.vehicleNo}` : ""}</span>
+                </div>
+              </div>
+              <QrCode className="bd-lqr" value={barrelLink(origin, b.code)} moduleSize={3} />
             </div>
           </div>
         ))}
