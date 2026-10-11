@@ -4,6 +4,10 @@
 // category/amount log, optionally linked to a party (transporter, landlord).
 import { useMemo, useState } from "react";
 import type { ExpenseDTO, PartyDTO, PaymentMode } from "@/lib/types";
+import AiTerminal, { type FillMeta } from "@/components/AiTerminal";
+import ChecksList from "@/components/smart/ChecksList";
+import { expenseChecks, matchParty } from "@/lib/smartEntry";
+import { uploadProof } from "@/lib/proofClient";
 
 const PAYMENT_MODES: PaymentMode[] = ["CASH", "UPI", "BANK", "CREDIT", "OTHER"];
 
@@ -45,6 +49,31 @@ export default function ExpensesDesk({
   const [notes, setNotes] = useState("");
 
   const activeParties = useMemo(() => parties.filter((p) => p.active), [parties]);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [smartMsg, setSmartMsg] = useState<string | null>(null);
+  const [savedNote, setSavedNote] = useState<string | null>(null);
+  const checks = useMemo(
+    () => expenseChecks({ date, category, amountInr: Number(amountInr) || 0 }, { expenses, today: todayISO() }),
+    [date, category, amountInr, expenses]
+  );
+
+  /** AI terminal → form (never saves). */
+  function handleAiFill(f: Record<string, unknown>, meta: FillMeta) {
+    const msgs: string[] = [];
+    if (typeof f.date === "string") setDate(f.date);
+    if (typeof f.category === "string") setCategory(f.category);
+    if (typeof f.amountInr === "number") setAmountInr(String(f.amountInr));
+    if (typeof f.paymentMode === "string" && PAYMENT_MODES.includes(f.paymentMode as PaymentMode)) setPaymentMode(f.paymentMode as PaymentMode);
+    if (typeof f.partyName === "string") {
+      const m = matchParty(f.partyName, null, activeParties);
+      if (m) setPartyId(m.party.id);
+      else msgs.push(`Paid to "${f.partyName}" — not in Parties; noted in Notes.`);
+    }
+    const extra = [typeof f.partyName === "string" ? `Paid to ${f.partyName}` : "", typeof f.billNo === "string" ? `Receipt ${f.billNo}` : "", typeof f.notes === "string" ? f.notes : ""].filter(Boolean).join(" · ");
+    if (extra) setNotes((n) => (n ? `${n} · ${extra}` : extra));
+    if (meta.photoDataUrl) setPhoto(meta.photoDataUrl);
+    setSmartMsg(msgs.join(" ") || null);
+  }
 
   const total = useMemo(
     () => expenses.reduce((s, e) => s + e.amountInr, 0),
@@ -52,6 +81,8 @@ export default function ExpensesDesk({
   );
 
   function resetForm() {
+    setPhoto(null);
+    setSmartMsg(null);
     setDate(todayISO());
     setCategory("");
     setAmountInr("");
@@ -83,6 +114,13 @@ export default function ExpensesDesk({
       const json = await res.json();
       if (!res.ok) return setError(json.error || "Failed to save expense.");
       setExpenses((prev) => [json.data, ...prev]);
+      setSavedNote(null);
+      if (photo) {
+        const party = activeParties.find((p) => p.id === partyId)?.name ?? null;
+        uploadProof({ kind: "RECEIPT", dataUrl: photo, capturedAt: new Date().toISOString() }, { date, partyName: party, amountInr: amt, notes: `Expense: ${category.trim()}` })
+          .then(() => setSavedNote("Expense saved with its receipt photo."))
+          .catch((er) => setSavedNote(`Expense saved, but the photo was not filed: ${er instanceof Error ? er.message : "error"}.`));
+      }
       resetForm();
       setShowForm(false);
     } catch (err) {
@@ -105,6 +143,7 @@ export default function ExpensesDesk({
         </div>
       )}
 
+      {savedNote && <div className="rounded border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-xs">{savedNote}</div>}
       <div className="flex items-center justify-between">
         <div className="text-sm opacity-70">
           {expenses.length} expense{expenses.length === 1 ? "" : "s"} · total ₹{total.toFixed(2)}
@@ -122,6 +161,23 @@ export default function ExpensesDesk({
           onSubmit={submit}
           className="rounded-xl border border-black/10 dark:border-white/10 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
         >
+          <div className="sm:col-span-2">
+            <AiTerminal
+              desk="expense"
+              onFill={handleAiFill}
+              title="AI Terminal — photograph the receipt, speak, or ask"
+              defaultOpen
+              ask={{ desk: "expense", form: () => `Date: ${date}; Category: ${category || "?"}; Amount: ₹${amountInr || "?"}; Payment: ${paymentMode}; Notes: ${notes || "-"}` }}
+            />
+            {smartMsg && <div className="rounded border border-sky-300 bg-sky-50 dark:bg-sky-950/30 px-3 py-2 text-xs">{smartMsg}</div>}
+            {photo && (
+              <div className="flex items-center gap-2 text-xs opacity-80 mt-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photo} alt="Receipt photo" className="h-12 rounded border border-black/10" /> Receipt photo will be filed when you save.
+                <button type="button" className="underline" onClick={() => setPhoto(null)}>remove</button>
+              </div>
+            )}
+          </div>
           <label className="text-sm space-y-1">
             <span className="opacity-70">Date</span>
             <input
@@ -193,6 +249,9 @@ export default function ExpensesDesk({
             />
           </label>
 
+          <div className="sm:col-span-2">
+            <ChecksList checks={checks} />
+          </div>
           {error && (
             <div className="sm:col-span-2 rounded border border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-700 px-3 py-2 text-xs text-red-800 dark:text-red-300">
               {error}
@@ -205,7 +264,7 @@ export default function ExpensesDesk({
               disabled={saving}
               className="rounded bg-[var(--accent)] text-[var(--accent-contrast)] px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
-              {saving ? "Saving…" : "Save expense"}
+              {saving ? "Saving…" : checks.some((c) => c.level === "alert") ? "Save expense anyway" : "Save expense"}
             </button>
           </div>
         </form>

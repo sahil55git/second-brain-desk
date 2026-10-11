@@ -15,7 +15,7 @@ export function cameraScanSupported(): boolean {
   return typeof window !== "undefined" && "BarcodeDetector" in window && !!navigator.mediaDevices?.getUserMedia;
 }
 
-export default function BarcodeScanner({ onCode, onClose }: { onCode: (code: string) => void; onClose: () => void }) {
+export default function BarcodeScanner({ onCode, onClose, title }: { onCode: (code: string) => void; onClose: () => void; title?: string }) {
   const video = useRef<HTMLVideoElement>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -27,7 +27,7 @@ export default function BarcodeScanner({ onCode, onClose }: { onCode: (code: str
       try {
         if (!cameraScanSupported()) throw new Error("This browser cannot read barcodes with the camera. Use Chrome, or type the code.");
         const Ctor = (window as unknown as { BarcodeDetector: DetectorCtor }).BarcodeDetector;
-        const detector = new Ctor({ formats: ["code_128", "qr_code"] });
+        const detector = new Ctor({ formats: ["code_128", "qr_code", "ean_13", "ean_8", "upc_a", "upc_e", "code_39"] });
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
         if (stop) return;
         const v = video.current!;
@@ -66,9 +66,9 @@ export default function BarcodeScanner({ onCode, onClose }: { onCode: (code: str
   }, []);
 
   return createPortal(
-    <div className="bd-scan" role="dialog" aria-modal aria-label="Scan barrel label">
+    <div className="bd-scan" role="dialog" aria-modal aria-label={title || "Scan barrel label"}>
       <div className="bd-scanbox">
-        <div className="bd-scanhead">📷 Scan the barrel label · ಲೇಬಲ್ ಸ್ಕ್ಯಾನ್ ಮಾಡಿ</div>
+        <div className="bd-scanhead">📷 {title || "Scan the barrel label"} · ಸ್ಕ್ಯಾನ್ ಮಾಡಿ</div>
         {err ? <div className="bd-err">{err}</div> : <video ref={video} className="bd-video" playsInline muted />}
         <div className="bd-scanline" aria-hidden />
         <button type="button" className="bd-btn" onClick={onClose}>

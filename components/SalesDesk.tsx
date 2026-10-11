@@ -6,6 +6,7 @@
 // re-computes GST authoritatively), and print a clean invoice.
 import { useEffect, useMemo, useState } from "react";
 import type {
+  PurchaseBillDTO,
   SalesInvoiceDTO,
   PartyDTO,
   ItemDTO,
@@ -15,22 +16,16 @@ import type {
 import { computeTotals, gstTreatment, type GstLineInput } from "@/lib/gst";
 import InvoicePrint from "./InvoicePrint";
 import { useScale } from "./ScaleProvider";
+import AiTerminal from "@/components/AiTerminal";
+import ChecksList from "@/components/smart/ChecksList";
+import CodeScan from "@/components/smart/CodeScan";
+import RateHint from "@/components/smart/RateHint";
+import UnknownCode from "@/components/smart/UnknownCode";
+import { cleanAiLines, findItemByCode, matchParty, salesChecks } from "@/lib/smartEntry";
+import { addScannedItem, applyFilledLines, blankLine, formSummary, toLite, type DraftLine } from "@/lib/smartLines";
 
 const PAYMENT_MODES: PaymentMode[] = ["CASH", "UPI", "BANK", "CREDIT", "OTHER"];
 
-interface DraftLine {
-  itemId: string;
-  name: string;
-  hsnCode: string;
-  qty: string;
-  unit: string;
-  rateInr: string;
-  gstRatePct: string;
-}
-
-function blankLine(): DraftLine {
-  return { itemId: "", name: "", hsnCode: "", qty: "", unit: "kg", rateInr: "", gstRatePct: "" };
-}
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -38,12 +33,15 @@ function todayISO() {
 
 export default function SalesDesk({
   initialInvoices,
+  purchases = [],
   parties,
   items,
   settings,
   dbConnected,
 }: {
   initialInvoices: SalesInvoiceDTO[];
+  /** Purchase bills — for "selling below cost" checks and cost hints. */
+  purchases?: PurchaseBillDTO[];
   parties: PartyDTO[];
   items: ItemDTO[];
   settings: BusinessSettingsDTO | null;
@@ -63,6 +61,9 @@ export default function SalesDesk({
   const [activeScaleLine, setActiveScaleLine] = useState(0);
   const [scaleAutoFill, setScaleAutoFill] = useState(true);
   const { connected: scaleConnected, selectedReading, selectedScale } = useScale();
+  const [itemList, setItemList] = useState<ItemDTO[]>(items);
+  const [smartMsg, setSmartMsg] = useState<string | null>(null);
+  const [unknownCode, setUnknownCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (!showForm || !scaleAutoFill || !selectedReading || selectedReading.stable === false) return;
@@ -72,7 +73,7 @@ export default function SalesDesk({
   }, [showForm, scaleAutoFill, selectedReading, activeScaleLine]);
 
   const activeParties = useMemo(() => parties.filter((p) => p.active), [parties]);
-  const activeItems = useMemo(() => items.filter((i) => i.active), [items]);
+  const activeItems = useMemo(() => itemList.filter((i) => i.active), [itemList]);
   const defaultGst = settings?.defaultGstRatePct ?? 5;
   const businessState = settings?.state ?? null;
 
@@ -88,6 +89,41 @@ export default function SalesDesk({
       gstRatePct: l.gstRatePct === "" ? defaultGst : Number(l.gstRatePct) || 0,
     }));
   const preview = computeTotals(previewInputs, treatment);
+
+  const today = todayISO();
+  const checks = useMemo(() => salesChecks({ partyId, date, lines: toLite(lines) }, { invoices, bills: purchases, today }), [partyId, date, lines, invoices, purchases, today]);
+
+  /** AI terminal → form (never saves). */
+  function handleAiFill(f: Record<string, unknown>) {
+    const notes: string[] = [];
+    if (typeof f.partyName === "string") {
+      const m = matchParty(f.partyName, null, activeParties);
+      if (m) setPartyId(m.party.id);
+      else notes.push(`Customer "${f.partyName}" is not in your Parties list — add them there, then pick them above.`);
+    }
+    if (typeof f.date === "string") setDate(f.date);
+    if (typeof f.paymentMode === "string" && PAYMENT_MODES.includes(f.paymentMode as PaymentMode)) setPaymentMode(f.paymentMode as PaymentMode);
+    if (typeof f.notes === "string") setNotes((n) => (n ? `${n} · ${f.notes}` : String(f.notes)));
+    const filled = cleanAiLines(f.lines);
+    if (filled.length) {
+      setScaleAutoFill(false); // spoken quantities must not be overwritten by the live scale
+      const r = applyFilledLines(lines, filled, activeItems);
+      setLines(r.lines);
+      if (r.matched.length) notes.push(`Matched to your items: ${r.matched.join("; ")}.`);
+      if (r.unmatched.length) notes.push(`Not in your items (kept as typed): ${r.unmatched.join(", ")}.`);
+    }
+    setSmartMsg(notes.join(" ") || null);
+  }
+
+  function onCode(code: string) {
+    setUnknownCode(null);
+    const it = findItemByCode(code, activeItems);
+    if (!it) return setUnknownCode(code);
+    const steady = selectedReading && selectedReading.stable !== false && Date.now() - selectedReading.receivedAt < 10000 ? selectedReading.weight : null;
+    const r = addScannedItem(lines, it, { weightKg: scaleAutoFill ? steady : null });
+    setLines(r.lines);
+    setActiveScaleLine(r.index);
+  }
 
   function pickItem(idx: number, itemId: string) {
     setActiveScaleLine(idx);
@@ -122,6 +158,8 @@ export default function SalesDesk({
   }
 
   function resetForm() {
+    setSmartMsg(null);
+    setUnknownCode(null);
     setPartyId("");
     setDate(todayISO());
     setPaymentMode("CASH");
@@ -218,6 +256,16 @@ export default function SalesDesk({
 
       {showForm && (
         <form onSubmit={submit} className="rounded-xl border border-black/10 dark:border-white/10 p-4 space-y-4">
+          <AiTerminal
+            desk="sales"
+            onFill={handleAiFill}
+            title="AI Terminal — speak or type the sale, or ask"
+            ask={{
+              desk: "sales",
+              form: () => formSummary({ Customer: selectedParty?.name, Date: date, Payment: paymentMode }, lines, [`Invoice total incl. GST: ₹${preview.totalInr.toFixed(2)}`]),
+            }}
+          />
+          {smartMsg && <div className="rounded border border-sky-300 bg-sky-50 dark:bg-sky-950/30 px-3 py-2 text-xs">{smartMsg}</div>}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <label className="text-sm space-y-1">
               <span className="opacity-70">Customer *</span>
@@ -272,6 +320,21 @@ export default function SalesDesk({
 
           {/* Line items */}
           <div className="space-y-2">
+            <CodeScan onCode={onCode} placeholder="Scan a pack barcode / QR, or type an item code…" />
+            {unknownCode && (
+              <UnknownCode
+                code={unknownCode}
+                items={activeItems}
+                onClose={() => setUnknownCode(null)}
+                onLinked={(it) => {
+                  setItemList((all) => all.map((x) => (x.id === it.id ? it : x)));
+                  setUnknownCode(null);
+                  const r = addScannedItem(lines, it);
+                  setLines(r.lines);
+                  setActiveScaleLine(r.index);
+                }}
+              />
+            )}
             <div className="flex flex-wrap items-center gap-2 rounded-lg bg-black/5 dark:bg-white/5 px-3 py-2 text-xs">
               <span className={`h-2 w-2 rounded-full ${scaleConnected && selectedReading ? "bg-emerald-500" : "bg-red-500"}`} />
               <strong>Live scale</strong>
@@ -364,6 +427,10 @@ export default function SalesDesk({
                     ✕
                   </button>
                 </div>
+                <div className="col-span-12 -mt-1 flex flex-wrap gap-x-3">
+                  <RateHint bills={invoices} line={l} partyId={partyId} label="sold" onUse={(r) => setLine(idx, { rateInr: String(r) })} />
+                  <RateHint bills={purchases} line={l} label="cost" />
+                </div>
               </div>
             ))}
             <button
@@ -402,6 +469,8 @@ export default function SalesDesk({
             />
           </label>
 
+          <ChecksList checks={checks} />
+
           {error && (
             <div className="rounded border border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-700 px-3 py-2 text-xs text-red-800 dark:text-red-300">
               {error}
@@ -413,7 +482,7 @@ export default function SalesDesk({
             disabled={saving}
             className="rounded bg-[var(--accent)] text-[var(--accent-contrast)] px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
-            {saving ? "Saving…" : "Save invoice"}
+            {saving ? "Saving…" : checks.some((c) => c.level === "alert") ? "Save invoice anyway" : "Save invoice"}
           </button>
         </form>
       )}

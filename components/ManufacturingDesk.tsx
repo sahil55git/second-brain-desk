@@ -381,7 +381,7 @@ export default function ManufacturingDesk({
 
         {tab === "start" ? (
           <>
-            <AiTerminal desk="mfg-start" onFill={handleAiFill} title="AI Terminal — Start batch" />
+            <AiTerminal desk="mfg-start" onFill={handleAiFill} title="AI Terminal — Start batch" ask={{ desk: "mfg", form: () => `Mill ${mill || "?"}, barrel ${barrel || "?"}, ${productItem}, date ${date}, ref oil ${refOilPct}%, seed: ${suppliers.map((x) => `${x.name || "?"} ${x.seedKg || "?"} kg`).join(", ")}, step 1 crude oil ${step1Kg || "?"} kg` }} />
             <form onSubmit={submitStart} className="space-y-3 text-sm">
             <div className="grid grid-cols-2 gap-2">
               <Field label="Mill (optional)">

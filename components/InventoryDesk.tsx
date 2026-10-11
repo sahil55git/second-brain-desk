@@ -5,6 +5,8 @@ import { useMemo, useState } from "react";
 import type { ItemDTO } from "@/lib/types";
 import { useScale } from "./ScaleProvider";
 import KaradiTankRegister from "./KaradiTankRegister";
+import CodeScan from "@/components/smart/CodeScan";
+import { findItemByCode, nextItemCode } from "@/lib/smartEntry";
 
 export default function InventoryDesk({
   initialItems,
@@ -23,6 +25,7 @@ export default function InventoryDesk({
   const [form, setForm] = useState({
     name: "",
     sku: "",
+    barcode: "",
     unit: "kg",
     hsnCode: "",
     gstRatePct: "",
@@ -30,17 +33,33 @@ export default function InventoryDesk({
     reorderLevelQty: "",
     notes: "",
   });
+  const [codeMsg, setCodeMsg] = useState<string | null>(null);
+  const [found, setFound] = useState<string | null>(null);
+
+  /** Give an item the next shop code (MT000001…) so it can carry a barcode + QR label. */
+  async function assignCode(id: string) {
+    setCodeMsg(null);
+    const code = nextItemCode(items);
+    const res = await fetch(`/api/items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ barcode: code }) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) return setCodeMsg(j.error || "Could not save the code.");
+    setItems((prev) => prev.map((i) => (i.id === id ? j.data : i)));
+  }
 
   const visible = useMemo(() => {
     return items
       .filter((i) => i.active)
-      .filter((i) => !search.trim() || i.name.toLowerCase().includes(search.trim().toLowerCase()));
+      .filter((i) => {
+        const q = search.trim().toLowerCase();
+        return !q || i.name.toLowerCase().includes(q) || (i.barcode || "").toLowerCase().includes(q) || (i.sku || "").toLowerCase().includes(q);
+      });
   }, [items, search]);
 
   function resetForm() {
     setForm({
       name: "",
       sku: "",
+      barcode: "",
       unit: "kg",
       hsnCode: "",
       gstRatePct: "",
@@ -130,12 +149,28 @@ export default function InventoryDesk({
           className="rounded border border-black/20 dark:border-white/20 bg-transparent px-3 py-1.5 text-sm flex-1 min-w-[160px]"
         />
         <div className="flex-1" />
+        <a href="/labels" target="_blank" rel="noreferrer" className="rounded border border-black/20 dark:border-white/20 px-3 py-1.5 text-sm">
+          🏷️ Print item labels
+        </a>
         <button
           onClick={() => setShowForm((v) => !v)}
           className="rounded bg-[var(--accent)] text-[var(--accent-contrast)] px-3 py-1.5 text-sm font-medium"
         >
           {showForm ? "Cancel" : "+ Add item"}
         </button>
+      </div>
+
+      <div className="space-y-1">
+        <CodeScan
+          placeholder="Scan a pack to find its item…"
+          onCode={(c) => {
+            const it = findItemByCode(c, items);
+            setFound(it ? it.id : null);
+            setCodeMsg(it ? `Found: ${it.name}` : `No item has code ${c}. Add it to an item with “Barcode / QR code”, or scan it from a Sales / Purchase form to link it.`);
+            if (it) setSearch(it.name);
+          }}
+        />
+        {codeMsg && <div className="text-xs opacity-80">{codeMsg}</div>}
       </div>
 
       {showForm && (
@@ -159,6 +194,20 @@ export default function InventoryDesk({
               onChange={(e) => setForm({ ...form, sku: e.target.value })}
               className="w-full rounded border border-black/20 dark:border-white/20 bg-transparent px-3 py-2"
             />
+          </label>
+          <label className="text-sm space-y-1">
+            <span className="opacity-70">Barcode / QR code</span>
+            <div className="flex gap-2">
+              <input
+                value={form.barcode}
+                onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                placeholder="scan the pack, or generate"
+                className="w-full rounded border border-black/20 dark:border-white/20 bg-transparent px-3 py-2"
+              />
+              <button type="button" onClick={() => setForm({ ...form, barcode: nextItemCode(items) })} className="rounded border border-black/20 dark:border-white/20 px-2 text-xs whitespace-nowrap">
+                Generate
+              </button>
+            </div>
           </label>
           <label className="text-sm space-y-1">
             <span className="opacity-70">Unit</span>
@@ -237,6 +286,7 @@ export default function InventoryDesk({
             <tr>
               <th className="px-3 py-2">Name</th>
               <th className="px-3 py-2">SKU</th>
+              <th className="px-3 py-2">Barcode</th>
               <th className="px-3 py-2">Unit</th>
               <th className="px-3 py-2">HSN</th>
               <th className="px-3 py-2 text-right">GST %</th>
@@ -248,7 +298,7 @@ export default function InventoryDesk({
           <tbody>
             {visible.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center opacity-50">
+                <td colSpan={9} className="px-3 py-6 text-center opacity-50">
                   No items yet.
                 </td>
               </tr>
@@ -256,9 +306,20 @@ export default function InventoryDesk({
             {visible.map((i) => {
               const low = i.reorderLevelQty !== null && i.openingStockQty <= i.reorderLevelQty;
               return (
-                <tr key={i.id} className="border-b border-black/5 dark:border-white/5">
+                <tr key={i.id} className={`border-b border-black/5 dark:border-white/5 ${found === i.id ? "bg-[var(--accent)]/10" : ""}`}>
                   <td className="px-3 py-2 font-medium">{i.name}</td>
                   <td className="px-3 py-2">{i.sku || "—"}</td>
+                  <td className="px-3 py-2 font-mono text-xs">
+                    {i.barcode ? (
+                      <a href={`/labels?items=${i.id}`} target="_blank" rel="noreferrer" className="underline decoration-dotted" title="Print labels">
+                        {i.barcode} 🏷️
+                      </a>
+                    ) : (
+                      <button type="button" onClick={() => assignCode(i.id)} className="underline opacity-70">
+                        + code
+                      </button>
+                    )}
+                  </td>
                   <td className="px-3 py-2">{i.unit}</td>
                   <td className="px-3 py-2">{i.hsnCode || "—"}</td>
                   <td className="px-3 py-2 text-right">{i.gstRatePct ?? "—"}</td>

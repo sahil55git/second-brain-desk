@@ -227,7 +227,7 @@ export default function DailyClosingDesk({
       {/* Form panel */}
       <div className="rounded-xl border border-black/10 dark:border-white/10 p-4">
         <h2 className="font-semibold mb-3">New closing count</h2>
-        <AiTerminal desk="closing" onFill={handleAiFill} title="AI Terminal — Closing count" />
+        <AiTerminal desk="closing" onFill={handleAiFill} title="AI Terminal — Closing count" ask={{ desk: "closing", form: () => `Date ${date}, ${session}: ${Object.entries(cash).map(([k, v]) => `${k} ${v || 0}`).join(", ")}` }} />
         <form onSubmit={submitClosing} className="space-y-3 text-sm">
           <div className="grid grid-cols-2 gap-2">
             <div>
