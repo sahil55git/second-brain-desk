@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const st = vi.hoisted(() => ({ user: { name: "Sahil", role: "OWNER", isOwner: true } as Row | null, prompts: [] as string[], reply: "" }));
 
-vi.mock("@/lib/registerServer", () => ({ getUser: async () => st.user }));
+vi.mock("@/lib/registerServer", () => ({ getUser: async () => st.user, isValidDate: (d: unknown) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d), loadDay: async () => ({}) }));
 vi.mock("@/lib/aiProvider", () => ({
   runAi: async (_system: string, user: string) => {
     st.prompts.push(user);

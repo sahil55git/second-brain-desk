@@ -27,6 +27,17 @@ Every entry desk now has the same tools. **Nothing is ever saved by the AI** —
 - **Scanning in Sales / Purchase**: a USB/Bluetooth scanner types into the 🔍 box; or use 📷 Scan (Chrome/Edge camera, reads Code 128, QR, EAN-13/8, UPC). A pack code adds 1 to its line; a loose item (kg) gets a new line.
 - **Unknown code** (e.g. a new brand's EAN): pick the item once — the code is saved on it and found on every later scan.
 
+## Quick Register (/register)
+
+Same layer, tuned for the counter manager — everything in English + ಕನ್ನಡ.
+
+- **✨ Smart entry tile** (`/register?open=smart`): say, type or photograph what happened → the right form opens pre-filled (kind, item button, qty, rate, amount, UPI/cash/udhaar, name). Nothing is saved until the person taps Save. An item with no button becomes "Other" with the heard name. A sentence the quick voice parser cannot read goes here automatically.
+- **Ask / check tab**: ready questions (check the book, who owes us, today, this week, cash, job-work pending) and free questions. Answer-only, in English, Kannada or both.
+- **Live checks** under every entry form (`lib/registerChecks.ts`): hand-typed amount ≠ qty × rate (a slipped zero is an alert), rate far from the last 5 same-item entries / saved rate, same entry saved minutes ago, udhaar without a name, amount far above usual, huge quantity, cash going out above what the counter should hold, future or back-dated date. They only point things out; a real alert turns Save into "Save anyway".
+- **Scale**: ⚖️ "Use scale weight" appears only while the scale bridge runs — on the sale/purchase quantity, job-work seed kg and fresh-crush seed/oil kg.
+- **Item codes**: 🔍 scan or type a barcode/QR in a sale/purchase form → item and unit are set from the Items master.
+- **Bill photo**: a photo used for AI fill is filed with the entry but does not count as the owner's proof of payment.
+
 ## Limits
 
 - Speech and camera scanning need Chrome or Edge; on iPhone Safari type, or use a Bluetooth scanner.

@@ -2,11 +2,13 @@
 // The AI only ANSWERS — it reads the desk's records plus the form being filled
 // and explains; it never saves or changes anything.
 
-export type AskDesk = "purchase" | "sales" | "expense" | "stock" | "jobwork" | "closing" | "mfg";
+export type AskDesk = "purchase" | "sales" | "expense" | "stock" | "jobwork" | "closing" | "mfg" | "register";
 
 export interface DeskPrompt {
   id: string;
   label: string;
+  /** Kannada label, for the Quick Register (bilingual). */
+  kn?: string;
   instruction: string;
 }
 
@@ -41,6 +43,15 @@ export const DESK_PROMPTS: Record<AskDesk, DeskPrompt[]> = {
   closing: [
     { id: "check", label: "✅ Check this closing", instruction: "Check the cash closing in FORM: does cash in − cash out match the counted cash? Compare with recent closings and point out unusual figures." + CHECK_TAIL },
     { id: "audit", label: "🚨 Cash mismatches", instruction: "List recent cash mismatches (date, session, amount) and whether they repeat." },
+  ],
+  // Quick Register (answer-only): the AI reads today's entries, the last days, udhaar and job-work.
+  register: [
+    { id: "check", label: "✅ Check today's entries", kn: "✅ ಇಂದಿನ ದಾಖಲೆ ಪರಿಶೀಲಿಸಿ", instruction: "Check TODAY'S ENTRIES for mistakes: the same entry twice, an amount or rate far from the usual for that item (use LAST DAYS and the other entries), udhaar with no name, cash paid out that is more than the counter should hold, an odd item for the kind." + CHECK_TAIL },
+    { id: "owe", label: "📒 Who owes me?", kn: "📒 ಯಾರು ಬಾಕಿ ಕೊಡಬೇಕು?", instruction: "From CUSTOMERS WHO OWE US give each customer, the amount and since when, biggest first. Then, in one line, what we owe suppliers." },
+    { id: "today", label: "📊 Today so far", kn: "📊 ಇಂದಿನ ಸಾರಾಂಶ", instruction: "Summarise today: total sales and by item, cash in / out, UPI, udhaar given, expenses, and how much should be in the counter now. Compare with the previous day in LAST DAYS in one line." },
+    { id: "week", label: "📈 This week vs last", kn: "📈 ಈ ವಾರ vs ಕಳೆದ ವಾರ", instruction: "From LAST DAYS compare the latest 7 days with the 7 days before: sales, purchases, expenses. Name the day with the biggest change. Say clearly if there are fewer than 14 days of data." },
+    { id: "cash", label: "💵 Why is cash off?", kn: "💵 ನಗದು ಯಾಕೆ ವ್ಯತ್ಯಾಸ?", instruction: "Look at CASH and CASH COUNT. If a count is short or extra, list the likely causes from TODAY'S ENTRIES: a cash entry that looks doubled or missing, a big cash payment, pigmee, owner draw, a sale marked UPI that may be cash. If every count matched, say so in one line." + CHECK_TAIL },
+    { id: "jobwork", label: "🌾 Job-work pending", kn: "🌾 ಕೆಲಸದ ಗಾಣ ಬಾಕಿ", instruction: "From JOB-WORK NOT SETTLED list each customer, seed kg, days pending and advances, oldest first. These matter for GST Section 143 / ITC-04 — say plainly which are very old." },
   ],
   mfg: [
     { id: "check", label: "✅ Check this batch", instruction: "Check the manufacturing batch in FORM: seed kg, oil yield %, cake — compared with recent batches of the same seed. Flag mass-balance gaps over 2%." + CHECK_TAIL },

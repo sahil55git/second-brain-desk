@@ -6,7 +6,7 @@
 
 import { STOCK_PRODUCTS } from "@/lib/calculations";
 
-export type AiFillDesk = "jobwork" | "closing" | "mfg-start" | "purchase" | "sales" | "expense" | "stock";
+export type AiFillDesk = "jobwork" | "closing" | "mfg-start" | "purchase" | "sales" | "expense" | "stock" | "register";
 
 export interface AiFillFieldSpec {
   key: string;
@@ -91,6 +91,23 @@ export const AI_FILL_SCHEMAS: Record<AiFillDesk, AiFillFieldSpec[]> = {
     { key: "paymentMode", label: "Payment", type: "enum", enumValues: ["CASH", "UPI", "BANK", "CREDIT", "OTHER"] },
     { key: "notes", label: "Notes", type: "string" },
   ],
+  // Quick Register: one counter entry (sale, purchase, expense …). The register maps item / unit / mode to its own buttons.
+  register: [
+    {
+      key: "kind",
+      label: "What kind of entry",
+      type: "enum",
+      enumValues: ["SALE", "PURCHASE", "EXPENSE", "PAYMENT", "UDHAAR_IN", "PIGMEE", "OWNER_DRAW", "FRESH_CRUSH"],
+    },
+    { key: "item", label: "Item (e.g. sunflower, karadi, groundnut, diesel, seed)", type: "string" },
+    { key: "qty", label: "Quantity", type: "number" },
+    { key: "unit", label: "Unit", type: "enum", enumValues: ["kg", "ltr", "bags", "pcs", "box"] },
+    { key: "rateInr", label: "Rate per unit (₹)", type: "number" },
+    { key: "amountInr", label: "Total amount (₹)", type: "number" },
+    { key: "paymentMode", label: "Payment", type: "enum", enumValues: ["CASH", "UPI", "CREDIT"] },
+    { key: "partyName", label: "Customer / supplier / person paid", type: "string" },
+    { key: "notes", label: "Notes", type: "string" },
+  ],
   stock: STOCK_PRODUCTS.map((p) => ({ key: `stock_${p.key}`, label: `Counted stock — ${p.label} (kg)`, type: "number" as const })),
 };
 
@@ -98,6 +115,7 @@ export const AI_FILL_SCHEMAS: Record<AiFillDesk, AiFillFieldSpec[]> = {
 const DESK_NOTES: Partial<Record<AiFillDesk, string>> = {
   purchase: `This is a SUPPLIER'S PURCHASE BILL (tax invoice) for an edible-oil shop. Put one object in "lines" per item row printed on the bill. "rateInr" is the rate per unit BEFORE GST; if only an amount is printed, rateInr = amount ÷ qty. "qty" in the printed unit (kg, ltr, pcs, tin, bag); convert quintals to kg (1 qtl = 100 kg) and tonnes to kg. Copy the GSTIN exactly as printed — 15 characters. "billTotalInr" is the final amount payable.`,
   sales: `This is a SALE being spoken or typed at the counter. One object in "lines" per product. If the person says "N tins/cans of X kg" and gives a price per kg, use qty = N × X and unit "kg"; if they give a price per tin, use qty = N and unit "tin". Do not invent a rate if none is said.`,
+  register: `This is ONE entry for the shop's counter cash register, spoken, typed or from a photo of a bill / note. Choose "kind": SALE = sold to a customer; PURCHASE = bought goods (seed, oil, tins, labels); EXPENSE = a running cost (diesel, tea, electricity, transport, repair); PAYMENT = salary or a supplier payment; UDHAAR_IN = a customer paid back old credit (udhaar / ಉದ್ರಿ ವಸೂಲಿ); PIGMEE = cash put in the bank / pigmee; OWNER_DRAW = the owner (Sahil) took cash; FRESH_CRUSH = oil crushed in front of the customer from the shop's own seed. "udhaar", "credit" or "ಉದ್ರಿ" on a sale or purchase means paymentMode CREDIT; phonepe / gpay / upi means UPI; otherwise CASH only if it is said. If the person gives only a total, set amountInr and leave qty and rateInr out. Do not invent a rate, quantity or name that was not said.`,
   expense: `This is a shop EXPENSE (receipt, petrol slip, electricity bill, wages note). Pick the closest category. amountInr is the total paid.`,
   stock: `This is a PHYSICAL STOCK COUNT spoken or written product by product (kg). Map each product to its key: sunflower → stock_sf, karadi / safflower tank 1 → stock_karadi1, K2 → stock_k2, groundnut / shenga → stock_groundnut, gold drop → stock_golddrop, soyabean → stock_soyabean, coconut → stock_coconut, tea powder → stock_teapowder, til / sesame / ellu → stock_til, mustard → stock_mustard.`,
 };
