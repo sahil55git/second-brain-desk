@@ -73,6 +73,7 @@ model Party {
   purchases PurchaseBill[] @relation("PartyPurchases")
   expenses  Expense[]      @relation("PartyExpenses")
   registerEntries RegisterEntry[] @relation("PartyRegister")
+  oilReceipts     OilReceipt[]    @relation("PartyOilReceipts")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -603,4 +604,108 @@ model Attachment {
   @@index([date])
   @@index([kind])
   @@index([registerEntryId])
+}
+
+// ---------------------------------------------------------------------------
+// Barrel receiving — oil bought in barrels from a factory / trader.
+// Each barrel gets a barcode label, is weighed FULL on the platform scale,
+// emptied into the tank, then weighed EMPTY. Net oil = full − empty, added up
+// per lot and compared with the supplier's challan (lib/barrels.ts).
+//
+// Weights come from `ScaleTick` rows the scale bridge posts itself (settled
+// readings only), so a weight on a barrel can be traced to a real scale
+// reading. A weight typed by hand is allowed but marked MANUAL and flagged.
+// Every action is also written to BarrelEvent (append-only audit trail).
+// ---------------------------------------------------------------------------
+model OilReceipt {
+  id            String   @id @default(cuid())
+  lotNo         String   @unique // "R261010-1"
+  date          String // "YYYY-MM-DD" business date
+  partyId       String?
+  party         Party?   @relation("PartyOilReceipts", fields: [partyId], references: [id], onDelete: SetNull)
+  supplierName  String
+  product       String // "Sunflower oil", "Rice bran oil" …
+  vehicleNo     String?
+  challanNo     String? // supplier's challan / invoice number
+  rateInrPerKg  Float?
+  declaredNetKg Float? // total oil the supplier says is in the lot
+  declaredBarrels Int?
+  tankTarget    String? // tank the oil is poured into
+  status        String   @default("OPEN") // OPEN | CLOSED
+  closedAt      DateTime?
+  closedBy      String?
+  closeNote     String?
+  notes         String?
+  createdBy     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  barrels Barrel[]
+  events  BarrelEvent[]
+
+  @@index([date])
+  @@index([status])
+}
+
+model Barrel {
+  id        String     @id @default(cuid())
+  receiptId String
+  receipt   OilReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  seq       Int
+  code      String     @unique // printed in the barcode, "R261010-1-03"
+  supplierMark String? // number / mark painted on the supplier's barrel
+  declaredNetKg Float? // supplier's figure for this barrel, when given
+
+  grossKg     Float?
+  grossAt     DateTime?
+  grossBy     String?
+  grossSource String? // SCALE | MANUAL
+  grossScale  String?
+  grossTickId String?
+  grossNote   String?
+
+  emptyKg     Float?
+  emptyAt     DateTime?
+  emptyBy     String?
+  emptySource String?
+  emptyScale  String?
+  emptyTickId String?
+  emptyNote   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([receiptId, seq])
+  @@index([receiptId])
+}
+
+model BarrelEvent {
+  id        String     @id @default(cuid())
+  receiptId String
+  receipt   OilReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  barrelCode String?
+  action    String // CREATE | LABELS | GROSS | EMPTY | REWEIGH | EDIT | ADD_BARRELS | CLOSE | REOPEN
+  detail    Json?
+  by        String
+  at        DateTime @default(now())
+
+  @@index([receiptId, at])
+}
+
+// A settled (steady) reading the scale bridge pushed to the server. One tick
+// can be used for ONE weighment, within two minutes of settling.
+model ScaleTick {
+  id        String   @id @default(cuid())
+  source    String // "PLATFORM-1"
+  weightKg  Float
+  unit      String   @default("kg")
+  nonce     String   @unique // bridge-made id, so a retry cannot double-post
+  settledAt DateTime
+  createdAt DateTime @default(now())
+
+  usedBarrelCode String?
+  usedPhase      String?
+  usedAt         DateTime?
+
+  @@index([source, settledAt])
 }

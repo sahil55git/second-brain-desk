@@ -33,6 +33,7 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "payment", icon: "🤝", title: "Payment", kn: "ಪಾವತಿ", desc: "Salary / supplier payment", href: "/register?open=payment", group: "entry" },
   { id: "pigmee", icon: "🏦", title: "Pigmee / bank", kn: "ಪಿಗ್ಮಿ", desc: "Cash to bank, not an expense", href: "/register?open=pigmee", group: "entry" },
   { id: "draw", icon: "🧔", title: "Owner draw", kn: "ಮಾಲೀಕ ತೆಗೆದದ್ದು", desc: "Cash taken by owner", href: "/register?open=draw", group: "entry" },
+  { id: "barrels", icon: "🛢️", title: "Barrel receiving", kn: "ಬ್ಯಾರಲ್ ಸ್ವೀಕಾರ", desc: "Label, weigh full & empty, check the oil", href: "/barrels", group: "entry" },
   { id: "scan", icon: "📸", title: "Scan slip / bill", kn: "ಚೀಟಿ / ಬಿಲ್ ಸ್ಕ್ಯಾನ್", desc: "Weighbridge, weighing slip, bill, receipt", href: "/register?open=scan", group: "entry" },
   { id: "register", icon: "📒", title: "Quick Register", kn: "ಕ್ವಿಕ್ ರಿಜಿಸ್ಟರ್", desc: "Today's full screen", href: "/register", group: "entry" },
   // Job-work
