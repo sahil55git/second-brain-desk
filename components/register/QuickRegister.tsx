@@ -63,12 +63,21 @@ import {
   type ScanKind,
 } from "@/lib/proofs";
 import { getGeo, geoOn, preparePhoto, saveCopyOnDevice, uploadProof, type Captured } from "@/lib/proofClient";
+import { ChecksBox, CodeBtn, ScaleBtn, loadItems, useRecentEntries } from "@/components/register/SmartParts";
+import { hasAlert, registerChecks } from "@/lib/registerChecks";
+import { REGISTER_FILL_KINDS, mapRegisterFill, matchCatalogItem, normUnit, type RegisterDraft } from "@/lib/registerSmart";
+import { DESK_PROMPTS } from "@/lib/aiPrompts";
+import { findItemByCode } from "@/lib/smartEntry";
 
 // Pre-fill for an entry form: from a voice command, or from a scanned slip
 // (linkProofId attaches that scan to the entry once it is saved).
 type EntryInit = Partial<Pick<Extract<VoiceAction, { type: "entry" }>, "item" | "qty" | "unit" | "rate" | "amount" | "mode" | "party">> & {
   linkProofId?: string;
   note?: string;
+  /** An item the register has no button for: opens as "Other" with this name. */
+  otherName?: string;
+  /** Photo the AI read the entry from — attached to the entry as proof once it is saved. */
+  photo?: Captured;
 };
 
 // ---------------------------------------------------------------------------
@@ -139,6 +148,7 @@ type Sheet =
   | { t: "calc" }
   | { t: "report" }
   | { t: "scan" }
+  | { t: "smart"; text?: string; auto?: boolean }
   | null;
 
 // Per-device screen preferences (layout, favourite tiles, folded sections).
@@ -157,7 +167,8 @@ type TileKey =
   | "stock"
   | "calc"
   | "reports"
-  | "scan";
+  | "scan"
+  | "smart";
 type SectionKey = "summary" | "entries" | "jobwork";
 // What the always-open Workspace card shows.
 type WorkTool = "calc" | "notepad" | "FRESH_CRUSH" | "SALE" | "EXPENSE" | "PURCHASE" | "jwNew" | "count" | "stock";
@@ -853,6 +864,7 @@ export default function QuickRegister() {
     calc: { k: "calc", icon: "🧮", group: "tool", open: () => setSheet({ t: "calc" }) },
     reports: { k: "reports", icon: "🖨️", group: "tool", open: () => setSheet({ t: "report" }) },
     scan: { k: "scan", icon: "📸", group: "tool", open: () => setSheet({ t: "scan" }), needsDb: true },
+    smart: { k: "smart", icon: "✨", group: "tool", open: () => setSheet({ t: "smart" }), needsDb: true },
   };
 
   // Quick links (/go) and home-screen shortcuts arrive as /register?open=sale etc.
@@ -878,6 +890,7 @@ export default function QuickRegister() {
       stock: () => setSheet({ t: "stock" }),
       calc: () => setSheet({ t: "calc" }),
       scan: () => setSheet({ t: "scan" }),
+      smart: () => setSheet({ t: "smart" }),
     };
     const go = by[key];
     if (go && !dbOffline) go();
@@ -1087,6 +1100,7 @@ export default function QuickRegister() {
         <Tile id="count" />
         <Tile id="stock" />
         <Tile id="scan" />
+        <Tile id="smart" />
         <Tile id="calc" />
         <Tile id="reports" />
       </div>
@@ -1354,7 +1368,8 @@ export default function QuickRegister() {
   const recRef = useRef<{ stop: () => void } | null>(null);
   const runVoice = (text: string) => {
     const a = parseVoice(text);
-    if (a.type === "unknown") return toast(`${word("voiceUnknown", lang)}: “${text}”`);
+    // The quick rule-based parser did not understand: let the AI try (it only fills a form for checking).
+    if (a.type === "unknown") return setSheet({ t: "smart", text, auto: true });
     if (a.type === "open") {
       if (a.target === "reports") window.location.href = isOwner ? "/reports" : "/register";
       else if (a.target === "jw") setSheet({ t: "jw" });
@@ -1556,6 +1571,22 @@ export default function QuickRegister() {
       onSaved={(m) => done(m)}
       onMakeEntry={(kind, init) => {
         setSheet({ t: "entry", kind, init });
+        toast(word("voiceCheck", lang));
+      }}
+      toast={toast}
+    />
+  ) : sheet.t === "smart" ? (
+    <SmartSheet
+      key={(sheet.text || "") + (sheet.auto ? "a" : "")}
+      lang={lang}
+      date={date}
+      day={day}
+      initText={sheet.text}
+      auto={sheet.auto}
+      onClose={() => setSheet(null)}
+      onOpen={(kind, init) => {
+        if (kind === "FRESH_CRUSH") setSheet({ t: "fresh" });
+        else setSheet({ t: "entry", kind, init });
         toast(word("voiceCheck", lang));
       }}
       toast={toast}
@@ -1812,7 +1843,7 @@ function EntrySheet({
 
   const [totalMode, setTotalMode] = useState<"itemwise" | "total">("itemwise");
   const [item, setItem] = useState<string | null>(init?.item && items.some((i) => i.key === init.item) ? init.item : items[0]?.key || null);
-  const [otherName, setOtherName] = useState("");
+  const [otherName, setOtherName] = useState(init?.otherName || "");
   const [qty, setQty] = useState(init?.qty ? String(init.qty) : "");
   const [unit, setUnit] = useState(init?.unit || "kg");
   const savedRate = (it: string | null) => {
@@ -1843,6 +1874,9 @@ function EntrySheet({
   // Proof of payment (signature / photos) for money going out.
   const proofKind = kind === "PAYMENT" || kind === "PURCHASE" || kind === "EXPENSE";
   const [proofs, setProofs] = useState<Captured[]>([]);
+  // The photo the AI read this entry from: filed with the entry, but it does NOT
+  // count as the owner's "proof of payment" (that stays a signature / recipient photo).
+  const [billPhoto, setBillPhoto] = useState<Captured | null>(init?.photo || null);
 
   // Auto amount = qty × rate, computed on every render (no lag) until the
   // amount is typed by hand.
@@ -1859,6 +1893,45 @@ function EntrySheet({
   // Owner's rule (Settings): cash leaving the counter needs a proof.
   const proofRequired =
     proofKind && mode === "CASH" && proofNeeded(day.config.proofRequired || [], kind, parseFloat(amountValue) || 0, day.config.proofMinInr || 0);
+
+  // ---- live checks (they only point things out — Save is never blocked) ----
+  const recent = useRecentEntries(date);
+  const history = useMemo(() => [...day.entries, ...recent.filter((e) => e.date !== date)], [day.entries, recent, date]);
+  const draftMode: Mode | "OWNER_PHONEPE" = kind === "SALE" ? (pay.splitOn ? ((parseFloat(pay.parts.CREDIT || "") || 0) > 0 ? "CREDIT" : "CASH") : pay.chan) : mode;
+  const checks = registerChecks(
+    {
+      kind,
+      item: showItemwise ? item : null,
+      qty: showItemwise && hasQty ? parseFloat(qty) || null : null,
+      unit: showItemwise && hasQty ? unit : null,
+      rate: showItemwise && hasQty ? parseFloat(rate) || null : null,
+      amount: parseFloat(amountValue) || 0,
+      amountTyped: amtTouched,
+      mode: draftMode,
+      party,
+      date,
+    },
+    { entries: history, savedRate: item ? day.config.rates[rateKey(kind, item)] ?? null : null, cashNow: day.systemCashNow, today: todayIST(), nowMs: Date.now() }
+  );
+
+  // A scanned barcode / QR: the Items master → this form's own item button.
+  async function onCode(code: string) {
+    const hit = findItemByCode(code, await loadItems());
+    if (!hit) return toast(word("codeNotFound", lang));
+    const cat = matchCatalogItem(hit.name, items);
+    const key = cat ? cat.key : "other";
+    const u = normUnit(hit.unit);
+    if (cat) setRate(savedRate(cat.key));
+    else {
+      setOtherName(hit.name);
+      toast(word("codeNoMatch", lang));
+    }
+    // Counter packs (pieces / boxes / bags): every scan of the same pack adds one.
+    if (u === "pcs" || u === "box" || u === "bags") setQty((q) => String(key === item && parseFloat(q) > 0 ? parseFloat(q) + 1 : 1));
+    if (u) setUnit(u);
+    setItem(key);
+    setAmtTouched(false);
+  }
 
   async function save() {
     const amt = parseFloat(amountValue);
@@ -1901,11 +1974,12 @@ function EntrySheet({
     // The entry is saved. Now attach the proofs; a failed upload never loses
     // the picture — it is downloaded to the device instead.
     let msg = word("saved", lang);
-    if (entryId && (proofs.length || init?.linkProofId)) {
+    const toUpload = billPhoto ? [...proofs, billPhoto] : proofs;
+    if (entryId && (toUpload.length || init?.linkProofId)) {
       setBusy("proof");
       let failed = 0;
       let kept = false;
-      for (const p of proofs) {
+      for (const p of toUpload) {
         try {
           const r = await uploadProof(p, { date, registerEntryId: entryId, partyName: party.trim() || null, amountInr: amt });
           if (!r.drive.ok) kept = true;
@@ -1921,7 +1995,7 @@ function EntrySheet({
           failed++;
         }
       }
-      msg = failed ? word("proofFailed", lang) : proofs.length ? `${word("proofSaved", lang)}${kept ? " " + word("proofKept", lang) : ""}` : msg;
+      msg = failed ? word("proofFailed", lang) : toUpload.length ? `${word("proofSaved", lang)}${kept ? " " + word("proofKept", lang) : ""}` : msg;
     }
     onSaved(msg);
   }
@@ -1960,10 +2034,11 @@ function EntrySheet({
             }}
           />
           {item === "other" && (
-            <input className="qr-txt" style={{ marginTop: 6 }} placeholder={word("itemName", lang)} value={otherName} onChange={(e) => setOtherName(e.target.value)} autoFocus />
+            <input className="qr-txt" style={{ marginTop: 6 }} placeholder={word("itemName", lang)} value={otherName} onChange={(e) => setOtherName(e.target.value)} autoFocus={!init?.otherName} />
           )}
         </div>
       )}
+      {showItemwise && hasQty && items.length > 0 && <CodeBtn lang={lang} onCode={onCode} />}
 
       {kind === "OWNER_DRAW" && (
         <div className="qr-f">
@@ -1980,6 +2055,16 @@ function EntrySheet({
         </div>
       )}
 
+      {showItemwise && hasQty && (
+        <ScaleBtn
+          lang={lang}
+          onUse={(w) => {
+            setQty(String(w));
+            setUnit("kg");
+            setAmtTouched(false);
+          }}
+        />
+      )}
       {showItemwise && hasQty && (
         <div className="qr-grid3 qr-f">
           <div>
@@ -2063,9 +2148,20 @@ function EntrySheet({
         />
       )}
       {init?.linkProofId && <div className="qr-hint">📎 {word("scanLinked", lang)}</div>}
+      {billPhoto && (
+        <div className="qr-f qr-scanview">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={billPhoto.dataUrl} alt="" style={{ maxHeight: 120 }} />
+          <div className="qr-hint">📎 {word("smartPhotoKept", lang)}</div>
+          <button type="button" className="qr-mini" onClick={() => setBillPhoto(null)}>
+            ✕ {word("removeQ", lang).replace("?", "")}
+          </button>
+        </div>
+      )}
 
+      <ChecksBox checks={checks} lang={lang} />
       <button className={`qr-save ${side === "in" ? "" : side === "out" ? "out" : "oth"}`} onClick={save} disabled={!!busy}>
-        ✓ {busy === "proof" ? word("proofSaving", lang) : word(busy ? "saving" : "save", lang)}
+        ✓ {busy === "proof" ? word("proofSaving", lang) : word(busy ? "saving" : hasAlert(checks) ? "saveAnyway" : "save", lang)}
       </button>
     </SheetFrame>
   );
@@ -2177,6 +2273,7 @@ function JobWorkSheet({
           <Txt k="seedKg" lang={lang} />
         </label>
         <input className="qr-num" type="number" inputMode="decimal" min={0} value={seedKg} onChange={(e) => setSeedKg(e.target.value)} />
+        <ScaleBtn lang={lang} onUse={(w) => setSeedKg(String(w))} />
       </div>
       <div className="qr-f">
         <label>
@@ -2894,6 +2991,7 @@ function FreshCrushSheet({
         {num(seedKg, setSeedKg, "fcSeedKg")}
         {num(oilKg, setOilKg, "fcOilKg")}
       </div>
+      <ScaleBtn lang={lang} onUse={(w) => (seedKg ? setOilKg(String(w)) : setSeedKg(String(w)))} />
 
       <span className="qr-lbl">② <Txt k="fcStep2" lang={lang} /></span>
       <div className="qr-f">
@@ -3487,6 +3585,327 @@ function ReportSheet({
 // filed in Google Drive (06_Scans_&_Proofs/<type>/<month>), optionally turned
 // straight into a Purchase / Expense entry with the scan attached.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Smart entry: say / type / photograph what happened → the right form opens
+// pre-filled (still needs Save). The second tab only ANSWERS questions.
+// ---------------------------------------------------------------------------
+type SpeechLang = "en-IN" | "kn-IN" | "hi-IN";
+const SPEECH_KEY = "qr-smart-speech";
+
+function SmartSheet({
+  lang,
+  date,
+  day,
+  initText,
+  auto,
+  onClose,
+  onOpen,
+  toast,
+}: {
+  lang: LangMode;
+  date: string;
+  day: DayBundle;
+  initText?: string;
+  auto?: boolean;
+  onClose: () => void;
+  onOpen: (kind: RegisterKind, init: EntryInit) => void;
+  toast: (m: string) => void;
+}) {
+  const [tab, setTab] = useState<"fill" | "ask">("fill");
+  const [text, setText] = useState(initText || "");
+  const [photo, setPhoto] = useState<Captured | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [fields, setFields] = useState<Record<string, unknown> | null>(null);
+  const [pickedKind, setPickedKind] = useState<RegisterKind | null>(null);
+  const [noAi, setNoAi] = useState(false);
+  const [empty, setEmpty] = useState(false);
+  // speech
+  const [speechLang, setSpeechLang] = useState<SpeechLang>(lang === "kn" ? "kn-IN" : "en-IN");
+  const [micOk, setMicOk] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recRef = useRef<{ stop: () => void } | null>(null);
+  // ask
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [askErr, setAskErr] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const w = window as unknown as Record<string, unknown>;
+    setMicOk(!!(w.SpeechRecognition || w.webkitSpeechRecognition));
+    try {
+      const v = localStorage.getItem(SPEECH_KEY);
+      if (v === "en-IN" || v === "kn-IN" || v === "hi-IN") setSpeechLang(v);
+    } catch {}
+  }, []);
+  useEffect(() => () => recRef.current?.stop(), []);
+
+  // The form is always worked out from what the AI read + the kind the person confirmed.
+  const draft: RegisterDraft | null = useMemo(() => (fields ? mapRegisterFill(fields, day.config, pickedKind) : null), [fields, day.config, pickedKind]);
+  const kind = draft?.kind || null;
+
+  async function run(t: string, ph: Captured | null) {
+    if (!t.trim() && !ph) return;
+    setBusy(true);
+    setFields(null);
+    setPickedKind(null);
+    setNoAi(false);
+    setEmpty(false);
+    try {
+      const [head, b64] = ph ? ph.dataUrl.split(",") : ["", ""];
+      const res = await fetch("/api/ai-fill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          desk: "register",
+          text: t,
+          imageBase64: ph ? b64 : undefined,
+          imageMime: ph ? head.slice(5, head.indexOf(";")) : undefined,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.error || !json.fields) {
+        setNoAi(true);
+        return;
+      }
+      const f = json.fields as Record<string, unknown>;
+      if (mapRegisterFill(f, day.config).empty) setEmpty(true);
+      else setFields(f);
+    } catch {
+      setNoAi(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // A sentence the quick parser could not read arrives here already typed: read it at once.
+  const ranAuto = useRef(false);
+  useEffect(() => {
+    if (auto && initText && !ranAuto.current) {
+      ranAuto.current = true;
+      void run(initText, null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function toggleMic() {
+    if (listening) return recRef.current?.stop();
+    const w = window as unknown as Record<string, new () => {
+      lang: string;
+      interimResults: boolean;
+      onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
+      onerror: (e: { error: string }) => void;
+      onend: () => void;
+      start: () => void;
+      stop: () => void;
+    }>;
+    const Rec = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!Rec) return;
+    const rec = new Rec();
+    rec.lang = speechLang;
+    rec.interimResults = true;
+    const base = text.trim() ? text.trim() + " " : "";
+    rec.onresult = (e) => {
+      let t = "";
+      for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+      setText(base + t);
+    };
+    rec.onerror = (e) => {
+      if (e.error !== "aborted" && e.error !== "no-speech") toast(`🎤 ${e.error}`);
+    };
+    rec.onend = () => setListening(false);
+    recRef.current = rec;
+    setListening(true);
+    rec.start();
+  }
+
+  async function onPhoto(f: File | undefined) {
+    if (!f) return;
+    try {
+      const dataUrl = await preparePhoto(f);
+      const geo = geoOn() ? await getGeo() : null;
+      const cap: Captured = { kind: "BILL", dataUrl, capturedAt: new Date().toISOString(), geo };
+      setPhoto(cap);
+      void run(text, cap);
+    } catch {
+      toast(word("smartNoAi", lang));
+    }
+  }
+
+  async function ask(promptId?: string) {
+    const q = question.trim();
+    if (!promptId && !q) return;
+    setAsking(true);
+    setAnswer("");
+    setAskErr("");
+    try {
+      const r = await api<{ answer?: string }>("/api/ai/desk", {
+        method: "POST",
+        body: JSON.stringify({ desk: "register", ...(promptId ? { promptId } : { question: q }), date, lang }),
+      });
+      setAnswer(r.answer || "");
+    } catch (e) {
+      setAskErr(e instanceof Error ? e.message : word("smartNoAi", lang));
+    } finally {
+      setAsking(false);
+    }
+  }
+
+  const summary = draft
+    ? [
+        draft.init.item === "other" ? draft.init.otherName : draft.init.item,
+        draft.init.qty ? `${draft.init.qty} ${draft.init.unit || ""}`.trim() : "",
+        draft.init.rate ? `@ ₹${draft.init.rate}` : "",
+        draft.init.amount ? `= ₹${draft.init.amount}` : "",
+        draft.init.mode || "",
+        draft.init.party || "",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+
+  return (
+    <SheetFrame icon="✨" k="smart" lang={lang} onClose={onClose}>
+      <Chips
+        compact
+        lang={lang}
+        value={tab}
+        onPick={setTab}
+        options={[
+          { key: "fill", icon: "✍️", en: word("smartFillTab", "en"), kn: word("smartFillTab", "kn") },
+          { key: "ask", icon: "💬", en: word("smartAskTab", "en"), kn: word("smartAskTab", "kn") },
+        ]}
+      />
+
+      {tab === "fill" ? (
+        <>
+          <div className="qr-hint">
+            <Txt k="smartHint" lang={lang} />
+          </div>
+          <textarea
+            className="qr-smart-ta"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={word("smartPlaceholder", lang)}
+            aria-label={word("smart", lang)}
+          />
+          <div className="qr-smart-row">
+            {micOk && (
+              <button type="button" className="qr-btn2" onClick={toggleMic}>
+                🎤 {word(listening ? "smartStop" : "smartSpeak", lang)}
+              </button>
+            )}
+            <button type="button" className="qr-btn2" onClick={() => fileRef.current?.click()}>
+              📷 <Txt k="smartPhoto" lang={lang} />
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => onPhoto(e.target.files?.[0])} />
+          </div>
+          {micOk && (
+            <div className="qr-f">
+              <select
+                className="qr-txt"
+                value={speechLang}
+                aria-label="Speech language"
+                onChange={(e) => {
+                  const v = e.target.value as SpeechLang;
+                  setSpeechLang(v);
+                  try {
+                    localStorage.setItem(SPEECH_KEY, v);
+                  } catch {}
+                }}
+              >
+                <option value="en-IN">English</option>
+                <option value="kn-IN">ಕನ್ನಡ</option>
+                <option value="hi-IN">हिन्दी</option>
+              </select>
+            </div>
+          )}
+          {photo && (
+            <div className="qr-f qr-scanview">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photo.dataUrl} alt="" style={{ maxHeight: 120 }} />
+              <div className="qr-hint">📎 {word("smartPhotoKept", lang)}</div>
+            </div>
+          )}
+          <button type="button" className="qr-save" onClick={() => run(text, photo)} disabled={busy || (!text.trim() && !photo)}>
+            ✨ {word(busy ? "smartReading" : "smartGo", lang)}
+          </button>
+
+          {noAi && <div className="qr-chk warn">{word("smartNoAi", lang)}</div>}
+          {empty && <div className="qr-chk info">{word("smartNothing", lang)}</div>}
+
+          {draft && (
+            <>
+              <div className="qr-draft">
+                {kind ? `${KIND_ICON[kind]} ${word(kind as WordKey, lang)}` : word("smartWhatKind", lang)}
+                {summary && <small>{summary}</small>}
+                {text.trim() && (
+                  <small>
+                    {word("smartHeard", lang)}: “{text.trim().slice(0, 120)}”
+                  </small>
+                )}
+              </div>
+              {!kind && (
+                <div className="qr-chiprow">
+                  {REGISTER_FILL_KINDS.map((k) => (
+                    <button key={k} type="button" className="qr-chip" onClick={() => setPickedKind(k)}>
+                      {KIND_ICON[k]} {word(k as WordKey, lang)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {kind && (
+                <button
+                  type="button"
+                  className="qr-save"
+                  onClick={() => onOpen(kind, { ...draft.init, ...(photo ? { photo } : {}) })}
+                >
+                  ➜ <Txt k="smartOpen" lang={lang} />
+                </button>
+              )}
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="qr-chiprow">
+            {DESK_PROMPTS.register.map((p) => (
+              <button key={p.id} type="button" className="qr-chip" disabled={asking} onClick={() => ask(p.id)}>
+                {lang === "kn" && p.kn ? p.kn : p.label}
+                {lang === "both" && p.kn && <span className="qr-sub">{p.kn}</span>}
+              </button>
+            ))}
+          </div>
+          <div className="qr-coderow qr-f">
+            <input
+              className="qr-txt"
+              value={question}
+              placeholder={word("askPlaceholder", lang)}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void ask();
+                }
+              }}
+            />
+            <button type="button" className="qr-btn2" disabled={asking || !question.trim()} onClick={() => ask()}>
+              <Txt k="askGo" lang={lang} />
+            </button>
+          </div>
+          {asking && <div className="qr-hint">{word("askThinking", lang)}</div>}
+          {askErr && <div className="qr-chk warn">{askErr}</div>}
+          {answer && <div className="qr-answer">{answer}</div>}
+          <div className="qr-hint">
+            <Txt k="askNote" lang={lang} />
+          </div>
+        </>
+      )}
+    </SheetFrame>
+  );
+}
+
 function ScanSheet({
   lang,
   date,

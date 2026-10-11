@@ -1,10 +1,12 @@
 // AI terminal — ask / check on a desk. ANSWER ONLY: it reads the desk's recent
 // records and the form being filled, and explains. Nothing is saved or changed.
 //
-//   POST { desk, promptId?  | question?, form?: string }
+//   POST { desk, promptId?  | question?, form?: string, date?: YYYY-MM-DD, lang?: en|kn|both }
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
-import { getUser } from "@/lib/registerServer";
+import { getUser, isValidDate, loadDay } from "@/lib/registerServer";
+import { businessDate } from "@/lib/register";
+import { registerContext, type RegisterRow } from "@/lib/registerSmart";
 import { runAi } from "@/lib/aiProvider";
 import { ASK_DESKS, deskPrompt, type AskDesk } from "@/lib/aiPrompts";
 import { barrelLotsContext, cap, expenseContext, purchaseContext, salesContext } from "@/lib/deskContext";
@@ -19,7 +21,47 @@ const SYSTEM = `You are the AI terminal inside "Second Brain Desk" for Mahadev T
 
 const json = (v: unknown) => JSON.parse(JSON.stringify(v));
 
-async function contextFor(desk: AskDesk, isOwner: boolean): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+// The Quick Register is used by a manager who reads little: answer short, in the language asked.
+const LANG_NOTE: Record<string, string> = {
+  en: "Reply in very simple English, short lines.",
+  kn: "Reply in very simple Kannada (ಕನ್ನಡ), short lines. Keep numbers, ₹ and names as they are.",
+  both: "Reply in very simple English first, then the same answer in simple Kannada (ಕನ್ನಡ) underneath. Keep both short.",
+};
+
+async function registerCtx(date: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  const r = await safeDbCall(async () => {
+    const day = await loadDay(date);
+    const from = businessDate(Date.parse(`${date}T12:00:00+05:30`) - 30 * 86_400_000);
+    const recent = await prisma.registerEntry.findMany({ where: { date: { gte: from, lte: date } }, orderBy: { createdAt: "asc" }, take: 2000 });
+    return { day, recent };
+  });
+  if (!r.ok) return { ok: false, error: r.error };
+  const toRow = (e: (typeof r.data.recent)[number]): RegisterRow => ({
+    date: e.date, createdAt: e.createdAt, kind: e.kind as RegisterRow["kind"], item: e.item, itemLabel: e.itemLabel, qty: e.qty, unit: e.unit,
+    rateInr: e.rateInr, amountInr: e.amountInr, paymentMode: e.paymentMode as RegisterRow["paymentMode"], partyName: e.partyName, notes: e.notes, details: e.details,
+  });
+  const { day } = r.data;
+  const tallies = (["AFTERNOON", "NIGHT"] as const).flatMap((s) => {
+    const t = day.tallies[s];
+    return t ? [{ session: s === "AFTERNOON" ? "midday" : "closing", counted: t.counterCashInr, system: t.systemCashInr, diff: t.cashDiffInr }] : [];
+  });
+  return {
+    ok: true,
+    text: registerContext({
+      date,
+      today: day.entries.map(toRow),
+      recent: r.data.recent.map(toRow),
+      openingInr: day.opening.value,
+      systemCashNowInr: day.systemCashNow,
+      tallies,
+      jobWork: day.jobWork.filter((j) => !j.settled),
+      nowMs: Date.now(),
+    }),
+  };
+}
+
+async function contextFor(desk: AskDesk, isOwner: boolean, date: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  if (desk === "register") return registerCtx(date);
   const include = { lineItems: true, party: { select: { name: true } } } as const;
   if (desk === "purchase" || desk === "sales") {
     const r = await safeDbCall(async () => {
@@ -68,12 +110,14 @@ export async function POST(req: NextRequest) {
   if (!preset && !question) return NextResponse.json({ error: "Ask a question or pick one of the ready questions." }, { status: 400 });
   const form = typeof body.form === "string" ? body.form.slice(0, 3000) : "";
 
-  const ctx = await contextFor(desk, user.isOwner);
+  const date = isValidDate(body.date) ? body.date : businessDate(Date.now());
+  const ctx = await contextFor(desk, user.isOwner, date);
   if (!ctx.ok) return NextResponse.json({ error: ctx.error }, { status: 503 });
 
   const task = preset ? preset.instruction : `Question: ${question}`;
   const prompt = `${task}\n\nFORM (what is being entered right now, not yet saved):\n${form || "(empty)"}\n\nRECORDS:\n${cap(ctx.text)}`;
-  const r = await runAi(SYSTEM, prompt);
+  const langNote = LANG_NOTE[String(body.lang)];
+  const r = await runAi(langNote ? `${SYSTEM}\n\n${langNote}` : SYSTEM, prompt);
   if (!r.ok) return NextResponse.json({ error: r.error, notConfigured: r.notConfigured || false }, { status: r.notConfigured ? 200 : 502 });
   return NextResponse.json({ answer: r.text, provider: r.provider });
 }

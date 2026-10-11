@@ -34,6 +34,7 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "pigmee", icon: "🏦", title: "Pigmee / bank", kn: "ಪಿಗ್ಮಿ", desc: "Cash to bank, not an expense", href: "/register?open=pigmee", group: "entry" },
   { id: "draw", icon: "🧔", title: "Owner draw", kn: "ಮಾಲೀಕ ತೆಗೆದದ್ದು", desc: "Cash taken by owner", href: "/register?open=draw", group: "entry" },
   { id: "barrels", icon: "🛢️", title: "Barrel receiving", kn: "ಬ್ಯಾರಲ್ ಸ್ವೀಕಾರ", desc: "Label, weigh full & empty, check the oil", href: "/barrels", group: "entry" },
+  { id: "smart", icon: "✨", title: "Smart entry (register)", kn: "ಸ್ಮಾರ್ಟ್ ದಾಖಲೆ", desc: "Say / photo → register form filled", href: "/register?open=smart", group: "entry" },
   { id: "scan", icon: "📸", title: "Scan slip / bill", kn: "ಚೀಟಿ / ಬಿಲ್ ಸ್ಕ್ಯಾನ್", desc: "Weighbridge, weighing slip, bill, receipt", href: "/register?open=scan", group: "entry" },
   { id: "register", icon: "📒", title: "Quick Register", kn: "ಕ್ವಿಕ್ ರಿಜಿಸ್ಟರ್", desc: "Today's full screen", href: "/register", group: "entry" },
   // Job-work
@@ -62,7 +63,7 @@ export const QUICK_LINKS: QuickLink[] = [
 export const GROUP_ORDER: LinkGroup[] = ["entry", "jobwork", "tally", "mfg", "office"];
 
 /** Sheets Quick Register can open from ?open=<key>. */
-export const REGISTER_OPEN_KEYS = ["sale", "crush", "udhaar", "purchase", "expense", "payment", "pigmee", "draw", "jobwork", "jwsettle", "cash", "stock", "calc", "scan"] as const;
+export const REGISTER_OPEN_KEYS = ["sale", "crush", "udhaar", "purchase", "expense", "payment", "pigmee", "draw", "jobwork", "jwsettle", "cash", "stock", "calc", "scan", "smart"] as const;
 export type RegisterOpenKey = (typeof REGISTER_OPEN_KEYS)[number];
 
 /** Which links to show this person. */

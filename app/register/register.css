@@ -338,3 +338,25 @@ html.hc .qr .qr-tile { box-shadow: inset 0 0 0 2px #ffffff; }
 .qr-warnline { color: var(--qr-oth); font-weight: 700; font-size: 14px; margin: 4px 0; }
 .qr-devcopy { margin: 6px 0 10px; }
 .qr.qr-portal { min-height: 0; background: none; }
+
+/* Smart entry: live checks, scale weight, item-code scan, AI sheet */
+.qr-chks { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.qr-chk { display: flex; gap: 8px; align-items: flex-start; border-radius: calc(10px * var(--ui-r, 1)); padding: 8px 10px; font-size: 14px; font-weight: 700; line-height: 1.3; border: 1.5px solid; }
+.qr-chk .qr-sub { display: block; font-weight: 600; opacity: .85; }
+.qr-chk.alert { color: var(--qr-out); border-color: var(--qr-out); background: var(--qr-out-bg); }
+.qr-chk.warn { color: var(--qr-oth); border-color: var(--qr-oth); background: var(--qr-oth-bg); }
+.qr-chk.info { color: var(--qr-jw); border-color: var(--qr-jw); background: var(--qr-jw-bg); }
+.qr-scale { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 2px 0 10px; font-size: 15px; }
+.qr-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--qr-soft); display: inline-block; }
+.qr-dot.ok { background: var(--qr-in); } .qr-dot.mid { background: var(--qr-oth); } .qr-dot.bad { background: var(--qr-out); }
+.qr-m { color: var(--qr-soft); font-size: 13px; }
+.qr-coderow { display: flex; gap: 8px; align-items: stretch; }
+.qr-coderow .qr-txt { flex: 1; min-width: 0; }
+.qr-smart-ta { width: 100%; min-height: 84px; font-size: 18px; border: 2px solid var(--qr-line); border-radius: calc(12px * var(--ui-r, 1)); padding: 10px; background: var(--qr-base); color: var(--qr-ink); font-family: inherit; resize: vertical; }
+.qr-smart-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.qr-smart-row > button { flex: 1 1 120px; }
+.qr-draft { border: 2px solid var(--qr-in); background: var(--qr-in-bg); border-radius: calc(14px * var(--ui-r, 1)); padding: 10px 12px; margin: 10px 0; font-weight: 700; font-size: 17px; }
+.qr-draft small { display: block; font-weight: 600; color: var(--qr-soft); font-size: 13px; margin-top: 4px; }
+.qr-answer { white-space: pre-wrap; border: 1.5px solid var(--qr-line); background: var(--qr-card); border-radius: calc(12px * var(--ui-r, 1)); padding: 10px 12px; margin: 10px 0; font-size: 16px; line-height: 1.45; }
+.qr-chiprow { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.qr-chiprow .qr-mini { font-size: 14px; padding: 8px 10px; }
