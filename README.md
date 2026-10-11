@@ -351,7 +351,7 @@ Code: `lib/proofs.ts` (pure, tested in `lib/__tests__/proofs.test.ts`),
 
 ## Barrel receiving
 
-Oil bought in barrels: barcode label per barrel, full and empty weight from the platform scale, net oil checked against the supplier's challan, blind receiving for staff. Pages `/barrels` and `/barrels/labels`; setup and rules in [docs/BARREL-RECEIVING.md](docs/BARREL-RECEIVING.md). Needs `npx prisma db push`, `SCALE_PUSH_SECRET`, and the bridge started with `--push-url`.
+Oil bought in barrels: barcode label per barrel, full and empty weight from the platform scale, net oil checked against the supplier's challan, blind receiving for staff. Barrel register (gross / tare / net per barrel with date and time, CSV, print), waiting-to-empty list, barcode + QR labels, weighment slips and lot report. Pages `/barrels`, `/barrels/labels`, `/barrels/print`; setup and rules in [docs/BARREL-RECEIVING.md](docs/BARREL-RECEIVING.md). Needs `npx prisma db push`, `SCALE_PUSH_SECRET`, and the bridge started with `--push-url`.
 
 ## Not yet built (Phase 2+)
 

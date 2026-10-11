@@ -663,6 +663,7 @@ model Barrel {
   grossScale  String?
   grossTickId String?
   grossNote   String?
+  grossRecordedAt DateTime? // when the system saved it; grossAt is when it was weighed
 
   emptyKg     Float?
   emptyAt     DateTime?
@@ -671,6 +672,7 @@ model Barrel {
   emptyScale  String?
   emptyTickId String?
   emptyNote   String?
+  emptyRecordedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
