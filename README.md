@@ -387,3 +387,7 @@ acting on it.
 
 ### Database tables are created on deploy
 `npm run build` runs `scripts/db-push.js` on Vercel, which applies additive schema changes (`prisma db push`, no data-loss flag) so new tables exist automatically. If it fails, the build log says so; run `npx prisma db push` by hand.
+
+
+## Smart entry (scan, speak, check, ask)
+Every entry desk (Purchase, Sales, Expenses, Stock tally, Job-work, Manufacturing, Daily closing) has an AI terminal that fills the form from a bill photo, speech (English / Kannada / Hindi) or text — for review, never auto-saved — plus ready questions that check the entry against your records, live exact checks (duplicate bills, GSTIN checksum, totals, rates, below-cost sales, duplicate expenses), item barcodes / QR with labels (`/labels`), and scale capture. See [docs/SMART-ENTRY.md](docs/SMART-ENTRY.md).

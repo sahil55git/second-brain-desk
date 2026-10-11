@@ -11,6 +11,7 @@ import {
   KHALI_SPLIT,
 } from "@/lib/calculations";
 import AiTerminal from "@/components/AiTerminal";
+import ScaleCapture from "@/components/smart/ScaleCapture";
 import { useCustomize, visibleOrderedIds } from "@/lib/customize";
 import { WIDGET_DEFS, COLUMN_DEFS } from "@/lib/desksConfig";
 
@@ -254,7 +255,7 @@ export default function JobWorkDesk({
       {/* Form panel */}
       <div className="rounded-xl border border-black/10 dark:border-white/10 p-4">
         <h2 className="font-semibold mb-3">New intake</h2>
-        <AiTerminal desk="jobwork" onFill={handleAiFill} title="AI Terminal — New intake" />
+        <AiTerminal desk="jobwork" onFill={handleAiFill} title="AI Terminal — New intake" ask={{ desk: "jobwork", form: () => `Customer: ${customer || "?"}; vehicle ${vehicleNo || "-"}; seed ${seedKg || "?"} kg; cake kept by ${cakeOwnership}` }} />
         <form onSubmit={submitIntake} className="space-y-3 text-sm">
           <div>
             <label className="block mb-1 opacity-70">Customer</label>
@@ -286,6 +287,9 @@ export default function JobWorkDesk({
               onChange={(e) => setSeedKg(e.target.value)}
               className="w-full rounded border border-black/20 dark:border-white/20 bg-transparent px-2 py-1.5"
             />
+            <div className="mt-1">
+              <ScaleCapture compact label="Use scale weight" onUse={(kg) => setSeedKg(String(kg))} />
+            </div>
           </div>
           <div>
             <label className="block mb-1 opacity-70">Who keeps the cake?</label>

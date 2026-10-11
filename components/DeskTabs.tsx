@@ -123,6 +123,7 @@ export default function DeskTabs({
       {active === "sales" && (
         <SalesDesk
           initialInvoices={initialSales}
+          purchases={initialPurchases}
           parties={initialParties}
           items={initialItems}
           settings={initialSettings}

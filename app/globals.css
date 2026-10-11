@@ -97,3 +97,12 @@ html[data-pattern="gradient"] .qr-top, html[data-pattern="sunrise"] .qr-top { ba
 html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 /* High contrast: stronger outlines everywhere */
 html.hc *:focus-visible { outline: 3px solid var(--accent) !important; outline-offset: 2px; }
+
+/* Camera code scanner overlay (components/barrels/BarcodeScanner.tsx) — global so every desk can use it. */
+.bd-scan { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,.85); display: flex; align-items: center; justify-content: center; padding: 14px; }
+.bd-scanbox { background: #111; color: #fff; border-radius: 16px; padding: 12px; width: min(560px, 100%); position: relative; }
+.bd-scanhead { font-weight: 800; margin-bottom: 8px; }
+.bd-video { width: 100%; max-height: 60vh; border-radius: 10px; background: #000; object-fit: cover; }
+.bd-scanline { position: absolute; left: 12%; right: 12%; top: 52%; height: 2px; background: #ef4444; opacity: .8; }
+.bd-scanbox .bd-btn { margin-top: 10px; background: #222; color: #fff; border: 1px solid #444; border-radius: 10px; padding: 8px 14px; font-weight: 700; cursor: pointer; }
+.bd-scanbox .bd-err { border: 1px solid #f87171; color: #fca5a5; border-radius: 10px; padding: 8px 10px; margin: 8px 0; }

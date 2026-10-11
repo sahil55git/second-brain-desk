@@ -11,6 +11,7 @@ import { STOCK_PRODUCTS, computeProductTally, type StockProductComputed } from "
 import { businessDate } from "@/lib/register";
 import { STOCK_KN, csvToTable, isFlagged, parseTallyRows, tallyGap } from "@/lib/stockTally";
 import { download, excelBlob, type ExportTable } from "@/lib/exporters";
+import AiTerminal from "@/components/AiTerminal";
 
 type Session = "AFTERNOON" | "NIGHT";
 interface SavedSession {
@@ -306,6 +307,23 @@ export default function StockDesk({ initialDate, initialSession }: { initialDate
       )}
       {err && <div className="hub-banner">{err}</div>}
       {msg && <div className="hub-banner" style={{ borderColor: "var(--h-g)", color: "var(--h-g)" }}>{msg}</div>}
+
+      <AiTerminal
+        desk="stock"
+        title="AI Terminal — speak the count (ಕನ್ನಡ / हिन्दी / English), photograph the stock sheet, or ask"
+        onFill={(f) => {
+          for (const p of STOCK_PRODUCTS) {
+            const v = f[`stock_${p.key}`];
+            if (typeof v === "number" && v >= 0) setVal(p.key, "today", String(v));
+          }
+        }}
+        ask={{
+          desk: "stock",
+          form: () =>
+            `Date ${date}, ${SESSION_LABEL[session]}\n` +
+            rows.map((r) => `${r.p.label}: counted ${fmt(r.c.today)} kg, yesterday ${fmt(r.c.yesterday)} kg, gap ${fmt(r.c.gap ?? r.c.diff ?? null)}${r.flagged ? " [FLAGGED]" : ""}`).join("\n"),
+        }}
+      />
 
       <div className="hub-kpis">
         <div className="hub-kpi b">

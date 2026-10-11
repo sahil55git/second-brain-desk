@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { runAi } from "@/lib/aiProvider";
 import { AI_FILL_SCHEMAS, buildFillPrompt, type AiFillDesk } from "@/lib/aiFillSchemas";
 import { applyCanFallback } from "@/lib/canParser";
+import { cleanAiLines } from "@/lib/smartEntry";
+import { getUser } from "@/lib/registerServer";
 
 // Per-desk AI Terminal fill endpoint (plan doc, Version 17/18): takes
 // typed text, a speech-to-text transcript, or a scanned photo, and
@@ -60,7 +62,7 @@ async function callGeminiFill(
   const body = {
     systemInstruction: { parts: [{ text: system }] },
     contents: [{ role: "user", parts }],
-    generationConfig: { temperature: 0.2, maxOutputTokens: 600 },
+    generationConfig: { temperature: 0.2, maxOutputTokens: 2000 },
   };
   try {
     const res = await withTimeout((signal) =>
@@ -86,7 +88,30 @@ async function callGeminiFill(
   }
 }
 
+/** Keep only the desk's own keys, with clean values (lines cleaned, numbers as numbers). */
+function tidy(desk: AiFillDesk, fields: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const f of AI_FILL_SCHEMAS[desk]) {
+    const v = fields[f.key];
+    if (v === undefined || v === null || v === "") continue;
+    if (f.type === "lines") {
+      const lines = cleanAiLines(v);
+      if (lines.length) out[f.key] = lines;
+    } else if (f.type === "number") {
+      const n = typeof v === "number" ? v : Number(String(v).replace(/[,₹\s]/g, ""));
+      if (Number.isFinite(n)) out[f.key] = n;
+    } else if (f.type === "enum") {
+      const hit = f.enumValues?.find((e) => e.toLowerCase() === String(v).toLowerCase());
+      if (hit) out[f.key] = hit;
+    } else if (f.type === "date") {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(v))) out[f.key] = String(v);
+    } else out[f.key] = String(v).slice(0, 300);
+  }
+  return out;
+}
+
 export async function POST(req: NextRequest) {
+  if (!(await getUser(req))) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const desk = body.desk as AiFillDesk;
   const text = typeof body.text === "string" ? body.text.trim() : "";
@@ -117,14 +142,14 @@ export async function POST(req: NextRequest) {
         { status: 502 }
       );
     }
-    return NextResponse.json({ fields: applyCanFallback(desk, text, scannedFields), provider: "gemini" });
+    return NextResponse.json({ fields: tidy(desk, applyCanFallback(desk, text, scannedFields)), provider: "gemini" });
   }
 
   const gem = await callGeminiFill(system, text);
   if (gem.ok) {
     const geminiFields = extractJson(gem.text);
     if (geminiFields) {
-      return NextResponse.json({ fields: applyCanFallback(desk, text, geminiFields), provider: "gemini" });
+      return NextResponse.json({ fields: tidy(desk, applyCanFallback(desk, text, geminiFields)), provider: "gemini" });
     }
   }
 
@@ -150,5 +175,5 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ error: "Could not parse a clean answer.", raw: result.text }, { status: 502 });
   }
-  return NextResponse.json({ fields: applyCanFallback(desk, text, fields), provider: result.provider });
+  return NextResponse.json({ fields: tidy(desk, applyCanFallback(desk, text, fields)), provider: result.provider });
 }

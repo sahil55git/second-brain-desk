@@ -12,22 +12,18 @@ import type {
   PaymentMode,
 } from "@/lib/types";
 import { computeTotals, gstTreatment, type GstLineInput } from "@/lib/gst";
+import AiTerminal, { type FillMeta } from "@/components/AiTerminal";
+import ChecksList from "@/components/smart/ChecksList";
+import CodeScan from "@/components/smart/CodeScan";
+import ScaleCapture from "@/components/smart/ScaleCapture";
+import UnknownCode from "@/components/smart/UnknownCode";
+import RateHint from "@/components/smart/RateHint";
+import { cleanAiLines, findItemByCode, matchParty, purchaseChecks } from "@/lib/smartEntry";
+import { addScannedItem, applyFilledLines, blankLine, formSummary, toLite, type DraftLine } from "@/lib/smartLines";
+import { uploadProof } from "@/lib/proofClient";
 
 const PAYMENT_MODES: PaymentMode[] = ["CASH", "UPI", "BANK", "CREDIT", "OTHER"];
 
-interface DraftLine {
-  itemId: string;
-  name: string;
-  hsnCode: string;
-  qty: string;
-  unit: string;
-  rateInr: string;
-  gstRatePct: string;
-}
-
-function blankLine(): DraftLine {
-  return { itemId: "", name: "", hsnCode: "", qty: "", unit: "kg", rateInr: "", gstRatePct: "" };
-}
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -56,6 +52,14 @@ export default function PurchaseDesk({
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("CREDIT");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([blankLine()]);
+  // smart entry
+  const [itemList, setItemList] = useState<ItemDTO[]>(items);
+  const [activeLine, setActiveLine] = useState(0);
+  const [scanned, setScanned] = useState<{ totalInr: number | null; gstin: string | null; partyName: string | null } | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [smartMsg, setSmartMsg] = useState<string | null>(null);
+  const [unknownCode, setUnknownCode] = useState<string | null>(null);
+  const [savedNote, setSavedNote] = useState<string | null>(null);
 
   const suppliers = useMemo(
     () => parties.filter((p) => p.active && (p.type === "SUPPLIER" || p.type === "BOTH")),
@@ -63,7 +67,7 @@ export default function PurchaseDesk({
   );
   // Fall back to all active parties if none are tagged supplier yet.
   const partyOptions = suppliers.length > 0 ? suppliers : parties.filter((p) => p.active);
-  const activeItems = useMemo(() => items.filter((i) => i.active), [items]);
+  const activeItems = useMemo(() => itemList.filter((i) => i.active), [itemList]);
   const defaultGst = settings?.defaultGstRatePct ?? 5;
   const businessState = settings?.state ?? null;
 
@@ -78,6 +82,52 @@ export default function PurchaseDesk({
       gstRatePct: l.gstRatePct === "" ? defaultGst : Number(l.gstRatePct) || 0,
     }));
   const preview = computeTotals(previewInputs, treatment);
+
+  const today = todayISO();
+  const checks = useMemo(
+    () =>
+      purchaseChecks(
+        { partyId, partyGstin: selectedParty?.gstin ?? null, billNo, date, lines: toLite(lines), linesTotalInr: preview.totalInr, scanned },
+        { bills, today }
+      ),
+    [partyId, selectedParty?.gstin, billNo, date, lines, preview.totalInr, scanned, bills, today]
+  );
+
+  /** AI terminal → form (never saves). */
+  function handleAiFill(f: Record<string, unknown>, meta: FillMeta) {
+    const notes: string[] = [];
+    const pName = typeof f.partyName === "string" ? f.partyName : null;
+    const gstin = typeof f.gstin === "string" ? f.gstin : null;
+    if (pName || gstin) {
+      const m = matchParty(pName, gstin, partyOptions);
+      if (m) setPartyId(m.party.id);
+      else notes.push(`Supplier on the bill "${pName ?? "?"}"${gstin ? ` (GSTIN ${gstin})` : ""} is not in your Parties list — add it there, then pick it above.`);
+    }
+    if (typeof f.billNo === "string") setBillNo(f.billNo);
+    if (typeof f.date === "string") setDate(f.date);
+    if (typeof f.paymentMode === "string" && PAYMENT_MODES.includes(f.paymentMode as PaymentMode)) setPaymentMode(f.paymentMode as PaymentMode);
+    const extra = [typeof f.vehicleNo === "string" ? `Vehicle ${f.vehicleNo}` : "", typeof f.notes === "string" ? f.notes : ""].filter(Boolean).join(" · ");
+    if (extra) setNotes((n) => (n ? `${n} · ${extra}` : extra));
+    const filled = cleanAiLines(f.lines);
+    if (filled.length) {
+      const r = applyFilledLines(lines, filled, activeItems);
+      setLines(r.lines);
+      if (r.matched.length) notes.push(`Matched to your items: ${r.matched.join("; ")}.`);
+      if (r.unmatched.length) notes.push(`Not in your items (kept as typed): ${r.unmatched.join(", ")}.`);
+    }
+    setScanned({ totalInr: typeof f.billTotalInr === "number" ? f.billTotalInr : null, gstin, partyName: pName });
+    if (meta.photoDataUrl) setPhoto(meta.photoDataUrl);
+    setSmartMsg(notes.join(" ") || null);
+  }
+
+  function onCode(code: string) {
+    setUnknownCode(null);
+    const it = findItemByCode(code, activeItems);
+    if (!it) return setUnknownCode(code);
+    const r = addScannedItem(lines, it);
+    setLines(r.lines);
+    setActiveLine(r.index);
+  }
 
   function pickItem(idx: number, itemId: string) {
     const item = activeItems.find((i) => i.id === itemId);
@@ -109,6 +159,11 @@ export default function PurchaseDesk({
     setLines((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== idx)));
   }
   function resetForm() {
+    setScanned(null);
+    setPhoto(null);
+    setSmartMsg(null);
+    setUnknownCode(null);
+    setActiveLine(0);
     setPartyId("");
     setBillNo("");
     setDate(todayISO());
@@ -149,6 +204,17 @@ export default function PurchaseDesk({
       const json = await res.json();
       if (!res.ok) return setError(json.error || "Failed to save bill.");
       setBills((prev) => [json.data, ...prev]);
+      setSavedNote(null);
+      if (photo) {
+        // Keep the scanned bill as proof (Drive / phone copy, same as other bills).
+        const saved = json.data as PurchaseBillDTO;
+        uploadProof(
+          { kind: "BILL", dataUrl: photo, capturedAt: new Date().toISOString() },
+          { date, partyName: selectedParty?.name ?? scanned?.partyName ?? null, amountInr: saved.totalInr, refNo: billNo.trim(), aiFields: scanned, notes: `Purchase bill ${billNo.trim()}` }
+        )
+          .then(() => setSavedNote(`Bill ${saved.billNo} saved with its photo.`))
+          .catch((e) => setSavedNote(`Bill ${saved.billNo} saved, but the photo was not filed: ${e instanceof Error ? e.message : "error"}.`));
+      }
       resetForm();
       setShowForm(false);
     } catch (err) {
@@ -178,6 +244,7 @@ export default function PurchaseDesk({
         </div>
       )}
 
+      {savedNote && <div className="rounded border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-xs">{savedNote}</div>}
       <div className="flex items-center justify-between">
         <div className="text-sm opacity-70">
           {bills.length} bill{bills.length === 1 ? "" : "s"}
@@ -193,6 +260,29 @@ export default function PurchaseDesk({
 
       {showForm && (
         <form onSubmit={submit} className="rounded-xl border border-black/10 dark:border-white/10 p-4 space-y-4">
+          <AiTerminal
+            desk="purchase"
+            onFill={handleAiFill}
+            title="AI Terminal — photograph the bill, speak, or ask"
+            defaultOpen
+            ask={{
+              desk: "purchase",
+              form: () =>
+                formSummary(
+                  { Supplier: selectedParty?.name ?? scanned?.partyName, "Supplier GSTIN (master)": selectedParty?.gstin, "GSTIN on bill": scanned?.gstin, "Bill no.": billNo, Date: date, Payment: paymentMode },
+                  lines,
+                  [`Lines total incl. GST: ₹${preview.totalInr.toFixed(2)}`, scanned?.totalInr != null ? `Total printed on the bill: ₹${scanned.totalInr}` : ""]
+                ),
+            }}
+          />
+          {smartMsg && <div className="rounded border border-sky-300 bg-sky-50 dark:bg-sky-950/30 px-3 py-2 text-xs">{smartMsg}</div>}
+          {photo && (
+            <div className="flex items-center gap-2 text-xs opacity-80">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photo} alt="Bill photo" className="h-12 rounded border border-black/10" /> Bill photo will be filed with this bill when you save.
+              <button type="button" className="underline" onClick={() => setPhoto(null)}>remove</button>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <label className="text-sm space-y-1">
               <span className="opacity-70">Supplier *</span>
@@ -251,8 +341,24 @@ export default function PurchaseDesk({
           </div>
 
           <div className="space-y-2">
+            <CodeScan onCode={onCode} />
+            {unknownCode && (
+              <UnknownCode
+                code={unknownCode}
+                items={activeItems}
+                onClose={() => setUnknownCode(null)}
+                onLinked={(it) => {
+                  setItemList((all) => all.map((x) => (x.id === it.id ? it : x)));
+                  setUnknownCode(null);
+                  const r = addScannedItem(lines, it);
+                  setLines(r.lines);
+                  setActiveLine(r.index);
+                }}
+              />
+            )}
+            <ScaleCapture label={`Use weight for line ${activeLine + 1}`} onUse={(kg) => setLine(activeLine, { qty: String(kg) })} />
             {lines.map((l, idx) => (
-              <div key={idx} className="grid grid-cols-12 gap-2 items-end">
+              <div key={idx} onFocus={() => setActiveLine(idx)} className={`grid grid-cols-12 gap-2 items-end rounded p-1 ${activeLine === idx ? "ring-1 ring-[var(--accent)]/60" : ""}`}>
                 <label className="col-span-12 sm:col-span-3 text-xs space-y-1">
                   <span className="opacity-60">Item</span>
                   <select
@@ -332,6 +438,9 @@ export default function PurchaseDesk({
                     ✕
                   </button>
                 </div>
+                <div className="col-span-12 -mt-1 flex flex-wrap gap-x-3">
+                  <RateHint bills={bills} line={l} partyId={partyId} onUse={(r) => setLine(idx, { rateInr: String(r) })} />
+                </div>
               </div>
             ))}
             <button
@@ -369,6 +478,8 @@ export default function PurchaseDesk({
             />
           </label>
 
+          <ChecksList checks={checks} okText={partyId && billNo && lines.some((l) => Number(l.qty) > 0) ? "No problems found in this bill." : undefined} />
+
           {error && (
             <div className="rounded border border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-700 px-3 py-2 text-xs text-red-800 dark:text-red-300">
               {error}
@@ -380,7 +491,7 @@ export default function PurchaseDesk({
             disabled={saving}
             className="rounded bg-[var(--accent)] text-[var(--accent-contrast)] px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
-            {saving ? "Saving…" : "Save bill"}
+            {saving ? "Saving…" : checks.some((c) => c.level === "alert") ? "Save bill anyway" : "Save bill"}
           </button>
         </form>
       )}
@@ -441,3 +552,4 @@ function Row({ label, value, bold }: { label: string; value: number; bold?: bool
     </div>
   );
 }
+
