@@ -39,6 +39,7 @@ import {
   toCsv,
   type CashEvent,
   type LangMode,
+  type CatalogItem,
   type Mode,
   type PayChannel,
   type RegisterConfigData,
@@ -73,7 +74,7 @@ import MfgQuick from "@/components/mfg/MfgQuick";
 import BillSheet from "@/components/register/BillSheet";
 import { useCustomize } from "@/lib/customize";
 import { BrandMark, Icon, type IconName } from "@/components/ui/Icons";
-import { G } from "@/components/register/Glyph";
+import { G, useSkinned } from "@/components/register/Glyph";
 
 // Pre-fill for an entry form: from a voice command, or from a scanned slip
 // (linkProofId attaches that scan to the entry once it is saved).
@@ -1970,6 +1971,114 @@ export default function QuickRegister() {
 // ---------------------------------------------------------------------------
 // Entry sheet (sale / udhaar / purchase / expense / payment / pigmee / draw)
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// POS entry pieces (designed looks): item cards instead of a drop-down, a
+// quantity stepper, and a big amount box with its own keypad.
+// ---------------------------------------------------------------------------
+function ItemCards({ items, value, onPick, lang }: { items: CatalogItem[]; value: string | null; onPick: (k: string) => void; lang: LangMode }) {
+  return (
+    <div className="pos-items" role="radiogroup">
+      {items.map((o) => {
+        const l = pairLabel(o.en, o.kn, lang);
+        return (
+          <button key={o.key} type="button" role="radio" aria-checked={value === o.key} className={`pos-item${value === o.key ? " sel" : ""}`} onClick={() => onPick(o.key)}>
+            <span className="pi-ic" aria-hidden>
+              <G e={o.icon} />
+            </span>
+            <span className="pi-t">
+              <b>{l.main}</b>
+              {l.sub && <small>{l.sub}</small>}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function QtyStepper({ value, onChange, lang }: { value: string; onChange: (v: string) => void; lang: LangMode }) {
+  const n = parseFloat(value) || 0;
+  const step = (d: number) => onChange(String(Math.max(0, Math.round((n + d) * 100) / 100)));
+  return (
+    <div className="pos-step">
+      <button type="button" aria-label={lang === "kn" ? "ಕಡಿಮೆ" : "Less"} onClick={() => step(-1)} disabled={n <= 0}>
+        −
+      </button>
+      <input className="qr-num" type="number" inputMode="decimal" min={0} step="0.1" value={value} placeholder="0" onChange={(e) => onChange(e.target.value)} aria-label={word("qty", lang)} />
+      <button type="button" aria-label={lang === "kn" ? "ಹೆಚ್ಚು" : "More"} onClick={() => step(1)}>
+        +
+      </button>
+    </div>
+  );
+}
+
+const PAD_KEYS = ["1", "2", "3", "⌫", "4", "5", "6", "C", "7", "8", "9", "00", ".", "0"] as const;
+function AmountPad({
+  value,
+  typed,
+  hint,
+  onType,
+  onUseHint,
+  lang,
+  autoFocus,
+}: {
+  value: string;
+  typed: boolean;
+  hint: string | null; // "5 kg × ₹160" when the amount can be worked out
+  onType: (v: string) => void;
+  onUseHint: () => void;
+  lang: LangMode;
+  autoFocus?: boolean;
+}) {
+  const press = (k: (typeof PAD_KEYS)[number]) => {
+    const cur = typed ? value : "";
+    if (k === "⌫") return onType(cur.slice(0, -1));
+    if (k === "C") return onType("");
+    if (k === "." && cur.includes(".")) return;
+    if (cur.replace(".", "").length >= 9) return;
+    const next = (cur + k).replace(/^0+(?=\d)/, "");
+    onType(next === "." ? "0." : next);
+  };
+  const shown = value ? Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "0";
+  return (
+    <div className="pos-amt">
+      <div className="pa-box">
+        <div className="pa-l">
+          <span className="pa-k">
+            <Txt k="amount" lang={lang} />
+          </span>
+          <label className="pa-v">
+            <span aria-hidden>₹{shown}</span>
+            <input
+              className="pa-in"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              value={value}
+              autoFocus={autoFocus}
+              aria-label={word("amount", lang)}
+              onChange={(e) => onType(e.target.value)}
+            />
+          </label>
+        </div>
+        {hint && (
+          <button type="button" className={`pa-hint${typed ? "" : " on"}`} onClick={onUseHint}>
+            {hint}
+            <b>{typed ? (lang === "kn" ? "ಬಳಸಿ" : "tap to use") : lang === "kn" ? "ತುಂಬಿದೆ" : "filled for you"}</b>
+          </button>
+        )}
+      </div>
+      <div className="pa-keys">
+        {PAD_KEYS.map((k) => (
+          <button key={k} type="button" className={k === "⌫" || k === "C" ? "fn" : ""} onClick={() => press(k)} aria-label={k === "⌫" ? "Delete" : k === "C" ? "Clear" : k}>
+            {k}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function EntrySheet({
   kind,
   init,
@@ -1990,6 +2099,7 @@ function EntrySheet({
   toast: (m: string) => void;
 }) {
   const side = KIND_SIDE[kind];
+  const pos = useSkinned(); // designed looks get the POS layout
   const items = itemsFor(kind, day.config);
   const hasQty = kind === "SALE" || kind === "PURCHASE";
   const modes: { key: Mode; icon: string; en: string; kn: string }[] =
@@ -2185,17 +2295,30 @@ function EntrySheet({
           <label>
             <Txt k="what" lang={lang} />
           </label>
-          <PickMenu
-            lang={lang}
-            value={item}
-            options={items}
-            onPick={(v) => {
-              // Remembered rate for the picked item, filled immediately.
-              setItem(v);
-              setRate(savedRate(v));
-              setAmtTouched(false);
-            }}
-          />
+          {pos ? (
+            <ItemCards
+              lang={lang}
+              value={item}
+              items={items}
+              onPick={(v) => {
+                setItem(v);
+                setRate(savedRate(v));
+                setAmtTouched(false);
+              }}
+            />
+          ) : (
+            <PickMenu
+              lang={lang}
+              value={item}
+              options={items}
+              onPick={(v) => {
+                // Remembered rate for the picked item, filled immediately.
+                setItem(v);
+                setRate(savedRate(v));
+                setAmtTouched(false);
+              }}
+            />
+          )}
           {item === "other" && (
             <input className="qr-txt" style={{ marginTop: 6 }} placeholder={word("itemName", lang)} value={otherName} onChange={(e) => setOtherName(e.target.value)} autoFocus={!init?.otherName} />
           )}
@@ -2228,7 +2351,26 @@ function EntrySheet({
           }}
         />
       )}
-      {showItemwise && hasQty && (
+      {showItemwise && hasQty && pos && (
+        <div className="qr-f pos-qty">
+          <div className="pq-row">
+            <div className="pq-q">
+              <label className="qr-lbl">
+                <Txt k="qty" lang={lang} />
+              </label>
+              <QtyStepper lang={lang} value={qty} onChange={(v) => { setQty(v); setAmtTouched(false); }} />
+            </div>
+            <div className="pq-r">
+              <label className="qr-lbl">
+                {words("rate", lang).main} {lang === "kn" ? unitObj.kn : unitObj.en}
+              </label>
+              <input className="qr-num" type="number" inputMode="decimal" min={0} value={rate} onChange={(e) => { setRate(e.target.value); setAmtTouched(false); }} />
+            </div>
+          </div>
+          <Chips compact lang={lang} value={unit} onPick={(u) => { setUnit(u); setAmtTouched(false); }} options={UNITS} />
+        </div>
+      )}
+      {showItemwise && hasQty && !pos && (
         <div className="qr-grid3 qr-f">
           <div>
             <label className="qr-lbl">
@@ -2249,29 +2391,51 @@ function EntrySheet({
         </div>
       )}
 
-      <div className="qr-f">
-        <label>
-          <Txt k="amount" lang={lang} />
-        </label>
-        <input
-          className="qr-num"
-          type="number"
-          inputMode="decimal"
-          min={0}
-          value={amountValue}
-          autoFocus={!hasQty && items.length === 0}
-          onChange={(e) => {
-            setAmount(e.target.value);
-            setAmtTouched(e.target.value !== "");
-          }}
-        />
-      </div>
+      {pos ? (
+        <div className="qr-f">
+          <AmountPad
+            lang={lang}
+            value={amountValue}
+            typed={amtTouched}
+            autoFocus={!hasQty && items.length === 0}
+            hint={showItemwise && hasQty && autoAmount ? `${qty} ${lang === "kn" ? unitObj.kn : unitObj.en} × ₹${rate}` : null}
+            onUseHint={() => {
+              setAmount("");
+              setAmtTouched(false);
+            }}
+            onType={(v) => {
+              setAmount(v);
+              setAmtTouched(v !== "");
+            }}
+          />
+        </div>
+      ) : (
+        <div className="qr-f">
+          <label>
+            <Txt k="amount" lang={lang} />
+          </label>
+          <input
+            className="qr-num"
+            type="number"
+            inputMode="decimal"
+            min={0}
+            value={amountValue}
+            autoFocus={!hasQty && items.length === 0}
+            onChange={(e) => {
+              setAmount(e.target.value);
+              setAmtTouched(e.target.value !== "");
+            }}
+          />
+        </div>
+      )}
 
       {side !== "oth" && kind === "SALE" && (
-        <PayPicker lang={lang} total={parseFloat(amountValue) || 0} state={pay} onChange={setPay} />
+        <div className={pos ? "pos-pay" : undefined}>
+          <PayPicker lang={lang} total={parseFloat(amountValue) || 0} state={pay} onChange={setPay} />
+        </div>
       )}
       {side !== "oth" && kind !== "SALE" && (
-        <div className="qr-f">
+        <div className={`qr-f${pos ? " pos-pay" : ""}`}>
           <label>
             <Txt k="how" lang={lang} />
           </label>
@@ -2326,9 +2490,23 @@ function EntrySheet({
       )}
 
       <ChecksBox checks={checks} lang={lang} />
-      <button className={`qr-save ${side === "in" ? "" : side === "out" ? "out" : "oth"}`} onClick={save} disabled={!!busy}>
-        ✓ {busy === "proof" ? word("proofSaving", lang) : word(busy ? "saving" : hasAlert(checks) ? "saveAnyway" : "save", lang)}
-      </button>
+      {pos ? (
+        <div className="pos-savebar">
+          <div className="ps-sum">
+            <small>
+              {[showItemwise && item ? (item === "other" ? otherName : pairLabel(items.find((i) => i.key === item)?.en || "", items.find((i) => i.key === item)?.kn || "", "en").main) : "", showItemwise && hasQty && qty ? `${qty} ${lang === "kn" ? unitObj.kn : unitObj.en}` : ""].filter(Boolean).join(" · ") || word(kind as WordKey, lang)}
+            </small>
+            <b>{rs(parseFloat(amountValue) || 0)}</b>
+          </div>
+          <button className={`qr-save ${side === "in" ? "" : side === "out" ? "out" : "oth"}`} onClick={save} disabled={!!busy}>
+            ✓ {busy === "proof" ? word("proofSaving", lang) : word(busy ? "saving" : hasAlert(checks) ? "saveAnyway" : "save", lang)}
+          </button>
+        </div>
+      ) : (
+        <button className={`qr-save ${side === "in" ? "" : side === "out" ? "out" : "oth"}`} onClick={save} disabled={!!busy}>
+          ✓ {busy === "proof" ? word("proofSaving", lang) : word(busy ? "saving" : hasAlert(checks) ? "saveAnyway" : "save", lang)}
+        </button>
+      )}
     </SheetFrame>
   );
 }
