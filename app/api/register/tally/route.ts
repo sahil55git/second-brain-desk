@@ -11,6 +11,7 @@ import { cashGapFlag } from "@/lib/calculations";
 import { computeOpening, getUser, isValidDate, loadConfig, movementsFor } from "@/lib/registerServer";
 import { DENOMINATIONS, businessDate, cashCutoffMs, denominationTotal, toClosingBuckets, type RegisterEntryLike } from "@/lib/register";
 import { sessionStamp } from "@/lib/stockTally";
+import { loadMemoView } from "@/lib/memoServer";
 
 export async function POST(req: NextRequest) {
   const user = await getUser(req);
@@ -48,7 +49,17 @@ export async function POST(req: NextRequest) {
       jwEvents,
       cashCutoffMs(body.date, session, now.getTime())
     );
-    const { systemCash, diff, flagged } = cashGapFlag(buckets, counted);
+    const base = cashGapFlag(buckets, counted);
+    // Cash tally page: when memo-sheet totals are saved for the day, the expected cash is the memo-adjusted figure
+    // (worked out here from the stored memo rows, never taken from the browser).
+    let systemCash = base.systemCash;
+    if (body.useMemo === true) {
+      const cutoff = cashCutoffMs(body.date, session, now.getTime());
+      const view = await loadMemoView(body.date, entries as unknown as RegisterEntryLike[], jwEvents, cutoff, base.systemCash);
+      if (view.memo.length) systemCash = view.adjustedCash;
+    }
+    const gap = cashGapFlag({ ...buckets, cashInOpening: buckets.cashInOpening + (systemCash - base.systemCash) }, counted);
+    const { diff, flagged } = gap;
     // If a stock-only row already exists for this session (stock tally taken
     // first), fill in its cash instead of creating a second row.
     const stockOnly = await prisma.dailyClosing.findFirst({

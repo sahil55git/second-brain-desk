@@ -10,3 +10,47 @@
 .csh-sys b { font-variant-numeric: tabular-nums; }
 .csh-verdict { font-weight: 800; font-size: 18px; }
 .csh-verdict.ok { color: var(--h-g); } .csh-verdict.bad { color: var(--h-r); }
+
+.csh-two { display: grid; grid-template-columns: 1.6fr 1fr; gap: 12px; margin: 12px 0; }
+@media (max-width: 860px) { .csh-two { grid-template-columns: 1fr; } }
+.csh-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 6px 0 8px; }
+@media (max-width: 560px) { .csh-tiles { grid-template-columns: repeat(2, 1fr); } }
+.csh-tile { min-height: 64px; border-radius: calc(14px * var(--ui-r, 1)); border: 1px solid var(--h-line); background: var(--h-card); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-weight: 800; font-size: 13px; cursor: pointer; color: inherit; }
+.csh-tile .i { font-size: 22px; }
+.csh-tile:hover { border-color: var(--h-acc); }
+.csh-upi { display: grid; gap: 6px; }
+.csh-upi > div:not(.hub-m) { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-bottom: 1px dashed var(--h-line); }
+.csh-upi b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.csh-memo { display: grid; gap: 6px; margin-top: 8px; overflow-x: auto; }
+.csh-memo-h, .csh-memo-r { display: grid; grid-template-columns: 1.1fr .9fr 1fr 1.1fr 1.2fr .9fr; gap: 8px; align-items: center; min-width: 720px; }
+.csh-memo-h { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; color: var(--h-soft); padding: 0 4px; }
+.csh-memo-r { padding: 6px; border-radius: calc(12px * var(--ui-r, 1)); border: 1px solid var(--h-line); background: var(--h-card); }
+.csh-memo-r.typing { background: #fff8e4; border-color: #e8cf8a; }
+.csh-memo-r input { width: 100%; min-width: 0; font-weight: 800; }
+.csh-memo-r em { font-style: normal; color: var(--h-soft); font-size: 12px; }
+.csh-qty { display: flex; gap: 4px; }
+.csh-gap { font-weight: 800; font-size: 13px; display: flex; gap: 6px; align-items: center; }
+.csh-gap.warn { color: #b5643c; } .csh-gap.ok { color: var(--h-g); }
+.csh-by { grid-column: 1 / -1; font-size: 11px; color: var(--h-soft); }
+.csh-stock { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 6px; }
+.csh-sc { background: var(--h-card); border: 1px solid var(--h-line); border-radius: calc(14px * var(--ui-r, 1)); padding: 8px 10px; display: grid; gap: 3px; }
+.csh-sc.low { border-color: #e3a491; }
+.csh-sc .top { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; }
+.csh-sc .top span { font-size: 10.5px; font-weight: 800; color: var(--h-soft); }
+.csh-sc.low .top span { color: #b23b2a; }
+.csh-sc .kg { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.csh-sc .kg small { font-size: 12px; color: var(--h-soft); }
+.csh-sc .bar { height: 6px; border-radius: 99px; background: var(--h-line); overflow: hidden; }
+.csh-sc .bar i { display: block; height: 100%; background: var(--h-g); }
+.csh-sc.low .bar i { background: #c4553e; }
+.csh-sc .sub { font-size: 10.5px; font-weight: 700; color: var(--h-soft); }
+.csh-sc .sold { font-size: 10.5px; font-weight: 800; color: var(--h-g); }
+.csh-hand { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.csh-hand label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; }
+.csh-modal { position: fixed; inset: 0; background: rgba(46, 42, 36, .45); display: flex; align-items: center; justify-content: center; z-index: 9100; padding: 12px; }
+.csh-modal-card { width: min(560px, 100%); max-height: 90vh; overflow: auto; background: var(--h-bg, #fffcf5); border-radius: 18px; padding: 14px; display: grid; gap: 8px; box-shadow: 0 24px 60px rgba(40, 25, 5, .35); }
+.csh-sl { display: grid; gap: 4px; }
+.csh-sl > div { display: flex; justify-content: space-between; gap: 10px; padding: 6px 9px; border-radius: 10px; border: 1px solid var(--h-line); background: var(--h-card); font-size: 13.5px; }
+.csh-choice { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.csh-choice button { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--h-line); background: var(--h-card); font-weight: 800; cursor: pointer; color: inherit; }
+.csh-choice button.on { border-color: var(--h-g); background: #e3e8d7; }
