@@ -32,6 +32,7 @@ import {
   expectedSettlementWithRate,
 } from "./calculations";
 import { computeBarrelYield } from "./mfgCalculations";
+import type { AdjustRecord } from "./stockAdjust";
 import { JOBWORK_OVERDUE_DAYS } from "./reports";
 import {
   KIND_SIDE,
@@ -75,6 +76,7 @@ export interface RefundRecord {
 
 export interface BizData {
   refunds?: RefundRecord[];
+  adjustments?: AdjustRecord[];
   sales: SalesInvoiceDTO[];
   purchases: PurchaseBillDTO[];
   expenses: ExpenseDTO[];
@@ -483,16 +485,40 @@ export function mfgReport(d: BizData, s: DateSpan) {
  * Quick Register entries are free-text counter items (not linked to the
  * Item master), so they are listed separately and never silently mixed in.
  */
+/** Stock corrections in a date span, with totals by reason and by item. Separate from sales and purchases. */
+export function adjustmentReport(d: BizData, s: DateSpan) {
+  const names = new Map(d.items.map((i) => [i.id, i.name]));
+  const rows = (d.adjustments || [])
+    .filter((a) => inSpan(a.date, s))
+    .map((a) => ({ ...a, item: names.get(a.itemId) || "Unknown item" }))
+    .sort((a, b) => (a.date === b.date ? (a.id < b.id ? 1 : -1) : a.date < b.date ? 1 : -1));
+  const byReason: Record<string, { count: number; qty: number }> = {};
+  for (const r of rows) {
+    const e = (byReason[r.reason] ??= { count: 0, qty: 0 });
+    e.count += 1;
+    e.qty += r.qtyDelta;
+  }
+  return {
+    rows,
+    byReason: Object.fromEntries(Object.entries(byReason).map(([k, v]) => [k, { count: v.count, qty: r2(v.qty) }])),
+    corrections: rows.filter((r) => r.reason !== "REVERSAL").length,
+    reversals: rows.filter((r) => r.reason === "REVERSAL").length,
+  };
+}
+
 export function stockReport(d: BizData, asOf: string) {
   const items = d.items
     .filter((i) => i.active)
     .map((i) => {
       let inQty = 0,
-        outQty = 0;
+        outQty = 0,
+        adjustQty = 0;
+      // Stock corrections are their own entries; each one moves the book by its signed delta.
+      for (const a of d.adjustments || []) if (a.itemId === i.id && a.date <= asOf) adjustQty += a.qtyDelta;
       for (const b of d.purchases) if (b.date <= asOf) for (const l of b.lineItems || []) if (l.itemId === i.id) inQty += l.qty;
       // Refunded quantities go back into stock, so only the kept quantity is out.
       for (const x of d.sales) if (x.date <= asOf) for (const l of x.lineItems || []) if (l.itemId === i.id) outQty += l.qty - (l.returnedQty ?? 0);
-      const book = i.openingStockQty + inQty - outQty;
+      const book = i.openingStockQty + inQty - outQty + adjustQty;
       return {
         id: i.id,
         name: i.name,
@@ -500,6 +526,7 @@ export function stockReport(d: BizData, asOf: string) {
         opening: r2(i.openingStockQty),
         inQty: r2(inQty),
         outQty: r2(outQty),
+        adjustQty: r2(adjustQty),
         book: r2(book),
         reorderLevel: i.reorderLevelQty,
         low: i.reorderLevelQty !== null && i.reorderLevelQty !== undefined && book <= i.reorderLevelQty,

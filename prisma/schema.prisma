@@ -102,6 +102,7 @@ model Item {
   // Phase 2 back-relations
   salesLines    SalesLineItem[]    @relation("ItemSales")
   purchaseLines PurchaseLineItem[] @relation("ItemPurchases")
+  adjustments   StockAdjustment[]  @relation("ItemAdjustments")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -744,3 +745,37 @@ model HeldBill {
 
   @@index([createdAt])
 }
+
+// Stock corrections are separate entries, never edits to the stock figure.
+// qtyDelta > 0 adds stock, < 0 removes it. A correction is undone by a new
+// REVERSAL entry that points at it through reversesId (unique: once only).
+enum AdjustmentReason {
+  COUNT_DIFFERENCE // physical count differs from the book
+  BREAKAGE         // bottle / can broke, leaked
+  SPILLAGE         // spilled during filling or transfer
+  OPENING_CORRECTION // opening balance was wrong
+  OTHER            // note required
+  REVERSAL         // undoes an earlier correction
+}
+
+model StockAdjustment {
+  id String @id @default(cuid())
+
+  date   String // "YYYY-MM-DD" business date
+  itemId String
+  item   Item   @relation("ItemAdjustments", fields: [itemId], references: [id], onDelete: Cascade)
+
+  bookQty   Float // system book quantity at the moment of correction
+  actualQty Float // counted / corrected quantity (for REVERSAL, the quantity after undo)
+  qtyDelta  Float // actualQty - bookQty, signed; the amount this entry moves stock by
+
+  reason AdjustmentReason
+  note   String?
+
+  reversesId String? @unique
+
+  createdAt DateTime @default(now())
+
+  @@index([itemId, date])
+}
+

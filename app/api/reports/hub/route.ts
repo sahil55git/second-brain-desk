@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   }
 
   const result = await safeDbCall(async () => {
-    const [sales, purchases, expenses, register, jobWork, mfg, closings, items, returns] = await Promise.all([
+    const [sales, purchases, expenses, register, jobWork, mfg, closings, items, returns, adjustments] = await Promise.all([
       prisma.salesInvoice.findMany({
         where: { date: { lte: to } },
         include: { lineItems: true, party: { select: { id: true, name: true } } },
@@ -47,7 +47,19 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         include: { invoice: { select: { id: true, invoiceNo: true, paymentMode: true, party: { select: { name: true } } } } },
       }),
+      prisma.stockAdjustment.findMany({ where: { date: { lte: to } }, orderBy: { createdAt: "desc" } }),
     ]);
+    const adjustmentRecords = adjustments.map((a) => ({
+      id: a.id,
+      itemId: a.itemId,
+      date: a.date,
+      bookQty: a.bookQty,
+      actualQty: a.actualQty,
+      qtyDelta: a.qtyDelta,
+      reason: a.reason as "REVERSAL",
+      note: a.note,
+      reversesId: a.reversesId,
+    }));
     const refunds = returns.map((r) => ({
       id: r.id,
       invoiceId: r.invoiceId,
@@ -58,7 +70,7 @@ export async function GET(req: NextRequest) {
       amount: r.refundInr,
       reason: r.reason,
     }));
-    return { sales, purchases, expenses, register, jobWork, mfg, closings, items, refunds };
+    return { sales, purchases, expenses, register, jobWork, mfg, closings, items, refunds, adjustments: adjustmentRecords };
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 503 });
   return NextResponse.json({ data: result.data, loadedAt: new Date().toISOString() });

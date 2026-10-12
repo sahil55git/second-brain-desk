@@ -8,6 +8,7 @@ import KaradiTankRegister from "./KaradiTankRegister";
 import CodeScan from "@/components/smart/CodeScan";
 import HoverCard from "./HoverCard";
 import { findItemByCode, nextItemCode } from "@/lib/smartEntry";
+import StockAdjustPanel from "./StockAdjustPanel";
 
 export default function InventoryDesk({
   initialItems,
@@ -115,6 +116,7 @@ export default function InventoryDesk({
 
   return (
     <div className="space-y-4">
+      <StockAdjustPanel items={initialItems} />
       {!dbConnected && (
         <div className="rounded border border-amber-400 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-700 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
           Database not connected — Inventory won&apos;t save yet.
