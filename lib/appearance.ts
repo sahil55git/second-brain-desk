@@ -105,7 +105,7 @@ export interface ThemePreset {
 export const THEME_PRESETS: ThemePreset[] = [
   // Glass looks (from the design references) — first, as they are the new default family.
   { key: "neon-glass", label: "Neon glass (dark)", mode: "dark", accent: NEON_COLORS.accent, colors: NEON_COLORS, look: { skin: "neon", font: "inter", radius: 1.3, panelOpacity: 0.62, pattern: "none" } },
-  { key: "warm-frost", label: "Warm frosted glass", mode: "dark", accent: "#c6f432", colors: { bg: "#3a2a1f", fg: "#fbf4ea", card: "#2a201a", accent: "#c6f432" }, look: { skin: "frost", font: "inter", radius: 1.4, panelOpacity: 0.55, pattern: "none" } },
+  { key: "warm-frost", label: "Warm frosted glass", mode: "dark", accent: "#c6f432", colors: { bg: "#2b1d15", fg: "#fbf4ea", card: "#3a322c", accent: "#c6f432" }, look: { skin: "frost", font: "inter", radius: 1.4, panelOpacity: 0.55, pattern: "none" } },
   { key: "soft-light", label: "Soft light cards", mode: "light", accent: "#16a34a", colors: { bg: "#eceeec", fg: "#1b1f1c", card: "#f8f9f8", accent: "#16a34a" }, look: { skin: "soft", font: "inter", radius: 1.6, panelOpacity: 1, pattern: "none" } },
   { key: "parchment", label: "Parchment (original)", mode: "auto", accent: "#d97706", background: "default" },
   { key: "ocean-slate", label: "Ocean Slate", mode: "auto", accent: "#1d6fb8", background: "slate" },
