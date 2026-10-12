@@ -34,6 +34,20 @@ describe("gstTreatment", () => {
   });
 });
 
+describe("computeLine discount", () => {
+  it("applies the line discount before GST", () => {
+    const r = computeLine({ qty: 10, rateInr: 100, gstRatePct: 5, discountPct: 10 });
+    expect(r.lineSubtotalInr).toBe(900);
+    expect(r.lineTaxInr).toBe(45);
+    expect(r.lineTotalInr).toBe(945);
+  });
+  it("clamps the discount to 0–100 and treats missing as zero", () => {
+    expect(computeLine({ qty: 1, rateInr: 100, gstRatePct: 0, discountPct: 150 }).lineSubtotalInr).toBe(0);
+    expect(computeLine({ qty: 1, rateInr: 100, gstRatePct: 0, discountPct: -5 }).lineSubtotalInr).toBe(100);
+    expect(computeLine({ qty: 1, rateInr: 100, gstRatePct: 0 }).lineSubtotalInr).toBe(100);
+  });
+});
+
 describe("computeLine", () => {
   it("computes subtotal, tax, total at 5% GST", () => {
     // 10 kg @ ₹100 = ₹1000, 5% GST = ₹50, total ₹1050

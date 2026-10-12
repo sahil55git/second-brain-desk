@@ -16,6 +16,8 @@ export interface GstLineInput {
   qty: number;
   rateInr: number; // per-unit, pre-tax
   gstRatePct: number;
+  /** Line discount in percent (0–100), applied before GST. Optional; 0 when absent. */
+  discountPct?: number;
 }
 
 export interface GstLineResult {
@@ -63,7 +65,8 @@ export function computeLine(line: GstLineInput): GstLineResult {
   const rate = Number(line.rateInr) || 0;
   const gstPct = Number(line.gstRatePct) || 0;
 
-  const lineSubtotalInr = round2(qty * rate);
+  const disc = Math.min(100, Math.max(0, Number(line.discountPct) || 0));
+  const lineSubtotalInr = round2(qty * rate * (1 - disc / 100));
   const lineTaxInr = round2((lineSubtotalInr * gstPct) / 100);
   const lineTotalInr = round2(lineSubtotalInr + lineTaxInr);
 

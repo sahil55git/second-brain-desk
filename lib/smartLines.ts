@@ -10,6 +10,8 @@ export interface DraftLine {
   unit: string;
   rateInr: string;
   gstRatePct: string;
+  /** Line discount in percent. Optional so older callers still build valid lines. */
+  discountPct?: string;
 }
 
 export const blankLine = (): DraftLine => ({ itemId: "", name: "", hsnCode: "", qty: "", unit: "kg", rateInr: "", gstRatePct: "" });

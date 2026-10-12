@@ -202,6 +202,7 @@ model SalesLineItem {
   unit       String  @default("kg")
   rateInr    Float   @default(0) // per-unit, pre-tax
   gstRatePct Float   @default(0)
+  discountPct Float  @default(0) // line discount %, applied before GST
 
   lineSubtotalInr Float @default(0) // qty * rate
   lineTaxInr      Float @default(0) // lineSubtotal * gstRate/100
@@ -710,4 +711,18 @@ model ScaleTick {
   usedAt         DateTime?
 
   @@index([source, settledAt])
+}
+
+// Bill builder — a bill put on hold at the counter. The draft (lines, party,
+// date, payment mode, notes) is stored as JSON and restored on resume. Held
+// bills do NOT reserve stock; stock moves only when the bill is saved.
+model HeldBill {
+  id        String   @id @default(cuid())
+  label     String   // shown in the list, e.g. party name or "Walk-in"
+  partyId   String?
+  draft     Json
+  heldBy    String?  // session user name, for the list
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }
