@@ -98,7 +98,10 @@ export default function LauncherProvider({ children }: { children: ReactNode }) 
       if (e.key !== "Escape") return;
       if (big) setBig(null);
       else if (panel) setPanel(false);
-      else setPops((c) => c.slice(0, -1));
+      else {
+        setPops((c) => c.slice(0, -1));
+        window.dispatchEvent(new Event("ql-pop-closed"));
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -116,7 +119,7 @@ export default function LauncherProvider({ children }: { children: ReactNode }) 
           {big && <BigWindow tab={big} setTab={setBig} prefs={prefs} setPrefs={setPrefs} openItem={openItem} close={() => setBig(null)} />}
         </>
       )}
-      {!embedded && pops.map((p, k) => <PopWindow key={p.id} pop={p} index={k} close={() => setPops((c) => c.filter((x) => x.id !== p.id))} />)}
+      {!embedded && pops.map((p, k) => <PopWindow key={p.id} pop={p} index={k} close={() => { setPops((c) => c.filter((x) => x.id !== p.id)); window.dispatchEvent(new Event("ql-pop-closed")); }} />)}
     </LauncherCtx.Provider>
   );
 }

@@ -5,6 +5,7 @@ import { prisma, safeDbCall } from "@/lib/db";
 import { computeOpening, getUser, isValidDate, loadConfig, movementsFor } from "@/lib/registerServer";
 import { cashCutoffMs, toClosingBuckets, type RegisterEntryLike } from "@/lib/register";
 import { cashGapFlag } from "@/lib/calculations";
+import { loadMemoView } from "@/lib/memoServer";
 
 export const dynamic = "force-dynamic";
 
@@ -24,12 +25,15 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "asc" },
       }),
     ]);
-    const buckets = toClosingBuckets(opening.value, entries as unknown as RegisterEntryLike[], jwEvents, cashCutoffMs(date, session, Date.now()));
+    const cutoff = cashCutoffMs(date, session, Date.now());
+    const buckets = toClosingBuckets(opening.value, entries as unknown as RegisterEntryLike[], jwEvents, cutoff);
     const { systemCash } = cashGapFlag(buckets, 0);
+    // Memo-sheet totals live in their own tables; they only change the EXPECTED cash shown here.
+    const view = await loadMemoView(date, entries as unknown as RegisterEntryLike[], jwEvents, cutoff, systemCash);
     const last = (s: string) => saved.filter((c) => c.session === s).slice(-1)[0] || null;
     const pick = (c: (typeof saved)[number] | null) =>
       c && { id: c.id, createdAt: c.createdAt, counted: c.counterCashInr, system: c.systemCashInr, diff: c.cashDiffInr, mismatch: c.cashMismatch, denoms: c.denoms };
-    return { opening: opening.value, buckets, systemCash, sessions: { AFTERNOON: pick(last("AFTERNOON")), NIGHT: pick(last("NIGHT")) } };
+    return { opening: opening.value, buckets, systemCash, ...view, sessions: { AFTERNOON: pick(last("AFTERNOON")), NIGHT: pick(last("NIGHT")) } };
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 503 });
   return NextResponse.json({ data: result.data });
