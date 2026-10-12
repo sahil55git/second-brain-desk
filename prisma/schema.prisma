@@ -180,12 +180,29 @@ model SalesInvoice {
   notes       String?
 
   lineItems SalesLineItem[]
+  returns   SalesReturn[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([partyId])
   @@index([date])
+}
+
+// A refund (credit note) against a sale. Lines are a JSON snapshot so the
+// record stays exact even if the item is renamed later. Returned stock is
+// added back via SalesLineItem.returnedQty.
+model SalesReturn {
+  id        String       @id @default(cuid())
+  invoiceId String
+  invoice   SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  reason    String
+  note      String?
+  refundInr Float
+  lines     Json
+  createdAt DateTime     @default(now())
+
+  @@index([invoiceId])
 }
 
 model SalesLineItem {
@@ -203,6 +220,7 @@ model SalesLineItem {
   rateInr    Float   @default(0) // per-unit, pre-tax
   gstRatePct Float   @default(0)
   discountPct Float  @default(0) // line discount %, applied before GST
+  returnedQty Float  @default(0) // quantity refunded so far (see SalesReturn)
 
   lineSubtotalInr Float @default(0) // qty * rate
   lineTaxInr      Float @default(0) // lineSubtotal * gstRate/100

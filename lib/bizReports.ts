@@ -464,7 +464,8 @@ export function stockReport(d: BizData, asOf: string) {
       let inQty = 0,
         outQty = 0;
       for (const b of d.purchases) if (b.date <= asOf) for (const l of b.lineItems || []) if (l.itemId === i.id) inQty += l.qty;
-      for (const x of d.sales) if (x.date <= asOf) for (const l of x.lineItems || []) if (l.itemId === i.id) outQty += l.qty;
+      // Refunded quantities go back into stock, so only the kept quantity is out.
+      for (const x of d.sales) if (x.date <= asOf) for (const l of x.lineItems || []) if (l.itemId === i.id) outQty += l.qty - (l.returnedQty ?? 0);
       const book = i.openingStockQty + inQty - outQty;
       return {
         id: i.id,

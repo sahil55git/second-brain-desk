@@ -169,6 +169,8 @@ export interface SalesLineItemDTO {
   lineSubtotalInr: number;
   lineTaxInr: number;
   lineTotalInr: number;
+  discountPct?: number;
+  returnedQty?: number;
 }
 
 export interface SalesInvoiceDTO {

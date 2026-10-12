@@ -16,6 +16,7 @@ import type {
 import { computeTotals, gstTreatment, type GstLineInput } from "@/lib/gst";
 import { clampDiscount, type HeldDraft } from "@/lib/billDraft";
 import HeldBillsPanel from "./HeldBillsPanel";
+import RefundPanel from "./RefundPanel";
 import InvoicePrint from "./InvoicePrint";
 import { useScale } from "./ScaleProvider";
 import AiTerminal from "@/components/AiTerminal";
@@ -67,6 +68,7 @@ export default function SalesDesk({
   const [smartMsg, setSmartMsg] = useState<string | null>(null);
   const [unknownCode, setUnknownCode] = useState<string | null>(null);
   const [heldRefresh, setHeldRefresh] = useState(0);
+  const [refundFor, setRefundFor] = useState<SalesInvoiceDTO | null>(null);
 
   useEffect(() => {
     if (!showForm || !scaleAutoFill || !selectedReading || selectedReading.stable === false) return;
@@ -556,6 +558,18 @@ export default function SalesDesk({
         </form>
       )}
 
+      {refundFor && (
+        <RefundPanel
+          key={refundFor.id}
+          invoice={refundFor}
+          onClose={() => setRefundFor(null)}
+          onDone={(lineItems) => {
+            setInvoices((prev) => prev.map((x) => (x.id === refundFor.id ? { ...x, lineItems } : x)));
+            setRefundFor(null);
+          }}
+        />
+      )}
+
       {/* Ledger */}
       <div className="rounded-xl border border-black/10 dark:border-white/10 overflow-x-auto">
         <table className="w-full text-sm">
@@ -596,6 +610,12 @@ export default function SalesDesk({
                       className="text-xs rounded border border-black/20 dark:border-white/20 px-2 py-1 mr-1"
                     >
                       Print
+                    </button>
+                    <button
+                      onClick={() => setRefundFor(inv)}
+                      className="text-xs rounded border border-black/20 dark:border-white/20 px-2 py-1 mr-1"
+                    >
+                      Refund
                     </button>
                     <button onClick={() => del(inv.id)} className="text-xs opacity-50 hover:opacity-100">
                       Delete
