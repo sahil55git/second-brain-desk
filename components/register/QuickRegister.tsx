@@ -18,6 +18,7 @@ import {
   type CanKey,
 } from "@/lib/calculations";
 import {
+  DEFAULT_CONFIG,
   DENOMINATIONS,
   KIND_SIDE,
   PAY_CHANNELS,
@@ -25,6 +26,9 @@ import {
   businessDate,
   channelToMode,
   entryChannel,
+  estimatePrice,
+  estimateQty,
+  fmtEstimateQty,
   splitInfo,
   dayTotals,
   denominationTotal,
@@ -155,6 +159,7 @@ type Sheet =
   | { t: "jwpay"; id: string }
   | { t: "count" }
   | { t: "calc" }
+  | { t: "estimate" }
   | { t: "report" }
   | { t: "scan" }
   | { t: "smart"; text?: string; auto?: boolean }
@@ -176,12 +181,13 @@ type TileKey =
   | "count"
   | "stock"
   | "calc"
+  | "estimate"
   | "reports"
   | "scan"
   | "smart";
 type SectionKey = "summary" | "entries" | "jobwork";
 // What the always-open Workspace card shows.
-type WorkTool = "calc" | "notepad" | "FRESH_CRUSH" | "SALE" | "EXPENSE" | "PURCHASE" | "jwNew" | "count" | "stock";
+type WorkTool = "calc" | "estimate" | "notepad" | "FRESH_CRUSH" | "SALE" | "EXPENSE" | "PURCHASE" | "jwNew" | "count" | "stock";
 type LayoutMode = "auto" | "side" | "stack";
 interface Prefs {
   layout: LayoutMode;
@@ -726,7 +732,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   useEffect(() => {
     if (hasLocalPrefs || !day) return;
     const c = day.config;
-    const work = (["calc", "notepad", "FRESH_CRUSH", "SALE", "EXPENSE", "PURCHASE", "jwNew", "count", "stock"] as const).find((w) => w === c.defaultWork);
+    const work = (["calc", "estimate", "notepad", "FRESH_CRUSH", "SALE", "EXPENSE", "PURCHASE", "jwNew", "count", "stock"] as const).find((w) => w === c.defaultWork);
     setPrefsState((p) => ({ ...p, layout: c.defaultLayout, favs: c.defaultFavs, work: work || "calc" }));
   }, [hasLocalPrefs, day]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -900,6 +906,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     count: { k: "count", icon: "💵", group: "tool", open: () => setSheet({ t: "count" }), needsDb: true },
     stock: { k: "stockTally", icon: "📦", group: "tool", open: () => setSheet({ t: "stock" }), needsDb: true },
     calc: { k: "calc", icon: "🧮", group: "tool", open: () => setSheet({ t: "calc" }) },
+    estimate: { k: "estimate", icon: "🏷️", group: "tool", open: () => setSheet({ t: "estimate" }) },
     reports: { k: "reports", icon: "🖨️", group: "tool", open: () => setSheet({ t: "report" }) },
     scan: { k: "scan", icon: "📸", group: "tool", open: () => setSheet({ t: "scan" }), needsDb: true },
     smart: { k: "smart", icon: "✨", group: "tool", open: () => setSheet({ t: "smart" }), needsDb: true },
@@ -927,6 +934,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
       cash: () => setSheet({ t: "count" }),
       stock: () => setSheet({ t: "stock" }),
       calc: () => setSheet({ t: "calc" }),
+      estimate: () => setSheet({ t: "estimate" }),
       scan: () => setSheet({ t: "scan" }),
       smart: () => setSheet({ t: "smart" }),
     };
@@ -1166,6 +1174,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
         <Tile id="stock" />
         <Tile id="scan" />
         <Tile id="smart" />
+        <Tile id="estimate" />
         <Tile id="calc" />
         <Tile id="reports" />
       </div>
@@ -1278,6 +1287,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
           <Tile id="stock" />
           <Tile id="scan" />
           <Tile id="smart" />
+          <Tile id="estimate" />
           <Tile id="calc" />
           <Tile id="reports" />
           {toolLink("/mfg", "🏭", "mfgDesk")}
@@ -1601,6 +1611,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   };
   const WORK_TOOLS: { key: WorkTool; icon: string; k: WordKey }[] = [
     { key: "calc", icon: "🧮", k: "calc" },
+    { key: "estimate", icon: "🏷️", k: "estimate" },
     { key: "notepad", icon: "📝", k: "notepad" },
     { key: "FRESH_CRUSH", icon: "🫗", k: "FRESH_CRUSH" },
     { key: "SALE", icon: "💰", k: "SALE" },
@@ -1614,6 +1625,8 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   const wsBody =
     tool === "calc" ? (
       <CalcSheet key={wsKey} lang={lang} onClose={wsReset} />
+    ) : tool === "estimate" ? (
+      <EstimateSheet key={wsKey} day={day} lang={lang} onClose={wsReset} toast={toast} onMakeSale={(init) => setSheet({ t: "entry", kind: "SALE", init })} />
     ) : tool === "notepad" ? (
       <Notepad lang={lang} />
     ) : !day ? null : tool === "FRESH_CRUSH" ? (
@@ -1727,6 +1740,8 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   };
   const sheetEl = !sheet ? null : sheet.t === "calc" ? (
     <CalcSheet lang={lang} onClose={() => setSheet(null)} />
+  ) : sheet.t === "estimate" ? (
+    <EstimateSheet day={day} lang={lang} onClose={() => setSheet(null)} toast={toast} onMakeSale={(init) => setSheet({ t: "entry", kind: "SALE", init })} />
   ) : !day ? null : sheet.t === "entry" ? (
     <EntrySheet key={sheet.kind + JSON.stringify(sheet.init || {})} kind={sheet.kind} init={sheet.init} day={day} lang={lang} date={date} onClose={() => setSheet(null)} onSaved={(m) => done(m)} toast={toast} />
   ) : sheet.t === "scan" ? (
@@ -3683,6 +3698,253 @@ function FreshCrushSheet({
       <button className="qr-save" onClick={save} disabled={busy}>
         ✓ {word(busy ? "saving" : "save", lang)}
       </button>
+    </SheetFrame>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Customer estimate: "how much for this qty?" and "how much oil for this cash?".
+// Items come with the saved sale rates; the rate and qty can be overridden.
+// Nothing is saved — "Make this a sale" opens the normal sale form pre-filled.
+// ---------------------------------------------------------------------------
+type EstRow = { id: number; item: string | null; otherName: string; qty: string; unit: string; rate: string };
+const EST_QTYS = [0.25, 0.5, 1, 2, 5, 10];
+const EST_CASH = [50, 100, 200, 500, 1000];
+
+function EstimateSheet({
+  day,
+  lang,
+  onClose,
+  toast,
+  onMakeSale,
+}: {
+  day: DayBundle | null;
+  lang: LangMode;
+  onClose: () => void;
+  toast: (m: string) => void;
+  onMakeSale: (init: EntryInit) => void;
+}) {
+  const cfg = day?.config ?? DEFAULT_CONFIG;
+  const items = itemsFor("SALE", cfg);
+  const saved = (it: string | null) => {
+    const r = it ? cfg.rates[rateKey("SALE", it)] : undefined;
+    return r ? String(r) : "";
+  };
+  const first = items[0]?.key || null;
+  const mk = (id: number, it: string | null = first): EstRow => ({ id, item: it, otherName: "", qty: "", unit: "kg", rate: saved(it) });
+  const [mode, setMode] = useState<"qty" | "cash">("qty");
+  const [rows, setRows] = useState<EstRow[]>(() => [mk(1)]);
+  const [cash, setCash] = useState("");
+  const nextId = useRef(2);
+  const patch = (id: number, p: Partial<EstRow>) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...p } : r)));
+  const unitLabel = (u: string) => {
+    const o = UNITS.find((x) => x.key === u) || UNITS[0];
+    return lang === "kn" ? o.kn : o.en;
+  };
+  const nameOf = (r: EstRow) => {
+    if (r.item === "other") return r.otherName.trim() || word("itemName", lang);
+    const c = items.find((i) => i.key === r.item);
+    return c ? (lang === "kn" ? c.kn : c.en) : "";
+  };
+
+  // ---- the sums ----
+  const priced = rows.map((r) => ({ r, amt: estimatePrice(parseFloat(r.qty) || 0, parseFloat(r.rate) || 0) }));
+  const total = Math.round(priced.reduce((a, x) => a + x.amt, 0) * 100) / 100;
+  const r0 = rows[0];
+  const cashN = parseFloat(cash) || 0;
+  const gets = estimateQty(cashN, parseFloat(r0.rate) || 0);
+  const used = Math.round(gets * (parseFloat(r0.rate) || 0) * 100) / 100;
+
+  const lines: string[] =
+    mode === "qty"
+      ? priced.filter((x) => x.amt > 0).map((x) => `${nameOf(x.r)} ${fmtEstimateQty(parseFloat(x.r.qty), x.r.unit)} × ₹${x.r.rate} = ${rs(x.amt)}`)
+      : gets > 0
+        ? [`${rs(cashN)} → ${fmtEstimateQty(gets, r0.unit)} ${nameOf(r0)} @ ₹${r0.rate}/${unitLabel(r0.unit)}`]
+        : [];
+  const text = ["Mahadev Traders — " + word("estimate", "en"), ...lines, ...(mode === "qty" && lines.length > 1 ? [`${word("estTotal", "en")}: ${rs(total)}`] : [])].join("\n");
+  const has = lines.length > 0;
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(word("estCopied", lang));
+    } catch {
+      toast(text);
+    }
+  }
+  const share = () => window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+  const single = mode === "qty" ? (priced.filter((x) => x.amt > 0).length === 1 ? priced.find((x) => x.amt > 0)! : null) : gets > 0 ? { r: r0, amt: cashN } : null;
+  function makeSale() {
+    if (!single) return;
+    const { r, amt } = single;
+    const q = mode === "cash" ? gets : parseFloat(r.qty);
+    onMakeSale({ item: (r.item as string) || undefined, otherName: r.item === "other" ? r.otherName.trim() : undefined, qty: q, unit: r.unit as never, rate: parseFloat(r.rate) || undefined, amount: amt });
+  }
+
+  const rateField = (r: EstRow) => {
+    const sv = saved(r.item);
+    const custom = r.rate !== "" && r.rate !== sv;
+    return (
+      <div className="qe-rate">
+        <label className="qr-lbl">
+          {words("rate", lang).main} {unitLabel(r.unit)}
+        </label>
+        <input className="qr-num" type="number" inputMode="decimal" min={0} value={r.rate} onChange={(e) => patch(r.id, { rate: e.target.value })} aria-label={word("rate", lang)} />
+        <small className={`qe-tag${custom ? " custom" : ""}`}>
+          {r.rate === "" ? (
+            word("estNoRate", lang)
+          ) : custom ? (
+            <>
+              {word("estCustom", lang)}
+              {sv && (
+                <button type="button" className="qr-linkbtn" onClick={() => patch(r.id, { rate: sv })}>
+                  {word("estReset", lang)} ₹{sv}
+                </button>
+              )}
+            </>
+          ) : (
+            <>{word("estSaved", lang)}</>
+          )}
+        </small>
+      </div>
+    );
+  };
+
+  const pick = (r: EstRow) => (
+    <>
+      <PickMenu lang={lang} value={r.item} options={items} onPick={(v) => patch(r.id, { item: v, rate: saved(v) })} />
+      {r.item === "other" && <input className="qr-txt" style={{ marginTop: 6 }} placeholder={word("itemName", lang)} value={r.otherName} onChange={(e) => patch(r.id, { otherName: e.target.value })} />}
+    </>
+  );
+
+  return (
+    <SheetFrame icon="🏷️" k="estimate" lang={lang} onClose={onClose}>
+      <div className="qr-f">
+        <Chips
+          compact
+          lang={lang}
+          value={mode}
+          onPick={setMode}
+          options={[
+            { key: "qty", icon: "⚖️", en: word("estQtyMode", "en"), kn: word("estQtyMode", "kn") },
+            { key: "cash", icon: "💵", en: word("estCashMode", "en"), kn: word("estCashMode", "kn") },
+          ]}
+        />
+      </div>
+
+      {mode === "qty" ? (
+        <>
+          {rows.map((r, i) => (
+            <div className="qe-row" key={r.id}>
+              <div className="qe-top">
+                <span className="qe-n">{i + 1}</span>
+                <div className="qe-pick">{pick(r)}</div>
+                {rows.length > 1 && (
+                  <button type="button" className="qe-x" aria-label={word("removeQ", lang)} onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))}>
+                    ✕
+                  </button>
+                )}
+              </div>
+              <div className="qe-grid">
+                <div>
+                  <label className="qr-lbl">
+                    <Txt k="qty" lang={lang} />
+                  </label>
+                  <input className="qr-num" type="number" inputMode="decimal" min={0} step="0.1" value={r.qty} onChange={(e) => patch(r.id, { qty: e.target.value })} aria-label={word("qty", lang)} />
+                </div>
+                {rateField(r)}
+              </div>
+              <Chips compact lang={lang} value={r.unit} onPick={(u) => patch(r.id, { unit: u })} options={UNITS} />
+              {(r.unit === "kg" || r.unit === "ltr") && (
+                <div className="qe-quick">
+                  {EST_QTYS.map((q) => (
+                    <button type="button" key={q} className={parseFloat(r.qty) === q ? "on" : ""} onClick={() => patch(r.id, { qty: String(q) })}>
+                      {q < 1 ? fmtEstimateQty(q, r.unit) : q}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="qe-line">
+                <span>
+                  {fmtEstimateQty(parseFloat(r.qty) || 0, r.unit)} × ₹{r.rate || 0}
+                </span>
+                <b>{rs(priced[i].amt)}</b>
+              </div>
+            </div>
+          ))}
+          <div className="qr-f">
+            <button
+              type="button"
+              className="qe-add"
+              onClick={() => {
+                const id = nextId.current++;
+                setRows((rs) => [...rs, mk(id)]);
+              }}
+            >
+              <span className="pl">+</span> <Txt k="estAddItem" lang={lang} />
+            </button>
+          </div>
+          <div className="qe-res">
+            <small>
+              <Txt k="estTotal" lang={lang} />
+            </small>
+            <b>{rs(total)}</b>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="qe-row">
+            <div className="qe-top">
+              <div className="qe-pick">{pick(r0)}</div>
+            </div>
+            <div className="qe-grid">
+              <div>
+                <label className="qr-lbl">
+                  <Txt k="estCash" lang={lang} />
+                </label>
+                <input className="qr-num" type="number" inputMode="decimal" min={0} value={cash} onChange={(e) => setCash(e.target.value)} autoFocus aria-label={word("estCash", lang)} />
+              </div>
+              {rateField(r0)}
+            </div>
+            <Chips compact lang={lang} value={r0.unit} onPick={(u) => patch(r0.id, { unit: u })} options={UNITS} />
+            <div className="qe-quick">
+              {EST_CASH.map((c) => (
+                <button type="button" key={c} className={cashN === c ? "on" : ""} onClick={() => setCash(String(c))}>
+                  ₹{c}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="qe-res">
+            <small>
+              <Txt k="estGets" lang={lang} />
+            </small>
+            <b>{gets > 0 ? `${fmtEstimateQty(gets, r0.unit)} ${nameOf(r0)}` : "—"}</b>
+            {gets > 0 && cashN - used >= 0.5 && (
+              <em>
+                = {rs(used)} · {rs(cashN - used)} {lang === "kn" ? "ಉಳಿಯಿತು" : "left"}
+              </em>
+            )}
+          </div>
+        </>
+      )}
+
+      <div className="qe-acts">
+        <button type="button" className="qr-chip" onClick={copy} disabled={!has}>
+          <G e="📋" /> <Txt k="estCopy" lang={lang} />
+        </button>
+        <button type="button" className="qr-chip" onClick={share} disabled={!has}>
+          <G e="💬" /> <Txt k="estShare" lang={lang} />
+        </button>
+        {single && (
+          <button type="button" className="qr-save" onClick={makeSale}>
+            ✓ <Txt k="estMakeSale" lang={lang} />
+          </button>
+        )}
+      </div>
+      <div className="qr-hint">
+        <Txt k="estNote" lang={lang} />
+      </div>
     </SheetFrame>
   );
 }
