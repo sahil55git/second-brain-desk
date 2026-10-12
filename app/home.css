@@ -21,7 +21,11 @@ html.reduce-motion :is(.hm *, .sb-head *, .qr *) { animation: none !important; t
 
 /* ---------- brand header ---------- */
 .sb-logo svg { display: block; width: 74%; height: 74%; }
-.sb-logo { --lg-a: #ffd27a; --lg-b: #e0861a; --lg-mark: #14203f; }
+.sb-logo { --lg-a: #f6b73c; --lg-mark: #0c1226; }
+@keyframes lg-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+.mlogo-leaf { transform-origin: 21% 79%; animation: lg-sway 6s ease-in-out infinite; }
+html.reduce-motion .mlogo-leaf { animation: none; }
+@media (prefers-reduced-motion: reduce) { .mlogo-leaf { animation: none; } }
 .sb-tag-short { display: none; }
 .sb-cta-plus { display: none; }
 .sb-avatar {
@@ -52,7 +56,7 @@ html[data-skin="earth"] .sb-tabs > button.on { color: #2e2a24 !important; border
 
 /* pastel: purple gradient tile mark, white pill nav bar, orange "+ New" pill */
 html[data-skin="pastel"] .sb-logo { width: 42px; height: 42px; border-radius: 13px; color: #fff; background: linear-gradient(140deg, #8e6cf0, #6d4ae0); box-shadow: 0 8px 18px -6px rgba(109, 74, 224, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
-html[data-skin="pastel"] .sb-logo { --lg-mark: #5a36d0; }
+html[data-skin="pastel"] .sb-logo { --lg-a: #fff3d6; --lg-mark: #6d4ae0; }
 html[data-skin="pastel"] .sb-head { background: rgba(255, 255, 255, 0.78) !important; border: 1px solid rgba(255, 255, 255, 0.9) !important; border-radius: 999px !important; padding: 8px 10px 8px 10px; box-shadow: 0 10px 30px rgba(109, 74, 224, 0.1) !important; }
 html[data-skin="pastel"] .sb-head h1 { font-weight: 800; font-size: 20px; }
 html[data-skin="pastel"] .sb-tag { display: none; }

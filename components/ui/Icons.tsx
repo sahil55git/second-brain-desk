@@ -114,25 +114,16 @@ export const EMOJI_TINT: Record<string, string> = {
 };
 
 /**
- * Mahadev logo: an oil drop with a trishul (trident) cut through it.
+ * Mahadev logo: the leaf mark from the brand board (Earth & Clay logo, E-series).
  * Colours come from CSS so every look can tint it:
- *   --lg-a / --lg-b  drop gradient (top / bottom)    --lg-mark  trishul
+ *   --lg-a  leaf colour      --lg-mark  vein (usually the tile colour)
  */
-export function BrandMark({ size = 22, detail = true }: { size?: number; detail?: boolean }) {
-  const id = "mlg" + size;
+export function BrandMark({ size = 22 }: { size?: number; detail?: boolean }) {
   return (
-    <svg className="mlogo" width={size} height={size} viewBox="0 0 48 48" aria-hidden focusable="false">
-      <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" style={{ stopColor: "var(--lg-a, #FFD27A)" }} />
-          <stop offset="1" style={{ stopColor: "var(--lg-b, #E0861A)" }} />
-        </linearGradient>
-      </defs>
-      <path d="M24 3.5C30.4 11.5 38 19.5 38 28.6a14 14 0 0 1-28 0C10 19.5 17.6 11.5 24 3.5Z" fill={`url(#${id})`} />
-      <g fill="none" style={{ stroke: "var(--lg-mark, #14203f)" }} strokeWidth={size < 30 ? 2.8 : 2.2} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M24 14.5v24" />
-        <path d="M17.6 20c0 5 2.6 7.8 6.4 7.8s6.4-2.8 6.4-7.8" />
-        {detail && size >= 30 && <path d="M24 14.5l-1.8 2.8M24 14.5l1.8 2.8M17.6 20l-1.3 1.8M30.4 20l1.3 1.8" />}
+    <svg className="mlogo" width={size} height={size} viewBox="0 0 24 24" aria-hidden focusable="false">
+      <g className="mlogo-leaf">
+        <path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14z" style={{ fill: "var(--lg-a, #efe7d8)" }} />
+        <path d="M5 19 13 11" fill="none" style={{ stroke: "var(--lg-mark, #7d8b6a)" }} strokeWidth={size < 30 ? 1.6 : 1.2} strokeLinecap="round" />
       </g>
     </svg>
   );
