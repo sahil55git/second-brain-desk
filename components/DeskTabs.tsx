@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type {
   DailyClosingDTO,
@@ -26,6 +26,7 @@ import PurchaseDesk from "./PurchaseDesk";
 import ExpensesDesk from "./ExpensesDesk";
 import VyaparDesk from "./VyaparDesk";
 import ScaleDashboard from "./ScaleDashboard";
+import GlobalSearch from "./GlobalSearch";
 
 type Desk =
   | "jobwork"
@@ -93,8 +94,16 @@ export default function DeskTabs({
       : []),
   ];
 
+  const searchData = useMemo(
+    () => ({ parties: initialParties, sales: initialSales, items: initialItems, jobWork: initialJobWork }),
+    [initialParties, initialSales, initialItems, initialJobWork]
+  );
+
   return (
     <div>
+      <div className="mb-3 flex justify-end">
+        <GlobalSearch data={searchData} onOpen={(desk) => setActive(desk)} />
+      </div>
       <nav className="flex flex-wrap gap-2 mb-6 border-b border-black/10 dark:border-white/10">
         {tabs.map((tab) => (
           <button
