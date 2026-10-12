@@ -21,7 +21,7 @@ const KEYS: Record<StepNo, "step1Kg" | "step2Kg" | "step3Kg" | "step4Kg"> = { 1:
 
 const lite = (b: MfgBatchDTO): BatchLite => ({ ...b, refOilPct: b.refOilPct });
 
-export default function MfgQuick() {
+export default function MfgQuick({ startNew = false }: { startNew?: boolean } = {}) {
   const today = businessDate(Date.now());
   const [batches, setBatches] = useState<MfgBatchDTO[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -55,8 +55,8 @@ export default function MfgQuick() {
   }, []);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("new") === "1") setShowNew(true);
-  }, []);
+    if (startNew || new URLSearchParams(window.location.search).get("new") === "1") setShowNew(true);
+  }, [startNew]);
   useEffect(() => {
     if (batches && !barrel) setBarrel(suggestNextBarrel(batches[0]?.barrel));
     // eslint-disable-next-line react-hooks/exhaustive-deps

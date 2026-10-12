@@ -69,6 +69,7 @@ import { hasAlert, registerChecks } from "@/lib/registerChecks";
 import { REGISTER_FILL_KINDS, mapRegisterFill, matchCatalogItem, normUnit, type RegisterDraft } from "@/lib/registerSmart";
 import { DESK_PROMPTS } from "@/lib/aiPrompts";
 import { findItemByCode } from "@/lib/smartEntry";
+import MfgQuick from "@/components/mfg/MfgQuick";
 
 // Pre-fill for an entry form: from a voice command, or from a scanned slip
 // (linkProofId attaches that scan to the entry once it is saved).
@@ -144,6 +145,7 @@ type Sheet =
   | { t: "stock" }
   | { t: "jw"; id?: string }
   | { t: "fresh" }
+  | { t: "mfg"; startNew?: boolean }
   | { t: "jwpay"; id: string }
   | { t: "count" }
   | { t: "calc" }
@@ -1069,16 +1071,16 @@ export default function QuickRegister() {
           </span>
         </div>
         <div className="qr-row2">
-          <a className="qr-tile g-tool" href="/mfg?new=1">
+          <button type="button" className="qr-tile g-tool" onClick={() => setSheet({ t: "mfg", startNew: true })}>
             <span className="ic" aria-hidden>➕</span>
             <span className="p">{words("newBarrel", lang).main}</span>
             {words("newBarrel", lang).sub && <span className="s">{words("newBarrel", lang).sub}</span>}
-          </a>
-          <a className="qr-tile g-tool" href="/mfg">
+          </button>
+          <button type="button" className="qr-tile g-tool" onClick={() => setSheet({ t: "mfg" })}>
             <span className="ic" aria-hidden>🛢️</span>
             <span className="p">{words("barrelSteps", lang).main}</span>
             {words("barrelSteps", lang).sub && <span className="s">{words("barrelSteps", lang).sub}</span>}
-          </a>
+          </button>
         </div>
       </div>
 
@@ -1594,6 +1596,10 @@ export default function QuickRegister() {
     />
   ) : sheet.t === "stock" ? (
     <StockSheet lang={lang} date={date} onClose={() => setSheet(null)} onSaved={(m) => done(m)} toast={toast} />
+  ) : sheet.t === "mfg" ? (
+    <SheetFrame icon="🛢️" k="mfgDesk" lang={lang} onClose={() => setSheet(null)}>
+      <MfgQuick startNew={sheet.startNew} />
+    </SheetFrame>
   ) : sheet.t === "fresh" ? (
     <FreshCrushSheet day={day} lang={lang} date={date} onClose={() => setSheet(null)} onSaved={() => done()} toast={toast} />
   ) : sheet.t === "jw" ? (
