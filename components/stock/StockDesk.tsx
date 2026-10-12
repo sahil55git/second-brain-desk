@@ -12,6 +12,7 @@ import { businessDate } from "@/lib/register";
 import { STOCK_KN, csvToTable, isFlagged, parseTallyRows, tallyGap } from "@/lib/stockTally";
 import { download, excelBlob, type ExportTable } from "@/lib/exporters";
 import AiTerminal from "@/components/AiTerminal";
+import TankView from "./TankView";
 
 type Session = "AFTERNOON" | "NIGHT";
 interface SavedSession {
@@ -349,7 +350,20 @@ export default function StockDesk({ initialDate, initialSession }: { initialDate
         </div>
       </div>
 
-      <section className="hub-card">
+      <TankView
+        date={date}
+        stock={Object.fromEntries(present.map((r) => [r.p.key, { now: r.now, yesterday: r.yesterday, t1: r.t1, t2: r.t2 }]))}
+        onCount={(key) => {
+          setView("cards");
+          setTimeout(() => {
+            const el = document.getElementById(`c-${key}`);
+            el?.scrollIntoView({ behavior: "smooth", block: "center" });
+            (el as HTMLInputElement | null)?.focus();
+          }, 60);
+        }}
+      />
+
+      <section className="hub-card" style={{ marginTop: 12 }}>
         <div className="hub-card-head">
           <h3>✍️ {backDated ? `Enter count for ${date}` : "Enter today's count"} · {session === "NIGHT" ? "full closing stock" : "midday check"}</h3>
           <div className="hr stk-row">
