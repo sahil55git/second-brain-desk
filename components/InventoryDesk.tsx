@@ -6,14 +6,18 @@ import type { ItemDTO } from "@/lib/types";
 import { useScale } from "./ScaleProvider";
 import KaradiTankRegister from "./KaradiTankRegister";
 import CodeScan from "@/components/smart/CodeScan";
+import HoverCard from "./HoverCard";
 import { findItemByCode, nextItemCode } from "@/lib/smartEntry";
+import StockAdjustPanel from "./StockAdjustPanel";
 
 export default function InventoryDesk({
   initialItems,
   dbConnected,
+  onNavigate,
 }: {
   initialItems: ItemDTO[];
   dbConnected: boolean;
+  onNavigate?: (desk: "sales" | "purchase") => void;
 }) {
   const [items, setItems] = useState<ItemDTO[]>(initialItems);
   const [search, setSearch] = useState("");
@@ -112,6 +116,7 @@ export default function InventoryDesk({
 
   return (
     <div className="space-y-4">
+      <StockAdjustPanel items={initialItems} />
       {!dbConnected && (
         <div className="rounded border border-amber-400 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-700 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
           Database not connected — Inventory won&apos;t save yet.
@@ -307,7 +312,29 @@ export default function InventoryDesk({
               const low = i.reorderLevelQty !== null && i.openingStockQty <= i.reorderLevelQty;
               return (
                 <tr key={i.id} className={`border-b border-black/5 dark:border-white/5 ${found === i.id ? "bg-[var(--accent)]/10" : ""}`}>
-                  <td className="px-3 py-2 font-medium">{i.name}</td>
+                  <td className="px-3 py-2 font-medium">
+                    <HoverCard
+                      trigger={<button type="button" className="text-left font-medium underline decoration-dotted underline-offset-4">{i.name}</button>}
+                    >
+                      <p className="font-semibold">{i.name}</p>
+                      <p className="text-xs opacity-70">{i.sku || "no SKU"} · unit {i.unit}</p>
+                      <ul className="mt-2 space-y-1 text-xs">
+                        <li>HSN: {i.hsnCode || "—"} · GST {i.gstRatePct ?? "—"}%</li>
+                        <li>Opening stock: {i.openingStockQty} {i.unit}</li>
+                        <li>Reorder at: {i.reorderLevelQty ?? "not set"}</li>
+                        {i.barcode && <li>Barcode: {i.barcode}</li>}
+                      </ul>
+                      <div className="mt-3 flex gap-2">
+                        {onNavigate && (
+                          <button type="button" onClick={() => onNavigate("sales")} className="rounded-lg border border-black/15 dark:border-white/20 px-3 py-1.5 text-xs">Sell</button>
+                        )}
+                        {onNavigate && (
+                          <button type="button" onClick={() => onNavigate("purchase")} className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[var(--accent-contrast)]">Reorder</button>
+                        )}
+                        <button type="button" onClick={() => archive(i.id)} className="rounded-lg border border-black/15 dark:border-white/20 px-3 py-1.5 text-xs">Archive</button>
+                      </div>
+                    </HoverCard>
+                  </td>
                   <td className="px-3 py-2">{i.sku || "—"}</td>
                   <td className="px-3 py-2 font-mono text-xs">
                     {i.barcode ? (

@@ -32,6 +32,7 @@ import {
   expectedSettlementWithRate,
 } from "./calculations";
 import { computeBarrelYield } from "./mfgCalculations";
+import type { AdjustRecord } from "./stockAdjust";
 import { JOBWORK_OVERDUE_DAYS } from "./reports";
 import {
   KIND_SIDE,
@@ -61,7 +62,21 @@ export interface RegisterRow {
   createdAt: string;
 }
 
+/** A refund (credit note) against a sales bill, dated by when it was recorded. */
+export interface RefundRecord {
+  id: string;
+  invoiceId: string;
+  invoiceNo: string;
+  date: string; // business date the refund was recorded (IST)
+  partyName: string;
+  paymentMode: string; // the original bill's payment mode
+  amount: number;
+  reason: string;
+}
+
 export interface BizData {
+  refunds?: RefundRecord[];
+  adjustments?: AdjustRecord[];
   sales: SalesInvoiceDTO[];
   purchases: PurchaseBillDTO[];
   expenses: ExpenseDTO[];
@@ -78,6 +93,7 @@ export interface DateSpan {
 }
 
 export const inSpan = (date: string, s: DateSpan) => date >= s.from && date <= s.to;
+const refundsIn = (d: BizData, s: DateSpan) => (d.refunds || []).filter((r) => inSpan(r.date, s));
 const createdDate = (iso: string) => businessDate(iso);
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -196,8 +212,19 @@ export function salesReport(d: BizData, s: DateSpan) {
     add(byParty, x.partyName || "Counter customer", x.amountInr);
     add(byItem, registerItemName(x), x.amountInr, x.qty || 0, x.unit || undefined);
   }
+  // Refunds reduce sales on the day they were recorded, not on the bill date.
+  const refs = refundsIn(d, s);
+  let refundTotal = 0;
+  for (const r of refs) {
+    refundTotal += r.amount;
+    perDay[r.date] = (perDay[r.date] || 0) - r.amount;
+    byMode[r.paymentMode] = (byMode[r.paymentMode] || 0) - r.amount;
+  }
   return {
-    total: r2(invoiceTotal + counterTotal),
+    total: r2(invoiceTotal + counterTotal - refundTotal),
+    grossTotal: r2(invoiceTotal + counterTotal),
+    refundTotal: r2(refundTotal),
+    refundCount: refs.length,
     invoiceTotal: r2(invoiceTotal),
     invoiceTaxable: r2(invoiceTaxable),
     invoiceTax: r2(invoiceTax),
@@ -212,6 +239,7 @@ export function salesReport(d: BizData, s: DateSpan) {
     rows: [
       ...inv.map((x) => ({ date: x.date, source: "Invoice", ref: x.invoiceNo, party: x.party?.name || "", item: (x.lineItems || []).map((l) => l.name).join("; "), qty: "", mode: x.paymentMode, amount: x.totalInr })),
       ...reg.map((x) => ({ date: x.date, source: x.kind === "FRESH_CRUSH" ? "Fresh crush" : "Counter", ref: "", party: x.partyName || "", item: registerItemName(x), qty: x.qty ? `${x.qty} ${x.unit || ""}` : "", mode: x.paymentMode, amount: x.amountInr })),
+      ...refs.map((r) => ({ date: r.date, source: "Refund", ref: r.invoiceNo, party: r.partyName, item: r.reason, qty: "", mode: r.paymentMode, amount: -r.amount })),
     ].sort((a, b) => (a.date < b.date ? 1 : -1)),
   };
 }
@@ -457,15 +485,40 @@ export function mfgReport(d: BizData, s: DateSpan) {
  * Quick Register entries are free-text counter items (not linked to the
  * Item master), so they are listed separately and never silently mixed in.
  */
+/** Stock corrections in a date span, with totals by reason and by item. Separate from sales and purchases. */
+export function adjustmentReport(d: BizData, s: DateSpan) {
+  const names = new Map(d.items.map((i) => [i.id, i.name]));
+  const rows = (d.adjustments || [])
+    .filter((a) => inSpan(a.date, s))
+    .map((a) => ({ ...a, item: names.get(a.itemId) || "Unknown item" }))
+    .sort((a, b) => (a.date === b.date ? (a.id < b.id ? 1 : -1) : a.date < b.date ? 1 : -1));
+  const byReason: Record<string, { count: number; qty: number }> = {};
+  for (const r of rows) {
+    const e = (byReason[r.reason] ??= { count: 0, qty: 0 });
+    e.count += 1;
+    e.qty += r.qtyDelta;
+  }
+  return {
+    rows,
+    byReason: Object.fromEntries(Object.entries(byReason).map(([k, v]) => [k, { count: v.count, qty: r2(v.qty) }])),
+    corrections: rows.filter((r) => r.reason !== "REVERSAL").length,
+    reversals: rows.filter((r) => r.reason === "REVERSAL").length,
+  };
+}
+
 export function stockReport(d: BizData, asOf: string) {
   const items = d.items
     .filter((i) => i.active)
     .map((i) => {
       let inQty = 0,
-        outQty = 0;
+        outQty = 0,
+        adjustQty = 0;
+      // Stock corrections are their own entries; each one moves the book by its signed delta.
+      for (const a of d.adjustments || []) if (a.itemId === i.id && a.date <= asOf) adjustQty += a.qtyDelta;
       for (const b of d.purchases) if (b.date <= asOf) for (const l of b.lineItems || []) if (l.itemId === i.id) inQty += l.qty;
-      for (const x of d.sales) if (x.date <= asOf) for (const l of x.lineItems || []) if (l.itemId === i.id) outQty += l.qty;
-      const book = i.openingStockQty + inQty - outQty;
+      // Refunded quantities go back into stock, so only the kept quantity is out.
+      for (const x of d.sales) if (x.date <= asOf) for (const l of x.lineItems || []) if (l.itemId === i.id) outQty += l.qty - (l.returnedQty ?? 0);
+      const book = i.openingStockQty + inQty - outQty + adjustQty;
       return {
         id: i.id,
         name: i.name,
@@ -473,6 +526,7 @@ export function stockReport(d: BizData, asOf: string) {
         opening: r2(i.openingStockQty),
         inQty: r2(inQty),
         outQty: r2(outQty),
+        adjustQty: r2(adjustQty),
         book: r2(book),
         reorderLevel: i.reorderLevelQty,
         low: i.reorderLevelQty !== null && i.reorderLevelQty !== undefined && book <= i.reorderLevelQty,
@@ -546,6 +600,11 @@ export function cashReport(d: BizData, s: DateSpan) {
     else if (side === "in") upiIn += e.amountInr;
     else upiOut += e.amountInr;
   }
+  // Refunds paid back in cash or UPI are money out on the day they were recorded.
+  for (const r of refundsIn(d, s)) {
+    if (r.paymentMode === "CASH") cashOut += r.amount;
+    else if (r.paymentMode === "UPI") upiOut += r.amount;
+  }
   return {
     ownerPhonePe: r2(ownerPhonePe),
     cashIn: r2(cashIn),
@@ -573,33 +632,94 @@ export function cashReport(d: BizData, s: DateSpan) {
 // Udhaar (credit) — register credit sales vs. udhaar collected, by name.
 // ---------------------------------------------------------------------------
 export function udhaarReport(d: BizData, asOf: string) {
-  const by: Record<string, { given: number; received: number; last: string }> = {};
+  // Balance per party = credit given − udhaar received − credit notes (refunds
+  // on credit bills). Credit given comes from two sources: Quick Register
+  // credit sales, and Sales-desk invoices on CREDIT (unpaid until a receipt is
+  // recorded as UDHAAR_IN against the party's name).
+  const by: Record<string, { given: number; received: number; refunds: number; last: string }> = {};
+  const slot = (name: string, date: string) => {
+    const p = (by[name] ||= { given: 0, received: 0, refunds: 0, last: date });
+    if (date > p.last) p.last = date;
+    return p;
+  };
   for (const e of d.register) {
     if (e.date > asOf) continue;
-    const name = (e.partyName || "").trim();
-    if (e.paymentMode === "CREDIT" && (e.kind === "SALE" || e.kind === "FRESH_CRUSH")) {
-      const p = (by[name || "(no name)"] ||= { given: 0, received: 0, last: e.date });
-      p.given += e.amountInr;
-      if (e.date > p.last) p.last = e.date;
-    }
-    if (e.kind === "UDHAAR_IN") {
-      const p = (by[name || "(no name)"] ||= { given: 0, received: 0, last: e.date });
-      p.received += e.amountInr;
-      if (e.date > p.last) p.last = e.date;
-    }
+    const name = (e.partyName || "").trim() || "(no name)";
+    if (e.paymentMode === "CREDIT" && (e.kind === "SALE" || e.kind === "FRESH_CRUSH")) slot(name, e.date).given += e.amountInr;
+    if (e.kind === "UDHAAR_IN") slot(name, e.date).received += e.amountInr;
+  }
+  for (const x of d.sales) {
+    if (x.paymentMode !== "CREDIT" || x.date > asOf) continue;
+    const name = (x.party?.name || "").trim() || "(no name)";
+    slot(name, x.date).given += x.totalInr;
+  }
+  for (const r of d.refunds || []) {
+    if (r.date > asOf || r.paymentMode !== "CREDIT") continue;
+    const name = (r.partyName || "").trim() || "(no name)";
+    slot(name, r.date).refunds += r.amount;
   }
   const rows = Object.entries(by)
-    .map(([name, p]) => ({ name, given: r2(p.given), received: r2(p.received), balance: r2(p.given - p.received), last: p.last }))
+    .map(([name, p]) => ({
+      name,
+      given: r2(p.given),
+      received: r2(p.received),
+      refunds: r2(p.refunds),
+      balance: r2(p.given - p.received - p.refunds),
+      last: p.last,
+    }))
     .sort((a, b) => b.balance - a.balance);
   return {
     rows,
     outstanding: r2(rows.reduce((a, r) => a + Math.max(0, r.balance), 0)),
-    // Credit sales recorded as GST invoices (Sales desk) — receipt of these is
-    // not tracked in the app yet, so they are listed, not netted.
-    creditInvoices: d.sales
-      .filter((x) => x.paymentMode === "CREDIT" && x.date <= asOf)
-      .map((x) => ({ date: x.date, invoiceNo: x.invoiceNo, party: x.party?.name || "", amount: x.totalInr })),
+    creditInvoices: creditInvoiceStatus(d, asOf),
   };
+}
+
+/**
+ * Credit invoices with payment status.
+ * 1) A receipt tied to a bill (RegisterEntry.details.invoiceId) pays that bill first.
+ * 2) Every other receipt for the party pays that party's oldest open bill first.
+ * Each bill's own refunds reduce it before any receipt is applied.
+ */
+function creditInvoiceStatus(d: BizData, asOf: string) {
+  const invoices = d.sales
+    .filter((x) => x.paymentMode === "CREDIT" && x.date <= asOf)
+    .map((x) => {
+      const refundedInr = r2((d.refunds || []).filter((r) => r.invoiceId === x.id && r.date <= asOf).reduce((a, r) => a + r.amount, 0));
+      return { x, refundedInr, netInr: r2(x.totalInr - refundedInr), name: (x.party?.name || "").trim() || "(no name)" };
+    })
+    .sort((a, b) => (a.x.date === b.x.date ? (a.x.invoiceNo < b.x.invoiceNo ? -1 : 1) : a.x.date < b.x.date ? -1 : 1));
+
+  // Receipts per party, and receipts tied to a specific bill.
+  const pool: Record<string, number> = {};
+  const tied: Record<string, number> = {};
+  for (const e of d.register) {
+    if (e.kind !== "UDHAAR_IN" || e.date > asOf) continue;
+    const name = (e.partyName || "").trim() || "(no name)";
+    pool[name] = (pool[name] || 0) + e.amountInr;
+    const invoiceId = (e.details as { invoiceId?: string } | null | undefined)?.invoiceId;
+    if (invoiceId) tied[invoiceId] = (tied[invoiceId] || 0) + e.amountInr;
+  }
+
+  const paid: Record<string, number> = {};
+  for (const i of invoices) {
+    const applied = Math.min(Math.max(i.netInr, 0), tied[i.x.id] || 0);
+    paid[i.x.id] = applied;
+    pool[i.name] = (pool[i.name] ?? 0) - applied;
+  }
+  for (const i of invoices) {
+    const open = Math.max(i.netInr - paid[i.x.id], 0);
+    const take = Math.min(open, Math.max(pool[i.name] ?? 0, 0));
+    paid[i.x.id] += take;
+    pool[i.name] = (pool[i.name] ?? 0) - take;
+  }
+
+  return invoices.map(({ x, refundedInr, netInr }) => {
+    const paidInr = r2(paid[x.id]);
+    const openInr = r2(Math.max(netInr - paidInr, 0));
+    const status = openInr <= 0 ? "paid" : paidInr > 0 ? "part" : "open";
+    return { id: x.id, date: x.date, invoiceNo: x.invoiceNo, party: x.party?.name || "", amount: x.totalInr, refundedInr, netInr, paidInr, openInr, status };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -623,6 +743,8 @@ export function dayBook(d: BizData, s: DateSpan) {
   }
   for (const x of d.sales.filter((y) => inSpan(y.date, s)))
     rows.push({ at: x.createdAt, date: x.date, source: "Sales desk", type: "INVOICE", party: x.party?.name || "", detail: x.invoiceNo, mode: x.paymentMode, in: x.totalInr, out: 0 });
+  for (const r of refundsIn(d, s))
+    rows.push({ at: r.date, date: r.date, source: "Sales refund", type: "REFUND", party: r.partyName, detail: `${r.invoiceNo} · ${r.reason}`, mode: r.paymentMode, in: 0, out: r.amount });
   for (const x of d.purchases.filter((y) => inSpan(y.date, s)))
     rows.push({ at: x.createdAt, date: x.date, source: "Purchase desk", type: "BILL", party: x.party?.name || "", detail: x.billNo, mode: x.paymentMode, in: 0, out: x.totalInr });
   for (const x of d.expenses.filter((y) => inSpan(y.date, s)))

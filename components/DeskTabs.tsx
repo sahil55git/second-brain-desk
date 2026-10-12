@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type {
   DailyClosingDTO,
@@ -26,6 +26,10 @@ import PurchaseDesk from "./PurchaseDesk";
 import ExpensesDesk from "./ExpensesDesk";
 import VyaparDesk from "./VyaparDesk";
 import ScaleDashboard from "./ScaleDashboard";
+import LedgerDesk from "./LedgerDesk";
+import GlobalSearch from "./GlobalSearch";
+import AlertsStrip from "./AlertsStrip";
+import { businessDate } from "@/lib/register";
 
 type Desk =
   | "jobwork"
@@ -39,6 +43,7 @@ type Desk =
   | "inventory"
   | "scales"
   | "vyapar"
+  | "ledger"
   | "settings";
 
 export default function DeskTabs({
@@ -87,14 +92,39 @@ export default function DeskTabs({
     // guess the URL). Vyapar exposes financial totals (receivables, sales).
     ...(isOwner
       ? [
+          { key: "ledger" as const, label: "Ledger" },
           { key: "vyapar" as const, label: "Vyapar Sync" },
           { key: "settings" as const, label: "Settings" },
         ]
       : []),
   ];
 
+  const alertData = useMemo(
+    () => ({
+      sales: initialSales,
+      purchases: initialPurchases,
+      expenses: initialExpenses,
+      jobWork: initialJobWork,
+      mfg: initialMfg,
+      closings: initialClosing,
+      items: initialItems,
+    }),
+    [initialSales, initialPurchases, initialExpenses, initialJobWork, initialMfg, initialClosing, initialItems]
+  );
+  // Business date in IST, so alerts roll over at the business day, not UTC midnight.
+  const today = useMemo(() => businessDate(Date.now()), []);
+
+  const searchData = useMemo(
+    () => ({ parties: initialParties, sales: initialSales, items: initialItems, jobWork: initialJobWork }),
+    [initialParties, initialSales, initialItems, initialJobWork]
+  );
+
   return (
     <div>
+      <div className="mb-3 flex justify-end">
+        <GlobalSearch data={searchData} onOpen={(desk) => setActive(desk)} />
+      </div>
+      <AlertsStrip data={alertData} today={today} onOpen={(desk) => setActive(desk as Desk)} />
       <nav className="sb-tabs flex flex-wrap gap-2 mb-6 border-b border-black/10 dark:border-white/10">
         {tabs.map((tab) => (
           <button
@@ -148,10 +178,10 @@ export default function DeskTabs({
         />
       )}
       {active === "parties" && (
-        <PartiesDesk initialParties={initialParties} dbConnected={dbConnected} />
+        <PartiesDesk initialParties={initialParties} dbConnected={dbConnected} onNavigate={(d) => setActive(d as Desk)} />
       )}
       {active === "inventory" && (
-        <InventoryDesk initialItems={initialItems} dbConnected={dbConnected} />
+        <InventoryDesk initialItems={initialItems} dbConnected={dbConnected} onNavigate={(d) => setActive(d as Desk)} />
       )}
       {active === "scales" && <ScaleDashboard />}
       {active === "reports" && (
@@ -162,6 +192,7 @@ export default function DeskTabs({
           onNavigate={(desk) => setActive(desk === "mfg" ? "manufacturing" : desk)}
         />
       )}
+      {active === "ledger" && isOwner && <LedgerDesk />}
       {active === "vyapar" && isOwner && (
         <VyaparDesk initialSnapshot={initialVyapar} dbConnected={dbConnected} />
       )}

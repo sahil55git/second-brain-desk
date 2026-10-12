@@ -5,6 +5,7 @@
 // routes, so every entry lands in the same Postgres database as the rest of
 // Second Brain Desk.
 
+import UdhaarHint from "./UdhaarHint";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
@@ -68,6 +69,8 @@ import { hasAlert, registerChecks } from "@/lib/registerChecks";
 import { REGISTER_FILL_KINDS, mapRegisterFill, matchCatalogItem, normUnit, type RegisterDraft } from "@/lib/registerSmart";
 import { DESK_PROMPTS } from "@/lib/aiPrompts";
 import { findItemByCode } from "@/lib/smartEntry";
+import MfgQuick from "@/components/mfg/MfgQuick";
+import BillSheet from "@/components/register/BillSheet";
 
 // Pre-fill for an entry form: from a voice command, or from a scanned slip
 // (linkProofId attaches that scan to the entry once it is saved).
@@ -143,6 +146,8 @@ type Sheet =
   | { t: "stock" }
   | { t: "jw"; id?: string }
   | { t: "fresh" }
+  | { t: "mfg"; startNew?: boolean }
+  | { t: "bill" }
   | { t: "jwpay"; id: string }
   | { t: "count" }
   | { t: "calc" }
@@ -154,6 +159,7 @@ type Sheet =
 // Per-device screen preferences (layout, favourite tiles, folded sections).
 type TileKey =
   | "SALE"
+  | "bill"
   | "FRESH_CRUSH"
   | "UDHAAR_IN"
   | "PURCHASE"
@@ -850,6 +856,7 @@ export default function QuickRegister() {
   };
   const TILES: Record<TileKey, { k: WordKey; icon: string; group: "in" | "out" | "jw" | "oth" | "tool"; open: () => void; needsDb?: boolean }> = {
     SALE: { k: "SALE", icon: "💰", group: "in", open: () => setSheet({ t: "entry", kind: "SALE" }), needsDb: true },
+    bill: { k: "bill", icon: "🧾", group: "in", open: () => setSheet({ t: "bill" }), needsDb: true },
     FRESH_CRUSH: { k: "FRESH_CRUSH", icon: "🫗", group: "in", open: () => setSheet({ t: "fresh" }), needsDb: true },
     UDHAAR_IN: { k: "UDHAAR_IN", icon: "🙌", group: "in", open: () => setSheet({ t: "entry", kind: "UDHAAR_IN" }), needsDb: true },
     PURCHASE: { k: "PURCHASE", icon: "🛒", group: "out", open: () => setSheet({ t: "entry", kind: "PURCHASE" }), needsDb: true },
@@ -1027,6 +1034,7 @@ export default function QuickRegister() {
             <span aria-hidden>⬇</span>
           </div>
           <Tile id="SALE" />
+          <Tile id="bill" />
           <Tile id="FRESH_CRUSH" />
           <Tile id="UDHAAR_IN" />
         </div>
@@ -1068,16 +1076,16 @@ export default function QuickRegister() {
           </span>
         </div>
         <div className="qr-row2">
-          <a className="qr-tile g-tool" href="/mfg?new=1">
+          <button type="button" className="qr-tile g-tool" onClick={() => setSheet({ t: "mfg", startNew: true })}>
             <span className="ic" aria-hidden>➕</span>
             <span className="p">{words("newBarrel", lang).main}</span>
             {words("newBarrel", lang).sub && <span className="s">{words("newBarrel", lang).sub}</span>}
-          </a>
-          <a className="qr-tile g-tool" href="/mfg">
+          </button>
+          <button type="button" className="qr-tile g-tool" onClick={() => setSheet({ t: "mfg" })}>
             <span className="ic" aria-hidden>🛢️</span>
             <span className="p">{words("barrelSteps", lang).main}</span>
             {words("barrelSteps", lang).sub && <span className="s">{words("barrelSteps", lang).sub}</span>}
-          </a>
+          </button>
         </div>
       </div>
 
@@ -1593,6 +1601,14 @@ export default function QuickRegister() {
     />
   ) : sheet.t === "stock" ? (
     <StockSheet lang={lang} date={date} onClose={() => setSheet(null)} onSaved={(m) => done(m)} toast={toast} />
+  ) : sheet.t === "bill" ? (
+    <SheetFrame icon="🧾" k="bill" lang={lang} onClose={() => setSheet(null)}>
+      <BillSheet lang={lang} date={date} onSaved={(m) => done(m)} toast={toast} />
+    </SheetFrame>
+  ) : sheet.t === "mfg" ? (
+    <SheetFrame icon="🛢️" k="mfgDesk" lang={lang} onClose={() => setSheet(null)}>
+      <MfgQuick startNew={sheet.startNew} />
+    </SheetFrame>
   ) : sheet.t === "fresh" ? (
     <FreshCrushSheet day={day} lang={lang} date={date} onClose={() => setSheet(null)} onSaved={() => done()} toast={toast} />
   ) : sheet.t === "jw" ? (
@@ -2117,7 +2133,10 @@ function EntrySheet({
       )}
 
       {side !== "oth" && (
-        <PartyField value={party} onChange={setParty} top={day.topParties} all={day.allParties} lang={lang} places />
+        <>
+          <PartyField value={party} onChange={setParty} top={day.topParties} all={day.allParties} lang={lang} places />
+          {kind === "SALE" && <UdhaarHint party={party} />}
+        </>
       )}
 
       {showNote || notes ? (

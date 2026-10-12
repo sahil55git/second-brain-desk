@@ -37,6 +37,16 @@ export async function POST(req: NextRequest) {
   }
   // Fresh crush sale must carry valid production numbers (seed -> oil -> cake).
   const details = kind === "FRESH_CRUSH" ? normalizeFreshCrush(body.details) : null;
+  // An udhaar receipt can be tied to one credit bill. The bill must exist and be on credit.
+  let linkDetails: { invoiceId: string } | null = null;
+  if (kind === "UDHAAR_IN" && typeof body.invoiceId === "string" && body.invoiceId) {
+    const inv = await safeDbCall(() => prisma.salesInvoice.findUnique({ where: { id: body.invoiceId }, select: { id: true, paymentMode: true } }));
+    if (!inv.ok) return NextResponse.json({ error: inv.error }, { status: 503 });
+    if (!inv.data || inv.data.paymentMode !== "CREDIT") {
+      return NextResponse.json({ error: "That bill is not a credit bill." }, { status: 400 });
+    }
+    linkDetails = { invoiceId: inv.data.id };
+  }
   if (kind === "FRESH_CRUSH" && !details) {
     return NextResponse.json(
       { error: "Check seed kg, oil kg, extra-to-tank and cake: the numbers don't add up." },
@@ -159,7 +169,7 @@ export async function POST(req: NextRequest) {
         partyId,
         notes,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        details: ((ownerPhonePe ? { ...(details || {}), channel: "OWNER_PHONEPE" } : details) as any) ?? undefined,
+        details: ((ownerPhonePe ? { ...(details || linkDetails || {}), channel: "OWNER_PHONEPE" } : details || linkDetails) as any) ?? undefined,
         createdByName: user.name || null,
       },
     });

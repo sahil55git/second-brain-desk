@@ -432,7 +432,7 @@ export default function ReportsHub() {
       case "udhaar":
         return [
           { title: "Udhaar by person", cols: [T("name", "Name"), M("given", "Given"), M("received", "Received"), M("balance", "Balance"), T("last", "Last activity")], rows: R.udhaar.rows },
-          { title: "Credit invoices", cols: [T("date", "Date"), T("invoiceNo", "Invoice"), T("party", "Party"), M("amount", "Amount")], rows: R.udhaar.creditInvoices },
+          { title: "Credit invoices", cols: [T("date", "Date"), T("invoiceNo", "Invoice"), T("party", "Party"), M("amount", "Amount"), M("paidInr", "Paid"), M("openInr", "Open"), T("status", "Status")], rows: R.udhaar.creditInvoices },
         ];
       default:
         return [{ title: "Day book", cols: [T("date", "Date"), T("source", "Source"), T("type", "Type"), T("party", "Party"), T("detail", "Detail"), T("mode", "Mode"), M("in", "In"), M("out", "Out")], rows: R.daybook.rows }];
@@ -1113,14 +1113,14 @@ export default function ReportsHub() {
           <div className="hub-kpis">
             <Kpi label="Outstanding udhaar" value={rs(R.udhaar.outstanding)} tone="o" sub={`as of ${span.to}`} />
             <Kpi label="People owing" value={String(R.udhaar.rows.filter((r) => r.balance > 0).length)} />
-            <Kpi label="Credit GST invoices" value={String(R.udhaar.creditInvoices.length)} sub="receipt not tracked yet" />
+            <Kpi label="Credit GST invoices" value={String(R.udhaar.creditInvoices.filter((c) => c.status !== "paid").length)} sub="not fully paid" />
           </div>
           <div className="hub-note">From the Quick Register: udhaar sales minus &ldquo;Udhaar received&rdquo;, matched by the name typed. Use the same spelling each time.</div>
           <Card title="Udhaar by person" right={<CsvBtn name={`udhaar_${span.to}.csv`} rows={R.udhaar.rows} />}>
             <Table cols={[{ key: "name", label: "Name" }, { key: "given", label: "Udhaar given", num: true, fmt: money }, { key: "received", label: "Received", num: true, fmt: money }, { key: "balance", label: "Balance", num: true, fmt: (v) => <b className={(v as number) > 0 ? "o" : "g"}>{rs(v as number)}</b> }, { key: "last", label: "Last activity" }]} rows={R.udhaar.rows} empty="No udhaar recorded" sum={["given", "received", "balance"]} />
           </Card>
           <Card title="Credit invoices (Sales desk)">
-            <Table cols={[{ key: "date", label: "Date" }, { key: "invoiceNo", label: "Invoice" }, { key: "party", label: "Party" }, { key: "amount", label: "Amount", num: true, fmt: money }]} rows={R.udhaar.creditInvoices} empty="None" sum={["amount"]} />
+            <Table cols={[{ key: "date", label: "Date" }, { key: "invoiceNo", label: "Invoice" }, { key: "party", label: "Party" }, { key: "amount", label: "Amount", num: true, fmt: money }, { key: "paidInr", label: "Paid", num: true, fmt: money }, { key: "openInr", label: "Open", num: true, fmt: money }, { key: "status", label: "Status" }]} rows={R.udhaar.creditInvoices} empty="None" sum={["amount", "paidInr", "openInr"]} />
           </Card>
         </>
       ) : (

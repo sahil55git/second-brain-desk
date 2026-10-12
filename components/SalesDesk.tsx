@@ -14,6 +14,10 @@ import type {
   PaymentMode,
 } from "@/lib/types";
 import { computeTotals, gstTreatment, type GstLineInput } from "@/lib/gst";
+import { clampDiscount, type HeldDraft } from "@/lib/billDraft";
+import HeldBillsPanel from "./HeldBillsPanel";
+import RefundPanel from "./RefundPanel";
+import HoverCard from "./HoverCard";
 import InvoicePrint from "./InvoicePrint";
 import { useScale } from "./ScaleProvider";
 import AiTerminal from "@/components/AiTerminal";
@@ -64,6 +68,8 @@ export default function SalesDesk({
   const [itemList, setItemList] = useState<ItemDTO[]>(items);
   const [smartMsg, setSmartMsg] = useState<string | null>(null);
   const [unknownCode, setUnknownCode] = useState<string | null>(null);
+  const [heldRefresh, setHeldRefresh] = useState(0);
+  const [refundFor, setRefundFor] = useState<SalesInvoiceDTO | null>(null);
 
   useEffect(() => {
     if (!showForm || !scaleAutoFill || !selectedReading || selectedReading.stable === false) return;
@@ -87,6 +93,7 @@ export default function SalesDesk({
       qty: Number(l.qty) || 0,
       rateInr: Number(l.rateInr) || 0,
       gstRatePct: l.gstRatePct === "" ? defaultGst : Number(l.gstRatePct) || 0,
+      discountPct: clampDiscount(l.discountPct),
     }));
   const preview = computeTotals(previewInputs, treatment);
 
@@ -157,6 +164,46 @@ export default function SalesDesk({
     setLines((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== idx)));
   }
 
+  const formHasContent = partyId !== "" || lines.some((l) => l.name.trim() || l.qty.trim() || l.rateInr.trim());
+
+  /** Park the bill on screen in the held list. Nothing is saved as a sale. */
+  async function holdBill() {
+    setError(null);
+    if (!formHasContent) {
+      setError("Nothing to hold yet.");
+      return;
+    }
+    const draft: HeldDraft = { partyId, date, paymentMode, notes, lines: lines.map((l) => ({ ...l, discountPct: l.discountPct ?? "" })) };
+    try {
+      const res = await fetch("/api/held-bills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draft }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || "Could not hold this bill.");
+        return;
+      }
+      resetForm();
+      setHeldRefresh((n) => n + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not hold this bill.");
+    }
+  }
+
+  /** Load a held draft back into the form (the panel removes it from the list). */
+  function resumeHeld(draft: HeldDraft) {
+    setSmartMsg(null);
+    setUnknownCode(null);
+    setPartyId(draft.partyId);
+    setDate(draft.date);
+    setPaymentMode(draft.paymentMode);
+    setNotes(draft.notes);
+    setLines(draft.lines.map((l) => ({ ...l })));
+    setShowForm(true);
+  }
+
   function resetForm() {
     setSmartMsg(null);
     setUnknownCode(null);
@@ -197,6 +244,7 @@ export default function SalesDesk({
             unit: l.unit || "kg",
             rateInr: Number(l.rateInr) || 0,
             gstRatePct: l.gstRatePct === "" ? null : Number(l.gstRatePct),
+            discountPct: clampDiscount(l.discountPct),
           })),
         }),
       });
@@ -253,6 +301,10 @@ export default function SalesDesk({
           {showForm ? "Cancel" : "+ New invoice"}
         </button>
       </div>
+
+      {showForm && (
+        <HeldBillsPanel refreshKey={heldRefresh} canResume={!formHasContent} onResume={resumeHeld} />
+      )}
 
       {showForm && (
         <form onSubmit={submit} className="rounded-xl border border-black/10 dark:border-white/10 p-4 space-y-4">
@@ -414,8 +466,20 @@ export default function SalesDesk({
                     className="w-full rounded border border-black/20 dark:border-white/20 bg-transparent px-2 py-1.5 text-sm"
                   />
                 </label>
+                <label className="col-span-4 sm:col-span-1 text-xs space-y-1">
+                  <span className="opacity-60">Disc %</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={l.discountPct ?? ""}
+                    placeholder="0"
+                    onChange={(e) => setLine(idx, { discountPct: e.target.value })}
+                    className="w-full rounded border border-black/20 dark:border-white/20 bg-transparent px-2 py-1.5 text-sm"
+                  />
+                </label>
                 <div className="col-span-6 sm:col-span-1 text-sm text-right tabular-nums pb-1.5">
-                  ₹{((Number(l.qty) || 0) * (Number(l.rateInr) || 0)).toFixed(2)}
+                  ₹{((Number(l.qty) || 0) * (Number(l.rateInr) || 0) * (1 - clampDiscount(l.discountPct) / 100)).toFixed(2)}
                 </div>
                 <div className="col-span-2 sm:col-span-1 pb-1">
                   <button
@@ -484,7 +548,27 @@ export default function SalesDesk({
           >
             {saving ? "Saving…" : checks.some((c) => c.level === "alert") ? "Save invoice anyway" : "Save invoice"}
           </button>
+          <button
+            type="button"
+            onClick={holdBill}
+            disabled={saving || !formHasContent}
+            className="ml-2 rounded border border-black/20 dark:border-white/20 px-4 py-2 text-sm disabled:opacity-40"
+          >
+            Hold bill
+          </button>
         </form>
+      )}
+
+      {refundFor && (
+        <RefundPanel
+          key={refundFor.id}
+          invoice={refundFor}
+          onClose={() => setRefundFor(null)}
+          onDone={(lineItems) => {
+            setInvoices((prev) => prev.map((x) => (x.id === refundFor.id ? { ...x, lineItems } : x)));
+            setRefundFor(null);
+          }}
+        />
       )}
 
       {/* Ledger */}
@@ -513,7 +597,27 @@ export default function SalesDesk({
               const tax = inv.interState ? inv.igstInr : inv.cgstInr + inv.sgstInr;
               return (
                 <tr key={inv.id} className="border-b border-black/5 dark:border-white/5">
-                  <td className="px-3 py-2 font-medium">{inv.invoiceNo}</td>
+                  <td className="px-3 py-2 font-medium">
+                    <HoverCard
+                      trigger={<button type="button" className="font-medium underline decoration-dotted underline-offset-4">{inv.invoiceNo}</button>}
+                    >
+                      <p className="font-semibold">#{inv.invoiceNo} · {inv.party?.name || "Walk-in"}</p>
+                      <p className="text-xs opacity-70">{inv.date} · {inv.paymentMode.toLowerCase()} · {inv.interState ? "IGST" : "CGST+SGST"}</p>
+                      <ul className="mt-2 space-y-1 text-xs">
+                        {inv.lineItems.map((l) => (
+                          <li key={l.id} className="flex justify-between gap-2">
+                            <span>{l.name} × {l.qty} {l.unit}{l.returnedQty ? ` (returned ${l.returnedQty})` : ""}</span>
+                            <span className="tabular-nums">₹{l.lineTotalInr.toFixed(2)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-2 text-xs">Total ₹{inv.totalInr.toFixed(2)} · tax ₹{tax.toFixed(2)}</p>
+                      <div className="mt-3 flex gap-2">
+                        <button type="button" onClick={() => setPrinting(inv)} className="rounded-lg border border-black/15 dark:border-white/20 px-3 py-1.5 text-xs">Print</button>
+                        <button type="button" onClick={() => setRefundFor(inv)} className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[var(--accent-contrast)]">Refund</button>
+                      </div>
+                    </HoverCard>
+                  </td>
                   <td className="px-3 py-2">{inv.date}</td>
                   <td className="px-3 py-2">{inv.party?.name || "—"}</td>
                   <td className="px-3 py-2 text-xs">{inv.interState ? "IGST" : "CGST+SGST"}</td>
@@ -527,6 +631,12 @@ export default function SalesDesk({
                       className="text-xs rounded border border-black/20 dark:border-white/20 px-2 py-1 mr-1"
                     >
                       Print
+                    </button>
+                    <button
+                      onClick={() => setRefundFor(inv)}
+                      className="text-xs rounded border border-black/20 dark:border-white/20 px-2 py-1 mr-1"
+                    >
+                      Refund
                     </button>
                     <button onClick={() => del(inv.id)} className="text-xs opacity-50 hover:opacity-100">
                       Delete

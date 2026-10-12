@@ -102,6 +102,7 @@ model Item {
   // Phase 2 back-relations
   salesLines    SalesLineItem[]    @relation("ItemSales")
   purchaseLines PurchaseLineItem[] @relation("ItemPurchases")
+  adjustments   StockAdjustment[]  @relation("ItemAdjustments")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -180,12 +181,29 @@ model SalesInvoice {
   notes       String?
 
   lineItems SalesLineItem[]
+  returns   SalesReturn[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([partyId])
   @@index([date])
+}
+
+// A refund (credit note) against a sale. Lines are a JSON snapshot so the
+// record stays exact even if the item is renamed later. Returned stock is
+// added back via SalesLineItem.returnedQty.
+model SalesReturn {
+  id        String       @id @default(cuid())
+  invoiceId String
+  invoice   SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  reason    String
+  note      String?
+  refundInr Float
+  lines     Json
+  createdAt DateTime     @default(now())
+
+  @@index([invoiceId])
 }
 
 model SalesLineItem {
@@ -202,6 +220,8 @@ model SalesLineItem {
   unit       String  @default("kg")
   rateInr    Float   @default(0) // per-unit, pre-tax
   gstRatePct Float   @default(0)
+  discountPct Float  @default(0) // line discount %, applied before GST
+  returnedQty Float  @default(0) // quantity refunded so far (see SalesReturn)
 
   lineSubtotalInr Float @default(0) // qty * rate
   lineTaxInr      Float @default(0) // lineSubtotal * gstRate/100
@@ -711,3 +731,51 @@ model ScaleTick {
 
   @@index([source, settledAt])
 }
+
+// Bill builder — a bill put on hold at the counter. The draft (lines, party,
+// date, payment mode, notes) is stored as JSON and restored on resume. Held
+// bills do NOT reserve stock; stock moves only when the bill is saved.
+model HeldBill {
+  id        String   @id @default(cuid())
+  label     String   // shown in the list, e.g. party name or "Walk-in"
+  partyId   String?
+  draft     Json
+  heldBy    String?  // session user name, for the list
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// Stock corrections are separate entries, never edits to the stock figure.
+// qtyDelta > 0 adds stock, < 0 removes it. A correction is undone by a new
+// REVERSAL entry that points at it through reversesId (unique: once only).
+enum AdjustmentReason {
+  COUNT_DIFFERENCE // physical count differs from the book
+  BREAKAGE         // bottle / can broke, leaked
+  SPILLAGE         // spilled during filling or transfer
+  OPENING_CORRECTION // opening balance was wrong
+  OTHER            // note required
+  REVERSAL         // undoes an earlier correction
+}
+
+model StockAdjustment {
+  id String @id @default(cuid())
+
+  date   String // "YYYY-MM-DD" business date
+  itemId String
+  item   Item   @relation("ItemAdjustments", fields: [itemId], references: [id], onDelete: Cascade)
+
+  bookQty   Float // system book quantity at the moment of correction
+  actualQty Float // counted / corrected quantity (for REVERSAL, the quantity after undo)
+  qtyDelta  Float // actualQty - bookQty, signed; the amount this entry moves stock by
+
+  reason AdjustmentReason
+  note   String?
+
+  reversesId String? @unique
+
+  createdAt DateTime @default(now())
+
+  @@index([itemId, date])
+}
+

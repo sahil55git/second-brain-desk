@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
+import { clampDiscount } from "@/lib/billDraft";
 import {
   computeLine,
   computeTotals,
@@ -24,6 +25,7 @@ interface IncomingLine {
   unit?: string;
   rateInr?: number | string;
   gstRatePct?: number | string;
+  discountPct?: number | string;
 }
 
 export async function GET() {
@@ -78,6 +80,7 @@ export async function POST(req: NextRequest) {
       const gstInputs: GstLineInput[] = cleanLines.map((l) => ({
         qty: Number(l.qty) || 0,
         rateInr: Number(l.rateInr) || 0,
+        discountPct: clampDiscount(l.discountPct),
         gstRatePct:
           l.gstRatePct === undefined || l.gstRatePct === null || l.gstRatePct === ""
             ? settings!.defaultGstRatePct
@@ -119,6 +122,7 @@ export async function POST(req: NextRequest) {
                 unit: l.unit || "kg",
                 rateInr: gstInputs[i].rateInr,
                 gstRatePct: gstInputs[i].gstRatePct,
+                discountPct: gstInputs[i].discountPct ?? 0,
                 lineSubtotalInr: line.lineSubtotalInr,
                 lineTaxInr: line.lineTaxInr,
                 lineTotalInr: line.lineTotalInr,
