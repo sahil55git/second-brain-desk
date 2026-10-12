@@ -14,6 +14,7 @@ import AiTerminal from "@/components/AiTerminal";
 import ScaleCapture from "@/components/smart/ScaleCapture";
 import { useCustomize, visibleOrderedIds } from "@/lib/customize";
 import { WIDGET_DEFS, COLUMN_DEFS } from "@/lib/desksConfig";
+import HoverCard from "./HoverCard";
 
 const JOBWORK_WIDGET_IDS = WIDGET_DEFS.jobwork.map((w) => w.id);
 const JOBWORK_COLUMN_IDS = COLUMN_DEFS.jobwork.map((c) => c.id);
@@ -437,7 +438,24 @@ export default function JobWorkDesk({
                   time: fmtTime(entry.createdAt),
                   customer: (
                     <>
-                      {entry.customer}
+                      <HoverCard
+                        trigger={<button type="button" className="text-left underline decoration-dotted underline-offset-4">{entry.customer}</button>}
+                      >
+                        <p className="font-semibold">{entry.customer}</p>
+                        <p className="text-xs opacity-70">{entry.seedKg} kg · {entry.vehicleNo || "no vehicle"} · cake {entry.cakeOwnership === "SHOP" ? "shop" : "customer"}</p>
+                        <ul className="mt-2 space-y-1 text-xs">
+                          <li>Status: {entry.settled ? "paid" : `due ${inr(due)}`}</li>
+                          {entry.advanceCustomerInr > 0 && <li>Advance (customer): ₹{entry.advanceCustomerInr}</li>}
+                          {cansCharge > 0 && <li>Cans: ₹{cansCharge}</li>}
+                          {entry.notes && <li>Note: {entry.notes}</li>}
+                        </ul>
+                        <div className="mt-3 flex gap-2">
+                          {!entry.settled && (
+                            <button type="button" onClick={() => openPayRow(entry)} className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[var(--accent-contrast)]">Pay</button>
+                          )}
+                          <button type="button" onClick={() => openEditRow(entry)} className="rounded-lg border border-black/15 dark:border-white/20 px-3 py-1.5 text-xs">Edit</button>
+                        </div>
+                      </HoverCard>
                       {entry.advanceCustomerInr > 0 && (
                         <span className="opacity-60"> (adv ₹{entry.advanceCustomerInr})</span>
                       )}

@@ -17,6 +17,7 @@ import { computeTotals, gstTreatment, type GstLineInput } from "@/lib/gst";
 import { clampDiscount, type HeldDraft } from "@/lib/billDraft";
 import HeldBillsPanel from "./HeldBillsPanel";
 import RefundPanel from "./RefundPanel";
+import HoverCard from "./HoverCard";
 import InvoicePrint from "./InvoicePrint";
 import { useScale } from "./ScaleProvider";
 import AiTerminal from "@/components/AiTerminal";
@@ -596,7 +597,27 @@ export default function SalesDesk({
               const tax = inv.interState ? inv.igstInr : inv.cgstInr + inv.sgstInr;
               return (
                 <tr key={inv.id} className="border-b border-black/5 dark:border-white/5">
-                  <td className="px-3 py-2 font-medium">{inv.invoiceNo}</td>
+                  <td className="px-3 py-2 font-medium">
+                    <HoverCard
+                      trigger={<button type="button" className="font-medium underline decoration-dotted underline-offset-4">{inv.invoiceNo}</button>}
+                    >
+                      <p className="font-semibold">#{inv.invoiceNo} · {inv.party?.name || "Walk-in"}</p>
+                      <p className="text-xs opacity-70">{inv.date} · {inv.paymentMode.toLowerCase()} · {inv.interState ? "IGST" : "CGST+SGST"}</p>
+                      <ul className="mt-2 space-y-1 text-xs">
+                        {inv.lineItems.map((l) => (
+                          <li key={l.id} className="flex justify-between gap-2">
+                            <span>{l.name} × {l.qty} {l.unit}{l.returnedQty ? ` (returned ${l.returnedQty})` : ""}</span>
+                            <span className="tabular-nums">₹{l.lineTotalInr.toFixed(2)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-2 text-xs">Total ₹{inv.totalInr.toFixed(2)} · tax ₹{tax.toFixed(2)}</p>
+                      <div className="mt-3 flex gap-2">
+                        <button type="button" onClick={() => setPrinting(inv)} className="rounded-lg border border-black/15 dark:border-white/20 px-3 py-1.5 text-xs">Print</button>
+                        <button type="button" onClick={() => setRefundFor(inv)} className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[var(--accent-contrast)]">Refund</button>
+                      </div>
+                    </HoverCard>
+                  </td>
                   <td className="px-3 py-2">{inv.date}</td>
                   <td className="px-3 py-2">{inv.party?.name || "—"}</td>
                   <td className="px-3 py-2 text-xs">{inv.interState ? "IGST" : "CGST+SGST"}</td>

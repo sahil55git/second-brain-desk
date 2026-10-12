@@ -177,7 +177,7 @@ export default function DeskTabs({
         <PartiesDesk initialParties={initialParties} dbConnected={dbConnected} onNavigate={(d) => setActive(d as Desk)} />
       )}
       {active === "inventory" && (
-        <InventoryDesk initialItems={initialItems} dbConnected={dbConnected} />
+        <InventoryDesk initialItems={initialItems} dbConnected={dbConnected} onNavigate={(d) => setActive(d as Desk)} />
       )}
       {active === "scales" && <ScaleDashboard />}
       {active === "reports" && (
