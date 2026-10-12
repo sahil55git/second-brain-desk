@@ -573,6 +573,11 @@ export function cashReport(d: BizData, s: DateSpan) {
     else if (side === "in") upiIn += e.amountInr;
     else upiOut += e.amountInr;
   }
+  // Refunds paid back in cash or UPI are money out on the day they were recorded.
+  for (const r of refundsIn(d, s)) {
+    if (r.paymentMode === "CASH") cashOut += r.amount;
+    else if (r.paymentMode === "UPI") upiOut += r.amount;
+  }
   return {
     ownerPhonePe: r2(ownerPhonePe),
     cashIn: r2(cashIn),
@@ -639,21 +644,17 @@ export function udhaarReport(d: BizData, asOf: string) {
   return {
     rows,
     outstanding: r2(rows.reduce((a, r) => a + Math.max(0, r.balance), 0)),
-    creditInvoices: creditInvoiceStatus(d, asOf, by),
+    creditInvoices: creditInvoiceStatus(d, asOf),
   };
 }
 
 /**
- * Credit invoices with payment status. Each party's receipts (udhaar received)
- * are applied to that party's oldest open credit invoice first, after the
- * invoice's own refunds. Receipts beyond the invoices are not allocated here.
- * This is the usual udhaar practice: the oldest bill is cleared first.
+ * Credit invoices with payment status.
+ * 1) A receipt tied to a bill (RegisterEntry.details.invoiceId) pays that bill first.
+ * 2) Every other receipt for the party pays that party's oldest open bill first.
+ * Each bill's own refunds reduce it before any receipt is applied.
  */
-function creditInvoiceStatus(
-  d: BizData,
-  asOf: string,
-  by: Record<string, { received: number }>
-) {
+function creditInvoiceStatus(d: BizData, asOf: string) {
   const invoices = d.sales
     .filter((x) => x.paymentMode === "CREDIT" && x.date <= asOf)
     .map((x) => {
@@ -662,16 +663,35 @@ function creditInvoiceStatus(
     })
     .sort((a, b) => (a.x.date === b.x.date ? (a.x.invoiceNo < b.x.invoiceNo ? -1 : 1) : a.x.date < b.x.date ? -1 : 1));
 
-  const remaining: Record<string, number> = {};
-  for (const [name, p] of Object.entries(by)) remaining[name] = p.received;
+  // Receipts per party, and receipts tied to a specific bill.
+  const pool: Record<string, number> = {};
+  const tied: Record<string, number> = {};
+  for (const e of d.register) {
+    if (e.kind !== "UDHAAR_IN" || e.date > asOf) continue;
+    const name = (e.partyName || "").trim() || "(no name)";
+    pool[name] = (pool[name] || 0) + e.amountInr;
+    const invoiceId = (e.details as { invoiceId?: string } | null | undefined)?.invoiceId;
+    if (invoiceId) tied[invoiceId] = (tied[invoiceId] || 0) + e.amountInr;
+  }
 
-  return invoices.map(({ x, refundedInr, netInr, name }) => {
-    const pool = remaining[name] ?? 0;
-    const paidInr = r2(Math.min(Math.max(netInr, 0), Math.max(pool, 0)));
-    remaining[name] = r2(pool - paidInr);
-    const openInr = r2(netInr - paidInr);
+  const paid: Record<string, number> = {};
+  for (const i of invoices) {
+    const applied = Math.min(Math.max(i.netInr, 0), tied[i.x.id] || 0);
+    paid[i.x.id] = applied;
+    pool[i.name] = (pool[i.name] ?? 0) - applied;
+  }
+  for (const i of invoices) {
+    const open = Math.max(i.netInr - paid[i.x.id], 0);
+    const take = Math.min(open, Math.max(pool[i.name] ?? 0, 0));
+    paid[i.x.id] += take;
+    pool[i.name] = (pool[i.name] ?? 0) - take;
+  }
+
+  return invoices.map(({ x, refundedInr, netInr }) => {
+    const paidInr = r2(paid[x.id]);
+    const openInr = r2(Math.max(netInr - paidInr, 0));
     const status = openInr <= 0 ? "paid" : paidInr > 0 ? "part" : "open";
-    return { date: x.date, invoiceNo: x.invoiceNo, party: x.party?.name || "", amount: x.totalInr, refundedInr, netInr, paidInr, openInr, status };
+    return { id: x.id, date: x.date, invoiceNo: x.invoiceNo, party: x.party?.name || "", amount: x.totalInr, refundedInr, netInr, paidInr, openInr, status };
   });
 }
 

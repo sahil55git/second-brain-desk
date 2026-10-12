@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayBook, salesReport, udhaarReport, type BizData, type RefundRecord } from "../bizReports";
+import { cashReport, dayBook, salesReport, udhaarReport, type BizData, type RefundRecord } from "../bizReports";
 
 const refund: RefundRecord = { id: "r1", invoiceId: "s1", invoiceNo: "INV-0042", date: "2026-10-11", partyName: "Ramesh Stores", paymentMode: "CREDIT", amount: 165, reason: "Damaged" };
 const data = (over: Partial<BizData> = {}): BizData => ({
@@ -87,5 +87,34 @@ describe("invoice payment matching (oldest bill first)", () => {
     const c = status(d);
     expect(c[0]).toMatchObject({ netInr: 600, paidInr: 600, status: "paid" });
     expect(c[1]).toMatchObject({ paidInr: 300, status: "part" });
+  });
+});
+
+describe("receipts tied to a bill, and refunds in cash", () => {
+  const two = (receipts: { amountInr: number; details?: unknown }[]) =>
+    data({
+      sales: [
+        { id: "old", invoiceNo: "INV-0001", date: "2026-10-01", partyId: "p1", party: { id: "p1", name: "Ramesh Stores" }, totalInr: 1000, paymentMode: "CREDIT", lineItems: [] } as never,
+        { id: "new", invoiceNo: "INV-0002", date: "2026-10-05", partyId: "p1", party: { id: "p1", name: "Ramesh Stores" }, totalInr: 2000, paymentMode: "CREDIT", lineItems: [] } as never,
+      ],
+      refunds: [],
+      register: receipts.map((r, i) => ({ id: `u${i}`, date: "2026-10-08", kind: "UDHAAR_IN", partyName: "Ramesh Stores", paymentMode: "CASH", ...r }) as never),
+    });
+  const byNo = (d: BizData) => Object.fromEntries(udhaarReport(d, "2026-10-31").creditInvoices.map((c) => [c.invoiceNo, c]));
+
+  it("a receipt tied to a bill pays that bill, not the oldest one", () => {
+    const c = byNo(two([{ amountInr: 500, details: { invoiceId: "new" } }]));
+    expect(c["INV-0002"]).toMatchObject({ paidInr: 500, openInr: 1500 });
+    expect(c["INV-0001"]).toMatchObject({ paidInr: 0, openInr: 1000 });
+  });
+  it("untied receipts still go to the oldest open bill after tied ones", () => {
+    const c = byNo(two([{ amountInr: 1500, details: { invoiceId: "new" } }, { amountInr: 800 }]));
+    expect(c["INV-0002"]).toMatchObject({ paidInr: 1500, openInr: 500 });
+    expect(c["INV-0001"]).toMatchObject({ paidInr: 800, openInr: 200 });
+  });
+  it("a cash refund is money out in the cash report; a credit refund is not", () => {
+    const d = data({ refunds: [{ ...refund, id: "rc", paymentMode: "CASH", amount: 100 }, { ...refund, id: "rd", paymentMode: "CREDIT", amount: 50 }] });
+    const c = cashReport(d, span);
+    expect(c.cashOut).toBe(100);
   });
 });
