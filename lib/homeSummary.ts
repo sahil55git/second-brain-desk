@@ -146,3 +146,91 @@ export function homeSummary(d: BizData, nowMs = Date.now()): HomeSummary {
     recent: book.rows.slice(0, 6).map((r) => ({ at: r.at, type: r.type, party: r.party, detail: r.detail, mode: r.mode, amount: r.in || r.out, side: r.in ? "in" : "out" })),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Today / Week / Month switch and the small trend lines on Home cards.
+// ---------------------------------------------------------------------------
+export type HomeRange = "today" | "week" | "month";
+
+export interface RangeSummary {
+  range: HomeRange;
+  from: string;
+  to: string;
+  sold: number;
+  prevSold: number;
+  /** % change vs the previous period of the same length; null when it had no sales. */
+  changePct: number | null;
+  /** Sale entries + sales bills in the period. */
+  bills: number;
+  cashIn: number;
+  upiIn: number;
+  creditGiven: number;
+  spent: number;
+  /** Chart for the hero: by hour (today) or by day (week / month). */
+  series: { label: string; value: number }[];
+}
+
+export function rangeSummary(d: BizData, range: HomeRange, nowMs = Date.now()): RangeSummary {
+  const today = businessDate(nowMs);
+  let from = today;
+  let prev = { from: shift(today, -7), to: shift(today, -7) };
+  if (range === "week") {
+    from = shift(today, -6);
+    prev = { from: shift(today, -13), to: shift(today, -7) };
+  } else if (range === "month") {
+    from = `${today.slice(0, 7)}-01`;
+    const days = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
+    const prevFirst = `${shift(from, -1).slice(0, 7)}-01`;
+    const prevLast = shift(from, -1);
+    const prevTo = shift(prevFirst, days) < prevLast ? shift(prevFirst, days) : prevLast;
+    prev = { from: prevFirst, to: prevTo };
+  }
+  const span = { from, to: today };
+  const s = salesReport(d, span);
+  const p = salesReport(d, prev);
+  const cash = cashReport(d, span);
+  let series: RangeSummary["series"];
+  if (range === "today") {
+    series = homeSummary(d, nowMs).byHour.map((b) => ({ label: b.label, value: b.value }));
+  } else {
+    series = s.series.map((x) => ({
+      label: range === "week" ? WEEKDAY[new Date(`${x.date}T00:00:00Z`).getUTCDay()] : String(Number(x.date.slice(8, 10))),
+      value: x.value,
+    }));
+  }
+  return {
+    range,
+    from,
+    to: today,
+    sold: s.total,
+    prevSold: p.total,
+    changePct: p.total > 0 ? r2(((s.total - p.total) / p.total) * 100) : null,
+    bills: s.counterCount + s.invoiceCount,
+    cashIn: cash.cashIn,
+    upiIn: cash.upiIn,
+    creditGiven: cash.creditGiven,
+    spent: expenseReport(d, span).total,
+    series,
+  };
+}
+
+/** Last 7 days (oldest first) for the small trend lines on Home cards. */
+export function homeSparks(d: BizData, nowMs = Date.now()) {
+  const today = businessDate(nowMs);
+  const days = Array.from({ length: 7 }, (_, i) => shift(today, i - 6));
+  const one = (day: string) => ({ from: day, to: day });
+  return {
+    days,
+    sales: days.map((day) => salesReport(d, one(day)).total),
+    cashIn: days.map((day) => cashReport(d, one(day)).cashIn),
+    spent: days.map((day) => expenseReport(d, one(day)).total),
+    udhaar: days.map((day) => udhaarReport(d, day).outstanding),
+    jobWorkKg: days.map((day) =>
+      r2(
+        d.jobWork
+          .filter((j) => businessDate(j.createdAt) <= day && !(j.settled && j.settledAt && businessDate(j.settledAt) <= day))
+          .reduce((a, j) => a + j.seedKg, 0)
+      )
+    ),
+  };
+}
