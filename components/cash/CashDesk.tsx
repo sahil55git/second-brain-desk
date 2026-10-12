@@ -6,6 +6,11 @@
 // through /api/register/tally, so every screen sees the same record.
 import { useCallback, useEffect, useState } from "react";
 import { DENOMINATIONS, businessDate, denominationTotal } from "@/lib/register";
+import { useLauncher } from "@/components/launcher/LauncherProvider";
+import { MEMO_LINES, MEMO_META, notInApp, type AppLine, type MemoLine, type MemoRow } from "@/lib/memoTotals";
+import { TANKS, fillPct, tankFigures, tankStatus } from "@/lib/stockTanks";
+import { mergeScaleReports, soldByStockKey, type ScaleLine, type ScaleReport } from "@/lib/scaleReport";
+import { preparePhoto } from "@/lib/proofClient";
 
 type Session = "AFTERNOON" | "NIGHT";
 interface Saved {
@@ -17,12 +22,54 @@ interface Saved {
   mismatch: boolean;
   denoms: Record<string, number> | null;
 }
+interface MemoView extends MemoRow {
+  updatedAt?: string;
+}
+interface ScaleSaved {
+  totalKg: number | null;
+  totalInr: number | null;
+  taxInr: number | null;
+  lines: ScaleLine[];
+  enteredByName?: string | null;
+  updatedAt?: string;
+}
+interface Handover {
+  countedBy: string;
+  handedTo: string;
+  enteredByName?: string | null;
+  updatedAt?: string;
+}
 interface CashApi {
   opening: number;
   buckets: Record<string, number>;
-  systemCash: number;
+  systemCash: number; // from the app's own entries only
+  adjustedCash: number; // after saved memo-sheet totals
+  app: Record<MemoLine, AppLine>;
+  memo: MemoView[];
+  upi: Partial<Record<"UPI_GPAY" | "UPI_PHONEPE", { amountInr: number; enteredByName?: string | null; updatedAt?: string }>>;
+  scale: ScaleSaved | null;
+  handovers: Partial<Record<Session, Handover>>;
   sessions: Record<Session, Saved | null>;
 }
+interface StockApiLite {
+  sessions: Record<Session, { stock?: Record<string, { today?: number | null }> } | null>;
+}
+type Draft = { amt: string; cash: string; qty: string; unit: string; source: "typed" | "scale-scan" | "paper-scan" };
+const ENTRY_TILES: [string, string, string][] = [
+  ["sale", "💰", "Sale"],
+  ["purchase", "🛒", "Purchase"],
+  ["expense", "🧾", "Expense"],
+  ["udhaar", "🙌", "Udhaar in"],
+  ["payment", "💸", "Payment out"],
+  ["jobwork", "🌾", "Job-work"],
+  ["pigmee", "🏦", "Pigmee"],
+  ["draw", "🧔", "Owner draw"],
+];
+const UNITS = ["kg", "ltr", "bags", "pcs", ""];
+const fnum = (v: string | undefined) => {
+  const n = parseFloat(String(v ?? "").replace(/,/g, ""));
+  return Number.isFinite(n) ? n : 0;
+};
 
 const LABEL: Record<Session, string> = { AFTERNOON: "Tally 1 · midday", NIGHT: "Tally 2 · closing" };
 const rs = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
@@ -42,6 +89,13 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const backDated = date < today;
+  const { openPop, embedded } = useLauncher();
+  const [stockApi, setStockApi] = useState<StockApiLite | null>(null);
+  const [drafts, setDrafts] = useState<Partial<Record<MemoLine, Draft>>>({});
+  const [upiTyped, setUpiTyped] = useState<{ UPI_GPAY: string; UPI_PHONEPE: string }>({ UPI_GPAY: "", UPI_PHONEPE: "" });
+  const [hand, setHand] = useState({ countedBy: "", handedTo: "" });
+  const [scanBusy, setScanBusy] = useState<string | null>(null);
+  const [scanOut, setScanOut] = useState<{ kind: "scale"; report: ScaleReport; warnings: string[]; net: boolean; aiError?: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -58,6 +112,36 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
     load();
   }, [load]);
 
+  const loadStock = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/register/stock?date=${date}`);
+      const j = await r.json();
+      if (r.ok) setStockApi(j.data);
+    } catch {}
+  }, [date]);
+  useEffect(() => {
+    loadStock();
+  }, [loadStock]);
+  // When an entry window (pop) is closed, the numbers on this page refresh.
+  useEffect(() => {
+    const again = () => {
+      load();
+      loadStock();
+    };
+    window.addEventListener("ql-pop-closed", again);
+    return () => window.removeEventListener("ql-pop-closed", again);
+  }, [load, loadStock]);
+  useEffect(() => {
+    setDrafts({});
+    setUpiTyped({ UPI_GPAY: "", UPI_PHONEPE: "" });
+  }, [date]);
+  const handKey = `${api?.handovers?.[session]?.updatedAt ?? ""}|${session}|${date}`;
+  useEffect(() => {
+    const h = api?.handovers?.[session];
+    setHand({ countedBy: h?.countedBy || "", handedTo: h?.handedTo || "" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handKey]);
+
   // Pre-fill from what is already saved for this session — only when the
   // day/session/saved count changes, never on a plain refresh (keeps typing).
   const savedId = api?.sessions[session]?.id ?? "";
@@ -71,7 +155,9 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
 
   const nums = Object.fromEntries(DENOMINATIONS.map((d) => [String(d), int(counts[String(d)])]));
   const counted = denominationTotal(nums, parseFloat(coins) || 0);
-  const sys = api?.systemCash ?? 0;
+  const appOnly = api?.systemCash ?? 0;
+  const sys = api?.adjustedCash ?? appOnly;
+  const usingMemo = !!api && api.memo.length > 0 && Math.abs(sys - appOnly) >= 0.01;
   const diff = counted - sys; // + extra, − short
   const big = Math.abs(sys - counted) >= 300;
   const saved = api?.sessions[session] || null;
@@ -81,7 +167,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
     setBusy(true);
     setMsg(null);
     try {
-      const r = await fetch("/api/register/tally", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date, session, coins: parseFloat(coins) || 0, denoms: nums }) });
+      const r = await fetch("/api/register/tally", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date, session, coins: parseFloat(coins) || 0, denoms: nums, useMemo: true }) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
       const d: number = j.data.cashDiffInr; // system - counted
@@ -94,11 +180,128 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
     setBusy(false);
   }
 
+  const memoOf = (l: MemoLine) => api?.memo.find((m) => m.line === l);
+  const setDraft = (l: MemoLine, patch: Partial<Draft>) =>
+    setDrafts((d) => ({ ...d, [l]: { amt: "", cash: "", qty: "", unit: MEMO_META[l].unit, source: "typed", ...(d[l] || {}), ...patch } }));
+  const draftLines = MEMO_LINES.filter((l) => drafts[l] && fnum(drafts[l]!.amt) > 0);
+
+  async function post(body: Record<string, unknown>, okText: string) {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await fetch("/api/register/memo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date, ...body }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      setMsg(okText);
+      setErr(null);
+      await load();
+      return true;
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not save");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function saveMemo() {
+    if (!draftLines.length) return;
+    const lines = draftLines.map((l) => {
+      const d = drafts[l]!;
+      return { line: l, amountInr: fnum(d.amt), cashInr: d.cash.trim() === "" ? "" : fnum(d.cash), qty: d.qty.trim() === "" ? null : fnum(d.qty), unit: d.unit || null, source: d.source };
+    });
+    const ok = await post({ lines }, `Saved ${lines.length} memo total${lines.length > 1 ? "s" : ""} in this tally only. The register, stock, sales and reports are not changed.`);
+    if (ok) setDrafts({});
+  }
+  async function clearMemo(l: MemoLine) {
+    const r = await fetch(`/api/register/memo?date=${date}&line=${l}`, { method: "DELETE" });
+    if (r.ok) load();
+    else setErr((await r.json().catch(() => ({}))).error || "Could not remove");
+  }
+  const upiToSave = (["UPI_GPAY", "UPI_PHONEPE"] as const).filter((k) => upiTyped[k].trim() !== "");
+  async function saveUpi() {
+    if (!upiToSave.length) return;
+    const ok = await post({ upi: upiToSave.map((k) => ({ line: k, amountInr: fnum(upiTyped[k]) })) }, "UPI totals saved in this tally only. Counter cash and the register are not changed.");
+    if (ok) setUpiTyped({ UPI_GPAY: "", UPI_PHONEPE: "" });
+  }
+  async function clearUpi(k: "UPI_GPAY" | "UPI_PHONEPE") {
+    const r = await fetch(`/api/register/memo?date=${date}&line=${k}`, { method: "DELETE" });
+    if (r.ok) load();
+    else setErr((await r.json().catch(() => ({}))).error || "Could not remove");
+  }
+  async function saveHandover() {
+    await post({ handover: { session, countedBy: hand.countedBy, handedTo: hand.handedTo } }, "Handover saved ✓");
+  }
+
+  // ---- scale report: photo -> numbers -> person checks -> fills Sales row ----
+  async function readScale(files: FileList | null) {
+    if (!files || !files.length) return;
+    setScanBusy("Reading the report…");
+    setErr(null);
+    try {
+      const parts: ScaleReport[] = [];
+      let aiError: string | undefined;
+      for (const f of Array.from(files).slice(0, 3)) {
+        const dataUrl = await preparePhoto(f);
+        const r = await fetch("/api/register/scale-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dataUrl }) });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+        if (j.aiError) aiError = j.aiError;
+        parts.push(j.report as ScaleReport);
+      }
+      const report = mergeScaleReports(parts);
+      const { scaleWarnings } = await import("@/lib/scaleReport");
+      setScanOut({ kind: "scale", report, warnings: scaleWarnings(report), net: false, aiError });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not read the report");
+    } finally {
+      setScanBusy(null);
+    }
+  }
+  async function useScale() {
+    if (!scanOut) return;
+    const { report, net } = scanOut;
+    const gross = report.totalInr ?? report.lines.reduce((a, l) => a + l.amountInr, 0);
+    const amt = net && report.taxInr ? gross - report.taxInr : gross;
+    const kg = report.totalKg ?? report.lines.reduce((a, l) => a + l.kg, 0);
+    setDraft("SALE", { amt: String(Math.round(amt * 100) / 100), qty: String(kg), unit: "kg", cash: "", source: "scale-scan" });
+    // The report itself is kept so the stock cards can show "scale sold today".
+    const ok = await post({ scale: { totalKg: report.totalKg, totalInr: report.totalInr, taxInr: report.taxInr, lines: report.lines } }, "Scale report kept. Sales row filled: check it, then press Save.");
+    if (ok) setScanOut(null);
+  }
+
   const bk = api?.buckets;
   const inRows: [string, number][] = bk ? [["Opening", bk.cashInOpening], ["Sales (cash)", bk.cashInSales], ["Other in (udhar received)", bk.cashInOther]] : [];
   const outRows: [string, number][] = bk
     ? [["Job-work payouts", bk.cashOutGrn], ["Expenses / purchases", bk.cashOutExpenses + bk.cashOutOther], ["Salary", bk.cashOutSalary], ["UPI out", bk.cashOutUpi], ["Owner draw / pigmee", bk.cashOutDraw]]
     : [];
+
+  const sold = api?.scale ? soldByStockKey({ reportDate: null, totalKg: null, totalInr: null, taxInr: null, lines: api.scale.lines }) : {};
+  const stockCards = (() => {
+    const s1 = stockApi?.sessions?.AFTERNOON?.stock;
+    const s2 = stockApi?.sessions?.NIGHT?.stock;
+    const fig = (src: typeof s1) => Object.fromEntries(TANKS.flatMap((t) => [t.key, ...(t.also || []).map((a) => a.key)]).map((k) => [k, { now: typeof src?.[k]?.today === "number" ? (src![k]!.today as number) : null }]));
+    const f1 = fig(s1);
+    const f2 = fig(s2);
+    return TANKS.map((tk) => {
+      const a = tankFigures(tk, f1 as never).now;
+      const b = tankFigures(tk, f2 as never).now;
+      const kg = b ?? a;
+      const st = tankStatus(kg, tk.capKg);
+      const change = a != null && b != null ? Math.round((b - a) * 10) / 10 : null;
+      const keys = [tk.key, ...(tk.also || []).map((x) => x.key)];
+      const soldKg = keys.reduce((n, k) => n + (sold[k] || 0), 0);
+      return {
+        key: tk.key,
+        name: tk.name.replace(" tank", ""),
+        kg,
+        pct: fillPct(kg, tk.capKg),
+        low: st === "low",
+        note: st === "low" ? "LOW" : tk.also?.length ? `+ ${tk.also.map((x) => x.label).join(", ")}` : kg == null ? "" : `${fillPct(kg, tk.capKg)}%`,
+        sub: kg == null ? "count it in the Stock tally" : change == null ? (b == null ? "midday count" : "closing count") : change === 0 ? "no change since midday" : `${change < 0 ? "▼" : "▲"} ${Math.abs(change)} kg since midday`,
+        sold: soldKg ? Math.round(soldKg * 1000) / 1000 : null,
+      };
+    });
+  })();
 
   return (
     <div className="hub">
@@ -144,7 +347,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
       {msg && <div className="hub-banner" style={{ borderColor: "var(--h-g)", color: "var(--h-g)" }}>{msg}</div>}
 
       <div className="hub-kpis">
-        <div className="hub-kpi b"><div className="l">Should be in counter</div><div className="v">{rs(sys)}</div><div className="s">opening {rs(api?.opening ?? 0)} + today&apos;s movement</div></div>
+        <div className="hub-kpi b"><div className="l">Should be in counter</div><div className="v">{rs(sys)}</div><div className="s">{usingMemo ? <>uses memo sheet totals · app entries alone: <b>{rs(appOnly)}</b></> : <>opening {rs(api?.opening ?? 0)} + today&apos;s movement</>}</div></div>
         <div className="hub-kpi"><div className="l">Counted now</div><div className="v">{rs(counted)}</div><div className="s">{notes} notes{parseFloat(coins) ? ` + ${rs(parseFloat(coins))} coins` : ""}</div></div>
         <div className={`hub-kpi ${counted <= 0 ? "" : big ? "r" : "g"}`}>
           <div className="l">Gap</div>
@@ -153,7 +356,55 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
         </div>
       </div>
 
-      <section className="hub-card">
+
+      {/* ---- make an entry here + UPI today ---- */}
+      <div className="csh-two">
+        <section className="hub-card">
+          <div className="hub-card-head"><h3>➕ Make an entry here</h3></div>
+          <div className="csh-tiles">
+            {ENTRY_TILES.map(([key, icon, label]) => (
+              <button key={key} className="csh-tile" onClick={() => (embedded ? (window.location.href = `/register?open=${key}`) : openPop({ title: label, url: `/register?open=${key}&embed=1`, kind: "Function" }))}>
+                <span className="i" aria-hidden>{icon}</span>
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="hub-m">Each button opens the normal form in a window on top of this page. Save, close it, and the cash here updates. In the form choose Cash, 📱 Shop GPay, 🟣 Owner PhonePe or Udhaar. Only Cash changes the counter cash.</div>
+        </section>
+        <section className="hub-card">
+          <div className="hub-card-head"><h3>📱 UPI today</h3></div>
+          {api ? (
+            <div className="csh-upi">
+              {([["UPI_GPAY", "📱 Shop GPay", api.app.SALE.upi + api.app.UDHAAR.upi], ["UPI_PHONEPE", "🟣 Owner PhonePe", api.app.SALE.phonepe + api.app.UDHAAR.phonepe]] as const).map(([k, label, inApp]) => {
+                const saved = api.upi?.[k];
+                const typed = upiTyped[k].trim() !== "";
+                const total = typed ? fnum(upiTyped[k]) : saved ? saved.amountInr : null;
+                const gap = total === null ? null : Math.max(0, Math.round((total - inApp) * 100) / 100);
+                return (
+                  <div key={k} className="csh-upi-r">
+                    <div><span>{label}</span><b>{rs(inApp)} <small>in app</small></b></div>
+                    <input type="number" inputMode="decimal" min={0} placeholder={saved ? String(saved.amountInr) : "Total from the app ₹"} aria-label={`${label} total from the app`} value={upiTyped[k]} onChange={(e) => setUpiTyped({ ...upiTyped, [k]: e.target.value })} />
+                    {gap !== null && (
+                      <div className={`csh-upi-n ${gap > 0 ? "warn" : "ok"}`}>
+                        {gap > 0 ? `${rs(gap)} not in app yet` : "✓ all in app"}
+                        {saved && !typed ? <> · saved {rs(saved.amountInr)}{saved.enteredByName ? ` by ${saved.enteredByName}` : ""} <button type="button" className="hub-btn sm" title="Remove" onClick={() => clearUpi(k)}>✕</button></> : null}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <button className="hub-btn" style={{ background: upiToSave.length ? "var(--h-acc)" : undefined, color: upiToSave.length ? "#fff" : undefined }} disabled={busy || !upiToSave.length} onClick={saveUpi}>
+                {upiToSave.length ? "Save UPI totals for this tally" : "Type a UPI total to save"}
+              </button>
+              <div className="hub-m">Type the day&apos;s total from the GPay / PhonePe app. It is kept in this tally only. UPI is not counter cash, so it does not change the count above or the register.</div>
+            </div>
+          ) : (
+            <div className="hub-empty">Loading…</div>
+          )}
+        </section>
+      </div>
+
+      <section className="hub-card" style={{ marginTop: 12 }}>
         <div className="hub-card-head">
           <h3>✍️ Count notes — {LABEL[session]}</h3>
           <div className="hr stk-row">
@@ -193,6 +444,99 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
         </div>
       </section>
 
+
+      {/* ---- day totals from the cash memo sheet ---- */}
+      <section className="hub-card" style={{ marginTop: 12 }}>
+        <div className="hub-card-head">
+          <h3>📋 Day totals from the cash memo sheet</h3>
+          <div className="hr stk-row">
+            <label className="hub-btn sm" style={{ cursor: "pointer" }}>
+              ⚖️ From scale report
+              <input type="file" accept="image/*" multiple hidden onChange={(e) => { readScale(e.target.files); e.target.value = ""; }} />
+            </label>
+          </div>
+        </div>
+        <div className="hub-m">
+          Entries were written on paper? Type the sheet&apos;s <b>total amount</b> and <b>total quantity</b> for each line. These totals <b>stay in this Cash tally only</b>. The register, stock, sales, reports, GST and party balances are not changed. Paper sales do not appear in the day&apos;s sales report until they are entered in the app.
+        </div>
+        {scanBusy && <div className="hub-banner">{scanBusy}</div>}
+        <div className="csh-memo">
+          <div className="csh-memo-h"><span>LINE</span><span>IN APP NOW</span><span>MEMO TOTAL ₹</span><span>QTY</span><span>OF WHICH CASH ₹</span><span>NOT IN APP YET</span></div>
+          {MEMO_LINES.map((l) => {
+            const m = MEMO_META[l];
+            const a = api?.app[l];
+            const saved = memoOf(l);
+            const d = drafts[l];
+            const typed = d && d.amt.trim() !== "";
+            const memoAmt = typed ? fnum(d!.amt) : saved ? saved.amountInr : null;
+            const gap = memoAmt !== null && a ? notInApp(memoAmt, a) : null;
+            return (
+              <div key={l} className={`csh-memo-r${typed ? " typing" : ""}`}>
+                <b>{m.icon} {m.en}</b>
+                <span>{a ? rs(a.amount) : "—"}{saved ? <em> · 📋 {rs(saved.amountInr)}</em> : null}</span>
+                <input type="number" inputMode="decimal" min={0} placeholder={saved ? String(saved.amountInr) : "₹"} aria-label={`${m.en} memo total`} value={d?.amt ?? ""} onChange={(e) => setDraft(l, { amt: e.target.value, source: d?.source === "scale-scan" ? "scale-scan" : "typed" })} />
+                <span className="csh-qty">
+                  <input type="number" inputMode="decimal" min={0} placeholder={saved?.qty != null ? String(saved.qty) : "qty"} aria-label={`${m.en} quantity`} value={d?.qty ?? ""} onChange={(e) => setDraft(l, { qty: e.target.value })} />
+                  {m.unit !== "" && (
+                    <button type="button" className="hub-btn sm" onClick={() => setDraft(l, { unit: UNITS[(UNITS.indexOf(d?.unit ?? m.unit) + 1) % 4] })}>{d?.unit ?? saved?.unit ?? m.unit}</button>
+                  )}
+                </span>
+                <input type="number" inputMode="decimal" min={0} placeholder={typed ? "all cash" : saved ? String(saved.cashInr) : "₹"} aria-label={`${m.en} of which cash`} value={d?.cash ?? ""} onChange={(e) => setDraft(l, { cash: e.target.value })} />
+                <span className={`csh-gap ${gap === null ? "" : gap > 0 ? "warn" : "ok"}`}>
+                  {gap === null ? "—" : gap > 0 ? rs(gap) : "✓ all in app"}
+                  {saved && !typed ? <button type="button" className="hub-btn sm" title="Remove this memo total" onClick={() => clearMemo(l)}>✕</button> : null}
+                </span>
+                {saved && (
+                  <span className="csh-by">typed by {saved.enteredByName || "—"}{saved.updatedAt ? ` · ${hm(saved.updatedAt)}` : ""}{saved.source === "scale-scan" ? " · ⚖️ from scale report" : ""}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="stk-sticky">
+          <button className="hub-btn" style={{ background: draftLines.length ? "var(--h-acc)" : undefined, color: draftLines.length ? "#fff" : undefined }} disabled={busy || !draftLines.length} onClick={saveMemo}>
+            {draftLines.length ? "Save for this tally" : "Type a memo total to save"}
+          </button>
+          <span className="hub-m">Expected cash uses the memo cash for lines with a saved total, and the app&apos;s own cash for the rest.</span>
+        </div>
+      </section>
+
+      {/* ---- stock tally as simple cards ---- */}
+      <section className="hub-card" style={{ marginTop: 12 }}>
+        <div className="hub-card-head">
+          <h3>📦 Stock right now</h3>
+          <div className="hr stk-row">
+            <button className="hub-btn sm" onClick={() => (embedded ? (window.location.href = `/stock?date=${date}&session=${session}`) : openPop({ title: "Stock tally", url: `/stock?date=${date}&session=${session}&embed=1`, kind: "App" }))}>Count stock now</button>
+            <a className="hub-btn sm" href={`/stock?date=${date}&session=${session}`}>Open full stock tally</a>
+            <button className="hub-btn sm" title="Opens the stock tally, which can read a photo of the stock sheet" onClick={() => (embedded ? (window.location.href = `/stock?date=${date}&session=${session}`) : openPop({ title: "Scan stock sheet", url: `/stock?date=${date}&session=${session}&embed=1`, kind: "App" }))}>📸 Scan stock sheet</button>
+          </div>
+        </div>
+        <div className="csh-stock">
+          {stockCards.map((c) => (
+            <div key={c.key} className={`csh-sc${c.low ? " low" : ""}`}>
+              <div className="top"><b>{c.name}</b><span>{c.note}</span></div>
+              <div className="kg">{c.kg == null ? "not counted" : c.kg.toLocaleString("en-IN")}{c.kg != null && <small> kg</small>}</div>
+              <div className="bar"><i style={{ width: `${c.pct}%` }} /></div>
+              <div className="sub">{c.sub}</div>
+              {c.sold != null && <div className="sold">⚖️ scale sold today {c.sold.toLocaleString("en-IN", { maximumFractionDigits: 3 })} kg</div>}
+            </div>
+          ))}
+        </div>
+        {api?.scale && <div className="hub-m">Scale report kept for {date} ({api.scale.totalKg ?? "?"} kg, {api.scale.totalInr != null ? rs(api.scale.totalInr) : "?"}), read by {api.scale.enteredByName || "—"}. Gold Drop is counted with Sunflower (one tank).</div>}
+      </section>
+
+      {/* ---- shift handover ---- */}
+      <section className="hub-card" style={{ marginTop: 12 }}>
+        <div className="hub-card-head"><h3>🤝 Shift handover — {LABEL[session]}</h3></div>
+        <div className="csh-hand">
+          <label>Counted by<input value={hand.countedBy} onChange={(e) => setHand({ ...hand, countedBy: e.target.value })} placeholder="name" /></label>
+          <span aria-hidden>→</span>
+          <label>Handed to<input value={hand.handedTo} onChange={(e) => setHand({ ...hand, handedTo: e.target.value })} placeholder="name" /></label>
+          <button className="hub-btn" disabled={busy || !hand.countedBy.trim() || !hand.handedTo.trim()} onClick={saveHandover}>Save handover</button>
+        </div>
+        {api?.handovers?.[session] && <div className="hub-m">Saved: {api.handovers[session]!.countedBy} → {api.handovers[session]!.handedTo}{api.handovers[session]!.updatedAt ? ` at ${hm(api.handovers[session]!.updatedAt!)}` : ""}.</div>}
+      </section>
+
       <section className="hub-card" style={{ marginTop: 12 }}>
         <div className="hub-card-head">
           <h3>🧮 How the expected cash is made</h3>
@@ -201,12 +545,40 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
           <div className="csh-sys">
             {inRows.map(([k, v]) => <div key={k}><span>＋ {k}</span><b>{rs(v)}</b></div>)}
             {outRows.map(([k, v]) => <div key={k}><span>－ {k}</span><b>{rs(v)}</b></div>)}
-            <div><span><b>= Should be in counter</b></span><b>{rs(sys)}</b></div>
+            <div><span><b>{usingMemo ? "= From the app's own entries" : "= Should be in counter"}</b></span><b>{rs(appOnly)}</b></div>
+            {usingMemo && <div><span>± Memo sheet totals replace the app cash for their lines</span><b>{sys - appOnly >= 0 ? "+" : "−"}{rs(Math.abs(sys - appOnly))}</b></div>}
+            {usingMemo && <div><span><b>= Should be in counter</b></span><b>{rs(sys)}</b></div>}
           </div>
         ) : (
           <div className="hub-empty">Loading…</div>
         )}
       </section>
+
+      {scanOut && (
+        <div className="csh-modal" role="dialog" aria-label="Scale report">
+          <div className="csh-modal-card">
+            <div className="hub-card-head"><h3>⚖️ Scale PLU report</h3><button className="hub-btn sm" onClick={() => setScanOut(null)}>✕</button></div>
+            <div className="hub-banner" style={{ borderColor: "var(--h-acc)" }}>Read from the photo. Check each number, then press Use. The Sales row is only filled, not saved.</div>
+            {scanOut.aiError && <div className="hub-banner">{scanOut.aiError}</div>}
+            {scanOut.warnings.map((w) => <div key={w} className="hub-banner">⚠️ {w}</div>)}
+            <div className="csh-sl">
+              {[["Total weight", scanOut.report.totalKg != null ? `${scanOut.report.totalKg} kg` : "—"], ["Total price", scanOut.report.totalInr != null ? rs(scanOut.report.totalInr) : "—"], ["Tax", scanOut.report.taxInr != null ? rs(scanOut.report.taxInr) : "—"]].map(([a, b]) => <div key={a}><span>{a}</span><b>{b}</b></div>)}
+              {scanOut.report.lines.map((l, i) => (
+                <div key={i}><span>{l.name}{l.key ? "" : " (not oil kg)"}</span><b>{l.pcs && !l.kg ? `${l.pcs} pcs` : `${l.kg} kg`} · {rs(l.amountInr)}</b></div>
+              ))}
+            </div>
+            <div className="csh-choice">
+              <b>Amount for the Sales row</b>
+              <button className={!scanOut.net ? "on" : ""} onClick={() => setScanOut({ ...scanOut, net: false })}>Total price {scanOut.report.totalInr != null ? rs(scanOut.report.totalInr) : ""}</button>
+              {scanOut.report.taxInr != null && scanOut.report.totalInr != null && (
+                <button className={scanOut.net ? "on" : ""} onClick={() => setScanOut({ ...scanOut, net: true })}>Without tax {rs(scanOut.report.totalInr - scanOut.report.taxInr)}</button>
+              )}
+            </div>
+            <div className="hub-m">The report does not say cash or UPI. After filling, type &quot;of which cash&quot; if some sales were GPay or udhaar. Cans are counted in pieces and left out of the kg.</div>
+            <button className="hub-btn" style={{ background: "var(--h-g)", color: "#fff" }} disabled={busy || (!scanOut.report.lines.length && scanOut.report.totalInr == null)} onClick={useScale}>✓ Use these numbers</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
