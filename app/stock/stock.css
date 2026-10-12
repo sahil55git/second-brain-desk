@@ -76,3 +76,5 @@
 @media (max-width: 560px) { .tk-pb { grid-template-columns: 1fr; } .tk-grid { grid-template-columns: 1fr; } }
 .tk-card.store { cursor: default; } .tk-card.store:hover { transform: none; box-shadow: none; }
 .tk-bag { flex: none; width: 46px; height: 46px; display: grid; place-items: center; font-size: 24px; border-radius: 14px; background: color-mix(in srgb, var(--h-acc) 14%, transparent); }
+.tk-also { font-weight: 600; color: var(--h-soft); font-size: 12px; }
+.tk-also-box { font-size: 13px; font-weight: 600; color: var(--h-soft); background: color-mix(in srgb, var(--h-soft) 10%, transparent); border-radius: 8px; padding: 6px 8px; }

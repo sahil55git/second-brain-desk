@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Peekable from "@/components/launcher/Peekable";
-import { BARREL, CAPS_KEY, TANKS, bagRange, barrelStatus, fillPct, freeKg, normalizeCaps, parseCap, tankStatus, type TankStatus } from "@/lib/stockTanks";
+import { BARREL, CAPS_KEY, TANKS, bagRange, barrelStatus, fillPct, freeKg, normalizeCaps, parseCap, tankFigures, tankStatus, type TankStatus } from "@/lib/stockTanks";
 
 export type TankStock = Record<string, { now: number | null; yesterday: number | null; t1: number | null; t2: number | null }>;
 type BarrelRow = { code: string; product: string; supplierName: string; lotNo: string; estNetKg: number | null; waitingDays: number | null; tankTarget: string | null };
@@ -90,7 +90,7 @@ export default function TankView({ stock, onCount, date }: { stock: TankStock; o
   const tanks = useMemo(
     () =>
       TANKS.map((t) => {
-        const s = stock[t.key];
+        const s = tankFigures(t, stock);
         const cap = caps[t.key] ?? t.capKg;
         const now = s?.now ?? null;
         return { ...t, cap, now, s, pct: fillPct(now, cap), status: tankStatus(now, cap), free: freeKg(now, cap) };
@@ -148,7 +148,7 @@ export default function TankView({ stock, onCount, date }: { stock: TankStock; o
               <button className={`tk-card ${t.status}`} onClick={() => setSel({ t: "tank", key: t.key })}>
                 <Vessel pct={t.pct} color={t.color} kind="tank" />
                 <span className="tk-body">
-                  <span className="tk-top"><b>{t.name}</b><span className={`tk-chip ${t.status}`}>{CHIP[t.status]}</span></span>
+                  <span className="tk-top"><b>{t.name}{t.also ? <small className="tk-also"> + {t.also.map((a) => a.label).join(", ")}</small> : null}</b><span className={`tk-chip ${t.status}`}>{CHIP[t.status]}</span></span>
                   <span className="tk-now"><b>{t.now == null ? "—" : fmt(t.now)}</b> <small>/ {t.cap} kg</small></span>
                   <span className="tk-bar"><i style={{ width: `${t.pct}%` }} /></span>
                   <small>{t.free == null ? "Count this tank to see the level" : `${fmt(t.free)} kg free`}</small>
@@ -223,6 +223,11 @@ export default function TankView({ stock, onCount, date }: { stock: TankStock; o
                       <div>Tally 2<b>{fmt(selTank.s?.t2)}</b></div>
                       <div>Today<b>{fmt(selTank.now)}</b></div>
                     </div>
+                    {selTank.also && (
+                      <div className="tk-also-box">
+                        Holds {[selTank.key, ...selTank.also.map((a) => a.key)].map((k, i) => `${i === 0 ? selTank.name.replace(" tank", "") : selTank.also![i - 1].label} ${fmt(stock[k]?.now)} kg`).join(" + ")} — one tank, {selTank.cap} kg.
+                      </div>
+                    )}
                     {selTank.status === "over" && <div className="tk-warn">Counted more than the tank holds. Check the count or the tank size.</div>}
                     <div className="stk-row">
                       <button className="hub-btn primary" onClick={() => { setSel(null); onCount(selTank.key); }}>✍️ Count this tank</button>
