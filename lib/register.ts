@@ -10,6 +10,7 @@
 // The settlement maths for job-work is NOT re-implemented here — it lives in
 // lib/calculations.ts (expectedSettlement etc.) and is reused as-is.
 
+import { normalizeSimpleAssign, normalizeSimpleModes, type SimpleMode } from "./simpleMode";
 import type { CashInputs } from "./calculations";
 
 export type Side = "in" | "out" | "oth";
@@ -112,6 +113,9 @@ export interface RegisterConfigData {
   // signature / photo before they can be saved, at or above proofMinInr.
   proofRequired: ("PAYMENT" | "PURCHASE" | "EXPENSE")[];
   proofMinInr: number;
+  // Simple mode (lib/simpleMode.ts): named settings + which person opens which.
+  simpleModes: SimpleMode[];
+  simpleAssign: Record<string, string>;
 }
 
 export const DEFAULT_CONFIG: RegisterConfigData = {
@@ -125,11 +129,14 @@ export const DEFAULT_CONFIG: RegisterConfigData = {
   defaultWork: "calc",
   proofRequired: [],
   proofMinInr: 0,
+  simpleModes: [],
+  simpleAssign: {},
 };
 
 export function normalizeConfig(raw: unknown): RegisterConfigData {
   const r = (raw && typeof raw === "object" ? raw : {}) as Partial<RegisterConfigData>;
   const lang = r.defaultLangMode;
+  const simpleModes = normalizeSimpleModes(r.simpleModes);
   return {
     rates: { ...(r.rates || {}) },
     customItems: { ...(r.customItems || {}) },
@@ -143,6 +150,8 @@ export function normalizeConfig(raw: unknown): RegisterConfigData {
       ? (["PAYMENT", "PURCHASE", "EXPENSE"] as const).filter((k) => (r.proofRequired as unknown[]).includes(k))
       : [],
     proofMinInr: typeof r.proofMinInr === "number" && r.proofMinInr >= 0 ? r.proofMinInr : 0,
+    simpleModes,
+    simpleAssign: normalizeSimpleAssign(r.simpleAssign, simpleModes),
   };
 }
 

@@ -81,6 +81,7 @@ import MfgQuick from "@/components/mfg/MfgQuick";
 import BillSheet from "@/components/register/BillSheet";
 import { useCustomize } from "@/lib/customize";
 import { BrandMark, Icon, type IconName } from "@/components/ui/Icons";
+import { BUILTIN_SIMPLE, assignedMode, type SimpleMode } from "@/lib/simpleMode";
 import { G, useSkinned } from "@/components/register/Glyph";
 
 // Pre-fill for an entry form: from a voice command, or from a scanned slip
@@ -187,7 +188,8 @@ type TileKey =
   | "estimate"
   | "reports"
   | "scan"
-  | "smart";
+  | "smart"
+  | "cashtally";
 type SectionKey = "summary" | "entries" | "jobwork";
 // What the always-open Workspace card shows.
 type WorkTool = "calc" | "estimate" | "notepad" | "FRESH_CRUSH" | "SALE" | "EXPENSE" | "PURCHASE" | "jwNew" | "count" | "stock";
@@ -669,6 +671,8 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   // POS counter mode: one big entry window + today's list, nothing else on screen.
   // /register/pos opens straight into it; the POS button switches in place.
   const [posMode, setPosMode] = useState(startPos);
+  // Simple mode (🧸): a few big buttons chosen by the owner. null = not decided yet (waits for the day to load).
+  const [simpleOn, setSimpleOn] = useState<boolean | null>(null);
   const [posKind, setPosKind] = useState<"SALE" | "FRESH_CRUSH" | "UDHAAR_IN" | "PURCHASE" | "EXPENSE" | "PAYMENT">("SALE");
   const [posKey, setPosKey] = useState(0);
 
@@ -719,7 +723,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   // Side by side needs a tablet/laptop-width screen; phones always stack.
   const canSide = useMedia("(min-width: 760px)");
   const wide = useMedia("(min-width: 1100px)");
-  const sideBySide = canSide && (prefs.layout === "side" || (prefs.layout === "auto" && wide));
+  const sideBySide = simpleOn !== true && canSide && (prefs.layout === "side" || (prefs.layout === "auto" && wide));
   const splitRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   // Right-hand windows (entry form, workspace, job-work, entries): hide / fold / move, saved for this login on this device.
@@ -831,6 +835,44 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
       localStorage.setItem("qr-lang", m);
     } catch {
       /* ignore */
+    }
+  };
+
+  // ---- Simple mode (🧸): the owner's chosen big buttons for this person ----
+  const username = String((session?.user as { username?: string } | undefined)?.username || "");
+  const myMode = assignedMode(username, day?.config.simpleModes || [], day?.config.simpleAssign || {});
+  const simple: SimpleMode = myMode || BUILTIN_SIMPLE;
+  const simpleKey = `qr-simple-v1:${username || "me"}`;
+  useEffect(() => {
+    if (simpleOn !== null || !day || !session) return;
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(simpleKey);
+    } catch {
+      /* storage blocked */
+    }
+    setSimpleOn(saved === "on" ? true : saved === "off" ? false : !!myMode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [day, session, simpleOn]);
+  const prevLang = useRef<LangMode | null>(null);
+  useEffect(() => {
+    if (simpleOn === true) {
+      if (prevLang.current === null) prevLang.current = lang;
+      setLangState(simple.lang);
+    } else if (simpleOn === false && prevLang.current !== null) {
+      setLangState(prevLang.current);
+      prevLang.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simpleOn, simple.lang]);
+  const toggleSimple = () => {
+    const next = simpleOn !== true;
+    setSimpleOn(next);
+    if (next) setPosMode(false);
+    try {
+      localStorage.setItem(simpleKey, next ? "on" : "off");
+    } catch {
+      /* storage blocked */
     }
   };
 
@@ -957,6 +999,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     calc: { k: "calc", icon: "🧮", group: "tool", open: () => setSheet({ t: "calc" }) },
     estimate: { k: "estimate", icon: "🏷️", group: "tool", open: () => setSheet({ t: "estimate" }) },
     reports: { k: "reports", icon: "🖨️", group: "tool", open: () => setSheet({ t: "report" }) },
+    cashtally: { k: "cashTally", icon: "🧮", group: "tool", open: () => { window.location.href = "/cash"; } },
     scan: { k: "scan", icon: "📸", group: "tool", open: () => setSheet({ t: "scan" }), needsDb: true },
     smart: { k: "smart", icon: "✨", group: "tool", open: () => setSheet({ t: "smart" }), needsDb: true },
   };
@@ -1001,7 +1044,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
 
   const TILE_FN: Partial<Record<TileKey, FnKey>> = {
     SALE: "sale", bill: "sale", FRESH_CRUSH: "sale", UDHAAR_IN: "udhaar", PURCHASE: "purchase", EXPENSE: "expense", PAYMENT: "payment",
-    jwNew: "jobwork", jwSettle: "jobwork", PIGMEE: "pigmee", OWNER_DRAW: "draw", count: "count", stock: "stock", reports: "reports",
+    jwNew: "jobwork", jwSettle: "jobwork", PIGMEE: "pigmee", OWNER_DRAW: "draw", count: "count", stock: "stock", reports: "reports", cashtally: "count",
   };
   const Tile = ({ id, extraClass = "" }: { id: TileKey; extraClass?: string }) => {
     const need = TILE_FN[id];
@@ -1341,6 +1384,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
         {qaHead("tool", "tools")}
         <div className="qa-grid tools">
           <Tile id="count" />
+          <Tile id="cashtally" />
           <Tile id="stock" />
           <Tile id="scan" />
           <Tile id="smart" />
@@ -1954,8 +1998,21 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     </div>
   );
 
+  const simpleBlock = (
+    <div className={`qr-simple sz-${simple.size}`}>
+      <div className="qr-simple-cash">
+        <span><Txt k="inCounter" lang={lang} /></span>
+        <b>{rsT(counterNow)}</b>
+      </div>
+      <div className="qr-simple-grid">
+        {simple.tiles.map((k) => (k in TILES ? <Tile key={k} id={k as TileKey} extraClass="qr-simple-tile" /> : null))}
+      </div>
+      <div className="qr-simple-hint">{word("simpleOffHint", lang)}</div>
+    </div>
+  );
+
   return (
-    <div className={`qr${posMode ? " qr-pos" : ""}`} data-size={skinned ? prefs.size : undefined}>
+    <div className={`qr${posMode ? " qr-pos" : ""}`} data-size={skinned ? (simpleOn === true ? (simple.size === "S" ? "s" : simple.size === "M" ? "m" : "l") : prefs.size) : undefined}>
       <div className={`qr-wrap${sideBySide || posMode ? " split" : ""}`}>
         <div className="qr-top">
           {skinned && (
@@ -1975,6 +2032,16 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
               · {hm(now)}
             </small>
           </h1>
+          <button
+            className={`qr-pill qr-simplebtn${simpleOn === true ? " on" : ""}`}
+            onClick={toggleSimple}
+            aria-pressed={simpleOn === true}
+            title={word("simpleMode", lang)}
+            aria-label={word("simpleMode", lang)}
+          >
+            🧸
+          </button>
+          {simpleOn !== true && (<>
           <button
             className={`qr-pill${editFavs ? " on" : ""}`}
             onClick={() => setEditFavs((v) => !v)}
@@ -2041,6 +2108,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
               </a>
             </>
           )}
+          </>)}
         </div>
 
         {loadError && <div className="qr-banner">{dbOffline ? word("offline", lang) : loadError}</div>}
@@ -2053,7 +2121,9 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
           </div>
         )}
 
-        {posMode ? (
+        {simpleOn === true ? (
+          simpleBlock
+        ) : posMode ? (
           posBlock
         ) : sideBySide ? (
           <div
