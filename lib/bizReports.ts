@@ -639,14 +639,40 @@ export function udhaarReport(d: BizData, asOf: string) {
   return {
     rows,
     outstanding: r2(rows.reduce((a, r) => a + Math.max(0, r.balance), 0)),
-    // Credit invoices, each with its refunds and what is still owed on it.
-    creditInvoices: d.sales
-      .filter((x) => x.paymentMode === "CREDIT" && x.date <= asOf)
-      .map((x) => {
-        const refundedInr = r2((d.refunds || []).filter((r) => r.invoiceId === x.id && r.date <= asOf).reduce((a, r) => a + r.amount, 0));
-        return { date: x.date, invoiceNo: x.invoiceNo, party: x.party?.name || "", amount: x.totalInr, refundedInr, netInr: r2(x.totalInr - refundedInr) };
-      }),
+    creditInvoices: creditInvoiceStatus(d, asOf, by),
   };
+}
+
+/**
+ * Credit invoices with payment status. Each party's receipts (udhaar received)
+ * are applied to that party's oldest open credit invoice first, after the
+ * invoice's own refunds. Receipts beyond the invoices are not allocated here.
+ * This is the usual udhaar practice: the oldest bill is cleared first.
+ */
+function creditInvoiceStatus(
+  d: BizData,
+  asOf: string,
+  by: Record<string, { received: number }>
+) {
+  const invoices = d.sales
+    .filter((x) => x.paymentMode === "CREDIT" && x.date <= asOf)
+    .map((x) => {
+      const refundedInr = r2((d.refunds || []).filter((r) => r.invoiceId === x.id && r.date <= asOf).reduce((a, r) => a + r.amount, 0));
+      return { x, refundedInr, netInr: r2(x.totalInr - refundedInr), name: (x.party?.name || "").trim() || "(no name)" };
+    })
+    .sort((a, b) => (a.x.date === b.x.date ? (a.x.invoiceNo < b.x.invoiceNo ? -1 : 1) : a.x.date < b.x.date ? -1 : 1));
+
+  const remaining: Record<string, number> = {};
+  for (const [name, p] of Object.entries(by)) remaining[name] = p.received;
+
+  return invoices.map(({ x, refundedInr, netInr, name }) => {
+    const pool = remaining[name] ?? 0;
+    const paidInr = r2(Math.min(Math.max(netInr, 0), Math.max(pool, 0)));
+    remaining[name] = r2(pool - paidInr);
+    const openInr = r2(netInr - paidInr);
+    const status = openInr <= 0 ? "paid" : paidInr > 0 ? "part" : "open";
+    return { date: x.date, invoiceNo: x.invoiceNo, party: x.party?.name || "", amount: x.totalInr, refundedInr, netInr, paidInr, openInr, status };
+  });
 }
 
 // ---------------------------------------------------------------------------

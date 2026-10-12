@@ -60,3 +60,32 @@ describe("udhaar includes unpaid credit sales", () => {
     expect(udhaarReport(d, "2026-10-31").rows.some((r) => r.name === "Walk-in")).toBe(false);
   });
 });
+
+describe("invoice payment matching (oldest bill first)", () => {
+  const twoBills = (receipt: number) =>
+    data({
+      sales: [
+        { id: "old", invoiceNo: "INV-0001", date: "2026-10-01", partyId: "p1", party: { id: "p1", name: "Ramesh Stores" }, totalInr: 1000, paymentMode: "CREDIT", lineItems: [] } as never,
+        { id: "new", invoiceNo: "INV-0002", date: "2026-10-05", partyId: "p1", party: { id: "p1", name: "Ramesh Stores" }, totalInr: 2000, paymentMode: "CREDIT", lineItems: [] } as never,
+      ],
+      refunds: [],
+      register: receipt ? [{ id: "u2", date: "2026-10-08", kind: "UDHAAR_IN", partyName: "Ramesh Stores", amountInr: receipt, paymentMode: "CASH" } as never] : [],
+    });
+  const status = (d: BizData) => udhaarReport(d, "2026-10-31").creditInvoices;
+
+  it("a receipt clears the oldest bill first, then part-pays the next", () => {
+    const c = status(twoBills(1500));
+    expect(c[0]).toMatchObject({ invoiceNo: "INV-0001", paidInr: 1000, openInr: 0, status: "paid" });
+    expect(c[1]).toMatchObject({ invoiceNo: "INV-0002", paidInr: 500, openInr: 1500, status: "part" });
+  });
+  it("no receipts leaves every bill open", () => {
+    expect(status(twoBills(0)).map((c) => c.status)).toEqual(["open", "open"]);
+  });
+  it("refunds reduce the bill before receipts are applied", () => {
+    const d = twoBills(900);
+    d.refunds = [{ id: "r9", invoiceId: "old", invoiceNo: "INV-0001", date: "2026-10-09", partyName: "Ramesh Stores", paymentMode: "CREDIT", amount: 400, reason: "Damaged" }];
+    const c = status(d);
+    expect(c[0]).toMatchObject({ netInr: 600, paidInr: 600, status: "paid" });
+    expect(c[1]).toMatchObject({ paidInr: 300, status: "part" });
+  });
+});
