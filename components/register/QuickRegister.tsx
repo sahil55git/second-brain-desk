@@ -733,6 +733,16 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   const [lang, setLangState] = useState<LangMode>("both");
   const [now, setNow] = useState(Date.now());
 
+  // Saved tick + ripple, shown for a moment after every save.
+  const [tick, setTick] = useState(0);
+  const celebrate = useCallback(() => {
+    setTick((n) => n + 1);
+  }, []);
+  useEffect(() => {
+    if (!tick) return;
+    const t = setTimeout(() => setTick(0), 1300);
+    return () => clearTimeout(t);
+  }, [tick]);
   const toast = useCallback((m: string) => {
     setToastMsg(m);
     window.setTimeout(() => setToastMsg(null), 1800);
@@ -826,7 +836,12 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
       .filter(Boolean)
       .join(" · ");
     return (
-      <button key={e.id} className="qr-ent" onClick={() => remove(e)} title={word("deleteQ", lang)}>
+      <button
+        key={e.id}
+        className={`qr-ent ${KIND_SIDE[e.kind]}${e.paymentMode === "CREDIT" ? " udhaar" : KIND_SIDE[e.kind] === "in" ? " paid" : ""}`}
+        onClick={() => remove(e)}
+        title={word("deleteQ", lang)}
+      >
         <G e={KIND_ICON[e.kind]} /> <span className="m">{hm(e.createdAt)}</span>
         {(day?.proofs?.[e.id] || []).length > 0 && (
           <span className="qr-badge" title={word("proofTitle", lang)}>
@@ -1579,6 +1594,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   const [wsKey, setWsKey] = useState(0);
   const wsReset = () => setWsKey((k) => k + 1);
   const wsSaved = (msg?: string) => {
+    celebrate();
     toast(msg || word("saved", lang));
     load();
     wsReset();
@@ -1705,6 +1721,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   // ----------------------------- sheets --------------------------------
   const done = (msg?: string) => {
     setSheet(null);
+    celebrate();
     toast(msg || word("saved", lang));
     load();
   };
@@ -1805,6 +1822,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
 
   const POS_KINDS = ["SALE", "FRESH_CRUSH", "UDHAAR_IN", "PURCHASE", "EXPENSE", "PAYMENT"] as const;
   const posSaved = (msg?: string) => {
+    celebrate();
     toast(msg || word("saved", lang));
     load();
     setPosKey((k) => k + 1); // fresh form for the next customer
@@ -2033,6 +2051,17 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
           <button className="qr-btn2" onClick={() => recRef.current?.stop()}>
             ✓ {word("done", lang)}
           </button>
+        </div>
+      )}
+      {tick > 0 && (
+        <div className="qr-saved" key={tick} aria-hidden>
+          <span className="rp" />
+          <span className="rp r2" />
+          <span className="ok">
+            <svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round">
+              <path d="m5 12.5 4.5 4.5L19 7.5" />
+            </svg>
+          </span>
         </div>
       )}
       {toastMsg && (

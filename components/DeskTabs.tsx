@@ -82,6 +82,14 @@ export default function DeskTabs({
   useEffect(() => {
     if (isOwner && !picked.current) setActive("home");
   }, [isOwner]);
+  // Phone tab bar links like /?desk=parties open that desk directly.
+  useEffect(() => {
+    const want = new URLSearchParams(window.location.search).get("desk") as Desk | null;
+    if (want && want !== "home" && ["jobwork", "manufacturing", "closing", "sales", "purchase", "expenses", "reports", "parties", "inventory", "scales", "vyapar", "ledger", "settings"].includes(want)) {
+      picked.current = true;
+      setActive(want);
+    }
+  }, []);
   const open = (d: Desk) => {
     picked.current = true;
     setActive(d);
