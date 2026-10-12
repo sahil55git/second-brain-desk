@@ -9,7 +9,7 @@
 // Windows / Material-style high-contrast mode; translucent "glass" panels;
 // Notion-style font choice; accessibility text size and reduced motion.
 
-export type FontKey = "default" | "system" | "inter" | "rounded" | "serif" | "mono" | "kannada";
+export type FontKey = "default" | "system" | "inter" | "rounded" | "serif" | "mono" | "kannada" | "earth" | "ink";
 export type Density = "compact" | "comfortable" | "spacious";
 export type Pattern = "none" | "gradient" | "dots" | "grid" | "sunrise";
 export type TileStyle = "solid" | "soft" | "outline";
@@ -19,10 +19,13 @@ export type TileStyle = "solid" | "soft" | "outline";
  *   neon  — dark navy, see-through glowing glass cards, neon blue / pink light
  *   frost — smoky frosted glass over a warm bronze background, lime accents
  *   soft  — bright soft-grey cards, big numbers, gentle shadows (best in daylight)
+ *   earth — linen paper, flat cream cards, clay and sage, serif numbers (Earth & Clay design)
+ *   pastel — lavender colour glass, white pills, tinted cards (Pastel Liquid design)
+ *   ink   — dark ink, see-through glass, oil-gold and teal light (Neon Glow / "Mahadev Glass" design)
  * Every skin gives buttons the "liquid glass" finish (shine on top, coloured glow under).
  */
-export type Skin = "none" | "neon" | "frost" | "soft";
-export const SKINS: readonly Skin[] = ["none", "neon", "frost", "soft"];
+export type Skin = "none" | "neon" | "frost" | "soft" | "earth" | "pastel" | "ink";
+export const SKINS: readonly Skin[] = ["none", "neon", "frost", "soft", "earth", "pastel", "ink"];
 
 export interface CustomTheme {
   bg: string;
@@ -84,6 +87,8 @@ export const FONTS: Record<FontKey, { label: string; stack: string | null; googl
   rounded: { label: "Rounded (Baloo, Kannada-friendly)", stack: '"Baloo Tamma 2", "Noto Sans Kannada", system-ui, sans-serif', google: "Baloo+Tamma+2:wght@500;700;800", sample: "Aa ಅ" },
   serif: { label: "Serif (ledger book)", stack: '"Noto Serif", "Noto Serif Kannada", Georgia, serif', google: "Noto+Serif:wght@400;700&family=Noto+Serif+Kannada:wght@400;700", sample: "Aa ಅ" },
   mono: { label: "Monospace (numbers line up)", stack: '"JetBrains Mono", "Noto Sans Kannada", ui-monospace, monospace', google: "JetBrains+Mono:wght@400;700", sample: "Aa ಅ 0123" },
+  earth: { label: "Earth (Manrope + Fraunces numbers)", stack: '"Manrope", "Noto Sans Kannada", system-ui, sans-serif', google: "Manrope:wght@500;700;800&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600&family=Noto+Sans+Kannada:wght@400;600", sample: "Aa ಅ" },
+  ink: { label: "Ink (Plus Jakarta + Sora numbers)", stack: '"Plus Jakarta Sans", "Noto Sans Kannada", system-ui, sans-serif', google: "Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@300;400;600;700&family=Noto+Sans+Kannada:wght@400;600", sample: "Aa ಅ" },
   kannada: { label: "Noto Sans Kannada (best for ಕನ್ನಡ)", stack: '"Noto Sans Kannada", "Noto Sans", system-ui, sans-serif', google: "Noto+Sans+Kannada:wght@400;600;800&family=Noto+Sans:wght@400;600;800", sample: "Aa ಅ" },
 };
 
@@ -118,9 +123,11 @@ export const THEME_PRESETS: ThemePreset[] = [
   { key: "mustard-field", label: "Mustard Field", mode: "light", accent: "#b7791f", colors: { bg: "#fffbea", fg: "#3b2f0b", card: "#fff3c4", accent: "#b7791f" } },
   { key: "glass-sky", label: "Glass Sky", mode: "light", accent: "#2563eb", colors: { bg: "#e8f0fe", fg: "#10213f", card: "#ffffff", accent: "#2563eb" }, look: { pattern: "gradient", panelOpacity: 0.72 } },
   // Design directions approved on the canvas (Oct 2026).
-  { key: "earth-clay", label: "Earth & Clay (linen, clay, sage)", mode: "light", accent: "#b5643c", colors: { bg: "#efe7d8", fg: "#2e2a24", card: "#f7f2e7", accent: "#b5643c" }, look: { radius: 1.2, tileStyle: "soft", pattern: "grid" } },
-  { key: "pastel-liquid", label: "Pastel Liquid (soft colour glass)", mode: "light", accent: "#8e6cc9", colors: { bg: "#fdf3f6", fg: "#3b2f4a", card: "#ffffff", accent: "#8e6cc9" }, look: { radius: 1.5, panelOpacity: 0.85, pattern: "gradient" } },
-  { key: "neon-glow", label: "Neon Glow (dark ink, oil gold)", mode: "dark", accent: "#c6f432", colors: { bg: "#161210", fg: "#f5ebdd", card: "#221b17", accent: "#c6f432" }, look: { radius: 1, tileStyle: "outline", contrast: "normal" } },
+  // The three designs below take their colours, fonts and surfaces from the design boards
+  // (E2 Earth & Clay, D2 Pastel Liquid, A "Mahadev Glass" neon glow); the look lives in app/skins.css.
+  { key: "earth-clay", label: "Earth & Clay (linen, clay, sage)", mode: "light", accent: "#b5643c", colors: { bg: "#efe7d8", fg: "#2e2a24", card: "#f7f2e7", accent: "#b5643c" }, look: { skin: "earth", font: "earth", radius: 1, panelOpacity: 1, pattern: "none" } },
+  { key: "pastel-liquid", label: "Pastel Liquid (colour glass)", mode: "light", accent: "#6d4ae0", colors: { bg: "#f3eefb", fg: "#2a2140", card: "#ffffff", accent: "#6d4ae0" }, look: { skin: "pastel", font: "rounded", radius: 1, panelOpacity: 0.72, pattern: "none" } },
+  { key: "neon-glow", label: "Neon Glow (dark ink, oil gold)", mode: "dark", accent: "#f6b73c", colors: { bg: "#070b18", fg: "#eef1fa", card: "#121a33", accent: "#f6b73c" }, look: { skin: "ink", font: "ink", radius: 1, panelOpacity: 0.7, pattern: "none" } },
   { key: "high-contrast", label: "High contrast", mode: "dark", accent: "#ffd400", colors: { bg: "#000000", fg: "#ffffff", card: "#0b0b0b", accent: "#ffd400" }, look: { contrast: "high", tileStyle: "solid" } },
 ];
 
