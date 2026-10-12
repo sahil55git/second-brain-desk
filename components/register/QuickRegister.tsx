@@ -2117,8 +2117,22 @@ function AmountPad({
     onType(next === "." ? "0." : next);
   };
   const shown = value ? Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "0";
+  // Keypad can be hidden (remembered on this device); the amount box still takes typing.
+  const [padOff, setPadOff] = useState(false);
+  useEffect(() => {
+    try {
+      setPadOff(localStorage.getItem("qr-pad") === "off");
+    } catch {}
+  }, []);
+  const togglePad = () => {
+    const next = !padOff;
+    setPadOff(next);
+    try {
+      localStorage.setItem("qr-pad", next ? "off" : "on");
+    } catch {}
+  };
   return (
-    <div className="pos-amt">
+    <div className={`pos-amt${padOff ? " pad-off" : ""}`}>
       <div className="pa-box">
         <div className="pa-l">
           <span className="pa-k">
@@ -2145,16 +2159,25 @@ function AmountPad({
           </button>
         )}
       </div>
-      <div className="pa-keys">
-        {PAD_KEYS.map((k) => (
-          <button key={k} type="button" className={k === "⌫" || k === "C" ? "fn" : ""} onClick={() => press(k)} aria-label={k === "⌫" ? "Delete" : k === "C" ? "Clear" : k}>
-            {k}
-          </button>
-        ))}
-      </div>
+      {!padOff && (
+        <div className="pa-keys">
+          {PAD_KEYS.map((k) => (
+            <button key={k} type="button" className={k === "⌫" || k === "C" ? "fn" : ""} onClick={() => press(k)} aria-label={k === "⌫" ? "Delete" : k === "C" ? "Clear" : k}>
+              {k}
+            </button>
+          ))}
+        </div>
+      )}
+      <button type="button" className="pa-toggle" onClick={togglePad} aria-expanded={!padOff}>
+        <span className="ic" aria-hidden>{padOff ? "▾" : "▴"}</span>
+        <Txt k={padOff ? "showPad" : "hidePad"} lang={lang} />
+      </button>
     </div>
   );
 }
+
+// One item already added to a multi-item bill (the form holds the next one).
+type DraftLine = { item: string | null; otherName: string; qty: number | null; unit: string; rate: number | null; amount: number };
 
 function EntrySheet({
   kind,
@@ -2227,6 +2250,8 @@ function EntrySheet({
   // The photo the AI read this entry from: filed with the entry, but it does NOT
   // count as the owner's "proof of payment" (that stays a signature / recipient photo).
   const [billPhoto, setBillPhoto] = useState<Captured | null>(init?.photo || null);
+  // Multi-item bill: items already added; the form above is the next item.
+  const [bill, setBill] = useState<DraftLine[]>([]);
 
   // Auto amount = qty × rate, computed on every render (no lag) until the
   // amount is typed by hand.
@@ -2239,10 +2264,54 @@ function EntrySheet({
 
   const showItemwise = !(kind === "SALE" && totalMode === "total");
   const unitObj = UNITS.find((u) => u.key === unit) || UNITS[0];
+  const canBill = showItemwise && hasQty && items.length > 0;
+  const billOn = canBill && bill.length > 0;
+  const curAmt = parseFloat(amountValue) || 0;
+  const itemName = (k: string | null, other: string) => {
+    if (k === "other") return other.trim();
+    const c = items.find((i) => i.key === k);
+    return c ? (lang === "kn" ? c.kn : c.en) : "";
+  };
+  const curLine = (): DraftLine => ({
+    item,
+    otherName: otherName.trim(),
+    qty: parseFloat(qty) || null,
+    unit,
+    rate: parseFloat(rate) || null,
+    amount: Math.round(curAmt * 100) / 100,
+  });
+  // Bill total = items already added + the item being entered now.
+  const billTotal = billOn ? Math.round((bill.reduce((a, l) => a + l.amount, 0) + curAmt) * 100) / 100 : curAmt;
+  function addToBill() {
+    if (!(curAmt > 0)) return toast(word("needAmount", lang));
+    if (item === "other" && !otherName.trim()) return toast(word("itemName", lang));
+    setBill((b) => [...b, curLine()]);
+    setQty("");
+    setAmount("");
+    setAmtTouched(false);
+    setOtherName("");
+    toast(word("billAdded", lang));
+  }
+  // Tap an added item to bring it back into the form (the form's item goes to the bill).
+  function editLine(i: number) {
+    const ln = bill[i];
+    setBill((b) => {
+      const rest = b.filter((_, j) => j !== i);
+      return curAmt > 0 && !(item === "other" && !otherName.trim()) ? [...rest, curLine()] : rest;
+    });
+    setItem(ln.item);
+    setOtherName(ln.otherName);
+    setQty(ln.qty ? String(ln.qty) : "");
+    setUnit(ln.unit || "kg");
+    setRate(ln.rate ? String(ln.rate) : "");
+    const auto = ln.qty && ln.rate ? Math.round(ln.qty * ln.rate * 100) / 100 : 0;
+    setAmount(String(ln.amount));
+    setAmtTouched(Math.abs(auto - ln.amount) > 0.001);
+  }
 
   // Owner's rule (Settings): cash leaving the counter needs a proof.
   const proofRequired =
-    proofKind && mode === "CASH" && proofNeeded(day.config.proofRequired || [], kind, parseFloat(amountValue) || 0, day.config.proofMinInr || 0);
+    proofKind && mode === "CASH" && proofNeeded(day.config.proofRequired || [], kind, billTotal, day.config.proofMinInr || 0);
 
   // ---- live checks (they only point things out — Save is never blocked) ----
   const recent = useRecentEntries(date);
@@ -2284,9 +2353,13 @@ function EntrySheet({
   }
 
   async function save() {
-    const amt = parseFloat(amountValue);
+    // A bill: the items added + the one in the form (if it has an amount).
+    const lines = billOn ? (curAmt > 0 ? [...bill, curLine()] : bill) : [];
+    if (billOn && curAmt > 0 && item === "other" && !otherName.trim()) return toast(word("itemName", lang));
+    const amt = billOn ? Math.round(lines.reduce((a, l) => a + l.amount, 0) * 100) / 100 : parseFloat(amountValue);
     if (!(amt > 0)) return toast(word("needAmount", lang));
-    if (item === "other" && showItemwise && !otherName.trim()) return toast(word("itemName", lang));
+    if (!billOn && item === "other" && showItemwise && !otherName.trim()) return toast(word("itemName", lang));
+    const one = lines.length === 1 ? lines[0] : null; // only the added item, form left empty
     if (proofRequired && !proofs.length) return toast(word("proofNeeded", lang));
     let payFields: Record<string, unknown> = { paymentMode: mode };
     if (kind === "SALE") {
@@ -2305,11 +2378,19 @@ function EntrySheet({
           amountInr: amt,
           ...payFields,
           totalSale: kind === "SALE" && totalMode === "total",
-          item: showItemwise ? item : null,
-          itemLabel: showItemwise && item === "other" ? otherName.trim() : null,
-          qty: showItemwise && hasQty ? parseFloat(qty) || null : null,
-          unit: showItemwise && hasQty ? unit : null,
-          rateInr: showItemwise && hasQty ? parseFloat(rate) || null : null,
+          ...(one
+            ? { item: one.item, itemLabel: one.item === "other" ? one.otherName : null, qty: one.qty, unit: one.qty ? one.unit : null, rateInr: one.rate }
+            : {
+                item: showItemwise ? item : null,
+                itemLabel: showItemwise && item === "other" ? otherName.trim() : null,
+                qty: showItemwise && hasQty ? parseFloat(qty) || null : null,
+                unit: showItemwise && hasQty ? unit : null,
+                rateInr: showItemwise && hasQty ? parseFloat(rate) || null : null,
+              }),
+          lines:
+            lines.length > 1
+              ? lines.map((l) => ({ item: l.item, itemLabel: l.item === "other" ? l.otherName : null, qty: l.qty, unit: l.unit, rate: l.rate, amount: l.amount }))
+              : undefined,
           partyName: party.trim() || null,
           notes: notes.trim() || null,
           drawKind: kind === "OWNER_DRAW" ? drawKind : null,
@@ -2506,9 +2587,57 @@ function EntrySheet({
         </div>
       )}
 
+      {canBill && (
+        <div className="qr-f qr-bill">
+          {bill.length > 0 && (
+            <div className="qb-list">
+              <div className="qb-head">
+                <span>
+                  <Txt k="billItems" lang={lang} />
+                </span>
+                <span>{bill.length + (curAmt > 0 ? 1 : 0)} {word("items", lang)}</span>
+              </div>
+              {bill.map((l, i) => (
+                <div className="qb-row" key={i}>
+                  <button type="button" className="qb-main" onClick={() => editLine(i)}>
+                    <span className="qb-n">{i + 1}</span>
+                    <span className="qb-name">
+                      {itemName(l.item, l.otherName)}
+                      {l.qty ? <small> · {l.qty} {lang === "kn" ? (UNITS.find((u) => u.key === l.unit) || UNITS[0]).kn : (UNITS.find((u) => u.key === l.unit) || UNITS[0]).en}{l.rate ? ` × ₹${l.rate}` : ""}</small> : null}
+                    </span>
+                    <b>{rs(l.amount)}</b>
+                  </button>
+                  <button type="button" className="qb-x" aria-label={word("removeQ", lang)} onClick={() => setBill((b) => b.filter((_, j) => j !== i))}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {curAmt > 0 && (
+                <div className="qb-row cur">
+                  <span className="qb-main">
+                    <span className="qb-n">{bill.length + 1}</span>
+                    <span className="qb-name">{itemName(item, otherName) || "—"}<small> · {word("billNextItem", lang)}</small></span>
+                    <b>{rs(curAmt)}</b>
+                  </span>
+                </div>
+              )}
+              <div className="qb-total">
+                <span>
+                  <Txt k="billTotal" lang={lang} />
+                </span>
+                <b>{rs(billTotal)}</b>
+              </div>
+            </div>
+          )}
+          <button type="button" className="qr-addbill" onClick={addToBill}>
+            <span className="pl">+</span> <Txt k="addToBill" lang={lang} />
+          </button>
+        </div>
+      )}
+
       {side !== "oth" && kind === "SALE" && (
         <div className={pos ? "pos-pay" : undefined}>
-          <PayPicker lang={lang} total={parseFloat(amountValue) || 0} state={pay} onChange={setPay} />
+          <PayPicker lang={lang} total={billTotal} state={pay} onChange={setPay} />
         </div>
       )}
       {side !== "oth" && kind !== "SALE" && (
@@ -2546,7 +2675,7 @@ function EntrySheet({
         <PaymentProof
           lang={lang}
           title={word(kind as WordKey, "en")}
-          amount={parseFloat(amountValue) || 0}
+          amount={billTotal}
           party={party}
           required={!!proofRequired}
           value={proofs}
@@ -2571,9 +2700,9 @@ function EntrySheet({
         <div className="pos-savebar">
           <div className="ps-sum">
             <small>
-              {[showItemwise && item ? (item === "other" ? otherName : pairLabel(items.find((i) => i.key === item)?.en || "", items.find((i) => i.key === item)?.kn || "", "en").main) : "", showItemwise && hasQty && qty ? `${qty} ${lang === "kn" ? unitObj.kn : unitObj.en}` : ""].filter(Boolean).join(" · ") || word(kind as WordKey, lang)}
+              {billOn ? `${bill.length + (curAmt > 0 ? 1 : 0)} ${word("items", lang)} · ${word("billTotal", lang)}` : [showItemwise && item ? (item === "other" ? otherName : pairLabel(items.find((i) => i.key === item)?.en || "", items.find((i) => i.key === item)?.kn || "", "en").main) : "", showItemwise && hasQty && qty ? `${qty} ${lang === "kn" ? unitObj.kn : unitObj.en}` : ""].filter(Boolean).join(" · ") || word(kind as WordKey, lang)}
             </small>
-            <b>{rs(parseFloat(amountValue) || 0)}</b>
+            <b>{rs(billTotal)}</b>
           </div>
           <button className={`qr-save ${side === "in" ? "" : side === "out" ? "out" : "oth"}`} onClick={save} disabled={!!busy}>
             ✓ {busy === "proof" ? word("proofSaving", lang) : word(busy ? "saving" : hasAlert(checks) ? "saveAnyway" : "save", lang)}

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, isValidDate, loadConfig, loadDay, saveConfig } from "@/lib/registerServer";
-import { ALL_KINDS, KIND_SIDE, channelToMode, learnItem, normalizeFreshCrush, normalizeSplit, rateKey, type RegisterKind } from "@/lib/register";
+import { ALL_KINDS, KIND_SIDE, allocateBill, channelToMode, learnItem, normalizeBillLines, normalizeFreshCrush, normalizeSplit, rateKey, type BillLine, type RegisterKind } from "@/lib/register";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +62,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Enter the customer's name for the udhaar part." }, { status: 400 });
     }
   }
+  // Multi-item bill (sale / purchase): several item lines, one payment.
+  let billLines: BillLine[] | null = null;
+  if ((kind === "SALE" || kind === "PURCHASE") && body.totalSale !== true && Array.isArray(body.lines) && body.lines.length > 1) {
+    const nb = normalizeBillLines(body.lines);
+    if (!nb.ok) return NextResponse.json({ error: nb.error }, { status: 400 });
+    const sum = Math.round(nb.lines.reduce((a, l) => a + l.amount, 0) * 100) / 100;
+    if (Math.abs(sum - Math.round(amount * 100) / 100) > 0.01) {
+      return NextResponse.json({ error: `Items add up to ₹${sum} but the bill is ₹${amount}` }, { status: 400 });
+    }
+    billLines = nb.lines;
+  }
   const side = KIND_SIDE[kind];
   // A sale taken fully on the owner's personal PhonePe: mode OTHER + channel tag.
   const ownerPhonePe = (kind === "SALE" || kind === "FRESH_CRUSH") && body.payChannel === "OWNER_PHONEPE";
@@ -92,6 +103,21 @@ export async function POST(req: NextRequest) {
       cfg = { ...cfg, rates: { ...cfg.rates, [key]: rate } };
       cfgChanged = true;
     }
+    if (billLines) {
+      // Every line of a bill teaches the library its "Other" name and rate too.
+      for (const ln of billLines) {
+        if (ln.item === "other" && ln.itemLabel) {
+          const learned = learnItem(cfg, kind, ln.itemLabel);
+          cfg = learned.cfg;
+          ln.item = learned.key;
+          cfgChanged = true;
+        }
+        if (ln.item && ln.rate) {
+          cfg = { ...cfg, rates: { ...cfg.rates, [rateKey(kind, ln.item)]: ln.rate } };
+          cfgChanged = true;
+        }
+      }
+    }
     if (cfgChanged) await saveConfig(cfg);
 
     // 2. Party library: link to the shared Party master (create if new) so
@@ -114,6 +140,47 @@ export async function POST(req: NextRequest) {
             select: { id: true },
           })
         ).id;
+    }
+
+    if (billLines) {
+      const lines = billLines;
+      const gid = `bl_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+      const parts: { channel: string; amount: number }[] =
+        splitParts && splitParts.ok && splitParts.parts.length > 1
+          ? splitParts.parts
+          : [{ channel: ownerPhonePe ? "OWNER_PHONEPE" : mode, amount }];
+      const rows = allocateBill(lines, parts);
+      const n = rows.length;
+      const created = await prisma.$transaction(
+        rows.map((r, idx) => {
+          const ln = lines[r.line];
+          return prisma.registerEntry.create({
+            data: {
+              date: body.date,
+              kind,
+              item: ln.item,
+              itemLabel: ln.itemLabel,
+              // Quantity and rate on the first row of each item only.
+              qty: r.first ? ln.qty : null,
+              unit: r.first ? ln.unit : null,
+              rateInr: r.first ? ln.rate : null,
+              amountInr: r.amount,
+              paymentMode: r.channel === "OWNER_PHONEPE" ? "OTHER" : (r.channel as (typeof MODES)[number]),
+              totalSale: false,
+              partyName,
+              partyId,
+              notes,
+              details: {
+                split: { id: gid, i: idx + 1, n, total: amount },
+                bill: { line: r.line + 1, lines: lines.length },
+                ...(r.channel === "OWNER_PHONEPE" ? { channel: "OWNER_PHONEPE" } : {}),
+              },
+              createdByName: user.name || null,
+            },
+          });
+        })
+      );
+      return created[0];
     }
 
     if (splitParts && splitParts.ok && splitParts.parts.length > 1) {
