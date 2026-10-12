@@ -10,6 +10,7 @@ import { businessDate } from "@/lib/register";
 import { OIL_TYPES, YIELD_BAND_LABELS, computeBarrelYield } from "@/lib/mfgCalculations";
 import { STEP_LABELS, dueNote, monthStats, nextStep, suggestNextBarrel, toInput, type BatchLite } from "@/lib/mfgQuick";
 import type { MfgBatchDTO } from "@/lib/types";
+import { G } from "@/components/register/Glyph";
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 const kg = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${r1(v)} kg`);
@@ -139,7 +140,7 @@ export default function MfgQuick({ startNew = false }: { startNew?: boolean } = 
       <div key={b.id} className={`tly-card ${state}`}>
         <div className="stk-head">
           <div>
-            <div className="tly-nm">🛢️ Barrel {b.barrel} · {b.productItem}</div>
+            <div className="tly-nm"><G e="🛢️" /> Barrel {b.barrel} · {b.productItem}</div>
             <div className="tly-note">
               {b.date}{b.mill ? ` · ${b.mill}` : ""} · {b.suppliers.map((s) => `${s.name || "?"} ${kg(s.seedKg)}`).join(" + ")} = <b>{kg(totalSeed)}</b> seed
             </div>
@@ -179,7 +180,7 @@ export default function MfgQuick({ startNew = false }: { startNew?: boolean } = 
             <div>Loss<b>{y.unaccountedLossPct != null ? `${r1(y.unaccountedLossPct)}%` : "—"}</b></div>
           </div>
         )}
-        {flags.map((f) => <div key={f} className="mq-flag">⚠ {f}</div>)}
+        {flags.map((f) => <div key={f} className="mq-flag"><G e="⚠" /> {f}</div>)}
 
         <div className="stk-row">
           {editing && <button className="hub-btn sm" style={{ background: "var(--h-acc)", color: "#fff" }} disabled={busy === b.id} onClick={() => saveSteps(b)}>{busy === b.id ? "Saving…" : "✓ Save steps"}</button>}
@@ -193,14 +194,14 @@ export default function MfgQuick({ startNew = false }: { startNew?: boolean } = 
     <div className="hub">
       <header className="hub-top">
         <div>
-          <h1>🏭 Manufacturing</h1>
+          <h1><G e="🏭" /> Manufacturing</h1>
           <div className="hub-m">Karadi / safflower barrels — start a barrel, enter each step, see the yield.</div>
         </div>
         <nav className="hub-links">
-          <a className="hub-btn" href="/register">📒 Quick Register</a>
-          <a className="hub-btn" href="/go">🔗 Quick links</a>
-          <a className="hub-btn" href="/tallies">🧮 Tallies</a>
-          <a className="hub-btn" href="/">🗂️ Full desk</a>
+          <a className="hub-btn" href="/register"><G e="📒" /> Quick Register</a>
+          <a className="hub-btn" href="/go"><G e="🔗" /> Quick links</a>
+          <a className="hub-btn" href="/tallies"><G e="🧮" /> Tallies</a>
+          <a className="hub-btn" href="/"><G e="🗂️" /> Full desk</a>
         </nav>
       </header>
 
@@ -216,7 +217,7 @@ export default function MfgQuick({ startNew = false }: { startNew?: boolean } = 
 
       <section className="hub-card">
         <div className="hub-card-head">
-          <h3>➕ Start a new barrel</h3>
+          <h3><G e="➕" /> Start a new barrel</h3>
           <div className="hr stk-row"><button className="hub-btn sm" onClick={() => setShowNew(!showNew)}>{showNew ? "Close" : "Open form"}</button></div>
         </div>
         {showNew && (
@@ -244,11 +245,11 @@ export default function MfgQuick({ startNew = false }: { startNew?: boolean } = 
         )}
       </section>
 
-      <div className="tly-sec">🟠 Open barrels ({open.length})</div>
+      <div className="tly-sec"><G e="🛢️" /> Open barrels ({open.length})</div>
       {!batches && !err ? <div className="hub-empty">Loading…</div> : open.length ? <div className="tly-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))" }}>{open.map(card)}</div> : <div className="hub-empty">No open barrels. Start one above.</div>}
 
       <div className="tly-sec" style={{ display: "flex", justifyContent: "space-between" }}>
-        <span>✅ Finished barrels ({done.length})</span>
+        <span><G e="✅" /> Finished barrels ({done.length})</span>
         {done.length > 0 && <button className="hub-btn sm" onClick={() => setShowDone(!showDone)}>{showDone ? "Hide" : "Show"}</button>}
       </div>
       {showDone && <div className="tly-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))" }}>{done.slice(0, 12).map(card)}</div>}

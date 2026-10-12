@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./register.css";
+import "./qr-design.css";
 
 export const metadata: Metadata = {
   title: "Quick Register — Mahadev Traders",
