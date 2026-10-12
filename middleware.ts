@@ -9,11 +9,39 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { BUILTIN_PROFILES, effectivePerms, pagesForPath, pathAllowed, type Perms } from "@/lib/access";
+import { internalKey } from "@/lib/accessKey";
 
 const OWNER_ONLY_PATHS = ["/settings", "/reports", "/records"];
 
+// Profiles live in the database, which the edge cannot reach, so we ask a small
+// internal route and remember the answer for a few seconds per login.
+type Entry = { at: number; v: { active: boolean; isOwner: boolean; perms: Perms } | null };
+const cache = new Map<string, Entry>();
+const TTL_MS = 15_000;
+
+async function lookup(req: NextRequest, username: string): Promise<Entry["v"]> {
+  const hit = cache.get(username);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.v;
+  let v: Entry["v"] = null;
+  try {
+    const key = await internalKey();
+    if (!key) return null;
+    const res = await fetch(new URL(`/api/access/internal?u=${encodeURIComponent(username)}`, req.url), { headers: { "x-access-key": key } });
+    if (res.ok) v = ((await res.json()) as { data: Entry["v"] }).data;
+  } catch {
+    v = null;
+  }
+  if (v) cache.set(username, { at: Date.now(), v });
+  return v;
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // The internal check route is called by this very middleware (without a login):
+  // it guards itself with a secret header, so let it through before anything else.
+  if (pathname.startsWith("/api/access/internal")) return NextResponse.next();
 
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
 
@@ -23,11 +51,25 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (
-    OWNER_ONLY_PATHS.some((p) => pathname.startsWith(p)) &&
-    token.role !== "OWNER"
-  ) {
-    return NextResponse.redirect(new URL("/", req.url));
+  const isApi = pathname.startsWith("/api/");
+  const deny = (msg: string) =>
+    isApi ? NextResponse.json({ error: msg }, { status: 403 }) : NextResponse.redirect(new URL("/", req.url));
+
+  if (token.role === "OWNER") return NextResponse.next();
+
+  if (OWNER_ONLY_PATHS.some((p) => pathname.startsWith(p))) return deny("Owner access required.");
+
+  // Staff: their profile decides which pages (and the APIs behind them) they may open.
+  const a = await lookup(req, String(token.username || token.name || ""));
+  if (a && !a.active) {
+    return isApi
+      ? NextResponse.json({ error: "This login has been switched off." }, { status: 403 })
+      : NextResponse.redirect(new URL("/login?off=1", req.url));
+  }
+  if (pagesForPath(pathname)) {
+    // Database unreachable: fall back to the manager rules rather than opening everything.
+    const perms = a ? a.perms : effectivePerms(false, BUILTIN_PROFILES[1].perms);
+    if (!pathAllowed(perms, pathname)) return deny("Your profile does not include this page.");
   }
 
   return NextResponse.next();

@@ -30,6 +30,7 @@ export async function getUser(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return null;
   return {
+    username: (token.username as string) || "",
     name: (token.name as string) || (token.username as string) || "",
     role: (token.role as string) || "STAFF",
     isOwner: token.role === "OWNER",

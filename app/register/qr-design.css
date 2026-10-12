@@ -545,3 +545,6 @@ html[data-skin] .qr .qr-ent.udhaar::before { background: var(--q-oth); }
 html[data-skin] .qr .qr-ent.out::before { background: var(--q-out); }
 html[data-skin="earth"] .qr .qr-ent.paid::before { background: #7e8b67; }
 html[data-skin="earth"] .qr .qr-ent.udhaar::before { background: #b5643c; }
+
+html[data-skin] .qr .qr-wbar button { border-color: var(--q-line); background: var(--q-surface-2); color: var(--q-ink); }
+html[data-skin] .qr .qr-win.min { border-color: var(--q-line); }

@@ -8,6 +8,9 @@
 import UdhaarHint from "./UdhaarHint";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useAccess } from "@/components/AccessProvider";
+import { kindToFn, MASK, type FnKey } from "@/lib/access";
+import { DEFAULT_WIN, WIN_LABEL, hideWin, moveWin, normalizeWin, showWin, toggleMin, type WinState } from "@/lib/workspaceWin";
 import {
   CAN_TYPES,
   STANDARD_RATE,
@@ -78,6 +81,7 @@ import MfgQuick from "@/components/mfg/MfgQuick";
 import BillSheet from "@/components/register/BillSheet";
 import { useCustomize } from "@/lib/customize";
 import { BrandMark, Icon, type IconName } from "@/components/ui/Icons";
+import { BUILTIN_SIMPLE, assignedMode, type SimpleMode } from "@/lib/simpleMode";
 import { G, useSkinned } from "@/components/register/Glyph";
 
 // Pre-fill for an entry form: from a voice command, or from a scanned slip
@@ -184,7 +188,8 @@ type TileKey =
   | "estimate"
   | "reports"
   | "scan"
-  | "smart";
+  | "smart"
+  | "cashtally";
 type SectionKey = "summary" | "entries" | "jobwork";
 // What the always-open Workspace card shows.
 type WorkTool = "calc" | "estimate" | "notepad" | "FRESH_CRUSH" | "SALE" | "EXPENSE" | "PURCHASE" | "jwNew" | "count" | "stock";
@@ -666,13 +671,28 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   // POS counter mode: one big entry window + today's list, nothing else on screen.
   // /register/pos opens straight into it; the POS button switches in place.
   const [posMode, setPosMode] = useState(startPos);
+  // Simple mode (🧸): a few big buttons chosen by the owner. null = not decided yet (waits for the day to load).
+  const [simpleOn, setSimpleOn] = useState<boolean | null>(null);
   const [posKind, setPosKind] = useState<"SALE" | "FRESH_CRUSH" | "UDHAAR_IN" | "PURCHASE" | "EXPENSE" | "PAYMENT">("SALE");
   const [posKey, setPosKey] = useState(0);
 
   const [date, setDate] = useState(todayIST);
   const [day, setDay] = useState<DayBundle | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<Sheet>(null);
+  const acc = useAccess();
+  const toastRef = useRef<((m: string) => void) | null>(null);
+  const [sheet, setSheetRaw] = useState<Sheet>(null);
+  // A profile can switch functions off: refuse them here too (the server refuses them as well).
+  const sheetFn = (v: NonNullable<Sheet>): FnKey | null =>
+    v.t === "entry" ? kindToFn(v.kind) : v.t === "fresh" || v.t === "bill" ? "sale" : v.t === "jw" || v.t === "jwpay" ? "jobwork" : v.t === "count" ? "count" : v.t === "stock" ? "stock" : v.t === "report" ? "reports" : null;
+  const setSheet = (v: Sheet) => {
+    const need = v ? sheetFn(v) : null;
+    if (need && !acc.fn(need)) {
+      toastRef.current?.("Not in your profile");
+      return;
+    }
+    setSheetRaw(v);
+  };
   const [editFavs, setEditFavs] = useState(false);
   const [prefs, setPrefsState] = useState<Prefs>(DEFAULT_PREFS);
   const [hasLocalPrefs, setHasLocalPrefs] = useState(true);
@@ -703,8 +723,38 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   // Side by side needs a tablet/laptop-width screen; phones always stack.
   const canSide = useMedia("(min-width: 760px)");
   const wide = useMedia("(min-width: 1100px)");
-  const sideBySide = canSide && (prefs.layout === "side" || (prefs.layout === "auto" && wide));
+  const sideBySide = simpleOn !== true && canSide && (prefs.layout === "side" || (prefs.layout === "auto" && wide));
   const splitRef = useRef<HTMLDivElement>(null);
+  const rightRef = useRef<HTMLDivElement>(null);
+  // Right-hand windows (entry form, workspace, job-work, entries): hide / fold / move, saved for this login on this device.
+  const winKey = `qr-win-v1:${String((session?.user as { username?: string } | undefined)?.username || "me")}`;
+  const [wins, setWinsState] = useState<WinState>(DEFAULT_WIN);
+  useEffect(() => {
+    try {
+      setWinsState(normalizeWin(JSON.parse(localStorage.getItem(winKey) || "null")));
+    } catch { /* storage blocked: keep the default arrangement */ }
+  }, [winKey]);
+  const setWins = (fn: (w: WinState) => WinState) =>
+    setWinsState((w) => {
+      const next = fn(w);
+      try { localStorage.setItem(winKey, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  // Tapping a tile on the left opens its form on the right and brings that panel into view,
+  // wherever the page is scrolled. The form window is shown again if it was hidden or folded.
+  useEffect(() => {
+    if (!sheet || !sideBySide) return;
+    if (wins.hid.includes("form") || wins.min.includes("form")) setWins((w) => showWin(w, "form"));
+    const t = window.setTimeout(() => {
+      const el = rightRef.current;
+      if (!el) return;
+      el.scrollTop = 0;
+      const top = el.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+    }, 30);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheet, sideBySide]);
   const floatRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
   // Drag the divider between the buttons column and the forms / tables.
@@ -753,6 +803,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     setToastMsg(m);
     window.setTimeout(() => setToastMsg(null), 1800);
   }, []);
+  toastRef.current = toast;
 
   const load = useCallback(async () => {
     try {
@@ -787,6 +838,44 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     }
   };
 
+  // ---- Simple mode (🧸): the owner's chosen big buttons for this person ----
+  const username = String((session?.user as { username?: string } | undefined)?.username || "");
+  const myMode = assignedMode(username, day?.config.simpleModes || [], day?.config.simpleAssign || {});
+  const simple: SimpleMode = myMode || BUILTIN_SIMPLE;
+  const simpleKey = `qr-simple-v1:${username || "me"}`;
+  useEffect(() => {
+    if (simpleOn !== null || !day || !session) return;
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(simpleKey);
+    } catch {
+      /* storage blocked */
+    }
+    setSimpleOn(saved === "on" ? true : saved === "off" ? false : !!myMode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [day, session, simpleOn]);
+  const prevLang = useRef<LangMode | null>(null);
+  useEffect(() => {
+    if (simpleOn === true) {
+      if (prevLang.current === null) prevLang.current = lang;
+      setLangState(simple.lang);
+    } else if (simpleOn === false && prevLang.current !== null) {
+      setLangState(prevLang.current);
+      prevLang.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simpleOn, simple.lang]);
+  const toggleSimple = () => {
+    const next = simpleOn !== true;
+    setSimpleOn(next);
+    if (next) setPosMode(false);
+    try {
+      localStorage.setItem(simpleKey, next ? "on" : "off");
+    } catch {
+      /* storage blocked */
+    }
+  };
+
   // Clock + roll over to the new business day at midnight.
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -801,6 +890,8 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   const entries = useMemo(() => day?.entries || [], [day]);
   const totals = useMemo(() => dayTotals(entries, day?.jwEvents || []), [entries, day]);
   const counterNow = day?.systemCashNow ?? 0;
+  // Cash balance and totals can be hidden by the profile.
+  const rsT = (n: number | null | undefined) => (acc.hidden("totals") ? MASK : rs(n));
 
   const ins = entries.filter((e) => KIND_SIDE[e.kind] === "in");
   const outs = entries.filter((e) => KIND_SIDE[e.kind] === "out");
@@ -908,6 +999,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     calc: { k: "calc", icon: "🧮", group: "tool", open: () => setSheet({ t: "calc" }) },
     estimate: { k: "estimate", icon: "🏷️", group: "tool", open: () => setSheet({ t: "estimate" }) },
     reports: { k: "reports", icon: "🖨️", group: "tool", open: () => setSheet({ t: "report" }) },
+    cashtally: { k: "cashTally", icon: "🧮", group: "tool", open: () => { window.location.href = "/cash"; } },
     scan: { k: "scan", icon: "📸", group: "tool", open: () => setSheet({ t: "scan" }), needsDb: true },
     smart: { k: "smart", icon: "✨", group: "tool", open: () => setSheet({ t: "smart" }), needsDb: true },
   };
@@ -950,7 +1042,13 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
       favs: p.favs.includes(key) ? p.favs.filter((f) => f !== key) : [...p.favs, key],
     }));
 
+  const TILE_FN: Partial<Record<TileKey, FnKey>> = {
+    SALE: "sale", bill: "sale", FRESH_CRUSH: "sale", UDHAAR_IN: "udhaar", PURCHASE: "purchase", EXPENSE: "expense", PAYMENT: "payment",
+    jwNew: "jobwork", jwSettle: "jobwork", PIGMEE: "pigmee", OWNER_DRAW: "draw", count: "count", stock: "stock", reports: "reports", cashtally: "count",
+  };
   const Tile = ({ id, extraClass = "" }: { id: TileKey; extraClass?: string }) => {
+    const need = TILE_FN[id];
+    if (need && !acc.fn(need)) return null;
     const t = TILES[id];
     const w = words(t.k, lang);
     const isFav = prefs.favs.includes(id);
@@ -1041,19 +1139,19 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
       <div className="qr-hero-l">
         <Txt k="inCounter" lang={lang} />
       </div>
-      <div className="qr-hero-v">{rs(counterNow)}</div>
+      <div className="qr-hero-v">{rsT(counterNow)}</div>
       <div className="qr-hero-chips">
         <span className="in">
           <small>↓ IN · ಬರುವುದು</small>
-          <b>{rs(totals.cashIn)}</b>
+          <b>{rsT(totals.cashIn)}</b>
         </span>
         <span className="out">
           <small>↑ OUT · ಹೋದದ್ದು</small>
-          <b>{rs(totals.cashOut)}</b>
+          <b>{rsT(totals.cashOut)}</b>
         </span>
         <span className="upi">
           <small>UPI</small>
-          <b>{rs(totals.upiIn)}</b>
+          <b>{rsT(totals.upiIn)}</b>
         </span>
       </div>
       <svg className="qr-hero-art" viewBox="0 0 400 90" preserveAspectRatio="none" aria-hidden>
@@ -1131,6 +1229,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
         </div>
       </div>
 
+      {acc.page("mfg") && (
       <div className="qr-strip jw">
         <div className="qr-head">
           <span>
@@ -1153,6 +1252,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
           </button>
         </div>
       </div>
+      )}
 
       <div className="qr-strip oth">
         <div className="qr-head">
@@ -1179,16 +1279,16 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
         <Tile id="reports" />
       </div>
       <div className="qr-tools">
-        <a className="qr-tile g-tool" href="/mfg">
+        {acc.page("mfg") && <a className="qr-tile g-tool" href="/mfg">
           <span className="ic" aria-hidden><G e="🏭" /></span>
           <span className="p">{words("mfgDesk", lang).main}</span>
           {words("mfgDesk", lang).sub && <span className="s">{words("mfgDesk", lang).sub}</span>}
-        </a>
-        <a className="qr-tile g-tool" href="/tallies">
+        </a>}
+        {(acc.page("stock") || acc.fn("count")) && <a className="qr-tile g-tool" href="/tallies">
           <span className="ic" aria-hidden><G e="🧮" /></span>
           <span className="p">{words("allTallies", lang).main}</span>
           {words("allTallies", lang).sub && <span className="s">{words("allTallies", lang).sub}</span>}
-        </a>
+        </a>}
         <a className="qr-tile g-tool" href="/go">
           <span className="ic" aria-hidden><G e="🔗" /></span>
           <span className="p">{words("quickLinks", lang).main}</span>
@@ -1200,7 +1300,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
 
   // Designed looks: every action in one tidy grid of same-size buttons, grouped
   // by meaning with a small coloured label (no boxed columns).
-  const toolLink = (href: string, e: string, k: WordKey) => (
+  const toolLink = (href: string, e: string, k: WordKey) => (href === "/mfg" && !acc.page("mfg")) || (href === "/tallies" && !acc.page("stock") && !acc.fn("count")) ? null : (
     <a className="qr-tile g-tool" href={href}>
       <span className="ic" aria-hidden>
         <G e={e} />
@@ -1229,7 +1329,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   const designBoard = (
     <div className="qa">
       <section className="qa-sec">
-        {qaHead("in", "moneyIn", rs(totals.cashIn + totals.upiIn))}
+        {qaHead("in", "moneyIn", rsT(totals.cashIn + totals.upiIn))}
         <div className="qa-grid">
           <Tile id="SALE" />
           <Tile id="bill" />
@@ -1238,7 +1338,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
         </div>
       </section>
       <section className="qa-sec">
-        {qaHead("out", "moneyOut", rs(totals.cashOut + totals.upiOut))}
+        {qaHead("out", "moneyOut", rsT(totals.cashOut + totals.upiOut))}
         <div className="qa-grid">
           <Tile id="PURCHASE" />
           <Tile id="EXPENSE" />
@@ -1253,7 +1353,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
             <Tile id="jwSettle" />
           </div>
         </section>
-        <section className="qa-sec">
+        {acc.page("mfg") && <section className="qa-sec">
           {qaHead("mfg", "mfgDesk", openBarrels === null ? null : `${openBarrels} ${word("openBarrelsShort", lang)}`)}
           <div className="qa-grid">
             <button type="button" className="qr-tile g-mfg" onClick={() => setSheet({ t: "mfg", startNew: true })}>
@@ -1271,7 +1371,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
               {words("barrelSteps", lang).sub && <span className="s">{words("barrelSteps", lang).sub}</span>}
             </button>
           </div>
-        </section>
+        </section>}
       </div>
       <section className="qa-sec">
         {qaHead("oth", "otherCash", word("notExpense", lang))}
@@ -1284,6 +1384,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
         {qaHead("tool", "tools")}
         <div className="qa-grid tools">
           <Tile id="count" />
+          <Tile id="cashtally" />
           <Tile id="stock" />
           <Tile id="scan" />
           <Tile id="smart" />
@@ -1298,32 +1399,32 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     </div>
   );
 
-  const summaryBlock = (
-    <Section id="summary" title={<Txt k="summary" lang={lang} />} right={<b>{rs(counterNow)}</b>}>
+  const summaryBlockRaw = (
+    <Section id="summary" title={<Txt k="summary" lang={lang} />} right={<b>{rsT(counterNow)}</b>}>
       <div className="qr-srow">
         <span>
           <Txt k="opening" lang={lang} />
         </span>
-        <b>{rs(day?.opening.value)}</b>
+        <b>{rsT(day?.opening.value)}</b>
       </div>
       <div className="qr-srow">
         <span>
           <Txt k="cashIn" lang={lang} />
         </span>
-        <b className="qr-g">+ {rs(totals.cashIn)}</b>
+        <b className="qr-g">+ {rsT(totals.cashIn)}</b>
       </div>
       <div className="qr-srow">
         <span>
           <Txt k="cashOut" lang={lang} />
         </span>
-        <b className="qr-r">− {rs(totals.cashOut)}</b>
+        <b className="qr-r">− {rsT(totals.cashOut)}</b>
       </div>
       <div className="qr-srow">
         <span>
           <Txt k="jwCash" lang={lang} />
         </span>
         <b>
-          <span className="qr-g">+{rs(totals.jwIn)}</span> <span className="qr-r">−{rs(totals.jwOut)}</span>
+          <span className="qr-g">+{rsT(totals.jwIn)}</span> <span className="qr-r">−{rsT(totals.jwOut)}</span>
         </b>
       </div>
       <div className="qr-srow">
@@ -1335,7 +1436,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
             </span>
           )}
         </span>
-        <b className="qr-o">− {rs(totals.pigmee + totals.ownerDraw)}</b>
+        <b className="qr-o">− {rsT(totals.pigmee + totals.ownerDraw)}</b>
       </div>
       <div className="qr-srow">
         <span>
@@ -1343,18 +1444,18 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
             <Txt k="inCounter" lang={lang} />
           </b>
         </span>
-        <b className="qr-big">{rs(counterNow)}</b>
+        <b className="qr-big">{rsT(counterNow)}</b>
       </div>
       <div className="qr-srow">
         <span>
-          <G e="📱" /> UPI <b className="qr-g">{rs(totals.upiIn)}</b> · <b className="qr-r">{rs(totals.upiOut)}</b>
+          <G e="📱" /> UPI <b className="qr-g">{rsT(totals.upiIn)}</b> · <b className="qr-r">{rsT(totals.upiOut)}</b>
         </span>
         <span>
-          <G e="📒" /> {word("CREDIT", lang)} <b>{rs(totals.creditGiven)}</b>
+          <G e="📒" /> {word("CREDIT", lang)} <b>{rsT(totals.creditGiven)}</b>
           {totals.ownerPhonePeIn > 0 && (
             <>
               {" "}
-              · <G e="🟣" /> {word("OWNER_PHONEPE", lang)} <b>{rs(totals.ownerPhonePeIn)}</b>
+              · <G e="🟣" /> {word("OWNER_PHONEPE", lang)} <b>{rsT(totals.ownerPhonePeIn)}</b>
             </>
           )}
         </span>
@@ -1374,20 +1475,20 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     </Section>
   );
 
-  const entriesBlock = (
+  const entriesBlockRaw = (
     <Section id="entries" title={<Txt k="entries" lang={lang} />} right={<span className="qr-m">{entries.length}</span>}>
       <div className="qr-lists">
         <div className="qr-lcol in">
           <div className="qr-lh">
             <span><G e="⬇" /> {word("moneyIn", lang)}</span>
-            <span>{rs(sum(ins))}</span>
+            <span>{rsT(sum(ins))}</span>
           </div>
           {ins.length ? [...ins].reverse().map(EntryCard) : <div className="qr-empty">{word("none", lang)}</div>}
         </div>
         <div className="qr-lcol out">
           <div className="qr-lh">
             <span><G e="⬆" /> {word("moneyOut", lang)}</span>
-            <span>{rs(sum(outs))}</span>
+            <span>{rsT(sum(outs))}</span>
           </div>
           {outs.length ? [...outs].reverse().map(EntryCard) : <div className="qr-empty">{word("none", lang)}</div>}
         </div>
@@ -1395,7 +1496,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
           <div className="qr-lcol oth">
             <div className="qr-lh">
               <span>{word("otherCash", lang)}</span>
-              <span>{rs(sum(oths))}</span>
+              <span>{rsT(sum(oths))}</span>
             </div>
             {[...oths].reverse().map(EntryCard)}
           </div>
@@ -1416,7 +1517,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
       </th>
     );
   };
-  const jobWorkBlock = (
+  const jobWorkBlockRaw = (
     <Section
       id="jobwork"
       anchor="qr-jw-ledger"
@@ -1488,7 +1589,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
                       <b className="qr-g nowrap">{word("paid", lang)}</b>
                     ) : (
                       <b className="qr-o nowrap">
-                        {word("due", lang)} {rs(due)}
+                        {word("due", lang)} {acc.mask("udhaar", rs(due))}
                       </b>
                     )}
                     <span className="fold acts">
@@ -1621,7 +1722,9 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     { key: "count", icon: "💵", k: "count" },
     { key: "stock", icon: "📦", k: "stockTally" },
   ];
-  const tool = prefs.work;
+  const WORK_FN: Partial<Record<WorkTool, FnKey>> = { FRESH_CRUSH: "sale", SALE: "sale", EXPENSE: "expense", PURCHASE: "purchase", jwNew: "jobwork", count: "count", stock: "stock" };
+  const toolsAllowed = WORK_TOOLS.filter((w) => !WORK_FN[w.key] || acc.fn(WORK_FN[w.key]!));
+  const tool: WorkTool = toolsAllowed.some((w) => w.key === prefs.work) ? prefs.work : "calc";
   const wsBody =
     tool === "calc" ? (
       <CalcSheet key={wsKey} lang={lang} onClose={wsReset} />
@@ -1673,7 +1776,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
-  const workspaceBlock = (
+  const workspaceBlockRaw = (
     <div className="qr-work" aria-label={word("workspace", lang)}>
       <div className="qr-head qr-work-head" onPointerDown={startMove}>
         <span>
@@ -1707,7 +1810,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
         )}
       </div>
       <div className="qr-chips qr-work-tools" role="tablist">
-        {WORK_TOOLS.map((w) => {
+        {toolsAllowed.map((w) => {
           const l = words(w.k, lang);
           return (
             <button
@@ -1738,7 +1841,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     toast(msg || word("saved", lang));
     load();
   };
-  const sheetEl = !sheet ? null : sheet.t === "calc" ? (
+  const sheetElRaw = !sheet ? null : sheet.t === "calc" ? (
     <CalcSheet lang={lang} onClose={() => setSheet(null)} />
   ) : sheet.t === "estimate" ? (
     <EstimateSheet day={day} lang={lang} onClose={() => setSheet(null)} toast={toast} onMakeSale={(init) => setSheet({ t: "entry", kind: "SALE", init })} />
@@ -1835,7 +1938,13 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     />
   );
 
-  const POS_KINDS = ["SALE", "FRESH_CRUSH", "UDHAAR_IN", "PURCHASE", "EXPENSE", "PAYMENT"] as const;
+  // Windows a profile switches off simply are not drawn.
+  const summaryBlock = acc.win("summary") ? summaryBlockRaw : null;
+  const entriesBlock = acc.win("entries") ? entriesBlockRaw : null;
+  const workspaceBlock = acc.win("work") ? workspaceBlockRaw : null;
+  const jobWorkBlock = acc.fn("jobwork") && acc.win("work") ? jobWorkBlockRaw : null;
+  const sheetEl = acc.win("form") ? sheetElRaw : null;
+  const POS_KINDS = (["SALE", "FRESH_CRUSH", "UDHAAR_IN", "PURCHASE", "EXPENSE", "PAYMENT"] as const).filter((k) => acc.fn(kindToFn(k)));
   const posSaved = (msg?: string) => {
     celebrate();
     toast(msg || word("saved", lang));
@@ -1889,8 +1998,21 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     </div>
   );
 
+  const simpleBlock = (
+    <div className={`qr-simple sz-${simple.size}`}>
+      <div className="qr-simple-cash">
+        <span><Txt k="inCounter" lang={lang} /></span>
+        <b>{rsT(counterNow)}</b>
+      </div>
+      <div className="qr-simple-grid">
+        {simple.tiles.map((k) => (k in TILES ? <Tile key={k} id={k as TileKey} extraClass="qr-simple-tile" /> : null))}
+      </div>
+      <div className="qr-simple-hint">{word("simpleOffHint", lang)}</div>
+    </div>
+  );
+
   return (
-    <div className={`qr${posMode ? " qr-pos" : ""}`} data-size={skinned ? prefs.size : undefined}>
+    <div className={`qr${posMode ? " qr-pos" : ""}`} data-size={skinned ? (simpleOn === true ? (simple.size === "S" ? "s" : simple.size === "M" ? "m" : "l") : prefs.size) : undefined}>
       <div className={`qr-wrap${sideBySide || posMode ? " split" : ""}`}>
         <div className="qr-top">
           {skinned && (
@@ -1910,6 +2032,16 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
               · {hm(now)}
             </small>
           </h1>
+          <button
+            className={`qr-pill qr-simplebtn${simpleOn === true ? " on" : ""}`}
+            onClick={toggleSimple}
+            aria-pressed={simpleOn === true}
+            title={word("simpleMode", lang)}
+            aria-label={word("simpleMode", lang)}
+          >
+            🧸
+          </button>
+          {simpleOn !== true && (<>
           <button
             className={`qr-pill${editFavs ? " on" : ""}`}
             onClick={() => setEditFavs((v) => !v)}
@@ -1976,6 +2108,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
               </a>
             </>
           )}
+          </>)}
         </div>
 
         {loadError && <div className="qr-banner">{dbOffline ? word("offline", lang) : loadError}</div>}
@@ -1988,7 +2121,9 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
           </div>
         )}
 
-        {posMode ? (
+        {simpleOn === true ? (
+          simpleBlock
+        ) : posMode ? (
           posBlock
         ) : sideBySide ? (
           <div
@@ -2017,14 +2152,42 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
                 if (e.key === "ArrowRight") setPrefs((p) => ({ ...p, leftW: Math.min(900, cur + 20) }));
               }}
             />
-            <div className="qr-right">
+            <div className="qr-right" ref={rightRef}>
+              {wins.hid.length > 0 && (
+                <div className="qr-wrestore" role="group" aria-label="Hidden windows">
+                  <span>Hidden:</span>
+                  {wins.hid.map((id) => (
+                    <button key={id} type="button" className="qr-pill" onClick={() => setWins((w) => showWin(w, id))}>
+                      ＋ {WIN_LABEL[id]}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="qr-rforms">
-                <SheetModeCtx.Provider value="inline">{sheetEl}</SheetModeCtx.Provider>
-                {!floating && workspaceBlock}
-              </div>
-              <div className="qr-rtables">
-                {jobWorkBlock}
-                {entriesBlock}
+                {wins.order.map((id) => {
+                  const node: React.ReactNode =
+                    id === "form" ? (sheetEl ? <SheetModeCtx.Provider value="inline">{sheetEl}</SheetModeCtx.Provider> : null)
+                    : id === "work" ? (!floating ? workspaceBlock : null)
+                    : id === "jobwork" ? jobWorkBlock
+                    : entriesBlock;
+                  if (!node) return null;
+                  const hid = wins.hid.includes(id);
+                  const min = wins.min.includes(id);
+                  const shown = wins.order.filter((x) => !wins.hid.includes(x));
+                  const at = shown.indexOf(id);
+                  return (
+                    <div key={id} className={`qr-win${min ? " min" : ""}`} data-win={id} hidden={hid}>
+                      <div className="qr-wbar">
+                        <span className="t">{WIN_LABEL[id]}</span>
+                        <button type="button" aria-label="Move up" title="Move up" disabled={at <= 0} onClick={() => setWins((w) => moveWin(w, id, -1))}>▲</button>
+                        <button type="button" aria-label="Move down" title="Move down" disabled={at < 0 || at >= shown.length - 1} onClick={() => setWins((w) => moveWin(w, id, 1))}>▼</button>
+                        <button type="button" aria-label={min ? "Open" : "Minimise"} title={min ? "Open" : "Minimise"} onClick={() => setWins((w) => toggleMin(w, id))}>{min ? "▢" : "–"}</button>
+                        <button type="button" aria-label="Hide" title="Hide" onClick={() => setWins((w) => hideWin(w, id))}>✕</button>
+                      </div>
+                      <div className="qr-wbody" hidden={min}>{node}</div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

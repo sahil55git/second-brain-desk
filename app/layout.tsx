@@ -6,6 +6,7 @@ import "./launcher.css";
 import { CustomizeProvider } from "@/lib/customize";
 import AuthSessionProvider from "@/components/AuthSessionProvider";
 import { ScaleProvider } from "@/components/ScaleProvider";
+import AccessProvider from "@/components/AccessProvider";
 import PhoneNav from "@/components/PhoneNav";
 import LauncherProvider from "@/components/launcher/LauncherProvider";
 
@@ -35,14 +36,16 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <AuthSessionProvider>
-          <ScaleProvider>
-            <CustomizeProvider>
-              <LauncherProvider>
-                {children}
-                <PhoneNav />
-              </LauncherProvider>
-            </CustomizeProvider>
-          </ScaleProvider>
+          <AccessProvider>
+            <ScaleProvider>
+              <CustomizeProvider>
+                <LauncherProvider>
+                  {children}
+                  <PhoneNav />
+                </LauncherProvider>
+              </CustomizeProvider>
+            </ScaleProvider>
+          </AccessProvider>
         </AuthSessionProvider>
       </body>
     </html>

@@ -1,6 +1,8 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma, safeDbCall } from "@/lib/db";
+import { accessFor } from "@/lib/accessServer";
+import { BUILTIN_PROFILES, OWNER_PERMS, effectivePerms } from "@/lib/access";
 import DeskTabs from "@/components/DeskTabs";
 import CustomizeButton from "@/components/CustomizeButton";
 import SignOutButton from "@/components/SignOutButton";
@@ -24,6 +26,15 @@ export default async function Home() {
   const session = await getServerSession(authOptions);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isOwner = (session?.user as any)?.role === "OWNER";
+
+  // Staff only receive the data of the pages their profile includes (not just hidden tabs).
+  const acc = isOwner ? null : await accessFor(String((session?.user as { username?: string } | undefined)?.username || ""));
+  const perms = isOwner ? OWNER_PERMS : acc ? acc.perms : effectivePerms(false, BUILTIN_PROFILES[1].perms);
+  const pg = perms.pg;
+  const mayJob = pg.jobwork || pg.register;
+  const mayParties = pg.parties || pg.register || pg.sales || pg.jobwork;
+  const maySales = pg.sales || pg.register;
+  const mayBuy = pg.register || pg.stock || pg.mfg;
 
   const [
     jobWorkResult,
@@ -98,14 +109,14 @@ export default async function Home() {
   const s = <T,>(r: { ok: true; data: unknown } | { ok: false }): T[] =>
     r.ok ? (JSON.parse(JSON.stringify(r.data)) as T[]) : [];
 
-  const jobWorkEntries = s<JobWorkIntakeDTO>(jobWorkResult);
-  const closingEntries = s<DailyClosingDTO>(closingResult);
-  const mfgBatches = s<MfgBatchDTO>(mfgResult);
-  const parties = s<PartyDTO>(partiesResult);
+  const jobWorkEntries = mayJob ? s<JobWorkIntakeDTO>(jobWorkResult) : [];
+  const closingEntries = pg.register ? s<DailyClosingDTO>(closingResult) : [];
+  const mfgBatches = pg.mfg || pg.stock ? s<MfgBatchDTO>(mfgResult) : [];
+  const parties = mayParties ? s<PartyDTO>(partiesResult) : [];
   const items = s<ItemDTO>(itemsResult);
-  const sales = s<SalesInvoiceDTO>(salesResult);
-  const purchases = s<PurchaseBillDTO>(purchasesResult);
-  const expenses = s<ExpenseDTO>(expensesResult);
+  const sales = maySales ? s<SalesInvoiceDTO>(salesResult) : [];
+  const purchases = mayBuy ? s<PurchaseBillDTO>(purchasesResult) : [];
+  const expenses = pg.register ? s<ExpenseDTO>(expensesResult) : [];
   const settings: BusinessSettingsDTO | null =
     settingsResult.ok && settingsResult.data
       ? JSON.parse(JSON.stringify(settingsResult.data))

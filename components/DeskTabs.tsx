@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useAccess } from "@/components/AccessProvider";
+import type { PageKey } from "@/lib/access";
 import type {
   DailyClosingDTO,
   JobWorkIntakeDTO,
@@ -90,6 +92,7 @@ export default function DeskTabs({
 }) {
   const [active, setActive] = useState<Desk>("jobwork");
   const { data: session } = useSession();
+  const acc = useAccess();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isOwner = (session?.user as any)?.role === "OWNER";
   // The Owner opens on Home (today's figures); Staff keep opening on the Job-Work desk.
@@ -110,7 +113,12 @@ export default function DeskTabs({
     setActive(d);
   };
 
-  const tabs: { key: Desk; label: string }[] = [
+  // The profile page each desk belongs to (owners always see all).
+  const DESK_PAGE: Partial<Record<Desk, PageKey[]>> = {
+    jobwork: ["jobwork"], manufacturing: ["mfg"], closing: ["register"], sales: ["sales", "register"], purchase: ["register", "stock", "mfg"],
+    expenses: ["register"], parties: ["parties"], inventory: ["stock"], scales: ["stock"], reports: ["reports"],
+  };
+  const allTabs: { key: Desk; label: string }[] = [
     ...(isOwner ? [{ key: "home" as const, label: "Home" }] : []),
     { key: "jobwork", label: "Job-Work Desk" },
     { key: "manufacturing", label: "Manufacturing" },
@@ -133,6 +141,12 @@ export default function DeskTabs({
         ]
       : []),
   ];
+  const tabs = allTabs.filter((t) => isOwner || !DESK_PAGE[t.key] || DESK_PAGE[t.key]!.some((k) => acc.page(k)));
+  // A desk the profile does not include is never left showing.
+  useEffect(() => {
+    if (!isOwner && tabs.length && !tabs.some((t) => t.key === active)) setActive(tabs[0].key);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOwner, tabs.length, active]);
 
   const alertData = useMemo(
     () => ({

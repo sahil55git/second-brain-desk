@@ -171,7 +171,7 @@ html.dark .qr-favs-head { color: #ffd54a; }
 /* side-by-side layout (tablets / laptops) */
 .qr-wrap.split { max-width: 1440px; }
 .qr-split { display: grid; grid-template-columns: minmax(360px, 520px) minmax(0, 1fr); gap: 18px; align-items: start; }
-.qr-right { position: sticky; top: 64px; max-height: calc(100vh - 72px); overflow: auto; padding-bottom: 12px; }
+.qr-right { position: sticky; top: 80px; max-height: calc(100vh - 88px); overflow: auto; padding-bottom: 12px; }
 .qr-right > .qr-card:first-child, .qr-right > .qr-sheet + .qr-card { margin-top: 0; }
 .qr .qr-sheet.inline { position: static; inset: auto; transform: none; animation: none; max-height: none; max-width: none; margin: 6px 0 14px; border-radius: calc(18px * var(--ui-r, 1)); border: 2px solid var(--qr-jw); box-shadow: 0 6px 24px rgba(0,0,0,.18); z-index: auto; }
 
@@ -360,3 +360,33 @@ html.hc .qr .qr-tile { box-shadow: inset 0 0 0 2px #ffffff; }
 .qr-answer { white-space: pre-wrap; border: 1.5px solid var(--qr-line); background: var(--qr-card); border-radius: calc(12px * var(--ui-r, 1)); padding: 10px 12px; margin: 10px 0; font-size: 16px; line-height: 1.45; }
 .qr-chiprow { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
 .qr-chiprow .qr-mini { font-size: 14px; padding: 8px 10px; }
+
+/* Right-hand windows: small control bar to move / fold / hide each one. */
+.qr-win { margin-top: 10px; }
+.qr-win[hidden], .qr-wbody[hidden] { display: none !important; }
+.qr-win:first-of-type { margin-top: 0; }
+.qr-wbar { display: flex; align-items: center; gap: 4px; padding: 0 2px 4px; font-size: 11px; }
+.qr-wbar .t { flex: 1; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; opacity: .6; }
+.qr-wbar button { border: 1px solid var(--qr-line); background: var(--qr-card); color: inherit; border-radius: 8px; min-width: 28px; height: 24px; font-size: 12px; font-weight: 800; cursor: pointer; line-height: 1; }
+.qr-wbar button:disabled { opacity: .3; cursor: default; }
+.qr-win.min .qr-wbar { padding-bottom: 0; }
+.qr-win.min { border: 1px dashed var(--qr-line); border-radius: 12px; padding: 4px 6px; }
+.qr-wrestore { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 12px; font-weight: 700; }
+.qr-wrestore .qr-pill { padding: 3px 10px; font-size: 12px; }
+.qr-right .qr-rforms .qr-win .qr-work:first-child { margin-top: 0; }
+
+/* ---- Simple mode (🧸) ---- */
+.qr-simplebtn.on { outline: 2px solid var(--qr-acc, #b5643c); }
+.qr .qr-simple { display: grid; gap: 14px; margin-top: 8px; }
+.qr-simple-cash { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px; border-radius: 18px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); }
+.qr-simple-cash span { font-size: 14px; font-weight: 700; opacity: .8; }
+.qr-simple-cash b { font-size: 38px; font-variant-numeric: tabular-nums; }
+.qr .qr-simple-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.qr .qr-simple.sz-S .qr-simple-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* tile look comes from the register's own size setting (data-size on .qr); these only make it bigger */
+.qr .qr-simple .qr-tile.qr-simple-tile { min-height: 120px !important; }
+.qr .qr-simple.sz-L .qr-tile.qr-simple-tile { min-height: 180px !important; }
+.qr .qr-simple.sz-L .qr-tile.qr-simple-tile .p { font-size: 21px !important; }
+.qr .qr-simple.sz-L .qr-tile.qr-simple-tile .ic { width: 64px !important; height: 64px !important; }
+.qr .qr-simple.sz-L .qr-tile.qr-simple-tile .ic svg { width: 34px !important; height: 34px !important; }
+.qr-simple-hint { text-align: center; font-size: 12px; opacity: .6; }
