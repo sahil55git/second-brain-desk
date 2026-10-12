@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, isValidDate } from "@/lib/registerServer";
+import { businessDate } from "@/lib/register";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
   }
 
   const result = await safeDbCall(async () => {
-    const [sales, purchases, expenses, register, jobWork, mfg, closings, items] = await Promise.all([
+    const [sales, purchases, expenses, register, jobWork, mfg, closings, items, returns] = await Promise.all([
       prisma.salesInvoice.findMany({
         where: { date: { lte: to } },
         include: { lineItems: true, party: { select: { id: true, name: true } } },
@@ -42,8 +43,22 @@ export async function GET(req: NextRequest) {
       prisma.mfgBatch.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.dailyClosing.findMany({ where: { date: { lte: to } }, orderBy: { createdAt: "desc" }, take: 400 }),
       prisma.item.findMany({ orderBy: { name: "asc" } }),
+      prisma.salesReturn.findMany({
+        orderBy: { createdAt: "desc" },
+        include: { invoice: { select: { id: true, invoiceNo: true, paymentMode: true, party: { select: { name: true } } } } },
+      }),
     ]);
-    return { sales, purchases, expenses, register, jobWork, mfg, closings, items };
+    const refunds = returns.map((r) => ({
+      id: r.id,
+      invoiceId: r.invoiceId,
+      invoiceNo: r.invoice.invoiceNo,
+      date: businessDate(r.createdAt),
+      partyName: r.invoice.party?.name || "Walk-in",
+      paymentMode: r.invoice.paymentMode,
+      amount: r.refundInr,
+      reason: r.reason,
+    }));
+    return { sales, purchases, expenses, register, jobWork, mfg, closings, items, refunds };
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 503 });
   return NextResponse.json({ data: result.data, loadedAt: new Date().toISOString() });
