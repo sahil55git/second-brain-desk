@@ -600,30 +600,46 @@ export function cashReport(d: BizData, s: DateSpan) {
 // Udhaar (credit) — register credit sales vs. udhaar collected, by name.
 // ---------------------------------------------------------------------------
 export function udhaarReport(d: BizData, asOf: string) {
-  const by: Record<string, { given: number; received: number; last: string }> = {};
+  // Balance per party = credit given − udhaar received − credit notes (refunds
+  // on credit bills). Credit given comes from two sources: Quick Register
+  // credit sales, and Sales-desk invoices on CREDIT (unpaid until a receipt is
+  // recorded as UDHAAR_IN against the party's name).
+  const by: Record<string, { given: number; received: number; refunds: number; last: string }> = {};
+  const slot = (name: string, date: string) => {
+    const p = (by[name] ||= { given: 0, received: 0, refunds: 0, last: date });
+    if (date > p.last) p.last = date;
+    return p;
+  };
   for (const e of d.register) {
     if (e.date > asOf) continue;
-    const name = (e.partyName || "").trim();
-    if (e.paymentMode === "CREDIT" && (e.kind === "SALE" || e.kind === "FRESH_CRUSH")) {
-      const p = (by[name || "(no name)"] ||= { given: 0, received: 0, last: e.date });
-      p.given += e.amountInr;
-      if (e.date > p.last) p.last = e.date;
-    }
-    if (e.kind === "UDHAAR_IN") {
-      const p = (by[name || "(no name)"] ||= { given: 0, received: 0, last: e.date });
-      p.received += e.amountInr;
-      if (e.date > p.last) p.last = e.date;
-    }
+    const name = (e.partyName || "").trim() || "(no name)";
+    if (e.paymentMode === "CREDIT" && (e.kind === "SALE" || e.kind === "FRESH_CRUSH")) slot(name, e.date).given += e.amountInr;
+    if (e.kind === "UDHAAR_IN") slot(name, e.date).received += e.amountInr;
+  }
+  for (const x of d.sales) {
+    if (x.paymentMode !== "CREDIT" || x.date > asOf) continue;
+    const name = (x.party?.name || "").trim() || "(no name)";
+    slot(name, x.date).given += x.totalInr;
+  }
+  for (const r of d.refunds || []) {
+    if (r.date > asOf || r.paymentMode !== "CREDIT") continue;
+    const name = (r.partyName || "").trim() || "(no name)";
+    slot(name, r.date).refunds += r.amount;
   }
   const rows = Object.entries(by)
-    .map(([name, p]) => ({ name, given: r2(p.given), received: r2(p.received), balance: r2(p.given - p.received), last: p.last }))
+    .map(([name, p]) => ({
+      name,
+      given: r2(p.given),
+      received: r2(p.received),
+      refunds: r2(p.refunds),
+      balance: r2(p.given - p.received - p.refunds),
+      last: p.last,
+    }))
     .sort((a, b) => b.balance - a.balance);
   return {
     rows,
     outstanding: r2(rows.reduce((a, r) => a + Math.max(0, r.balance), 0)),
-    // Credit sales recorded as GST invoices (Sales desk) — receipt of these is
-    // not tracked in the app yet, so they are listed, not netted.
-    // Refunds on credit bills are credit notes: they reduce what the bill owes.
+    // Credit invoices, each with its refunds and what is still owed on it.
     creditInvoices: d.sales
       .filter((x) => x.paymentMode === "CREDIT" && x.date <= asOf)
       .map((x) => {

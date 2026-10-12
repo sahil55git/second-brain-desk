@@ -37,3 +37,26 @@ describe("refunds in reports", () => {
     expect(u.creditInvoices[0].refundedInr).toBe(0);
   });
 });
+
+describe("udhaar includes unpaid credit sales", () => {
+  it("a credit invoice adds to the party balance, net of its refund", () => {
+    const u = udhaarReport(data(), "2026-10-31");
+    const row = u.rows.find((r) => r.name === "Ramesh Stores");
+    expect(row).toMatchObject({ given: 8400, refunds: 165, balance: 8235 });
+    expect(u.outstanding).toBe(8235);
+  });
+  it("a receipt recorded against the party reduces the balance", () => {
+    const d = data({
+      register: [{ id: "u1", date: "2026-10-12", kind: "UDHAAR_IN", partyName: "Ramesh Stores", amountInr: 3000, paymentMode: "CASH" } as never],
+    });
+    const u = udhaarReport(d, "2026-10-31");
+    expect(u.rows.find((r) => r.name === "Ramesh Stores")?.balance).toBe(5235);
+  });
+  it("cash and UPI invoices do not count toward udhaar", () => {
+    const d = data({
+      sales: [{ id: "s2", invoiceNo: "INV-0043", date: "2026-10-10", partyId: "p2", party: { id: "p2", name: "Walk-in" }, totalInr: 500, paymentMode: "CASH", lineItems: [] } as never],
+      refunds: [],
+    });
+    expect(udhaarReport(d, "2026-10-31").rows.some((r) => r.name === "Walk-in")).toBe(false);
+  });
+});
