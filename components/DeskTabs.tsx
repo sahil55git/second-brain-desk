@@ -26,6 +26,7 @@ import PurchaseDesk from "./PurchaseDesk";
 import ExpensesDesk from "./ExpensesDesk";
 import VyaparDesk from "./VyaparDesk";
 import ScaleDashboard from "./ScaleDashboard";
+import LedgerDesk from "./LedgerDesk";
 import GlobalSearch from "./GlobalSearch";
 import AlertsStrip from "./AlertsStrip";
 import { businessDate } from "@/lib/register";
@@ -42,6 +43,7 @@ type Desk =
   | "inventory"
   | "scales"
   | "vyapar"
+  | "ledger"
   | "settings";
 
 export default function DeskTabs({
@@ -90,6 +92,7 @@ export default function DeskTabs({
     // guess the URL). Vyapar exposes financial totals (receivables, sales).
     ...(isOwner
       ? [
+          { key: "ledger" as const, label: "Ledger" },
           { key: "vyapar" as const, label: "Vyapar Sync" },
           { key: "settings" as const, label: "Settings" },
         ]
@@ -188,6 +191,7 @@ export default function DeskTabs({
           onNavigate={(desk) => setActive(desk === "mfg" ? "manufacturing" : desk)}
         />
       )}
+      {active === "ledger" && isOwner && <LedgerDesk />}
       {active === "vyapar" && isOwner && (
         <VyaparDesk initialSnapshot={initialVyapar} dbConnected={dbConnected} />
       )}
