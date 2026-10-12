@@ -7,8 +7,18 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Icon, type IconName } from "@/components/ui/Icons";
+import Peekable from "@/components/launcher/Peekable";
 
 type Tab = { key: string; label: string; kn: string; href: string; icon: IconName };
+
+// Which form each bottom tab can add to from its long-touch / right-click menu.
+const ADD_FN: Record<string, [string, string]> = {
+  home: ["New sale", "sale"],
+  register: ["New sale", "sale"],
+  stock: ["Stock count", "stock"],
+  parties: ["Udhaar received", "udhaar"],
+  jobwork: ["Job-work entry", "jobwork"],
+};
 
 export default function PhoneNav() {
   const path = usePathname() || "/";
@@ -49,12 +59,25 @@ export default function PhoneNav() {
         </a>
       )}
       <nav className="pnav" aria-label="Main">
-        {tabs.map((t) => (
-          <a key={t.key} href={t.href} className={active === t.key ? "on" : ""} aria-current={active === t.key ? "page" : undefined}>
-            <Icon name={t.icon} size={21} />
-            <span>{t.label}</span>
-          </a>
-        ))}
+        {tabs.map((t) => {
+          const addFn = ADD_FN[t.key];
+          return (
+            <Peekable
+              key={t.key}
+              className="pk-tab"
+              title={t.label}
+              href={t.href}
+              pop={{ title: t.label, url: `${t.href}${t.href.includes("?") ? "&" : "?"}embed=1`, kind: "App" }}
+              add={addFn ? { label: addFn[0], pop: { title: addFn[0], url: `/register?open=${addFn[1]}&embed=1`, kind: "Function" } } : undefined}
+              tripleClick={false}
+            >
+              <a href={t.href} className={active === t.key ? "on" : ""} aria-current={active === t.key ? "page" : undefined}>
+                <Icon name={t.icon} size={21} />
+                <span>{t.label}</span>
+              </a>
+            </Peekable>
+          );
+        })}
       </nav>
     </>
   );

@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./skins.css";
 import "./home.css";
+import "./launcher.css";
 import { CustomizeProvider } from "@/lib/customize";
 import AuthSessionProvider from "@/components/AuthSessionProvider";
 import { ScaleProvider } from "@/components/ScaleProvider";
 import PhoneNav from "@/components/PhoneNav";
+import LauncherProvider from "@/components/launcher/LauncherProvider";
 
 export const metadata: Metadata = {
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
@@ -35,8 +37,10 @@ export default function RootLayout({
         <AuthSessionProvider>
           <ScaleProvider>
             <CustomizeProvider>
-              {children}
-              <PhoneNav />
+              <LauncherProvider>
+                {children}
+                <PhoneNav />
+              </LauncherProvider>
             </CustomizeProvider>
           </ScaleProvider>
         </AuthSessionProvider>
