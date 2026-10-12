@@ -6,7 +6,9 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import type { PageKey } from "@/lib/access";
 import { Icon, type IconName } from "@/components/ui/Icons";
+import { useAccess } from "@/components/AccessProvider";
 import Peekable from "@/components/launcher/Peekable";
 
 type Tab = { key: string; label: string; kn: string; href: string; icon: IconName };
@@ -23,6 +25,7 @@ const ADD_FN: Record<string, [string, string]> = {
 export default function PhoneNav() {
   const path = usePathname() || "/";
   const { data: session, status } = useSession();
+  const acc = useAccess();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isOwner = (session?.user as any)?.role === "OWNER";
   const [desk, setDesk] = useState<string | null>(null);
@@ -45,10 +48,10 @@ export default function PhoneNav() {
     isOwner
       ? { key: "reports", label: "Reports", kn: "ವರದಿ", href: "/reports", icon: "chart" }
       : { key: "jobwork", label: "Job-work", kn: "ಗಾಣ", href: "/?desk=jobwork", icon: "sprout" },
-  ];
+  ].filter((t) => t.key === "home" || acc.page(t.key as PageKey));
   const active =
     path.startsWith("/register") ? "register" : path.startsWith("/stock") ? "stock" : path.startsWith("/reports") ? "reports" : path === "/" ? (desk === "parties" ? "parties" : desk === "jobwork" ? "jobwork" : "home") : "";
-  const showFab = !path.startsWith("/register");
+  const showFab = !path.startsWith("/register") && acc.page("register") && acc.fn("sale");
 
   return (
     <>

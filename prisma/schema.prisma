@@ -36,6 +36,8 @@ model User {
   name         String
   role         UserRole @default(STAFF)
   active       Boolean  @default(true)
+  // Access profile key (see lib/access.ts). Null on older staff logins = manager.
+  profileKey   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -779,3 +781,16 @@ model StockAdjustment {
   @@index([itemId, date])
 }
 
+
+// Access profiles: which pages / Quick Register functions / windows a user gets and
+// which data is hidden (lib/access.ts). Built-in profiles ("owner", "manager",
+// "counter", "godown") live in code; a row here overrides their toggles, and custom
+// profiles exist only as rows.
+model AccessProfile {
+  id        String   @id
+  name      String
+  who       String   @default("")
+  perms     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

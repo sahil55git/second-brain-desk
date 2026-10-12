@@ -13,6 +13,7 @@ import SettingsDesk from "@/components/SettingsDesk";
 import AppearancePanel from "@/components/AppearancePanel";
 import ImportExportCard from "@/components/hub/ImportExportCard";
 import PlacesCard from "@/components/hub/PlacesCard";
+import AccessAdmin from "@/components/hub/AccessAdmin";
 import type { BusinessSettingsDTO } from "@/lib/types";
 import {
   CATALOG,
@@ -29,8 +30,9 @@ import { DEFAULT_HUB_PREFS, WIDGETS, loadHubPrefs, saveHubPrefs, type HubPrefs, 
 import { registerItemName } from "@/lib/bizReports";
 import { DeviceCopySettings } from "@/components/register/ProofParts";
 
-type Section = "integrations" | "appearance" | "register" | "rates" | "library" | "device" | "dashboard" | "business" | "rules" | "data" | "io" | "proofs";
+type Section = "users" | "integrations" | "appearance" | "register" | "rates" | "library" | "device" | "dashboard" | "business" | "rules" | "data" | "io" | "proofs";
 const SECTIONS: { key: Section; label: string }[] = [
+  { key: "users", label: "👥 Users & profiles" },
   { key: "register", label: "📒 Quick Register" },
   { key: "proofs", label: "🛡️ Proofs & scans" },
   { key: "rates", label: "₹ Saved rates" },
@@ -489,6 +491,7 @@ export default function SettingsHub() {
           )}
           {section === "data" && <DataCard />}
           {section === "appearance" && <AppearancePanel />}
+          {section === "users" && <AccessAdmin />}
           {section === "integrations" && <IntegrationsCard />}
           {section === "proofs" && cfg && <ProofsCard cfg={cfg} save={save} />}
         </div>

@@ -8,6 +8,8 @@
 import UdhaarHint from "./UdhaarHint";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useAccess } from "@/components/AccessProvider";
+import { kindToFn, MASK, type FnKey } from "@/lib/access";
 import {
   CAN_TYPES,
   STANDARD_RATE,
@@ -672,7 +674,20 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   const [date, setDate] = useState(todayIST);
   const [day, setDay] = useState<DayBundle | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<Sheet>(null);
+  const acc = useAccess();
+  const toastRef = useRef<((m: string) => void) | null>(null);
+  const [sheet, setSheetRaw] = useState<Sheet>(null);
+  // A profile can switch functions off: refuse them here too (the server refuses them as well).
+  const sheetFn = (v: NonNullable<Sheet>): FnKey | null =>
+    v.t === "entry" ? kindToFn(v.kind) : v.t === "fresh" || v.t === "bill" ? "sale" : v.t === "jw" || v.t === "jwpay" ? "jobwork" : v.t === "count" ? "count" : v.t === "stock" ? "stock" : v.t === "report" ? "reports" : null;
+  const setSheet = (v: Sheet) => {
+    const need = v ? sheetFn(v) : null;
+    if (need && !acc.fn(need)) {
+      toastRef.current?.("Not in your profile");
+      return;
+    }
+    setSheetRaw(v);
+  };
   const [editFavs, setEditFavs] = useState(false);
   const [prefs, setPrefsState] = useState<Prefs>(DEFAULT_PREFS);
   const [hasLocalPrefs, setHasLocalPrefs] = useState(true);
@@ -753,6 +768,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     setToastMsg(m);
     window.setTimeout(() => setToastMsg(null), 1800);
   }, []);
+  toastRef.current = toast;
 
   const load = useCallback(async () => {
     try {
@@ -801,6 +817,8 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   const entries = useMemo(() => day?.entries || [], [day]);
   const totals = useMemo(() => dayTotals(entries, day?.jwEvents || []), [entries, day]);
   const counterNow = day?.systemCashNow ?? 0;
+  // Cash balance and totals can be hidden by the profile.
+  const rsT = (n: number | null | undefined) => (acc.hidden("totals") ? MASK : rs(n));
 
   const ins = entries.filter((e) => KIND_SIDE[e.kind] === "in");
   const outs = entries.filter((e) => KIND_SIDE[e.kind] === "out");
@@ -950,7 +968,13 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
       favs: p.favs.includes(key) ? p.favs.filter((f) => f !== key) : [...p.favs, key],
     }));
 
+  const TILE_FN: Partial<Record<TileKey, FnKey>> = {
+    SALE: "sale", bill: "sale", FRESH_CRUSH: "sale", UDHAAR_IN: "udhaar", PURCHASE: "purchase", EXPENSE: "expense", PAYMENT: "payment",
+    jwNew: "jobwork", jwSettle: "jobwork", PIGMEE: "pigmee", OWNER_DRAW: "draw", count: "count", stock: "stock", reports: "reports",
+  };
   const Tile = ({ id, extraClass = "" }: { id: TileKey; extraClass?: string }) => {
+    const need = TILE_FN[id];
+    if (need && !acc.fn(need)) return null;
     const t = TILES[id];
     const w = words(t.k, lang);
     const isFav = prefs.favs.includes(id);
@@ -1041,19 +1065,19 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
       <div className="qr-hero-l">
         <Txt k="inCounter" lang={lang} />
       </div>
-      <div className="qr-hero-v">{rs(counterNow)}</div>
+      <div className="qr-hero-v">{rsT(counterNow)}</div>
       <div className="qr-hero-chips">
         <span className="in">
           <small>↓ IN · ಬರುವುದು</small>
-          <b>{rs(totals.cashIn)}</b>
+          <b>{rsT(totals.cashIn)}</b>
         </span>
         <span className="out">
           <small>↑ OUT · ಹೋದದ್ದು</small>
-          <b>{rs(totals.cashOut)}</b>
+          <b>{rsT(totals.cashOut)}</b>
         </span>
         <span className="upi">
           <small>UPI</small>
-          <b>{rs(totals.upiIn)}</b>
+          <b>{rsT(totals.upiIn)}</b>
         </span>
       </div>
       <svg className="qr-hero-art" viewBox="0 0 400 90" preserveAspectRatio="none" aria-hidden>
@@ -1131,6 +1155,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
         </div>
       </div>
 
+      {acc.page("mfg") && (
       <div className="qr-strip jw">
         <div className="qr-head">
           <span>
@@ -1153,6 +1178,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
           </button>
         </div>
       </div>
+      )}
 
       <div className="qr-strip oth">
         <div className="qr-head">
@@ -1179,16 +1205,16 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
         <Tile id="reports" />
       </div>
       <div className="qr-tools">
-        <a className="qr-tile g-tool" href="/mfg">
+        {acc.page("mfg") && <a className="qr-tile g-tool" href="/mfg">
           <span className="ic" aria-hidden><G e="🏭" /></span>
           <span className="p">{words("mfgDesk", lang).main}</span>
           {words("mfgDesk", lang).sub && <span className="s">{words("mfgDesk", lang).sub}</span>}
-        </a>
-        <a className="qr-tile g-tool" href="/tallies">
+        </a>}
+        {(acc.page("stock") || acc.fn("count")) && <a className="qr-tile g-tool" href="/tallies">
           <span className="ic" aria-hidden><G e="🧮" /></span>
           <span className="p">{words("allTallies", lang).main}</span>
           {words("allTallies", lang).sub && <span className="s">{words("allTallies", lang).sub}</span>}
-        </a>
+        </a>}
         <a className="qr-tile g-tool" href="/go">
           <span className="ic" aria-hidden><G e="🔗" /></span>
           <span className="p">{words("quickLinks", lang).main}</span>
@@ -1200,7 +1226,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
 
   // Designed looks: every action in one tidy grid of same-size buttons, grouped
   // by meaning with a small coloured label (no boxed columns).
-  const toolLink = (href: string, e: string, k: WordKey) => (
+  const toolLink = (href: string, e: string, k: WordKey) => (href === "/mfg" && !acc.page("mfg")) || (href === "/tallies" && !acc.page("stock") && !acc.fn("count")) ? null : (
     <a className="qr-tile g-tool" href={href}>
       <span className="ic" aria-hidden>
         <G e={e} />
@@ -1229,7 +1255,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   const designBoard = (
     <div className="qa">
       <section className="qa-sec">
-        {qaHead("in", "moneyIn", rs(totals.cashIn + totals.upiIn))}
+        {qaHead("in", "moneyIn", rsT(totals.cashIn + totals.upiIn))}
         <div className="qa-grid">
           <Tile id="SALE" />
           <Tile id="bill" />
@@ -1238,7 +1264,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
         </div>
       </section>
       <section className="qa-sec">
-        {qaHead("out", "moneyOut", rs(totals.cashOut + totals.upiOut))}
+        {qaHead("out", "moneyOut", rsT(totals.cashOut + totals.upiOut))}
         <div className="qa-grid">
           <Tile id="PURCHASE" />
           <Tile id="EXPENSE" />
@@ -1253,7 +1279,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
             <Tile id="jwSettle" />
           </div>
         </section>
-        <section className="qa-sec">
+        {acc.page("mfg") && <section className="qa-sec">
           {qaHead("mfg", "mfgDesk", openBarrels === null ? null : `${openBarrels} ${word("openBarrelsShort", lang)}`)}
           <div className="qa-grid">
             <button type="button" className="qr-tile g-mfg" onClick={() => setSheet({ t: "mfg", startNew: true })}>
@@ -1271,7 +1297,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
               {words("barrelSteps", lang).sub && <span className="s">{words("barrelSteps", lang).sub}</span>}
             </button>
           </div>
-        </section>
+        </section>}
       </div>
       <section className="qa-sec">
         {qaHead("oth", "otherCash", word("notExpense", lang))}
@@ -1298,32 +1324,32 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     </div>
   );
 
-  const summaryBlock = (
-    <Section id="summary" title={<Txt k="summary" lang={lang} />} right={<b>{rs(counterNow)}</b>}>
+  const summaryBlockRaw = (
+    <Section id="summary" title={<Txt k="summary" lang={lang} />} right={<b>{rsT(counterNow)}</b>}>
       <div className="qr-srow">
         <span>
           <Txt k="opening" lang={lang} />
         </span>
-        <b>{rs(day?.opening.value)}</b>
+        <b>{rsT(day?.opening.value)}</b>
       </div>
       <div className="qr-srow">
         <span>
           <Txt k="cashIn" lang={lang} />
         </span>
-        <b className="qr-g">+ {rs(totals.cashIn)}</b>
+        <b className="qr-g">+ {rsT(totals.cashIn)}</b>
       </div>
       <div className="qr-srow">
         <span>
           <Txt k="cashOut" lang={lang} />
         </span>
-        <b className="qr-r">− {rs(totals.cashOut)}</b>
+        <b className="qr-r">− {rsT(totals.cashOut)}</b>
       </div>
       <div className="qr-srow">
         <span>
           <Txt k="jwCash" lang={lang} />
         </span>
         <b>
-          <span className="qr-g">+{rs(totals.jwIn)}</span> <span className="qr-r">−{rs(totals.jwOut)}</span>
+          <span className="qr-g">+{rsT(totals.jwIn)}</span> <span className="qr-r">−{rsT(totals.jwOut)}</span>
         </b>
       </div>
       <div className="qr-srow">
@@ -1335,7 +1361,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
             </span>
           )}
         </span>
-        <b className="qr-o">− {rs(totals.pigmee + totals.ownerDraw)}</b>
+        <b className="qr-o">− {rsT(totals.pigmee + totals.ownerDraw)}</b>
       </div>
       <div className="qr-srow">
         <span>
@@ -1343,18 +1369,18 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
             <Txt k="inCounter" lang={lang} />
           </b>
         </span>
-        <b className="qr-big">{rs(counterNow)}</b>
+        <b className="qr-big">{rsT(counterNow)}</b>
       </div>
       <div className="qr-srow">
         <span>
-          <G e="📱" /> UPI <b className="qr-g">{rs(totals.upiIn)}</b> · <b className="qr-r">{rs(totals.upiOut)}</b>
+          <G e="📱" /> UPI <b className="qr-g">{rsT(totals.upiIn)}</b> · <b className="qr-r">{rsT(totals.upiOut)}</b>
         </span>
         <span>
-          <G e="📒" /> {word("CREDIT", lang)} <b>{rs(totals.creditGiven)}</b>
+          <G e="📒" /> {word("CREDIT", lang)} <b>{rsT(totals.creditGiven)}</b>
           {totals.ownerPhonePeIn > 0 && (
             <>
               {" "}
-              · <G e="🟣" /> {word("OWNER_PHONEPE", lang)} <b>{rs(totals.ownerPhonePeIn)}</b>
+              · <G e="🟣" /> {word("OWNER_PHONEPE", lang)} <b>{rsT(totals.ownerPhonePeIn)}</b>
             </>
           )}
         </span>
@@ -1374,20 +1400,20 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     </Section>
   );
 
-  const entriesBlock = (
+  const entriesBlockRaw = (
     <Section id="entries" title={<Txt k="entries" lang={lang} />} right={<span className="qr-m">{entries.length}</span>}>
       <div className="qr-lists">
         <div className="qr-lcol in">
           <div className="qr-lh">
             <span><G e="⬇" /> {word("moneyIn", lang)}</span>
-            <span>{rs(sum(ins))}</span>
+            <span>{rsT(sum(ins))}</span>
           </div>
           {ins.length ? [...ins].reverse().map(EntryCard) : <div className="qr-empty">{word("none", lang)}</div>}
         </div>
         <div className="qr-lcol out">
           <div className="qr-lh">
             <span><G e="⬆" /> {word("moneyOut", lang)}</span>
-            <span>{rs(sum(outs))}</span>
+            <span>{rsT(sum(outs))}</span>
           </div>
           {outs.length ? [...outs].reverse().map(EntryCard) : <div className="qr-empty">{word("none", lang)}</div>}
         </div>
@@ -1395,7 +1421,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
           <div className="qr-lcol oth">
             <div className="qr-lh">
               <span>{word("otherCash", lang)}</span>
-              <span>{rs(sum(oths))}</span>
+              <span>{rsT(sum(oths))}</span>
             </div>
             {[...oths].reverse().map(EntryCard)}
           </div>
@@ -1416,7 +1442,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
       </th>
     );
   };
-  const jobWorkBlock = (
+  const jobWorkBlockRaw = (
     <Section
       id="jobwork"
       anchor="qr-jw-ledger"
@@ -1488,7 +1514,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
                       <b className="qr-g nowrap">{word("paid", lang)}</b>
                     ) : (
                       <b className="qr-o nowrap">
-                        {word("due", lang)} {rs(due)}
+                        {word("due", lang)} {acc.mask("udhaar", rs(due))}
                       </b>
                     )}
                     <span className="fold acts">
@@ -1621,7 +1647,9 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     { key: "count", icon: "💵", k: "count" },
     { key: "stock", icon: "📦", k: "stockTally" },
   ];
-  const tool = prefs.work;
+  const WORK_FN: Partial<Record<WorkTool, FnKey>> = { FRESH_CRUSH: "sale", SALE: "sale", EXPENSE: "expense", PURCHASE: "purchase", jwNew: "jobwork", count: "count", stock: "stock" };
+  const toolsAllowed = WORK_TOOLS.filter((w) => !WORK_FN[w.key] || acc.fn(WORK_FN[w.key]!));
+  const tool: WorkTool = toolsAllowed.some((w) => w.key === prefs.work) ? prefs.work : "calc";
   const wsBody =
     tool === "calc" ? (
       <CalcSheet key={wsKey} lang={lang} onClose={wsReset} />
@@ -1673,7 +1701,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
-  const workspaceBlock = (
+  const workspaceBlockRaw = (
     <div className="qr-work" aria-label={word("workspace", lang)}>
       <div className="qr-head qr-work-head" onPointerDown={startMove}>
         <span>
@@ -1707,7 +1735,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
         )}
       </div>
       <div className="qr-chips qr-work-tools" role="tablist">
-        {WORK_TOOLS.map((w) => {
+        {toolsAllowed.map((w) => {
           const l = words(w.k, lang);
           return (
             <button
@@ -1738,7 +1766,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     toast(msg || word("saved", lang));
     load();
   };
-  const sheetEl = !sheet ? null : sheet.t === "calc" ? (
+  const sheetElRaw = !sheet ? null : sheet.t === "calc" ? (
     <CalcSheet lang={lang} onClose={() => setSheet(null)} />
   ) : sheet.t === "estimate" ? (
     <EstimateSheet day={day} lang={lang} onClose={() => setSheet(null)} toast={toast} onMakeSale={(init) => setSheet({ t: "entry", kind: "SALE", init })} />
@@ -1835,7 +1863,13 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     />
   );
 
-  const POS_KINDS = ["SALE", "FRESH_CRUSH", "UDHAAR_IN", "PURCHASE", "EXPENSE", "PAYMENT"] as const;
+  // Windows a profile switches off simply are not drawn.
+  const summaryBlock = acc.win("summary") ? summaryBlockRaw : null;
+  const entriesBlock = acc.win("entries") ? entriesBlockRaw : null;
+  const workspaceBlock = acc.win("work") ? workspaceBlockRaw : null;
+  const jobWorkBlock = acc.fn("jobwork") && acc.win("work") ? jobWorkBlockRaw : null;
+  const sheetEl = acc.win("form") ? sheetElRaw : null;
+  const POS_KINDS = (["SALE", "FRESH_CRUSH", "UDHAAR_IN", "PURCHASE", "EXPENSE", "PAYMENT"] as const).filter((k) => acc.fn(kindToFn(k)));
   const posSaved = (msg?: string) => {
     celebrate();
     toast(msg || word("saved", lang));

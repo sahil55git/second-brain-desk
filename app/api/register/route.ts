@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, isValidDate, loadConfig, loadDay, saveConfig } from "@/lib/registerServer";
+import { accessFor } from "@/lib/accessServer";
+import { BUILTIN_PROFILES, canFn, effectivePerms, kindToFn, visibleEntries } from "@/lib/access";
 import { ALL_KINDS, KIND_SIDE, allocateBill, channelToMode, learnItem, normalizeBillLines, normalizeFreshCrush, normalizeSplit, rateKey, type BillLine, type RegisterKind } from "@/lib/register";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +13,18 @@ export async function GET(req: NextRequest) {
   if (!isValidDate(date)) {
     return NextResponse.json({ error: "date=YYYY-MM-DD is required" }, { status: 400 });
   }
+  const user = await getUser(req);
+  if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const result = await safeDbCall(() => loadDay(date));
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 503 });
+  if (user.isOwner) return NextResponse.json({ data: result.data });
+  // Staff: what the profile hides (other users' entries, rates) is removed here, not on screen.
+  const acc = await accessFor(user.username);
+  const perms = acc ? acc.perms : effectivePerms(false, BUILTIN_PROFILES[1].perms);
+  const data = result.data as { entries?: Array<Record<string, unknown>> };
+  if (Array.isArray(data.entries)) {
+    return NextResponse.json({ data: { ...data, entries: visibleEntries(data.entries, perms, user.name) } });
+  }
   return NextResponse.json({ data: result.data });
 }
 
@@ -27,6 +39,14 @@ export async function POST(req: NextRequest) {
   const kind = body.kind as RegisterKind;
   if (!ALL_KINDS.includes(kind)) {
     return NextResponse.json({ error: "Unknown entry type" }, { status: 400 });
+  }
+  if (!user.isOwner) {
+    const acc = await accessFor(user.username);
+    const perms = acc ? acc.perms : effectivePerms(false, BUILTIN_PROFILES[1].perms);
+    if (acc && !acc.active) return NextResponse.json({ error: "This login has been switched off." }, { status: 403 });
+    if (!canFn(perms, kindToFn(kind))) {
+      return NextResponse.json({ error: "Your profile cannot add this kind of entry." }, { status: 403 });
+    }
   }
   if (!isValidDate(body.date)) {
     return NextResponse.json({ error: "date=YYYY-MM-DD is required" }, { status: 400 });
