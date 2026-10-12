@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useCustomize } from "@/lib/customize";
 import type { BizData } from "@/lib/bizReports";
-import { homeSummary, type HomeSummary } from "@/lib/homeSummary";
+import { homeSparks, homeSummary, rangeSummary, type HomeRange, type HomeSummary, type RangeSummary } from "@/lib/homeSummary";
 import { businessDate } from "@/lib/register";
 import { Icon } from "@/components/ui/Icons";
 
@@ -84,13 +84,111 @@ export default function HomeDesk({ onNavigate }: { onNavigate: Go }) {
   }, [nowMs]);
 
   const s = useMemo(() => (data ? homeSummary(data, nowMs) : null), [data, nowMs]);
+  const [range, setRange] = useState<HomeRange>(() => {
+    try {
+      const v = localStorage.getItem("hm-range");
+      return v === "week" || v === "month" ? v : "today";
+    } catch {
+      return "today";
+    }
+  });
+  const pickRange = (v: HomeRange) => {
+    setRange(v);
+    try {
+      localStorage.setItem("hm-range", v);
+    } catch {
+      /* ignore */
+    }
+  };
+  const r = useMemo(() => (data ? rangeSummary(data, range, nowMs) : null), [data, range, nowMs]);
+  const sp = useMemo(() => (data ? homeSparks(data, nowMs) : null), [data, nowMs]);
 
   if (error) return <div className="hm-note">{error}</div>;
-  if (!s) return <div className={`hm hm-loading hm-${skin === "earth" || skin === "pastel" ? skin : "glass"}`} aria-busy="true"><div className="hm-skel" /><div className="hm-skel" /><div className="hm-skel" /></div>;
+  if (!s || !r || !sp) return <div className={`hm hm-loading hm-${skin === "earth" || skin === "pastel" ? skin : "glass"}`} aria-busy="true"><div className="hm-skel" /><div className="hm-skel" /><div className="hm-skel" /></div>;
 
-  if (skin === "earth") return <Earth s={s} go={onNavigate} />;
-  if (skin === "pastel") return <Pastel s={s} go={onNavigate} name={name} nowMs={nowMs} />;
-  return <Glass s={s} go={onNavigate} name={name} nowMs={nowMs} />;
+  const bar = <RangeBar r={r} s={s} range={range} onRange={pickRange} go={onNavigate} />;
+  if (skin === "earth") return <Earth s={s} r={r} sp={sp} bar={bar} go={onNavigate} />;
+  if (skin === "pastel") return <Pastel s={s} r={r} sp={sp} bar={bar} go={onNavigate} name={name} nowMs={nowMs} />;
+  return <Glass s={s} r={r} sp={sp} bar={bar} go={onNavigate} name={name} nowMs={nowMs} />;
+}
+
+type Sparks = ReturnType<typeof homeSparks>;
+const RANGE_WORD: Record<HomeRange, { sold: string; vs: string; kn: string }> = {
+  today: { sold: "Sold today", vs: "", kn: "ಇಂದು" },
+  week: { sold: "Sold this week", vs: "the week before", kn: "ಈ ವಾರ" },
+  month: { sold: "Sold this month", vs: "the same days last month", kn: "ಈ ತಿಂಗಳು" },
+};
+
+/** Today / Week / Month pills and the "today at a glance" chips. */
+function RangeBar({ r, s, range, onRange, go }: { r: RangeSummary; s: HomeSummary; range: HomeRange; onRange: (v: HomeRange) => void; go: Go }) {
+  return (
+    <div className="hm-rangebar hm-rise">
+      <div className="hm-pills" role="tablist" aria-label="Period">
+        {(["today", "week", "month"] as HomeRange[]).map((k) => (
+          <button key={k} role="tab" aria-selected={range === k} className={range === k ? "on" : ""} onClick={() => onRange(k)}>
+            {k === "today" ? "Today" : k === "week" ? "Week" : "Month"}
+          </button>
+        ))}
+      </div>
+      <div className="hm-glance" aria-label="At a glance">
+        <span className="g-n"><b>{r.bills}</b> {r.bills === 1 ? "bill" : "bills"}</span>
+        <button className="g-n" onClick={() => go("ledger")}><b>{s.udhaarCustomers}</b> udhaar pending</button>
+        <button className="g-n" onClick={() => go("jobwork")}><b>{s.jobWork.waiting}</b> job-work waiting</button>
+        <span className="g-chip cash">Cash {inr(r.cashIn)}</span>
+        <span className="g-chip upi">UPI {inr(r.upiIn)}</span>
+        {r.creditGiven > 0 && <span className="g-chip ud">Udhaar given {inr(r.creditGiven)}</span>}
+      </div>
+    </div>
+  );
+}
+
+function RangeChange({ r, s, wordy }: { r: RangeSummary; s: HomeSummary; wordy?: boolean }) {
+  if (r.range === "today") return <Change s={s} wordy={wordy} />;
+  if (r.changePct === null) return <>{wordy ? `No sales in ${RANGE_WORD[r.range].vs}` : "—"}</>;
+  const up = r.changePct >= 0;
+  return (
+    <>
+      {wordy ? (up ? "Up " : "Down ") : up ? "↑ " : "↓ "}
+      <b className={up ? "hm-up" : "hm-down"}>{Math.abs(r.changePct).toFixed(1)}%</b>
+      {` vs ${RANGE_WORD[r.range].vs}`}
+    </>
+  );
+}
+
+/** Small 7-day trend line for a card. */
+function Spark({ values, tone = "accent", label }: { values: number[]; tone?: "accent" | "in" | "out" | "jw"; label: string }) {
+  const W = 96, H = 30;
+  const max = Math.max(...values), min = Math.min(...values);
+  const pts = values.map((v, i) => [2 + (i * (W - 4)) / (values.length - 1), H - 3 - ((v - min) / (max - min || 1)) * (H - 8)]);
+  const d = "M" + pts.map((p) => p.map((n) => n.toFixed(1)).join(" ")).join(" L");
+  const last = pts[pts.length - 1];
+  return (
+    <svg className={`hm-spark t-${tone}`} viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={`${label}, last 7 days`}>
+      <path d={`${d} L${W - 2} ${H} L2 ${H} Z`} className="a" />
+      <path d={d} className="l" />
+      <circle cx={last[0]} cy={last[1]} r="2.6" className="p" />
+    </svg>
+  );
+}
+
+/** Hero chart: by hour for today, by day for a week or month. */
+function RangeBars({ r, s }: { r: RangeSummary; s: HomeSummary }) {
+  if (r.range === "today") return <HourBars s={s} compact />;
+  const max = Math.max(1, ...r.series.map((b) => b.value));
+  const peak = r.series.reduce((a, b, i) => (b.value > r.series[a].value ? i : a), 0);
+  const step = r.series.length > 12 ? Math.ceil(r.series.length / 6) : 1;
+  return (
+    <div className="hm-hours">
+      <div className="hm-bars" role="img" aria-label="Sales by day">
+        {r.series.map((b, i) => (
+          <div key={i} className={`hm-bar${i === peak && b.value > 0 ? " peak" : ""}`} style={{ height: `${Math.max(6, (b.value / max) * 100)}%`, animationDelay: `${i * 30}ms` }} title={`${b.label}: ${inr(b.value)}`} />
+        ))}
+      </div>
+      <div className="hm-axis">
+        {r.series.map((b, i) => (i % step === 0 || i === r.series.length - 1 ? <span key={i}>{b.label}</span> : null))}
+      </div>
+    </div>
+  );
 }
 
 // ----------------------------------------------------------------- shared bits
@@ -155,24 +253,25 @@ function Empty({ children }: { children: React.ReactNode }) {
 }
 
 // ----------------------------------------------------------------- Earth & Clay
-function Earth({ s, go }: { s: HomeSummary; go: Go }) {
-  const sold = useCountUp(s.soldToday);
+function Earth({ s, r, sp, bar, go }: { s: HomeSummary; r: RangeSummary; sp: Sparks; bar: React.ReactNode; go: Go }) {
+  const sold = useCountUp(r.sold);
   return (
     <div className="hm hm-earth">
+      {bar}
       <section className="hm-top">
         <div className="hm-hero hm-rise">
-          <div className="hm-eyebrow">Sold today</div>
+          <div className="hm-eyebrow">{RANGE_WORD[r.range].sold}</div>
           <div className="hm-big">{inr(sold)}</div>
           <div className="hm-sub">
-            <Change s={s} wordy />
+            <RangeChange r={r} s={s} wordy />
           </div>
         </div>
         <div className="hm-card hm-rise d2">
           <div className="hm-card-h">
-            <h3>Sales by hour</h3>
-            <span>{s.peakHour !== null ? `Peak at ${s.byHour.find((b) => b.hour === s.peakHour)?.label}` : "No sales yet"}</span>
+            <h3>{r.range === "today" ? "Sales by hour" : "Sales by day"}</h3>
+            <span>{r.range === "today" ? (s.peakHour !== null ? `Peak at ${s.byHour.find((b) => b.hour === s.peakHour)?.label}` : "No sales yet") : `${r.bills} bills`}</span>
           </div>
-          <HourBars s={s} compact />
+          <RangeBars r={r} s={s} />
         </div>
       </section>
 
@@ -181,6 +280,7 @@ function Earth({ s, go }: { s: HomeSummary; go: Go }) {
           <span className="l">Counter cash in</span>
           <span className="v">{inr(s.cashInToday)}</span>
           <span className="m">UPI {inr(s.upiInToday)} · Out {inr(s.cashOutToday)}</span>
+          <Spark values={sp.cashIn} tone="in" label="Cash in" />
         </button>
         <button className="hm-card hm-stat hm-rise d3" onClick={() => go("manufacturing")}>
           <span className="l">Oil yield · 7 days</span>
@@ -191,11 +291,13 @@ function Earth({ s, go }: { s: HomeSummary; go: Go }) {
           <span className="l">Job-work waiting</span>
           <span className="v">{kg(s.jobWork.waitingKg)}</span>
           <span className="m">{plural(s.jobWork.waiting, "customer")} waiting{s.jobWork.overdue ? ` · ${s.jobWork.overdue} overdue` : ""}</span>
+          <Spark values={sp.jobWorkKg} tone="jw" label="Job-work waiting" />
         </button>
         <button className="hm-card hm-stat dark hm-rise d4" onClick={() => go("ledger")}>
           <span className="l">Udhaar to collect</span>
           <span className="v">{short(s.udhaarOutstanding)}</span>
           <span className="m">{plural(s.udhaarCustomers, "customer")}</span>
+          <Spark values={sp.udhaar} tone="out" label="Udhaar to collect" />
         </button>
       </section>
 
@@ -236,21 +338,23 @@ function Earth({ s, go }: { s: HomeSummary; go: Go }) {
 }
 
 // ----------------------------------------------------------------- Pastel Liquid
-function Pastel({ s, go, name, nowMs }: { s: HomeSummary; go: Go; name: string; nowMs: number }) {
-  const sold = useCountUp(s.soldToday);
+function Pastel({ s, r, sp, bar, go, name, nowMs }: { s: HomeSummary; r: RangeSummary; sp: Sparks; bar: React.ReactNode; go: Go; name: string; nowMs: number }) {
+  const sold = useCountUp(r.sold);
   const max = Math.max(1, ...s.week.map((w) => w.total));
   return (
     <div className="hm hm-pastel">
+      {bar}
       <section className="hm-top">
         <div className="hm-hero hm-rise">
           <div className="hm-hello">{knGreeting(nowMs)}{name ? `, ${name}` : ""} · {longDate(s.today).replace(/,? \d{4}$/, "")}</div>
           <div className="hm-big">{inr(sold)}</div>
           <div className="hm-sub">
-            sold today — {s.changePct === null ? "first sales this weekday" : `${Math.abs(s.changePct).toFixed(1)}% ${s.changePct >= 0 ? "more" : "less"} than last ${weekdayName(shiftDay(s.today, -7))}`}
+            {RANGE_WORD[r.range].sold.toLowerCase()} — <RangeChange r={r} s={s} />
           </div>
           <div className="hm-chips">
-            <span>Cash in {inr(s.cashInToday)}</span>
-            <span>UPI {inr(s.upiInToday)}</span>
+            <span>{r.bills} bills</span>
+            <span>Cash in {inr(r.cashIn)}</span>
+            <span>UPI {inr(r.upiIn)}</span>
           </div>
           <svg className="hm-mountains" viewBox="0 0 900 140" preserveAspectRatio="none" aria-hidden>
             <path className="m1" d="M0 140 L110 40 L200 90 L330 0 L470 80 L560 30 L700 95 L820 50 L900 70 L900 140 Z" />
@@ -267,16 +371,19 @@ function Pastel({ s, go, name, nowMs }: { s: HomeSummary; go: Go; name: string; 
             <span className="l">Udhaar</span>
             <span className="v">{short(s.udhaarOutstanding)}</span>
             <span className="m">{plural(s.udhaarCustomers, "customer")}</span>
+            <Spark values={sp.udhaar} tone="out" label="Udhaar" />
           </button>
           <button className="hm-tint sky hm-rise d3" onClick={() => go("jobwork")}>
             <span className="l">Job-work</span>
             <span className="v">{kg(s.jobWork.waitingKg)}</span>
             <span className="m">{s.jobWork.waiting} waiting</span>
+            <Spark values={sp.jobWorkKg} tone="jw" label="Job-work" />
           </button>
           <button className="hm-tint rose hm-rise d4" onClick={() => go("closing")}>
             <span className="l">Spent today</span>
             <span className="v">{inr(s.spentToday)}</span>
             <span className="m">cash out {inr(s.cashOutToday)}</span>
+            <Spark values={sp.spent} tone="out" label="Spent" />
           </button>
         </div>
       </section>
@@ -328,8 +435,8 @@ function Pastel({ s, go, name, nowMs }: { s: HomeSummary; go: Go; name: string; 
 }
 
 // ----------------------------------------------------------------- Mahadev Glass (Neon Glow / other glass looks)
-function Glass({ s, go, name, nowMs }: { s: HomeSummary; go: Go; name: string; nowMs: number }) {
-  const sold = useCountUp(s.soldToday);
+function Glass({ s, r, sp, bar, go, name, nowMs }: { s: HomeSummary; r: RangeSummary; sp: Sparks; bar: React.ReactNode; go: Go; name: string; nowMs: number }) {
+  const sold = useCountUp(r.sold);
   const W = 560, H = 170;
   const max = Math.max(1, ...s.week.map((w) => Math.max(w.counter, w.bills)));
   const pt = (i: number, v: number) => [20 + (i * (W - 40)) / 6, H - 14 - (v / max) * (H - 34)] as const;
@@ -343,12 +450,14 @@ function Glass({ s, go, name, nowMs }: { s: HomeSummary; go: Go; name: string; n
         <small>{longDate(s.today)}</small>
         <h2>{greeting(nowMs)}{name ? `, ${name}` : ""}</h2>
       </div>
+      {bar}
 
       <section className="hm-kpis">
         <button className="hm-card hm-kpi k-gold hm-rise" onClick={() => go("sales")}>
-          <span className="l">Sales today</span>
+          <span className="l">{RANGE_WORD[r.range].sold.replace("Sold", "Sales")}</span>
           <span className="v">{inr(sold)}</span>
-          <span className="m"><Change s={s} /></span>
+          <span className="m"><RangeChange r={r} s={s} /></span>
+          <Spark values={sp.sales} tone="accent" label="Sales" />
         </button>
         <button className="hm-card hm-kpi k-amber hm-rise d2" onClick={() => go("closing")}>
           <span className="l">Cash in today</span>
@@ -356,11 +465,13 @@ function Glass({ s, go, name, nowMs }: { s: HomeSummary; go: Go; name: string; n
           <span className={`m${s.lastCount?.mismatch ? " warn" : ""}`}>
             {s.lastCount ? (s.lastCount.diff === 0 ? "Last count matched" : `Count ${s.lastCount.diff > 0 ? "over" : "short"} ${inr(Math.abs(s.lastCount.diff))}`) : `UPI ${inr(s.upiInToday)}`}
           </span>
+          <Spark values={sp.cashIn} tone="in" label="Cash in" />
         </button>
         <button className="hm-card hm-kpi k-rose hm-rise d3" onClick={() => go("ledger")}>
           <span className="l">Udhaar to collect</span>
           <span className="v">{inr(s.udhaarOutstanding)}</span>
           <span className="m soft">{plural(s.udhaarCustomers, "customer")}</span>
+          <Spark values={sp.udhaar} tone="out" label="Udhaar to collect" />
         </button>
         <button className="hm-card hm-kpi k-teal hm-rise d4" onClick={() => go("manufacturing")}>
           <span className="l">Oil yield (7 days)</span>

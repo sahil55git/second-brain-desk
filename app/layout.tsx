@@ -5,6 +5,7 @@ import "./home.css";
 import { CustomizeProvider } from "@/lib/customize";
 import AuthSessionProvider from "@/components/AuthSessionProvider";
 import { ScaleProvider } from "@/components/ScaleProvider";
+import PhoneNav from "@/components/PhoneNav";
 
 export const metadata: Metadata = {
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
@@ -33,7 +34,10 @@ export default function RootLayout({
       <body className="antialiased">
         <AuthSessionProvider>
           <ScaleProvider>
-            <CustomizeProvider>{children}</CustomizeProvider>
+            <CustomizeProvider>
+              {children}
+              <PhoneNav />
+            </CustomizeProvider>
           </ScaleProvider>
         </AuthSessionProvider>
       </body>
