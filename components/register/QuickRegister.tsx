@@ -5,6 +5,7 @@
 // routes, so every entry lands in the same Postgres database as the rest of
 // Second Brain Desk.
 
+import UdhaarHint from "./UdhaarHint";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
@@ -2117,7 +2118,10 @@ function EntrySheet({
       )}
 
       {side !== "oth" && (
-        <PartyField value={party} onChange={setParty} top={day.topParties} all={day.allParties} lang={lang} places />
+        <>
+          <PartyField value={party} onChange={setParty} top={day.topParties} all={day.allParties} lang={lang} places />
+          {kind === "SALE" && <UdhaarHint party={party} />}
+        </>
       )}
 
       {showNote || notes ? (
