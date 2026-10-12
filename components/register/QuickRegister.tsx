@@ -71,6 +71,8 @@ import { DESK_PROMPTS } from "@/lib/aiPrompts";
 import { findItemByCode } from "@/lib/smartEntry";
 import MfgQuick from "@/components/mfg/MfgQuick";
 import BillSheet from "@/components/register/BillSheet";
+import { useCustomize } from "@/lib/customize";
+import { BrandMark, EMOJI_ICON, Icon, type IconName } from "@/components/ui/Icons";
 
 // Pre-fill for an entry form: from a voice command, or from a scanned slip
 // (linkProofId attaches that scan to the entry once it is saved).
@@ -646,6 +648,11 @@ export default function QuickRegister() {
   const { data: session } = useSession();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isOwner = (session?.user as any)?.role === "OWNER";
+  // Designed looks (any glass skin) swap emoji for line icons and add the counter hero card.
+  const { prefs: uiPrefs } = useCustomize();
+  const skinned = uiPrefs.look.skin !== "none";
+  const ic = (e: string) => (skinned && EMOJI_ICON[e] ? <Icon name={EMOJI_ICON[e]} /> : e);
+  const pillIc = (e: string, name: IconName) => (skinned ? <Icon name={name} size={18} /> : e);
 
   const [date, setDate] = useState(todayIST);
   const [day, setDay] = useState<DayBundle | null>(null);
@@ -928,7 +935,7 @@ export default function QuickRegister() {
           </span>
         )}
         <span className="ic" aria-hidden>
-          {t.icon}
+          {ic(t.icon)}
         </span>
         <span className="p">{w.main}</span>
         {w.sub && <span className="s">{w.sub}</span>}
@@ -997,6 +1004,32 @@ export default function QuickRegister() {
   const favKeys = prefs.favs.filter((f): f is TileKey => f in TILES);
 
   // ----------------------------- blocks --------------------------------
+  const heroBlock = skinned ? (
+    <div className="qr-hero">
+      <div className="qr-hero-l">
+        <Txt k="inCounter" lang={lang} />
+      </div>
+      <div className="qr-hero-v">{rs(counterNow)}</div>
+      <div className="qr-hero-chips">
+        <span className="in">
+          <small>IN · ಬರುವುದು</small>
+          <b>{rs(totals.cashIn)}</b>
+        </span>
+        <span className="out">
+          <small>OUT · ಹೋದದ್ದು</small>
+          <b>{rs(totals.cashOut)}</b>
+        </span>
+        <span className="upi">
+          <small>UPI</small>
+          <b>{rs(totals.upiIn)}</b>
+        </span>
+      </div>
+      <svg className="qr-hero-art" viewBox="0 0 400 90" preserveAspectRatio="none" aria-hidden>
+        <path d="M0 90 L60 40 L110 66 L190 12 L260 60 L320 30 L400 58 L400 90 Z" />
+      </svg>
+    </div>
+  ) : null;
+
   const favouritesBlock =
     favKeys.length > 0 || editFavs ? (
       <div className="qr-favs-wrap">
@@ -1077,12 +1110,12 @@ export default function QuickRegister() {
         </div>
         <div className="qr-row2">
           <button type="button" className="qr-tile g-tool" onClick={() => setSheet({ t: "mfg", startNew: true })}>
-            <span className="ic" aria-hidden>➕</span>
+            <span className="ic" aria-hidden>{ic("➕")}</span>
             <span className="p">{words("newBarrel", lang).main}</span>
             {words("newBarrel", lang).sub && <span className="s">{words("newBarrel", lang).sub}</span>}
           </button>
           <button type="button" className="qr-tile g-tool" onClick={() => setSheet({ t: "mfg" })}>
-            <span className="ic" aria-hidden>🛢️</span>
+            <span className="ic" aria-hidden>{ic("🛢️")}</span>
             <span className="p">{words("barrelSteps", lang).main}</span>
             {words("barrelSteps", lang).sub && <span className="s">{words("barrelSteps", lang).sub}</span>}
           </button>
@@ -1114,17 +1147,17 @@ export default function QuickRegister() {
       </div>
       <div className="qr-tools">
         <a className="qr-tile g-tool" href="/mfg">
-          <span className="ic" aria-hidden>🏭</span>
+          <span className="ic" aria-hidden>{ic("🏭")}</span>
           <span className="p">{words("mfgDesk", lang).main}</span>
           {words("mfgDesk", lang).sub && <span className="s">{words("mfgDesk", lang).sub}</span>}
         </a>
         <a className="qr-tile g-tool" href="/tallies">
-          <span className="ic" aria-hidden>🧮</span>
+          <span className="ic" aria-hidden>{ic("🧮")}</span>
           <span className="p">{words("allTallies", lang).main}</span>
           {words("allTallies", lang).sub && <span className="s">{words("allTallies", lang).sub}</span>}
         </a>
         <a className="qr-tile g-tool" href="/go">
-          <span className="ic" aria-hidden>🔗</span>
+          <span className="ic" aria-hidden>{ic("🔗")}</span>
           <span className="p">{words("quickLinks", lang).main}</span>
           {words("quickLinks", lang).sub && <span className="s">{words("quickLinks", lang).sub}</span>}
         </a>
@@ -1666,6 +1699,11 @@ export default function QuickRegister() {
     <div className="qr">
       <div className={`qr-wrap${sideBySide ? " split" : ""}`}>
         <div className="qr-top">
+          {skinned && (
+            <span className="qr-logo" aria-hidden>
+              <BrandMark size={22} />
+            </span>
+          )}
           <h1>
             {word("title", lang)}
             <small>
@@ -1684,7 +1722,8 @@ export default function QuickRegister() {
             aria-label={word("editFavs", lang)}
             title={word("editFavs", lang)}
           >
-            {editFavs ? "✓ ⭐" : "⭐"}
+            {editFavs ? "✓ " : ""}
+            {pillIc("⭐", "star")}
           </button>
           {canSide && (
             <button
@@ -1696,26 +1735,27 @@ export default function QuickRegister() {
             </button>
           )}
           <button className="qr-pill" onClick={() => setLang(nextLang[lang])} aria-label={word("language", lang)}>
-            🗣️ {langLabel[lang]}
+            {skinned ? "" : "🗣️ "}
+            {langLabel[lang]}
           </button>
           {voiceOk && (
             <button className={`qr-pill${voiceOn ? " rec" : ""}`} onClick={startVoice} title={word("voice", lang)} aria-label={word("voice", lang)} aria-pressed={voiceOn}>
-              🎤
+              {pillIc("🎤", "mic")}
             </button>
           )}
           <a className="qr-pill" href="/appearance" title="Appearance: themes, text size, colours" aria-label="Appearance">
-            🎨
+            {pillIc("🎨", "palette")}
           </a>
           {isOwner && (
             <>
               <a className="qr-pill" href="/reports" title="Reports & dashboard">
-                📊
+                {pillIc("📊", "chart")}
               </a>
               <a className="qr-pill" href="/records" title={word("records", lang)}>
-                🗂️
+                {pillIc("🗂️", "folder")}
               </a>
               <a className="qr-pill" href="/settings" title="Settings">
-                ⚙️
+                {pillIc("⚙️", "gear")}
               </a>
               <a className="qr-pill" href="/">
                 {word("fullDesk", lang)} ↗
@@ -1741,6 +1781,7 @@ export default function QuickRegister() {
             style={prefs.leftW ? ({ "--qr-left-w": `${prefs.leftW}px` } as React.CSSProperties) : undefined}
           >
             <div className="qr-left">
+              {heroBlock}
               {favouritesBlock}
               {boardBlock}
               {summaryBlock}
@@ -1773,6 +1814,7 @@ export default function QuickRegister() {
           </div>
         ) : (
           <>
+            {heroBlock}
             {favouritesBlock}
             {boardBlock}
             {!floating && workspaceBlock}
