@@ -6,6 +6,8 @@
 // the same "stat widgets + ledger" shape.
 import { useMemo, useState } from "react";
 import type { PartyDTO, PartyType } from "@/lib/types";
+import HoverCard from "./HoverCard";
+import type { SearchDesk } from "@/lib/globalSearch";
 
 const TYPE_LABEL: Record<PartyType, string> = {
   CUSTOMER: "Customer",
@@ -16,9 +18,11 @@ const TYPE_LABEL: Record<PartyType, string> = {
 export default function PartiesDesk({
   initialParties,
   dbConnected,
+  onNavigate,
 }: {
   initialParties: PartyDTO[];
   dbConnected: boolean;
+  onNavigate?: (desk: SearchDesk) => void;
 }) {
   const [parties, setParties] = useState<PartyDTO[]>(initialParties);
   const [filter, setFilter] = useState<"ALL" | PartyType>("ALL");
@@ -260,7 +264,31 @@ export default function PartiesDesk({
             )}
             {visible.map((p) => (
               <tr key={p.id} className="border-b border-black/5 dark:border-white/5">
-                <td className="px-3 py-2 font-medium">{p.name}</td>
+                <td className="px-3 py-2 font-medium">
+                  <HoverCard
+                    trigger={<button type="button" className="text-left font-medium underline decoration-dotted underline-offset-4">{p.name}</button>}
+                  >
+                    <p className="font-semibold">{p.name}</p>
+                    <p className="text-xs opacity-70">{TYPE_LABEL[p.type]}{p.state ? ` · ${p.state}` : ""}</p>
+                    <ul className="mt-2 space-y-1 text-xs">
+                      <li>Phone: {p.phone || "—"}</li>
+                      <li>Email: {p.email || "—"}</li>
+                      <li>GSTIN: {p.gstin || "—"}</li>
+                      <li>Opening balance: ₹{p.openingBalanceInr.toLocaleString("en-IN")}</li>
+                      {p.notes && <li>Note: {p.notes}</li>}
+                    </ul>
+                    <div className="mt-3 flex gap-2">
+                      {onNavigate && (
+                        <button type="button" onClick={() => onNavigate("sales")} className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[var(--accent-contrast)]">
+                          New bill
+                        </button>
+                      )}
+                      <button type="button" onClick={() => archive(p.id)} className="rounded-lg border border-black/15 dark:border-white/20 px-3 py-1.5 text-xs">
+                        Archive
+                      </button>
+                    </div>
+                  </HoverCard>
+                </td>
                 <td className="px-3 py-2">{TYPE_LABEL[p.type]}</td>
                 <td className="px-3 py-2">{p.phone || "—"}</td>
                 <td className="px-3 py-2">{p.gstin || "—"}</td>
