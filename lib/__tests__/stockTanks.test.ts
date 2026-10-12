@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { BAG, BARREL, TANKS, bagRange, barrelStatus, fillPct, freeKg, normalizeCaps, parseCap, tankStatus } from "../stockTanks";
+import { BAG, BARREL, TANKS, bagRange, barrelStatus, fillPct, freeKg, normalizeCaps, parseCap, tankFigures, tankStatus } from "../stockTanks";
 
 describe("stock tanks", () => {
   it("has the shop's tank sizes", () => {
     const by = Object.fromEntries(TANKS.map((t) => [t.key, t.capKg]));
-    expect(by).toEqual({ sf: 2700, soyabean: 2700, karadi1: 580, groundnut: 580 });
+    expect(by).toEqual({ sf: 2700, soyabean: 2700, karadi1: 580, groundnut: 580, k2: 300 });
     expect(BARREL).toEqual({ standardKg: 180, maxKg: 190 });
   });
 
@@ -35,7 +35,7 @@ describe("stock tanks", () => {
   });
 
   it("keeps only sensible saved sizes", () => {
-    expect(normalizeCaps({ sf: 3000, karadi1: -5, groundnut: "abc" })).toEqual({ sf: 3000, soyabean: 2700, karadi1: 580, groundnut: 580 });
+    expect(normalizeCaps({ sf: 3000, karadi1: -5, groundnut: "abc" })).toEqual({ sf: 3000, soyabean: 2700, karadi1: 580, groundnut: 580, k2: 300 });
     expect(normalizeCaps(null).sf).toBe(2700);
     expect(parseCap("2,800")).toBe(2800);
     expect(parseCap("0")).toBeNull();
@@ -48,5 +48,14 @@ describe("stock tanks", () => {
     expect(bagRange(95)).toEqual({ min: 2, max: 3 });
     expect(bagRange(0)).toBeNull();
     expect(bagRange(null)).toBeNull();
+  });
+
+  it("counts Gold Drop in the Sunflower tank", () => {
+    const sf = TANKS[0];
+    expect(tankFigures(sf, { sf: { now: 1500, yesterday: 1600, t1: null, t2: null }, golddrop: { now: 400, yesterday: 450, t1: null, t2: null } })).toEqual({ now: 1900, yesterday: 2050, t1: null, t2: null });
+    expect(tankFigures(sf, { golddrop: { now: 400 } }).now).toBe(400);
+    expect(tankFigures(sf, {}).now).toBeNull();
+    const k2 = TANKS.find((t) => t.key === "k2")!;
+    expect(tankFigures(k2, { sf: { now: 999 }, k2: { now: 120 } }).now).toBe(120);
   });
 });
