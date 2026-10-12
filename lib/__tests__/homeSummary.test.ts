@@ -56,3 +56,37 @@ describe("homeSummary", () => {
     expect(s.jobWork.list.map((j) => [j.customer, j.ageDays])).toEqual([["new", 0], ["old", 3]]);
   });
 });
+
+import { homeSparks, rangeSummary } from "../homeSummary";
+
+describe("rangeSummary / homeSparks", () => {
+  const regEntry = (date: string, amountInr: number, paymentMode = "CASH") => ({
+    id: `${date}-${amountInr}-${paymentMode}`, date, kind: "SALE", item: null, itemLabel: null, qty: null, unit: null, rateInr: null, amountInr, paymentMode, partyName: "A", notes: null,
+    createdAt: `${date}T06:00:00.000Z`,
+  });
+  const data = (rows: ReturnType<typeof regEntry>[]) =>
+    ({ sales: [], purchases: [], expenses: [], register: rows, jobWork: [], mfg: [], closings: [], items: [], refunds: [], adjustments: [] }) as unknown as BizData;
+
+  it("week compares the last 7 days with the 7 before, and counts bills", () => {
+    const r = rangeSummary(data([regEntry("2026-10-12", 1000), regEntry("2026-10-07", 500, "UPI"), regEntry("2026-10-03", 750)]), "week", NOW);
+    expect(r.from).toBe("2026-10-06");
+    expect(r.sold).toBe(1500);
+    expect(r.prevSold).toBe(750);
+    expect(r.changePct).toBe(100);
+    expect(r.bills).toBe(2);
+    expect(r.upiIn).toBe(500);
+    expect(r.series).toHaveLength(7);
+  });
+
+  it("month runs from the 1st and compares with the same days last month", () => {
+    const r = rangeSummary(data([regEntry("2026-10-01", 300), regEntry("2026-09-05", 200), regEntry("2026-09-20", 999)]), "month", NOW);
+    expect(r.from).toBe("2026-10-01");
+    expect(r.prevSold).toBe(200); // 1–12 Sep only
+  });
+
+  it("sparks give 7 daily points ending today", () => {
+    const sp = homeSparks(data([regEntry("2026-10-12", 400), regEntry("2026-10-06", 100)]), NOW);
+    expect(sp.days[6]).toBe("2026-10-12");
+    expect(sp.sales).toEqual([100, 0, 0, 0, 0, 0, 400]);
+  });
+});
