@@ -54,6 +54,8 @@ export default function BillSheet({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const billDate = date || businessDate(Date.now());
+  // Which field the keypad types into (line index + field name).
+  const [focus, setFocus] = useState<{ idx: number; field: "qty" | "rateInr" | "discountPct" } | null>(null);
 
   const loadHeld = () =>
     fetch("/api/held-bills")
@@ -88,15 +90,41 @@ export default function BillSheet({
   const setLine = (idx: number, patch: Partial<DraftLine>) =>
     setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
 
+  const lineFromItem = (item: ItemDTO): DraftLine => ({
+    ...blankLine(),
+    itemId: item.id,
+    name: item.name,
+    hsnCode: item.hsnCode || "",
+    unit: item.unit || "kg",
+    gstRatePct: item.gstRatePct != null ? String(item.gstRatePct) : "",
+  });
+
+  // Adds an item as a bill line: fills the last line if it is still blank, otherwise appends.
+  const addItem = (item: ItemDTO) =>
+    setLines((prev) => {
+      const last = prev[prev.length - 1];
+      const blank = last && !last.itemId && !last.name.trim() && !last.qty.trim();
+      return blank ? [...prev.slice(0, -1), lineFromItem(item)] : [...prev, lineFromItem(item)];
+    });
+
   const pickItem = (idx: number, itemId: string) => {
     const item = items.find((i) => i.id === itemId);
-    setLine(idx, {
-      itemId,
-      name: item ? item.name : "",
-      hsnCode: item?.hsnCode || "",
-      unit: item?.unit || "kg",
-      gstRatePct: item?.gstRatePct != null ? String(item.gstRatePct) : "",
-    });
+    if (item) setLine(idx, lineFromItem(item));
+  };
+
+  // Keypad: types into the focused field. Only one dot per number.
+  const press = (key: string) => {
+    if (!focus) return;
+    setLines((prev) =>
+      prev.map((l, i) => {
+        if (i !== focus.idx) return l;
+        const cur = l[focus.field] ?? "";
+        if (key === "⌫") return { ...l, [focus.field]: cur.slice(0, -1) };
+        if (key === "C") return { ...l, [focus.field]: "" };
+        if (key === "." && cur.includes(".")) return l;
+        return { ...l, [focus.field]: cur + key };
+      })
+    );
   };
 
   const clearForm = () => {
@@ -239,7 +267,31 @@ export default function BillSheet({
         </label>
       </div>
 
-      <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {items.map((i) => (
+          <button
+            key={i.id}
+            type="button"
+            draggable
+            onDragStart={(e) => e.dataTransfer.setData("text/plain", i.id)}
+            onClick={() => addItem(i)}
+            className="cursor-grab rounded-full border px-3 py-1 text-xs"
+            title={T("Tap or drag onto the bill", "ಟ್ಯಾಪ್ ಮಾಡಿ ಅಥವಾ ಬಿಲ್‌ಗೆ ಎಳೆಯಿರಿ")}
+          >
+            + {i.name}
+          </button>
+        ))}
+      </div>
+
+      <div
+        className="space-y-2"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          const item = items.find((i) => i.id === e.dataTransfer.getData("text/plain"));
+          if (item) addItem(item);
+        }}
+      >
         {lines.map((l, idx) => {
           const lt = clean.includes(l) ? computeLine(toInput(l)).lineTotalInr : 0;
           return (
@@ -253,9 +305,9 @@ export default function BillSheet({
                 ))}
               </select>
               <input className={inp + " col-span-2"} placeholder={T("Name", "ಹೆಸರು")} value={l.name} onChange={(e) => setLine(idx, { name: e.target.value })} />
-              <input className={inp} inputMode="decimal" placeholder={T("Qty", "ಪ್ರಮಾಣ")} value={l.qty} onChange={(e) => setLine(idx, { qty: e.target.value })} />
-              <input className={inp} inputMode="decimal" placeholder={T("Rate", "ದರ")} value={l.rateInr} onChange={(e) => setLine(idx, { rateInr: e.target.value })} />
-              <input className={inp} inputMode="decimal" placeholder={T("Disc %", "ರಿಯಾಯಿತಿ %")} value={l.discountPct ?? ""} onChange={(e) => setLine(idx, { discountPct: e.target.value })} />
+              <input className={inp} inputMode="decimal" onFocus={() => setFocus({ idx, field: "qty" })} placeholder={T("Qty", "ಪ್ರಮಾಣ")} value={l.qty} onChange={(e) => setLine(idx, { qty: e.target.value })} />
+              <input className={inp} inputMode="decimal" onFocus={() => setFocus({ idx, field: "rateInr" })} placeholder={T("Rate", "ದರ")} value={l.rateInr} onChange={(e) => setLine(idx, { rateInr: e.target.value })} />
+              <input className={inp} inputMode="decimal" onFocus={() => setFocus({ idx, field: "discountPct" })} placeholder={T("Disc %", "ರಿಯಾಯಿತಿ %")} value={l.discountPct ?? ""} onChange={(e) => setLine(idx, { discountPct: e.target.value })} />
               <div className="flex items-center justify-between gap-2">
                 <span>{lt ? formatInr(lt) : ""}</span>
                 <button type="button" className="opacity-60" onClick={() => setLines((p) => p.filter((_, i) => i !== idx))} aria-label={T("Remove line", "ಸಾಲು ತೆಗೆ")}>
@@ -268,6 +320,18 @@ export default function BillSheet({
         <button type="button" className="rounded border px-3 py-1" onClick={() => setLines((p) => [...p, blankLine()])}>
           + {T("Add line", "ಸಾಲು ಸೇರಿಸಿ")}
         </button>
+        {focus && (
+          <div className="grid max-w-xs grid-cols-3 gap-2 pt-2" role="group" aria-label={T("Keypad", "ಕೀಪ್ಯಾಡ್")}>
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "⌫"].map((k) => (
+              <button key={k} type="button" onClick={() => press(k)} className="rounded border py-3 text-lg font-semibold">
+                {k}
+              </button>
+            ))}
+            <button type="button" onClick={() => press("C")} className="col-span-3 rounded border py-2">
+              {T("Clear field", "ಕ್ಷೇತ್ರ ಅಳಿಸಿ")}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-4">
