@@ -47,7 +47,8 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         include: { invoice: { select: { id: true, invoiceNo: true, paymentMode: true, party: { select: { name: true } } } } },
       }),
-      prisma.stockAdjustment.findMany({ where: { date: { lte: to } }, orderBy: { createdAt: "desc" } }),
+      // Until the StockAdjustment table is created, reports still load without corrections.
+      prisma.stockAdjustment.findMany({ where: { date: { lte: to } }, orderBy: { createdAt: "desc" } }).catch(() => []),
     ]);
     const adjustmentRecords = adjustments.map((a) => ({
       id: a.id,
