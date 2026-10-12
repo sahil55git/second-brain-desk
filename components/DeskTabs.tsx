@@ -29,8 +29,23 @@ import ScaleDashboard from "./ScaleDashboard";
 import LedgerDesk from "./LedgerDesk";
 import HomeDesk from "./home/HomeDesk";
 import GlobalSearch from "./GlobalSearch";
+import Peekable from "./launcher/Peekable";
 import AlertsStrip from "./AlertsStrip";
 import { businessDate } from "@/lib/register";
+
+// What the hover window / right-click menu on each desk tab offers: a one-line
+// description and the Quick Register form that adds to that desk.
+const DESK_PEEK: Partial<Record<string, { lines: { k: string; v: string }[]; add?: { label: string; fn: string } }>> = {
+  home: { lines: [{ k: "Shows", v: "Today / week / month at a glance" }], add: { label: "New sale", fn: "sale" } },
+  jobwork: { lines: [{ k: "Shows", v: "Customer oil in, crushed, billed" }], add: { label: "Job-work entry", fn: "jobwork" } },
+  manufacturing: { lines: [{ k: "Shows", v: "Crushing batches and yield" }], add: { label: "Self crushing", fn: "crush" } },
+  closing: { lines: [{ k: "Shows", v: "Daily cash and stock closing" }], add: { label: "Count cash", fn: "cash" } },
+  sales: { lines: [{ k: "Shows", v: "Bills, udhaar and refunds" }], add: { label: "New sale", fn: "sale" } },
+  purchase: { lines: [{ k: "Shows", v: "Seed and oil purchases" }], add: { label: "Add purchase", fn: "purchase" } },
+  expenses: { lines: [{ k: "Shows", v: "Daily expenses" }], add: { label: "Add expense", fn: "expense" } },
+  parties: { lines: [{ k: "Shows", v: "Customers, suppliers, balances" }], add: { label: "Udhaar received", fn: "udhaar" } },
+  inventory: { lines: [{ k: "Shows", v: "Items and stock levels" }], add: { label: "Stock count", fn: "stock" } },
+};
 
 type Desk =
   | "home"
@@ -146,20 +161,31 @@ export default function DeskTabs({
       </div>
       <AlertsStrip data={alertData} today={today} onOpen={(desk) => open(desk as Desk)} />
       <nav className="sb-tabs flex flex-wrap gap-2 mb-6 border-b border-black/10 dark:border-white/10">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => open(tab.key)}
-            aria-current={active === tab.key ? "page" : undefined}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${active === tab.key ? "on " : ""}${
-              active === tab.key
-                ? "border-[var(--accent)] text-[var(--accent-ink)]"
-                : "border-transparent opacity-60 hover:opacity-100"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          const peek = DESK_PEEK[tab.key];
+          return (
+            <Peekable
+              key={tab.key}
+              title={tab.label}
+              lines={peek?.lines}
+              href={tab.key === "home" ? "/" : `/?desk=${tab.key}`}
+              pop={{ title: tab.label, url: `${tab.key === "home" ? "/" : `/?desk=${tab.key}`}${tab.key === "home" ? "?" : "&"}embed=1`, kind: "App" }}
+              add={peek?.add ? { label: peek.add.label, pop: { title: peek.add.label, url: `/register?open=${peek.add.fn}&embed=1`, kind: "Function" } } : undefined}
+            >
+              <button
+                onClick={() => open(tab.key)}
+                aria-current={active === tab.key ? "page" : undefined}
+                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${active === tab.key ? "on " : ""}${
+                  active === tab.key
+                    ? "border-[var(--accent)] text-[var(--accent-ink)]"
+                    : "border-transparent opacity-60 hover:opacity-100"
+                }`}
+              >
+                {tab.label}
+              </button>
+            </Peekable>
+          );
+        })}
       </nav>
 
       {active === "home" && isOwner && <HomeDesk onNavigate={(d) => open(d)} />}

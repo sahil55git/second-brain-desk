@@ -1,0 +1,108 @@
+/* Quick launcher: round button, side panel, pop windows, big window, peek cards.
+   Uses the app's own colour variables so it follows the chosen look. */
+.ql-fab { position: fixed; z-index: 60; bottom: 24px; width: 58px; height: 58px; border-radius: 50%; border: none; cursor: pointer; display: grid; place-items: center;
+  color: var(--accent-contrast, #fff); background: var(--accent); box-shadow: 0 16px 28px -12px color-mix(in srgb, var(--accent) 85%, #000); transition: transform .12s; }
+.ql-fab.ql-right { right: 22px; } .ql-fab.ql-left { left: 22px; }
+.ql-fab:active { transform: scale(.94); }
+html[data-skin="earth"] .ql-fab { background: linear-gradient(180deg, #c4744a, #a9552f); color: #fff6ea; }
+html[data-skin="pastel"] .ql-fab { background: linear-gradient(180deg, #8d6cf0, #6d4ae0); color: #fff; }
+@media (max-width: 760px) {
+  .ql-fab { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); width: 50px; height: 50px; }
+  .ql-fab.ql-right { right: 16px; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); } .ql-fab.ql-left { left: 14px; }
+}
+.ql-edge { position: fixed; z-index: 59; top: 46%; width: 24px; height: 88px; border: 1px solid color-mix(in srgb, var(--foreground) 16%, transparent); cursor: pointer; font-size: 18px; font-weight: 800;
+  background: var(--background); color: color-mix(in srgb, var(--foreground) 65%, transparent); box-shadow: 0 10px 18px -12px rgba(0, 0, 0, .5); }
+.ql-edge.ql-right { right: 0; border-right: none; border-radius: 14px 0 0 14px; } .ql-edge.ql-left { left: 0; border-left: none; border-radius: 0 14px 14px 0; }
+.ql-scrim { position: fixed; inset: 0; z-index: 8000; background: rgba(20, 16, 10, .32); }
+.ql-scrim.big { z-index: 8500; background: rgba(20, 16, 10, .48); display: grid; place-items: center; padding: 16px; }
+.ql-panel { position: fixed; z-index: 8100; top: 0; bottom: 0; width: min(330px, 88vw); box-sizing: border-box; padding: 16px; overflow: auto; background: var(--background); color: var(--foreground); box-shadow: 0 0 60px -20px rgba(0, 0, 0, .6); }
+.ql-panel.ql-right { right: 0; animation: ql-r .24s cubic-bezier(.2, .8, .2, 1) both; border-left: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent); }
+.ql-panel.ql-left { left: 0; animation: ql-l .24s cubic-bezier(.2, .8, .2, 1) both; border-right: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent); }
+@keyframes ql-r { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes ql-l { from { transform: translateX(-100%); } to { transform: none; } }
+.ql-ph { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.ql-ph b { flex: 1; font-size: 20px; }
+.ql-ph button { width: 36px; height: 36px; border-radius: 12px; cursor: pointer; border: 1px solid color-mix(in srgb, var(--foreground) 16%, transparent); background: transparent; color: inherit; display: grid; place-items: center; }
+.ql-grp { margin-bottom: 14px; }
+.ql-gt { font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; opacity: .6; margin-bottom: 6px; }
+.ql-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 6px; border-radius: 14px; cursor: pointer; text-align: left; font-weight: 700; font-size: 14px; color: inherit;
+  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); background: color-mix(in srgb, var(--foreground) 4%, transparent); transition: transform .12s; }
+.ql-row:hover { transform: translateX(-2px); } .ql-row:active { transform: scale(.98); }
+.ql-lb { flex: 1; } .ql-hint { font-size: 12px; opacity: .55; }
+.ql-ic { flex: none; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent-ink, var(--accent)); }
+.ql-ic.k-App { background: #e3e8d7; color: #5e6b49; } .ql-ic.k-Link { background: #dde6ec; color: #3f6479; }
+.ql-ic.big { width: 46px; height: 46px; border-radius: 14px; }
+
+/* complete window */
+.ql-big { width: min(1100px, 100%); height: min(740px, 100%); display: grid; grid-template-columns: 210px 1fr; border-radius: 24px; overflow: hidden; background: var(--background); color: var(--foreground);
+  border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent); box-shadow: 0 50px 90px -40px rgba(0, 0, 0, .8); animation: ql-win .2s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes ql-win { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
+.ql-bn { display: flex; flex-direction: column; gap: 6px; padding: 18px 12px; background: #2e2a24; color: #f7f2e7; }
+.ql-bt { font-size: 19px; font-weight: 700; padding: 0 8px 10px; }
+.ql-bn button { display: flex; align-items: center; height: 42px; padding: 0 14px; border: none; border-radius: 12px; background: transparent; color: inherit; cursor: pointer; font-weight: 800; font-size: 14px; text-align: left; }
+.ql-bn button.on { background: rgba(255, 255, 255, .16); } .ql-bn button i { margin-left: auto; font-style: normal; font-size: 11px; opacity: .65; }
+.ql-bn .ql-x { border: 1px solid rgba(255, 255, 255, .25); justify-content: center; }
+.ql-bb { padding: 20px 24px; overflow: auto; } .ql-bb h2 { font-size: 24px; margin: 0 0 6px; font-weight: 700; }
+.ql-mute { font-size: 13px; opacity: .65; margin: 0 0 14px; }
+.ql-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; margin-top: 12px; }
+.ql-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px; min-height: 112px; border-radius: 18px; cursor: pointer; text-align: left; color: inherit; font-size: 15px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); background: color-mix(in srgb, var(--foreground) 4%, transparent); transition: transform .12s, box-shadow .15s; }
+.ql-tile:hover { transform: translateY(-2px); box-shadow: 0 14px 22px -16px rgba(0, 0, 0, .6); } .ql-tile small { font-size: 11.5px; opacity: .6; word-break: break-all; }
+.ql-set { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 16px; }
+.ql-seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.ql-seg button { height: 36px; padding: 0 14px; border-radius: 11px; cursor: pointer; font-weight: 800; font-size: 13px; color: inherit; border: 1px solid color-mix(in srgb, var(--foreground) 16%, transparent); background: transparent; }
+.ql-seg button.on { background: var(--foreground); color: var(--background); border-color: var(--foreground); }
+.ql-list { display: grid; gap: 6px; margin-bottom: 18px; max-width: 760px; }
+.ql-lh { display: grid; grid-template-columns: 1fr 56px 110px; gap: 8px; padding: 0 10px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .6; }
+.ql-li { display: grid; grid-template-columns: 34px 1fr 56px 110px; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); background: color-mix(in srgb, var(--foreground) 3%, transparent); }
+.ql-lh { grid-template-columns: 1fr 56px 110px; } .ql-lh span:first-child { grid-column: 1 / 3; }
+.ql-lt { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; } .ql-lt small { font-size: 11.5px; opacity: .6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ql-sw { height: 32px; border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer; border: 1px solid color-mix(in srgb, var(--foreground) 16%, transparent); background: transparent; color: inherit; }
+.ql-sw.on { background: #e3e8d7; color: #4b5a38; border-color: #7e8b67; }
+.ql-mv { display: flex; gap: 4px; justify-content: flex-end; } .ql-mv button { width: 30px; height: 30px; border-radius: 9px; cursor: pointer; border: 1px solid color-mix(in srgb, var(--foreground) 16%, transparent); background: transparent; color: inherit; }
+.ql-mv button:disabled { opacity: .3; cursor: default; } .ql-mv .rm { color: #a9552f; border-color: #ebc9ba; background: #fbede6; }
+.ql-add { max-width: 760px; padding: 14px; border-radius: 16px; border: 1px dashed color-mix(in srgb, var(--foreground) 28%, transparent); background: color-mix(in srgb, var(--foreground) 4%, transparent); }
+.ql-add .ql-seg { margin: 10px 0; }
+.ql-fields { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
+.ql-fields input, .ql-fields select { height: 42px; border-radius: 12px; padding: 0 12px; font-size: 14px; color: inherit; background: var(--background); border: 1px solid color-mix(in srgb, var(--foreground) 22%, transparent); min-width: 0; }
+.ql-icons { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.ql-icons button { width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: grid; place-items: center; color: inherit; border: 1.5px solid color-mix(in srgb, var(--foreground) 16%, transparent); background: var(--background); }
+.ql-icons button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--background)); }
+.ql-icons .ql-go { width: auto; padding: 0 22px; height: 40px; border: none; background: var(--accent); color: var(--accent-contrast, #fff); font-weight: 800; font-size: 14px; }
+.ql-err { margin-top: 8px; color: #b3402a; font-weight: 700; font-size: 13px; }
+.ql-gl { display: grid; gap: 12px; max-width: 860px; } .ql-gr { padding: 14px 16px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); background: color-mix(in srgb, var(--foreground) 3%, transparent); }
+.ql-gr small { opacity: .6; } .ql-gr .ql-seg { margin-top: 10px; }
+@media (max-width: 760px) {
+  .ql-big { grid-template-columns: 1fr; grid-template-rows: auto 1fr; border-radius: 18px; }
+  .ql-bn { flex-direction: row; overflow-x: auto; padding: 8px; gap: 4px; } .ql-bt { display: none; } .ql-bn button { flex: none; height: 38px; padding: 0 12px; } .ql-bn .ql-x { margin-left: auto; }
+  .ql-fields { grid-template-columns: 1fr; } .ql-bb { padding: 14px; }
+  .ql-li { grid-template-columns: 34px 1fr 52px; } .ql-mv { grid-column: 1 / -1; justify-content: flex-start; } .ql-lh { display: none; }
+}
+
+/* pop windows */
+.ql-pop { position: fixed; z-index: 9001; width: 560px; height: min(640px, 82vh); display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: var(--background); color: var(--foreground);
+  border: 1px solid color-mix(in srgb, var(--foreground) 18%, transparent); box-shadow: 0 30px 60px -24px rgba(0, 0, 0, .75); animation: ql-win .18s cubic-bezier(.2, .8, .2, 1) both; }
+.ql-pop.max { inset: 10px; width: auto; height: auto; }
+.ql-pt { display: flex; align-items: center; gap: 8px; padding: 9px 10px 9px 14px; background: #2e2a24; color: #f7f2e7; cursor: grab; touch-action: none; user-select: none; }
+.ql-pt b { flex: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ql-pt button { width: 28px; height: 28px; border-radius: 9px; border: none; cursor: pointer; background: rgba(255, 255, 255, .14); color: inherit; display: grid; place-items: center; }
+.ql-dot { width: 10px; height: 10px; border-radius: 50%; background: #e08a5e; } .ql-dot.k-App { background: #9cb07f; } .ql-dot.k-Link { background: #7fa9c4; }
+.ql-pop iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+.ql-note { padding: 7px 12px; font-size: 12px; opacity: .75; border-top: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent); }
+@media (max-width: 760px) { .ql-pop { inset: 8px !important; width: auto; height: auto; } .ql-pt { cursor: default; } }
+
+/* peek card + menu on tabs and buttons */
+.pk { position: relative; display: inline-block; }
+.pk-tab { display: block; }
+.pk-card { position: fixed; z-index: 9100; max-width: calc(100vw - 16px); box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 16px; text-align: left; white-space: normal;
+  background: var(--background); color: var(--foreground); border: 1px solid color-mix(in srgb, var(--foreground) 16%, transparent); box-shadow: 0 24px 44px -20px rgba(0, 0, 0, .7); animation: ql-win .14s ease both; font-size: 13px; font-weight: 500; }
+.pk-card.menu { padding: 6px; gap: 2px; }
+.pk-t { font-size: 15px; font-weight: 800; padding: 2px 4px; }
+.pk-l { display: flex; justify-content: space-between; gap: 8px; padding: 0 4px; font-size: 12.5px; } .pk-l > span { opacity: .6; }
+.pk-card button { height: 36px; border-radius: 10px; padding: 0 10px; border: none; cursor: pointer; text-align: left; font-weight: 700; font-size: 13.5px; color: inherit; background: color-mix(in srgb, var(--foreground) 6%, transparent); }
+.pk-card button:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.pk-card.menu button { background: transparent; }
+
+html.is-embed .pnav, html.is-embed .pnav-fab { display: none !important; }
+html.is-embed.has-pnav body { padding-bottom: 0 !important; }
+@media print { .ql-fab, .ql-edge, .ql-panel, .ql-scrim, .ql-pop { display: none !important; } }
