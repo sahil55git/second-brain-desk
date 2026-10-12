@@ -11,6 +11,7 @@ import { useSession } from "next-auth/react";
 import { pairLabel, word, words, type WordKey } from "@/lib/registerI18n";
 import type { LangMode } from "@/lib/register";
 import { PROOF_META, type ProofKind } from "@/lib/proofs";
+import { G } from "@/components/register/Glyph";
 import {
   canPickFolder,
   forgetFolder,
@@ -110,7 +111,7 @@ export function SignaturePad({ lang, stamp, onUse, onCancel }: { lang: LangMode;
       <div className="qr-sigwrap" role="dialog" aria-modal aria-label={word("signHere", lang)}>
         <div className="qr-sigbox">
           <div className="qr-sighead">
-            ✍️ <T k="signHere" lang={lang} />
+            <G e="✍️" /> <T k="signHere" lang={lang} />
           </div>
           {stamp.map((l) => (
             <div key={l} className="qr-hint">
@@ -200,7 +201,7 @@ export function PaymentProof({
     return (
       <button type="button" className={`qr-chip${have ? " sel" : ""}`} onClick={onClick} disabled={busy}>
         <span className="ci" aria-hidden>
-          {m.icon}
+          <G e={m.icon} />
         </span>
         {l.main}
         {l.sub && <span className="qr-sub">{l.sub}</span>}
@@ -211,7 +212,7 @@ export function PaymentProof({
   return (
     <div className={`qr-f qr-proof${required && !value.length ? " need" : ""}`}>
       <label>
-        🛡️ <T k="proofTitle" lang={lang} />
+        <G e="🛡️" /> <T k="proofTitle" lang={lang} />
         {required && <span className="qr-need"> · {word("proofRequired", lang)}</span>}
       </label>
       <div className="qr-hint" style={{ marginTop: 0, marginBottom: 6 }}>
@@ -252,7 +253,7 @@ export function PaymentProof({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={v.dataUrl} alt={PROOF_META[v.kind].en} />
               <span className="cap">
-                {PROOF_META[v.kind].icon} {lang === "kn" ? PROOF_META[v.kind].kn : PROOF_META[v.kind].en}
+                <G e={PROOF_META[v.kind].icon} /> {lang === "kn" ? PROOF_META[v.kind].kn : PROOF_META[v.kind].en}
               </span>
               <button
                 type="button"
@@ -275,7 +276,7 @@ export function PaymentProof({
             setPhoneCopy(e.target.checked);
           }}
         />{" "}
-        📱 {word("savePhone", lang)}
+        <G e="📱" /> {word("savePhone", lang)}
       </label>
       {signing && (
         <SignaturePad
@@ -317,11 +318,11 @@ export function DeviceCopySettings({ lang, compact }: { lang: LangMode; compact?
             setPhoneCopy(e.target.checked);
           }}
         />{" "}
-        📱 {word("savePhone", lang)}
+        <G e="📱" /> {word("savePhone", lang)}
       </label>
       {copy && canPick && (
         <div className="qr-hint">
-          📁{" "}
+          <G e="📁" />{" "}
           {folder ? (
             <>
               Folder: <b>{folder}</b> → 06_Scans_&amp;_Proofs / …{" "}
@@ -363,7 +364,7 @@ export function DeviceCopySettings({ lang, compact }: { lang: LangMode; compact?
               setGeoOn(e.target.checked);
             }}
           />{" "}
-          📍 Record location with each proof (if the phone allows)
+          <G e="📍" /> Record location with each proof (if the phone allows)
         </label>
       )}
     </div>

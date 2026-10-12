@@ -145,10 +145,10 @@ export default async function Home() {
           {isOwner && (
             <>
               <a href="/reports" className="px-3 py-1.5 text-sm font-semibold rounded-md border border-black/10 dark:border-white/15">
-                📊 Reports
+                <span className="sb-emoji">📊 </span>Reports
               </a>
               <a href="/settings" className="px-3 py-1.5 text-sm font-semibold rounded-md border border-black/10 dark:border-white/15">
-                ⚙️ Settings
+                <span className="sb-emoji">⚙️ </span>Settings
               </a>
             </>
           )}

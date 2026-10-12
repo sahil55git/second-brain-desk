@@ -72,7 +72,8 @@ import { findItemByCode } from "@/lib/smartEntry";
 import MfgQuick from "@/components/mfg/MfgQuick";
 import BillSheet from "@/components/register/BillSheet";
 import { useCustomize } from "@/lib/customize";
-import { BrandMark, EMOJI_ICON, Icon, type IconName } from "@/components/ui/Icons";
+import { BrandMark, Icon, type IconName } from "@/components/ui/Icons";
+import { G } from "@/components/register/Glyph";
 
 // Pre-fill for an entry form: from a voice command, or from a scanned slip
 // (linkProofId attaches that scan to the entry once it is saved).
@@ -188,7 +189,9 @@ interface Prefs {
   work: WorkTool;
   leftW: number | null; // side-by-side: width of the buttons column (drag the divider)
   float: { on: boolean; x: number; y: number; w: number; h: number; op: number }; // floating workspace window
+  size: TileSize; // button + text size in the designed looks (S / M / L)
 }
+type TileSize = "s" | "m" | "l";
 const DEFAULT_PREFS: Prefs = {
   layout: "auto",
   favs: [],
@@ -196,6 +199,7 @@ const DEFAULT_PREFS: Prefs = {
   work: "calc",
   leftW: null,
   float: { on: false, x: 120, y: 120, w: 440, h: 560, op: 1 },
+  size: "m",
 };
 // The page is scaled by the Appearance "text size" (CSS zoom on <body>), so
 // pointer positions must be divided by it to get layout pixels.
@@ -331,7 +335,7 @@ function Chips<V extends string>({
             onClick={() => onPick(o.key)}
           >
             <span className="ci" aria-hidden>
-              {o.icon}
+              <G e={o.icon} />
             </span>
             {l.main}
             {l.sub && <span className="qr-sub">{l.sub}</span>}
@@ -397,7 +401,7 @@ function PickMenu<V extends string>({
     >
       <button type="button" className="qr-pickbtn" aria-haspopup="listbox" aria-expanded={open} onClick={() => { setOpen((v) => !v); setQ(""); }}>
         <span className="ci" aria-hidden>
-          {sel?.icon ?? "▾"}
+          {sel ? <G e={sel.icon} /> : "▾"}
         </span>
         {sel ? label(sel) : <span className="qr-pl">—</span>}
         <span className="car" aria-hidden>
@@ -422,7 +426,7 @@ function PickMenu<V extends string>({
               }}
             >
               <span className="ci" aria-hidden>
-                {o.icon}
+                <G e={o.icon} />
               </span>
               {label(o)}
             </button>
@@ -469,14 +473,14 @@ function PayPicker({ lang, total, state, onChange }: { lang: LangMode; total: nu
             const l = pairLabel(o.en, o.kn, lang);
             return (
               <button key={o.key} type="button" role="radio" aria-checked={state.chan === o.key} className={`qr-chip${state.chan === o.key ? " sel" : ""}`} onClick={() => onChange({ ...state, chan: o.key })}>
-                <span className="ci" aria-hidden>{o.icon}</span>
+                <span className="ci" aria-hidden><G e={o.icon} /></span>
                 {l.main}
                 {l.sub && <span className="qr-sub">{l.sub}</span>}
               </button>
             );
           })}
           <button type="button" className="qr-chip" onClick={() => onChange({ ...state, splitOn: true, parts: { [state.chan]: total > 0 ? String(total) : "" } })}>
-            <span className="ci" aria-hidden>➗</span>
+            <span className="ci" aria-hidden><G e="➗" /></span>
             <Txt k="splitPay" lang={lang} />
           </button>
         </div>
@@ -487,7 +491,7 @@ function PayPicker({ lang, total, state, onChange }: { lang: LangMode; total: nu
             return (
               <div className="qr-splitrow" key={o.key}>
                 <span className="lab">
-                  {o.icon} {l.main}
+                  <G e={o.icon} /> {l.main}
                 </span>
                 <input
                   className="qr-num"
@@ -555,7 +559,7 @@ function SheetFrame({
       >
         <div className="qr-sh">
           <span className="ic" aria-hidden>
-            {icon}
+            <G e={icon} />
           </span>
           <h3>
             <Txt k={k} lang={lang} />
@@ -583,7 +587,7 @@ function PlaceChips({ value, onPick, known }: { value: string; onPick: (v: strin
   if (!list.length) return null;
   return (
     <div className="qr-chips compact" style={{ marginTop: 6 }} aria-label="Villages and towns">
-      <span className="qr-m" style={{ alignSelf: "center" }}>📍</span>
+      <span className="qr-m" style={{ alignSelf: "center" }}><G e="📍" /></span>
       {list.map((n) => (
         <button key={n} type="button" className="qr-chip" onClick={() => onPick(n)}>
           {n}
@@ -619,7 +623,7 @@ function PartyField({
         <div className="qr-chips compact" style={{ marginBottom: 6 }}>
           {top.slice(0, 4).map((n) => (
             <button key={n} type="button" className={`qr-chip${value === n ? " sel" : ""}`} onClick={() => onChange(n)}>
-              👤 {n}
+              <G e="👤" /> {n}
             </button>
           ))}
         </div>
@@ -651,7 +655,6 @@ export default function QuickRegister() {
   // Designed looks (any glass skin) swap emoji for line icons and add the counter hero card.
   const { prefs: uiPrefs } = useCustomize();
   const skinned = uiPrefs.look.skin !== "none";
-  const ic = (e: string) => (skinned && EMOJI_ICON[e] ? <Icon name={EMOJI_ICON[e]} /> : e);
   const pillIc = (e: string, name: IconName) => (skinned ? <Icon name={name} size={18} /> : e);
 
   const [date, setDate] = useState(todayIST);
@@ -794,10 +797,10 @@ export default function QuickRegister() {
   }
 
   const itemText = (e: Entry) => {
-    if (e.totalSale) return "🧾 " + word("totalSale", lang);
+    if (e.totalSale) return (skinned ? "" : "🧾 ") + word("totalSale", lang);
     if (!e.item) return "";
     const it = day ? itemsFor(e.kind, day.config).find((i) => i.key === e.item) : null;
-    if (it) return `${it.icon} ${lang === "kn" ? it.kn : it.en}`;
+    if (it) return skinned ? (lang === "kn" ? it.kn : it.en) : `${it.icon} ${lang === "kn" ? it.kn : it.en}`;
     return e.itemLabel || e.item;
   };
   const unitText = (u: string | null) => {
@@ -818,7 +821,7 @@ export default function QuickRegister() {
       .join(" · ");
     return (
       <button key={e.id} className="qr-ent" onClick={() => remove(e)} title={word("deleteQ", lang)}>
-        {KIND_ICON[e.kind]} <span className="m">{hm(e.createdAt)}</span>
+        <G e={KIND_ICON[e.kind]} /> <span className="m">{hm(e.createdAt)}</span>
         {(day?.proofs?.[e.id] || []).length > 0 && (
           <span className="qr-badge" title={word("proofTitle", lang)}>
             {Array.from(new Set(day?.proofs?.[e.id] || [])).map((k) => PROOF_META[k as ProofKind]?.icon || "📎").join("")}
@@ -863,7 +866,7 @@ export default function QuickRegister() {
   };
   const TILES: Record<TileKey, { k: WordKey; icon: string; group: "in" | "out" | "jw" | "oth" | "tool"; open: () => void; needsDb?: boolean }> = {
     SALE: { k: "SALE", icon: "💰", group: "in", open: () => setSheet({ t: "entry", kind: "SALE" }), needsDb: true },
-    bill: { k: "bill", icon: "🧾", group: "in", open: () => setSheet({ t: "bill" }), needsDb: true },
+    bill: { k: "bill", icon: "📃", group: "in", open: () => setSheet({ t: "bill" }), needsDb: true },
     FRESH_CRUSH: { k: "FRESH_CRUSH", icon: "🫗", group: "in", open: () => setSheet({ t: "fresh" }), needsDb: true },
     UDHAAR_IN: { k: "UDHAAR_IN", icon: "🙌", group: "in", open: () => setSheet({ t: "entry", kind: "UDHAAR_IN" }), needsDb: true },
     PURCHASE: { k: "PURCHASE", icon: "🛒", group: "out", open: () => setSheet({ t: "entry", kind: "PURCHASE" }), needsDb: true },
@@ -935,7 +938,7 @@ export default function QuickRegister() {
           </span>
         )}
         <span className="ic" aria-hidden>
-          {ic(t.icon)}
+          <G e={t.icon} />
         </span>
         <span className="p">{w.main}</span>
         {w.sub && <span className="s">{w.sub}</span>}
@@ -1035,7 +1038,7 @@ export default function QuickRegister() {
       <div className="qr-favs-wrap">
         <div className="qr-head qr-favs-head">
           <span>
-            ⭐ <Txt k="favourites" lang={lang} />
+            <G e="⭐" /> <Txt k="favourites" lang={lang} />
           </span>
           {editFavs && (
             <button className="qr-pill" onClick={() => setEditFavs(false)}>
@@ -1064,7 +1067,7 @@ export default function QuickRegister() {
             <span>
               <Txt k="moneyIn" lang={lang} />
             </span>
-            <span aria-hidden>⬇</span>
+            <span aria-hidden><G e="⬇" /></span>
           </div>
           <Tile id="SALE" />
           <Tile id="bill" />
@@ -1076,7 +1079,7 @@ export default function QuickRegister() {
             <span>
               <Txt k="moneyOut" lang={lang} />
             </span>
-            <span aria-hidden>⬆</span>
+            <span aria-hidden><G e="⬆" /></span>
           </div>
           <Tile id="PURCHASE" />
           <Tile id="EXPENSE" />
@@ -1087,7 +1090,7 @@ export default function QuickRegister() {
       <div className="qr-strip jw">
         <div className="qr-head">
           <span>
-            ⚙️ <Txt k="jobWork" lang={lang} />
+            <G e="⚙️" /> <Txt k="jobWork" lang={lang} />
           </span>
           <span className="qr-m" style={{ fontSize: 13 }}>
             {unsettled.length} {word("unsettled", lang)}
@@ -1102,7 +1105,7 @@ export default function QuickRegister() {
       <div className="qr-strip jw">
         <div className="qr-head">
           <span>
-            🏭 <Txt k="mfgDesk" lang={lang} />
+            <G e="🏭" /> <Txt k="mfgDesk" lang={lang} />
           </span>
           <span className="qr-m" style={{ fontSize: 13 }}>
             {openBarrels === null ? "" : `${openBarrels} ${word("openBarrels", lang)}`}
@@ -1110,12 +1113,12 @@ export default function QuickRegister() {
         </div>
         <div className="qr-row2">
           <button type="button" className="qr-tile g-tool" onClick={() => setSheet({ t: "mfg", startNew: true })}>
-            <span className="ic" aria-hidden>{ic("➕")}</span>
+            <span className="ic" aria-hidden><G e="➕" /></span>
             <span className="p">{words("newBarrel", lang).main}</span>
             {words("newBarrel", lang).sub && <span className="s">{words("newBarrel", lang).sub}</span>}
           </button>
           <button type="button" className="qr-tile g-tool" onClick={() => setSheet({ t: "mfg" })}>
-            <span className="ic" aria-hidden>{ic("🛢️")}</span>
+            <span className="ic" aria-hidden><G e="🛢️" /></span>
             <span className="p">{words("barrelSteps", lang).main}</span>
             {words("barrelSteps", lang).sub && <span className="s">{words("barrelSteps", lang).sub}</span>}
           </button>
@@ -1147,22 +1150,113 @@ export default function QuickRegister() {
       </div>
       <div className="qr-tools">
         <a className="qr-tile g-tool" href="/mfg">
-          <span className="ic" aria-hidden>{ic("🏭")}</span>
+          <span className="ic" aria-hidden><G e="🏭" /></span>
           <span className="p">{words("mfgDesk", lang).main}</span>
           {words("mfgDesk", lang).sub && <span className="s">{words("mfgDesk", lang).sub}</span>}
         </a>
         <a className="qr-tile g-tool" href="/tallies">
-          <span className="ic" aria-hidden>{ic("🧮")}</span>
+          <span className="ic" aria-hidden><G e="🧮" /></span>
           <span className="p">{words("allTallies", lang).main}</span>
           {words("allTallies", lang).sub && <span className="s">{words("allTallies", lang).sub}</span>}
         </a>
         <a className="qr-tile g-tool" href="/go">
-          <span className="ic" aria-hidden>{ic("🔗")}</span>
+          <span className="ic" aria-hidden><G e="🔗" /></span>
           <span className="p">{words("quickLinks", lang).main}</span>
           {words("quickLinks", lang).sub && <span className="s">{words("quickLinks", lang).sub}</span>}
         </a>
       </div>
     </>
+  );
+
+  // Designed looks: every action in one tidy grid of same-size buttons, grouped
+  // by meaning with a small coloured label (no boxed columns).
+  const toolLink = (href: string, e: string, k: WordKey) => (
+    <a className="qr-tile g-tool" href={href}>
+      <span className="ic" aria-hidden>
+        <G e={e} />
+      </span>
+      <span className="p">{words(k, lang).main}</span>
+      {words(k, lang).sub && <span className="s">{words(k, lang).sub}</span>}
+    </a>
+  );
+  const qaHead = (tone: string, k: WordKey, meta?: React.ReactNode) => (
+    <div className={`qa-h t-${tone}`}>
+      <span className="dot" aria-hidden />
+      <span className="t">
+        <Txt k={k} lang={lang} />
+      </span>
+      {meta !== undefined && meta !== null && <span className="m">{meta}</span>}
+    </div>
+  );
+  const designBoard = (
+    <div className="qa">
+      <section className="qa-sec">
+        {qaHead("in", "moneyIn", rs(totals.cashIn + totals.upiIn))}
+        <div className="qa-grid">
+          <Tile id="SALE" />
+          <Tile id="bill" />
+          <Tile id="FRESH_CRUSH" />
+          <Tile id="UDHAAR_IN" />
+        </div>
+      </section>
+      <section className="qa-sec">
+        {qaHead("out", "moneyOut", rs(totals.cashOut + totals.upiOut))}
+        <div className="qa-grid">
+          <Tile id="PURCHASE" />
+          <Tile id="EXPENSE" />
+          <Tile id="PAYMENT" />
+        </div>
+      </section>
+      <div className="qa-pair">
+        <section className="qa-sec">
+          {qaHead("jw", "jobWork", `${unsettled.length} ${word("unsettled", lang).toLowerCase()}`)}
+          <div className="qa-grid">
+            <Tile id="jwNew" />
+            <Tile id="jwSettle" />
+          </div>
+        </section>
+        <section className="qa-sec">
+          {qaHead("mfg", "mfgDesk", openBarrels === null ? null : `${openBarrels} ${word("openBarrelsShort", lang)}`)}
+          <div className="qa-grid">
+            <button type="button" className="qr-tile g-mfg" onClick={() => setSheet({ t: "mfg", startNew: true })}>
+              <span className="ic" aria-hidden>
+                <G e="➕" />
+              </span>
+              <span className="p">{words("newBarrel", lang).main}</span>
+              {words("newBarrel", lang).sub && <span className="s">{words("newBarrel", lang).sub}</span>}
+            </button>
+            <button type="button" className="qr-tile g-mfg" onClick={() => setSheet({ t: "mfg" })}>
+              <span className="ic" aria-hidden>
+                <G e="🛢️" />
+              </span>
+              <span className="p">{words("barrelSteps", lang).main}</span>
+              {words("barrelSteps", lang).sub && <span className="s">{words("barrelSteps", lang).sub}</span>}
+            </button>
+          </div>
+        </section>
+      </div>
+      <section className="qa-sec">
+        {qaHead("oth", "otherCash", word("notExpense", lang))}
+        <div className="qa-grid">
+          <Tile id="PIGMEE" />
+          <Tile id="OWNER_DRAW" />
+        </div>
+      </section>
+      <section className="qa-sec">
+        {qaHead("tool", "tools")}
+        <div className="qa-grid tools">
+          <Tile id="count" />
+          <Tile id="stock" />
+          <Tile id="scan" />
+          <Tile id="smart" />
+          <Tile id="calc" />
+          <Tile id="reports" />
+          {toolLink("/mfg", "🏭", "mfgDesk")}
+          {toolLink("/tallies", "🧮", "allTallies")}
+          {toolLink("/go", "🔗", "quickLinks")}
+        </div>
+      </section>
+    </div>
   );
 
   const summaryBlock = (
@@ -1214,14 +1308,14 @@ export default function QuickRegister() {
       </div>
       <div className="qr-srow">
         <span>
-          📱 UPI <b className="qr-g">{rs(totals.upiIn)}</b> · <b className="qr-r">{rs(totals.upiOut)}</b>
+          <G e="📱" /> UPI <b className="qr-g">{rs(totals.upiIn)}</b> · <b className="qr-r">{rs(totals.upiOut)}</b>
         </span>
         <span>
-          📒 {word("CREDIT", lang)} <b>{rs(totals.creditGiven)}</b>
+          <G e="📒" /> {word("CREDIT", lang)} <b>{rs(totals.creditGiven)}</b>
           {totals.ownerPhonePeIn > 0 && (
             <>
               {" "}
-              · 🟣 {word("OWNER_PHONEPE", lang)} <b>{rs(totals.ownerPhonePeIn)}</b>
+              · <G e="🟣" /> {word("OWNER_PHONEPE", lang)} <b>{rs(totals.ownerPhonePeIn)}</b>
             </>
           )}
         </span>
@@ -1246,14 +1340,14 @@ export default function QuickRegister() {
       <div className="qr-lists">
         <div className="qr-lcol in">
           <div className="qr-lh">
-            <span>⬇ {word("moneyIn", lang)}</span>
+            <span><G e="⬇" /> {word("moneyIn", lang)}</span>
             <span>{rs(sum(ins))}</span>
           </div>
           {ins.length ? [...ins].reverse().map(EntryCard) : <div className="qr-empty">{word("none", lang)}</div>}
         </div>
         <div className="qr-lcol out">
           <div className="qr-lh">
-            <span>⬆ {word("moneyOut", lang)}</span>
+            <span><G e="⬆" /> {word("moneyOut", lang)}</span>
             <span>{rs(sum(outs))}</span>
           </div>
           {outs.length ? [...outs].reverse().map(EntryCard) : <div className="qr-empty">{word("none", lang)}</div>}
@@ -1289,14 +1383,14 @@ export default function QuickRegister() {
       anchor="qr-jw-ledger"
       title={
         <>
-          🌾 <Txt k="jobWork" lang={lang} />
+          <G e="🌾" /> <Txt k="jobWork" lang={lang} />
         </>
       }
       right={<span className="qr-m">{unsettled.length} {word("unsettled", lang)}</span>}
     >
       <div className="qr-stats">
         <div className="qr-stat">
-          <div className="l">🟤 {word("khali", lang)}</div>
+          <div className="l"><G e="🟤" /> {word("khali", lang)}</div>
           <div className="v">{(day?.khaliKg || 0).toFixed(1)} kg</div>
         </div>
         <div className="qr-stat">
@@ -1337,11 +1431,11 @@ export default function QuickRegister() {
                     {cansCharge > 0 && <span className="qr-m"> (cans ₹{cansCharge})</span>}
                     {(j.vehicleNo || j.advanceAutoInr > 0) && (
                       <span className="n fold">
-                        🛺 {j.vehicleNo || "—"}
+                        <G e="🛺" /> {j.vehicleNo || "—"}
                         {j.advanceAutoInr > 0 && ` (adv ₹${j.advanceAutoInr})`}
                       </span>
                     )}
-                    {j.notes && <span className="n fold">📝 {j.notes}</span>}
+                    {j.notes && <span className="n fold"><G e="📝" /> {j.notes}</span>}
                   </td>
                   <td className="w">
                     {j.vehicleNo || "—"}
@@ -1540,7 +1634,7 @@ export default function QuickRegister() {
     <div className="qr-work" aria-label={word("workspace", lang)}>
       <div className="qr-head qr-work-head" onPointerDown={startMove}>
         <span>
-          🧰 <Txt k="workspace" lang={lang} />
+          <G e="🧰" /> <Txt k="workspace" lang={lang} />
         </span>
         {canSide && (
           <span className="acts">
@@ -1581,7 +1675,7 @@ export default function QuickRegister() {
               disabled={dbOffline && w.key !== "calc" && w.key !== "notepad"}
               onClick={() => setPrefs((p) => ({ ...p, work: w.key }))}
             >
-              <span className="ci">{w.icon}</span>
+              <span className="ci"><G e={w.icon} /></span>
               {l.main}
               {l.sub && <span className="qr-sub">{l.sub}</span>}
             </button>
@@ -1696,7 +1790,7 @@ export default function QuickRegister() {
   );
 
   return (
-    <div className="qr">
+    <div className="qr" data-size={skinned ? prefs.size : undefined}>
       <div className={`qr-wrap${sideBySide ? " split" : ""}`}>
         <div className="qr-top">
           {skinned && (
@@ -1734,6 +1828,17 @@ export default function QuickRegister() {
               {layoutLabel[prefs.layout]}
             </button>
           )}
+          {skinned && (
+            <button
+              className="qr-pill qr-size"
+              onClick={() => setPrefs((p) => ({ ...p, size: p.size === "m" ? "s" : p.size === "s" ? "l" : "m" }))}
+              title={word("tileSize", lang)}
+              aria-label={`${word("tileSize", lang)}: ${prefs.size.toUpperCase()}`}
+            >
+              <Icon name="size" size={18} />
+              <b>{prefs.size.toUpperCase()}</b>
+            </button>
+          )}
           <button className="qr-pill" onClick={() => setLang(nextLang[lang])} aria-label={word("language", lang)}>
             {skinned ? "" : "🗣️ "}
             {langLabel[lang]}
@@ -1767,7 +1872,7 @@ export default function QuickRegister() {
         {loadError && <div className="qr-banner">{dbOffline ? word("offline", lang) : loadError}</div>}
         {date !== todayIST() && (
           <div className="qr-banner">
-            📅 {date} —{" "}
+            <G e="📅" /> {date} —{" "}
             <button className="qr-pill" onClick={() => setDate(todayIST())}>
               {word("day", lang)}: {todayIST()}
             </button>
@@ -1783,7 +1888,7 @@ export default function QuickRegister() {
             <div className="qr-left">
               {heroBlock}
               {favouritesBlock}
-              {boardBlock}
+              {skinned ? designBoard : boardBlock}
               {summaryBlock}
             </div>
             <div
@@ -1816,7 +1921,7 @@ export default function QuickRegister() {
           <>
             {heroBlock}
             {favouritesBlock}
-            {boardBlock}
+            {skinned ? designBoard : boardBlock}
             {!floating && workspaceBlock}
             {summaryBlock}
             {entriesBlock}
@@ -1843,7 +1948,7 @@ export default function QuickRegister() {
       {voiceOn && (
         <div className="qr-voice" role="status" aria-live="polite">
           <div className="mic" aria-hidden>
-            🎤
+            <G e="🎤" />
           </div>
           <div className="qr-hint">{word("voiceListening", lang)}</div>
           <div className="heard">{heard || "…"}</div>
@@ -2208,12 +2313,12 @@ function EntrySheet({
           toast={toast}
         />
       )}
-      {init?.linkProofId && <div className="qr-hint">📎 {word("scanLinked", lang)}</div>}
+      {init?.linkProofId && <div className="qr-hint"><G e="📎" /> {word("scanLinked", lang)}</div>}
       {billPhoto && (
         <div className="qr-f qr-scanview">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={billPhoto.dataUrl} alt="" style={{ maxHeight: 120 }} />
-          <div className="qr-hint">📎 {word("smartPhotoKept", lang)}</div>
+          <div className="qr-hint"><G e="📎" /> {word("smartPhotoKept", lang)}</div>
           <button type="button" className="qr-mini" onClick={() => setBillPhoto(null)}>
             ✕ {word("removeQ", lang).replace("?", "")}
           </button>
@@ -2459,7 +2564,7 @@ function JobWorkPaySheet({
   return (
     <SheetFrame icon="💳" k="jwSettle" lang={lang} onClose={onClose}>
       <div className="qr-card" style={{ marginTop: 0 }}>
-        <b>{entry.customer}</b> · {entry.seedKg} kg · {entry.cakeOwnership === "SHOP" ? "🏪" : "🙋"}
+        <b>{entry.customer}</b> · {entry.seedKg} kg · <G e={entry.cakeOwnership === "SHOP" ? "🏪" : "🙋"} />
       </div>
       <div className="qr-f" style={{ marginTop: 10 }}>
         <label>
@@ -2599,11 +2704,11 @@ function CountSheet({
         <span>{rs(day.opening.value)}</span>
       </div>
       <a className="qr-btn2 qr-openwin" href={`/cash?date=${date}&session=${session}`} target="_blank" rel="noreferrer">
-        🗄️ {lang === "kn" ? "ಪೂರ್ಣ ಕ್ಯಾಶ್ ವಿಂಡೋ ತೆರೆಯಿರಿ" : "Open full cash window"}
+        <G e="🗄️" /> {lang === "kn" ? "ಪೂರ್ಣ ಕ್ಯಾಶ್ ವಿಂಡೋ ತೆರೆಯಿರಿ" : "Open full cash window"}
         <small>{lang === "kn" ? "ನೋಟು ಎಣಿಕೆ · ನಿನ್ನೆಯ ತಡ ಎಂಟ್ರಿ" : "Note-by-note count · yesterday's late entry"}</small>
       </a>
       <button className="qr-btn2" style={{ width: "100%", marginTop: 6 }} onClick={editOpening}>
-        ✏️ {word("editOpening", lang)}
+        <G e="✏️" /> {word("editOpening", lang)}
       </button>
       <table className="qr-dt" style={{ marginTop: 8 }}>
         <tbody>
@@ -2808,21 +2913,21 @@ function StockSheet({
       </div>
       {day !== todayStr && (
         <div className="qr-hint" style={{ marginBottom: 8 }}>
-          🕘 {lang === "kn" ? `ನಿನ್ನೆಯ (${day}) ಎಣಿಕೆ — ಇಂದಿನ ಆರಂಭದ ಸ್ಟಾಕ್‌ಗೆ ಸೇರುತ್ತದೆ.` : `Late entry for ${day} — carries into today's opening stock.`}
+          <G e="🕘" /> {lang === "kn" ? `ನಿನ್ನೆಯ (${day}) ಎಣಿಕೆ — ಇಂದಿನ ಆರಂಭದ ಸ್ಟಾಕ್‌ಗೆ ಸೇರುತ್ತದೆ.` : `Late entry for ${day} — carries into today's opening stock.`}
         </div>
       )}
       <div className="qr-hint" style={{ marginBottom: 8 }}>{word("stHint", lang)}</div>
       <a className="qr-btn2 qr-openwin" href={`/stock?date=${day}&session=${session}`} target="_blank" rel="noreferrer">
-        🗄️ {lang === "kn" ? "ಪೂರ್ಣ ಸ್ಟಾಕ್ ವಿಂಡೋ ತೆರೆಯಿರಿ" : "Open full stock window"}
+        <G e="🗄️" /> {lang === "kn" ? "ಪೂರ್ಣ ಸ್ಟಾಕ್ ವಿಂಡೋ ತೆರೆಯಿರಿ" : "Open full stock window"}
         <small>{lang === "kn" ? "ಎಲ್ಲಾ ಉತ್ಪನ್ನಗಳ ಪೂರ್ಣ ಮುಚ್ಚುವ ಸ್ಟಾಕ್ ಎಣಿಕೆ" : "Complete closing stock · all products · tomorrow's opening"}</small>
       </a>
       <div className="qr-btnrow" style={{ marginTop: 0, marginBottom: 8 }}>
         <label className="qr-btn2" style={{ textAlign: "center", cursor: "pointer" }}>
-          📤 {word("stImport", lang)}
+          <G e="📤" /> {word("stImport", lang)}
           <input type="file" accept=".csv,.txt,.xlsx" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && importFile(e.target.files[0])} />
         </label>
         <button className="qr-btn2" onClick={template}>
-          📄 {word("stTemplate", lang)}
+          <G e="📄" /> {word("stTemplate", lang)}
         </button>
       </div>
       <div className="qr-tablewrap qr-stock">
@@ -3160,7 +3265,7 @@ function FreshCrushSheet({
           </span>
         </div>
       )}
-      {!valid && seedKg !== "" && oilKg !== "" && <div className="qr-res bad">⚠️ {word("fcBadNumbers", lang)}</div>}
+      {!valid && seedKg !== "" && oilKg !== "" && <div className="qr-res bad"><G e="⚠️" /> {word("fcBadNumbers", lang)}</div>}
 
       <button className="qr-save" onClick={save} disabled={busy}>
         ✓ {word(busy ? "saving" : "save", lang)}
@@ -3373,33 +3478,33 @@ function ReportSheet({
           <div className="qr-empty">{word("none", lang)}</div>
         )}
         <div className="qr-srow">
-          <span>💵 {word("cashIn", lang)}</span>
+          <span><G e="💵" /> {word("cashIn", lang)}</span>
           <b className="qr-g">{rs(t.cashIn)}</b>
         </div>
         <div className="qr-srow">
-          <span>💵 {word("cashOut", lang)}</span>
+          <span><G e="💵" /> {word("cashOut", lang)}</span>
           <b className="qr-r">{rs(t.cashOut)}</b>
         </div>
         <div className="qr-srow">
-          <span>⚙️ {word("jwCash", lang)}</span>
+          <span><G e="⚙️" /> {word("jwCash", lang)}</span>
           <b>
             +{rs(t.jwIn)} / −{rs(t.jwOut)}
           </b>
         </div>
         <div className="qr-srow">
-          <span>📱 UPI</span>
+          <span><G e="📱" /> UPI</span>
           <b>
             {rs(t.upiIn)} / {rs(t.upiOut)}
           </b>
         </div>
         <div className="qr-srow">
-          <span>📒 {word("CREDIT", lang)}</span>
+          <span><G e="📒" /> {word("CREDIT", lang)}</span>
           <b>{rs(t.creditGiven)}</b>
         </div>
       </div>
       <div className="qr-btnrow">
         <button className="qr-btn2" onClick={() => window.print()}>
-          🖨️ {word("print", lang)}
+          <G e="🖨️" /> {word("print", lang)}
         </button>
         <button
           className="qr-btn2"
@@ -3409,15 +3514,15 @@ function ReportSheet({
             else copy(s);
           }}
         >
-          📤 {word("share", lang)}
+          <G e="📤" /> {word("share", lang)}
         </button>
       </div>
       <button className="qr-btn2" style={{ width: "100%", marginTop: 8 }} onClick={() => copy(csv())}>
-        📋 {word("csv", lang)}
+        <G e="📋" /> {word("csv", lang)}
       </button>
 
       <div className="qr-card">
-        <h2>🫗 {word("fcReport", lang)}</h2>
+        <h2><G e="🫗" /> {word("fcReport", lang)}</h2>
         {fc.count ? (
           <>
             {Object.entries(fc.bySeed).map(([k, x]) => (
@@ -3435,17 +3540,17 @@ function ReportSheet({
             ))}
             {Object.entries(fc.extraByTank).map(([tank, q]) => (
               <div className="qr-srow" key={tank}>
-                <span>🛢️ → {tank}</span>
+                <span><G e="🛢️" /> → {tank}</span>
                 <b>{kg(q)}</b>
               </div>
             ))}
             {fc.flagged > 0 && (
               <div className="qr-srow">
-                <span className="qr-r">⚠️ {fc.flagged} {word("fcFlagged", lang)}</span>
+                <span className="qr-r"><G e="⚠️" /> {fc.flagged} {word("fcFlagged", lang)}</span>
               </div>
             )}
             <button className="qr-btn2" style={{ width: "100%", marginTop: 8 }} onClick={() => copy(vyaparText())}>
-              🧾 {word("vyapar", lang)}
+              <G e="🧾" /> {word("vyapar", lang)}
             </button>
           </>
         ) : (
@@ -3484,7 +3589,7 @@ function ReportSheet({
 
       <div className="qr-card">
         <h2>
-          🗣️ <Txt k="language" lang={lang} />
+          <G e="🗣️" /> <Txt k="language" lang={lang} />
         </h2>
         <Chips
           lang={lang}
@@ -3500,7 +3605,7 @@ function ReportSheet({
 
       <div className="qr-card">
         <h2>
-          🖥️ <Txt k="layout" lang={lang} />
+          <G e="🖥️" /> <Txt k="layout" lang={lang} />
         </h2>
         <Chips
           lang={lang}
@@ -3514,13 +3619,13 @@ function ReportSheet({
         />
         <div className="qr-hint">{word("layoutHint", lang)}</div>
         <button className="qr-btn2" style={{ width: "100%", marginTop: 8 }} onClick={onEditFavs}>
-          ⭐ {word("editFavs", lang)}
+          <G e="⭐" /> {word("editFavs", lang)}
         </button>
       </div>
 
       {isOwner && (
         <div className="qr-card">
-          <h2>⚙️ {word("ownerOnly", lang)}</h2>
+          <h2><G e="⚙️" /> {word("ownerOnly", lang)}</h2>
           <div className="qr-srow">
             <span>{word("pigmeeDefault", lang)}</span>
             <input
@@ -3547,7 +3652,7 @@ function ReportSheet({
             </select>
           </div>
           <span className="qr-lbl" style={{ marginTop: 8 }}>
-            📚 {word("library", lang)}
+            <G e="📚" /> {word("library", lang)}
           </span>
           {customItems.length ? (
             <div className="qr-chips">
@@ -3564,7 +3669,7 @@ function ReportSheet({
                     })
                   }
                 >
-                  ⭐ {c.label} ✕<span className="qr-sub">{word(c.kind as WordKey, lang)}</span>
+                  <G e="⭐" /> {c.label} ✕<span className="qr-sub">{word(c.kind as WordKey, lang)}</span>
                 </button>
               ))}
             </div>
@@ -3854,11 +3959,11 @@ function SmartSheet({
           <div className="qr-smart-row">
             {micOk && (
               <button type="button" className="qr-btn2" onClick={toggleMic}>
-                🎤 {word(listening ? "smartStop" : "smartSpeak", lang)}
+                <G e="🎤" /> {word(listening ? "smartStop" : "smartSpeak", lang)}
               </button>
             )}
             <button type="button" className="qr-btn2" onClick={() => fileRef.current?.click()}>
-              📷 <Txt k="smartPhoto" lang={lang} />
+              <G e="📷" /> <Txt k="smartPhoto" lang={lang} />
             </button>
             <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => onPhoto(e.target.files?.[0])} />
           </div>
@@ -3886,11 +3991,11 @@ function SmartSheet({
             <div className="qr-f qr-scanview">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={photo.dataUrl} alt="" style={{ maxHeight: 120 }} />
-              <div className="qr-hint">📎 {word("smartPhotoKept", lang)}</div>
+              <div className="qr-hint"><G e="📎" /> {word("smartPhotoKept", lang)}</div>
             </div>
           )}
           <button type="button" className="qr-save" onClick={() => run(text, photo)} disabled={busy || (!text.trim() && !photo)}>
-            ✨ {word(busy ? "smartReading" : "smartGo", lang)}
+            <G e="✨" /> {word(busy ? "smartReading" : "smartGo", lang)}
           </button>
 
           {noAi && <div className="qr-chk warn">{word("smartNoAi", lang)}</div>}
@@ -3911,7 +4016,7 @@ function SmartSheet({
                 <div className="qr-chiprow">
                   {REGISTER_FILL_KINDS.map((k) => (
                     <button key={k} type="button" className="qr-chip" onClick={() => setPickedKind(k)}>
-                      {KIND_ICON[k]} {word(k as WordKey, lang)}
+                      <G e={KIND_ICON[k]} /> {word(k as WordKey, lang)}
                     </button>
                   ))}
                 </div>
@@ -3922,7 +4027,7 @@ function SmartSheet({
                   className="qr-save"
                   onClick={() => onOpen(kind, { ...draft.init, ...(photo ? { photo } : {}) })}
                 >
-                  ➜ <Txt k="smartOpen" lang={lang} />
+                  <G e="➜" /> <Txt k="smartOpen" lang={lang} />
                 </button>
               )}
             </>
@@ -4111,10 +4216,10 @@ function ScanSheet({
       {!photo ? (
         <div className="qr-f qr-grid2">
           <button type="button" className="qr-btn2 qr-bigbtn" onClick={() => camRef.current?.click()}>
-            📷 <Txt k="scanTake" lang={lang} />
+            <G e="📷" /> <Txt k="scanTake" lang={lang} />
           </button>
           <button type="button" className="qr-btn2 qr-bigbtn" onClick={() => galRef.current?.click()}>
-            🖼️ <Txt k="scanGallery" lang={lang} />
+            <G e="🖼️" /> <Txt k="scanGallery" lang={lang} />
           </button>
         </div>
       ) : (
@@ -4173,7 +4278,7 @@ function ScanSheet({
           </div>
           {warnings.map((w) => (
             <div key={w.key + w.en} className="qr-warnline">
-              ⚠️ {lang === "kn" ? w.kn : w.en}
+              <G e="⚠️" /> {lang === "kn" ? w.kn : w.en}
             </div>
           ))}
           <div className="qr-f">

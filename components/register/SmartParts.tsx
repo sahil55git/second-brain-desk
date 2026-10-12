@@ -13,6 +13,7 @@ import { word } from "@/lib/registerI18n";
 import { businessDate, type LangMode } from "@/lib/register";
 import type { RegCheck, RegHistoryEntry } from "@/lib/registerChecks";
 import type { ItemLike } from "@/lib/smartEntry";
+import { G } from "@/components/register/Glyph";
 
 const ICON = { alert: "🚨", warn: "⚠️", info: "ℹ️" } as const;
 
@@ -22,7 +23,7 @@ export function ChecksBox({ checks, lang }: { checks: RegCheck[]; lang: LangMode
     <div className="qr-chks" role="status" aria-label="Checks">
       {checks.map((c, i) => (
         <div key={i} className={`qr-chk ${c.level}`}>
-          <span aria-hidden>{ICON[c.level]}</span>
+          <span aria-hidden><G e={ICON[c.level]} /></span>
           <span>
             {lang === "kn" ? c.kn : c.en}
             {lang === "both" && <span className="qr-sub">{c.kn}</span>}
@@ -63,7 +64,7 @@ export function ScaleBtn({ lang, onUse }: { lang: LangMode; onUse: (kg: number) 
       <b>{fresh && Number.isFinite(kg) ? `${Math.round(kg * 100) / 100} kg` : word("scaleNone", lang)}</b>
       {fresh && !steady && <span className="qr-m">{word("scaleMoving", lang)}</span>}
       <button type="button" className="qr-mini" disabled={!steady} onClick={() => onUse(Math.round(kg * 100) / 100)}>
-        ⚖️ {word("scaleUse", lang)}
+        <G e="⚖️" /> {word("scaleUse", lang)}
       </button>
     </div>
   );
@@ -100,7 +101,7 @@ export function CodeBtn({ lang, onCode }: { lang: LangMode; onCode: (code: strin
     return (
       <div className="qr-f">
         <button type="button" className="qr-linkbtn" onClick={() => setOpen(true)}>
-          🔍 {word("codeScan", lang)}
+          <G e="🔍" /> {word("codeScan", lang)}
         </button>
       </div>
     );
@@ -123,7 +124,7 @@ export function CodeBtn({ lang, onCode }: { lang: LangMode; onCode: (code: strin
       />
       {cameraScanSupported() && (
         <button type="button" className="qr-btn2" onClick={() => setCam(true)} aria-label={word("codeScan", lang)}>
-          📷
+          <G e="📷" />
         </button>
       )}
       {cam && (
