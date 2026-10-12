@@ -108,3 +108,16 @@ export function normalizeMemoLine(raw: unknown): (MemoRow & { source: string }) 
   const source = r.source === "scale-scan" || r.source === "paper-scan" ? r.source : "typed";
   return { line: r.line, amountInr: Math.round(amt * 100) / 100, cashInr: Math.round(cash * 100) / 100, qty: q !== null && Number.isFinite(q) && q >= 0 ? q : null, unit, source };
 }
+
+/** UPI totals typed from the GPay / PhonePe apps. Kept in the tally only; they never change counter cash. */
+export const UPI_LINES = ["UPI_GPAY", "UPI_PHONEPE"] as const;
+export type UpiLine = (typeof UPI_LINES)[number];
+export const isUpiLine = (v: unknown): v is UpiLine => typeof v === "string" && (UPI_LINES as readonly string[]).includes(v);
+
+export function normalizeUpiLine(raw: unknown): { line: UpiLine; amountInr: number } | null {
+  const r = raw as Record<string, unknown> | null;
+  if (!r || !isUpiLine(r.line)) return null;
+  const amt = Number(r.amountInr);
+  if (!Number.isFinite(amt) || amt < 0 || amt > 100_000_000) return null;
+  return { line: r.line, amountInr: Math.round(amt * 100) / 100 };
+}

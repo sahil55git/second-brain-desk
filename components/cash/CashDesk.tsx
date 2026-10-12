@@ -46,6 +46,7 @@ interface CashApi {
   adjustedCash: number; // after saved memo-sheet totals
   app: Record<MemoLine, AppLine>;
   memo: MemoView[];
+  upi: Partial<Record<"UPI_GPAY" | "UPI_PHONEPE", { amountInr: number; enteredByName?: string | null; updatedAt?: string }>>;
   scale: ScaleSaved | null;
   handovers: Partial<Record<Session, Handover>>;
   sessions: Record<Session, Saved | null>;
@@ -91,6 +92,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
   const { openPop, embedded } = useLauncher();
   const [stockApi, setStockApi] = useState<StockApiLite | null>(null);
   const [drafts, setDrafts] = useState<Partial<Record<MemoLine, Draft>>>({});
+  const [upiTyped, setUpiTyped] = useState<{ UPI_GPAY: string; UPI_PHONEPE: string }>({ UPI_GPAY: "", UPI_PHONEPE: "" });
   const [hand, setHand] = useState({ countedBy: "", handedTo: "" });
   const [scanBusy, setScanBusy] = useState<string | null>(null);
   const [scanOut, setScanOut] = useState<{ kind: "scale"; report: ScaleReport; warnings: string[]; net: boolean; aiError?: string } | null>(null);
@@ -131,6 +133,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
   }, [load, loadStock]);
   useEffect(() => {
     setDrafts({});
+    setUpiTyped({ UPI_GPAY: "", UPI_PHONEPE: "" });
   }, [date]);
   const handKey = `${api?.handovers?.[session]?.updatedAt ?? ""}|${session}|${date}`;
   useEffect(() => {
@@ -211,6 +214,17 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
   }
   async function clearMemo(l: MemoLine) {
     const r = await fetch(`/api/register/memo?date=${date}&line=${l}`, { method: "DELETE" });
+    if (r.ok) load();
+    else setErr((await r.json().catch(() => ({}))).error || "Could not remove");
+  }
+  const upiToSave = (["UPI_GPAY", "UPI_PHONEPE"] as const).filter((k) => upiTyped[k].trim() !== "");
+  async function saveUpi() {
+    if (!upiToSave.length) return;
+    const ok = await post({ upi: upiToSave.map((k) => ({ line: k, amountInr: fnum(upiTyped[k]) })) }, "UPI totals saved in this tally only. Counter cash and the register are not changed.");
+    if (ok) setUpiTyped({ UPI_GPAY: "", UPI_PHONEPE: "" });
+  }
+  async function clearUpi(k: "UPI_GPAY" | "UPI_PHONEPE") {
+    const r = await fetch(`/api/register/memo?date=${date}&line=${k}`, { method: "DELETE" });
     if (r.ok) load();
     else setErr((await r.json().catch(() => ({}))).error || "Could not remove");
   }
@@ -361,9 +375,28 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
           <div className="hub-card-head"><h3>📱 UPI today</h3></div>
           {api ? (
             <div className="csh-upi">
-              <div><span>📱 Shop GPay</span><b>{rs(api.app.SALE.upi + api.app.UDHAAR.upi)}</b></div>
-              <div><span>🟣 Owner PhonePe</span><b>{rs(api.app.SALE.phonepe + api.app.UDHAAR.phonepe)}</b></div>
-              <div className="hub-m">Money received by UPI from sales and udhaar. It is not counter cash, so it does not change the count above.</div>
+              {([["UPI_GPAY", "📱 Shop GPay", api.app.SALE.upi + api.app.UDHAAR.upi], ["UPI_PHONEPE", "🟣 Owner PhonePe", api.app.SALE.phonepe + api.app.UDHAAR.phonepe]] as const).map(([k, label, inApp]) => {
+                const saved = api.upi?.[k];
+                const typed = upiTyped[k].trim() !== "";
+                const total = typed ? fnum(upiTyped[k]) : saved ? saved.amountInr : null;
+                const gap = total === null ? null : Math.max(0, Math.round((total - inApp) * 100) / 100);
+                return (
+                  <div key={k} className="csh-upi-r">
+                    <div><span>{label}</span><b>{rs(inApp)} <small>in app</small></b></div>
+                    <input type="number" inputMode="decimal" min={0} placeholder={saved ? String(saved.amountInr) : "Total from the app ₹"} aria-label={`${label} total from the app`} value={upiTyped[k]} onChange={(e) => setUpiTyped({ ...upiTyped, [k]: e.target.value })} />
+                    {gap !== null && (
+                      <div className={`csh-upi-n ${gap > 0 ? "warn" : "ok"}`}>
+                        {gap > 0 ? `${rs(gap)} not in app yet` : "✓ all in app"}
+                        {saved && !typed ? <> · saved {rs(saved.amountInr)}{saved.enteredByName ? ` by ${saved.enteredByName}` : ""} <button type="button" className="hub-btn sm" title="Remove" onClick={() => clearUpi(k)}>✕</button></> : null}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <button className="hub-btn" style={{ background: upiToSave.length ? "var(--h-acc)" : undefined, color: upiToSave.length ? "#fff" : undefined }} disabled={busy || !upiToSave.length} onClick={saveUpi}>
+                {upiToSave.length ? "Save UPI totals for this tally" : "Type a UPI total to save"}
+              </button>
+              <div className="hub-m">Type the day&apos;s total from the GPay / PhonePe app. It is kept in this tally only. UPI is not counter cash, so it does not change the count above or the register.</div>
             </div>
           ) : (
             <div className="hub-empty">Loading…</div>

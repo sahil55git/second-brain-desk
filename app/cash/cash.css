@@ -19,8 +19,14 @@
 .csh-tile .i { font-size: 22px; }
 .csh-tile:hover { border-color: var(--h-acc); }
 .csh-upi { display: grid; gap: 6px; }
-.csh-upi > div:not(.hub-m) { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-bottom: 1px dashed var(--h-line); }
+.csh-upi > div:not(.hub-m):not(.csh-upi-r) { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-bottom: 1px dashed var(--h-line); }
 .csh-upi b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.csh-upi b small { font-size: 11px; font-weight: 600; color: var(--h-soft); }
+.csh-upi-r { display: grid; gap: 4px; padding: 6px 0; border-bottom: 1px dashed var(--h-line); }
+.csh-upi-r > div:first-child { display: flex; justify-content: space-between; align-items: baseline; }
+.csh-upi-r input { width: 100%; min-width: 0; font-weight: 800; }
+.csh-upi-n { font-size: 12px; font-weight: 800; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.csh-upi-n.warn { color: #b5643c; } .csh-upi-n.ok { color: var(--h-g); }
 .csh-memo { display: grid; gap: 6px; margin-top: 8px; overflow-x: auto; }
 .csh-memo-h, .csh-memo-r { display: grid; grid-template-columns: 1.1fr .9fr 1fr 1.1fr 1.2fr .9fr; gap: 8px; align-items: center; min-width: 720px; }
 .csh-memo-h { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; color: var(--h-soft); padding: 0 4px; }

@@ -35,3 +35,13 @@ describe("memo totals", () => {
     expect(normalizeMemoLine({ line: "SALE", amountInr: -5 })).toBeNull();
   });
 });
+
+import { isMemoLine, normalizeUpiLine } from "../memoTotals";
+describe("UPI totals", () => {
+  it("are cleaned and are not memo (cash) lines", () => {
+    expect(normalizeUpiLine({ line: "UPI_GPAY", amountInr: "4200.456" })).toEqual({ line: "UPI_GPAY", amountInr: 4200.46 });
+    expect(normalizeUpiLine({ line: "SALE", amountInr: 5 })).toBeNull();
+    expect(normalizeUpiLine({ line: "UPI_PHONEPE", amountInr: -1 })).toBeNull();
+    expect(isMemoLine("UPI_GPAY")).toBe(false);
+  });
+});

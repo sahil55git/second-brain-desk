@@ -1,7 +1,7 @@
 // Server side of the Cash tally memo totals (see lib/memoTotals.ts). Reads the
 // separate memo tables; never touches RegisterEntry.
 import { prisma } from "./db";
-import { appLines, isMemoLine, memoAdjustedCash, type MemoRow } from "./memoTotals";
+import { appLines, isMemoLine, isUpiLine, memoAdjustedCash, type MemoRow } from "./memoTotals";
 import type { CashEvent, RegisterEntryLike } from "./register";
 import type { ScaleLine } from "./scaleReport";
 
@@ -15,9 +15,13 @@ export async function loadMemoView(date: string, entries: RegisterEntryLike[], j
   const memo: (MemoRow & { updatedAt: string })[] = rows
     .filter((r) => isMemoLine(r.line))
     .map((r) => ({ line: r.line as MemoRow["line"], amountInr: r.amountInr, cashInr: r.cashInr, qty: r.qty, unit: r.unit, source: r.source, enteredByName: r.enteredByName, updatedAt: r.updatedAt.toISOString() }));
+  const upi = Object.fromEntries(
+    rows.filter((r) => isUpiLine(r.line)).map((r) => [r.line, { amountInr: r.amountInr, enteredByName: r.enteredByName, updatedAt: r.updatedAt.toISOString() }])
+  ) as Record<string, { amountInr: number; enteredByName: string | null; updatedAt: string }>;
   return {
     app,
     memo,
+    upi,
     adjustedCash: memoAdjustedCash(appSystemCash, app, memo),
     scale: scale && {
       totalKg: scale.totalKg,
