@@ -27,6 +27,8 @@ import ExpensesDesk from "./ExpensesDesk";
 import VyaparDesk from "./VyaparDesk";
 import ScaleDashboard from "./ScaleDashboard";
 import GlobalSearch from "./GlobalSearch";
+import AlertsStrip from "./AlertsStrip";
+import { businessDate } from "@/lib/register";
 
 type Desk =
   | "jobwork"
@@ -94,6 +96,21 @@ export default function DeskTabs({
       : []),
   ];
 
+  const alertData = useMemo(
+    () => ({
+      sales: initialSales,
+      purchases: initialPurchases,
+      expenses: initialExpenses,
+      jobWork: initialJobWork,
+      mfg: initialMfg,
+      closings: initialClosing,
+      items: initialItems,
+    }),
+    [initialSales, initialPurchases, initialExpenses, initialJobWork, initialMfg, initialClosing, initialItems]
+  );
+  // Business date in IST, so alerts roll over at the business day, not UTC midnight.
+  const today = useMemo(() => businessDate(Date.now()), []);
+
   const searchData = useMemo(
     () => ({ parties: initialParties, sales: initialSales, items: initialItems, jobWork: initialJobWork }),
     [initialParties, initialSales, initialItems, initialJobWork]
@@ -104,6 +121,7 @@ export default function DeskTabs({
       <div className="mb-3 flex justify-end">
         <GlobalSearch data={searchData} onOpen={(desk) => setActive(desk)} />
       </div>
+      <AlertsStrip data={alertData} today={today} onOpen={(desk) => setActive(desk as Desk)} />
       <nav className="flex flex-wrap gap-2 mb-6 border-b border-black/10 dark:border-white/10">
         {tabs.map((tab) => (
           <button
