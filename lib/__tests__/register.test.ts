@@ -204,6 +204,43 @@ describe("fresh crush sale", () => {
   });
 });
 
+import { allocateBill, normalizeBillLines } from "../register";
+
+describe("multi-item bill", () => {
+  it("one payment: one row per item, qty on each", () => {
+    const rows = allocateBill([{ amount: 200 }, { amount: 150 }], [{ channel: "CASH", amount: 350 }]);
+    expect(rows).toEqual([
+      { line: 0, channel: "CASH", amount: 200, first: true },
+      { line: 1, channel: "CASH", amount: 150, first: true },
+    ]);
+  });
+  it("split payment spreads across items and keeps totals", () => {
+    const rows = allocateBill([{ amount: 200 }, { amount: 150 }, { amount: 50 }], [
+      { channel: "CASH", amount: 250 },
+      { channel: "CREDIT", amount: 150 },
+    ]);
+    expect(rows).toEqual([
+      { line: 0, channel: "CASH", amount: 200, first: true },
+      { line: 1, channel: "CASH", amount: 50, first: true },
+      { line: 1, channel: "CREDIT", amount: 100, first: false },
+      { line: 2, channel: "CREDIT", amount: 50, first: true },
+    ]);
+    const byLine = [0, 1, 2].map((l) => rows.filter((r) => r.line === l).reduce((a, r) => a + r.amount, 0));
+    expect(byLine).toEqual([200, 150, 50]);
+    expect(rows.filter((r) => r.first)).toHaveLength(3);
+  });
+  it("validates lines", () => {
+    expect(normalizeBillLines([]).ok).toBe(false);
+    expect(normalizeBillLines([{ item: "other", amount: 10 }]).ok).toBe(false);
+    expect(normalizeBillLines([{ item: "sunflower", amount: 0 }]).ok).toBe(false);
+    const r = normalizeBillLines([{ item: "sunflower", qty: 2, unit: "ltr", rate: 150, amount: 300 }, { item: "karadi", amount: 99.999 }]);
+    expect(r.ok && r.lines).toEqual([
+      { item: "sunflower", itemLabel: null, qty: 2, unit: "ltr", rate: 150, amount: 300 },
+      { item: "karadi", itemLabel: null, qty: null, unit: null, rate: null, amount: 100 },
+    ]);
+  });
+});
+
 import { estimatePrice, estimateQty, fmtEstimateQty } from "../register";
 
 describe("customer estimate", () => {

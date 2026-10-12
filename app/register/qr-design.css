@@ -504,6 +504,27 @@ html .qr .qe-quick button.on { background: var(--qr-in); border-color: var(--qr-
 html .qr .qe-acts .qr-save { flex: 1 1 100%; margin-top: 2px; }
 @media (max-width: 380px) { .qe-grid { grid-template-columns: 1fr; } }
 
+/* ---------- multi-item bill (works in classic and designed looks) ---------- */
+.qr-bill .qr-addbill { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 10px 14px; border-radius: 14px; border: 1.5px dashed var(--qr-in); background: transparent; color: var(--qr-in); font: inherit; font-weight: 700; font-size: calc(15px * var(--qs, 1)); cursor: pointer; transition: background .15s, transform .1s; }
+.qr-bill .qr-addbill:hover { background: color-mix(in srgb, var(--qr-in) 8%, transparent); }
+.qr-bill .qr-addbill:active { transform: scale(.98); }
+.qr-bill .qr-addbill .pl { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--qr-in); color: #fff; font-size: 17px; line-height: 1; }
+.qb-list { color: var(--qr-ink); border: 1px solid var(--qr-line); border-radius: 16px; background: var(--qr-card); margin-bottom: 10px; overflow: hidden; }
+.qb-head { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 14px 6px; font-size: calc(12.5px * var(--qs, 1)); font-weight: 700; letter-spacing: .02em; color: color-mix(in srgb, currentColor 62%, transparent); }
+.qb-row { display: flex; align-items: stretch; border-top: 1px solid var(--qr-line); }
+.qb-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: none; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.qb-row.cur .qb-main { cursor: default; opacity: .7; }
+.qb-n { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 8px; background: color-mix(in srgb, var(--qr-in) 14%, var(--qr-card)); font-size: 12px; font-weight: 700; }
+.qb-name { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.qb-name small { font-weight: 500; color: color-mix(in srgb, currentColor 62%, transparent); }
+.qb-main b { flex: none; font-variant-numeric: tabular-nums; }
+.qb-x { flex: none; width: 44px; border: 0; border-left: 1px solid var(--qr-line); background: none; color: var(--qr-out); font-size: 15px; cursor: pointer; }
+.qb-total { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 14px; border-top: 1.5px solid var(--qr-line); background: color-mix(in srgb, var(--qr-in) 10%, var(--qr-card)); font-weight: 700; }
+.qb-total b { font-size: calc(18px * var(--qs, 1)); font-variant-numeric: tabular-nums; }
+.pos-amt .pa-toggle { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 6px 12px; min-height: 34px; border-radius: 999px; border: 1px solid var(--qr-line); background: var(--qr-card); color: var(--qr-ink); font: inherit; font-size: calc(13px * var(--qs, 1)); font-weight: 600; cursor: pointer; }
+.pos-amt .pa-toggle .ic { font-size: 11px; opacity: .7; }
+.pos-amt.pad-off .pa-box { cursor: text; }
+
 /* ---------- saved tick + ripple ---------- */
 @keyframes qs-pop { 0% { transform: scale(.3); opacity: 0; } 55% { transform: scale(1.08); opacity: 1; } 80% { transform: scale(1); } 100% { transform: scale(.96); opacity: 0; } }
 @keyframes qs-ripple { from { transform: scale(.5); opacity: .5; } to { transform: scale(2.8); opacity: 0; } }

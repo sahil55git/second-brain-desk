@@ -261,6 +261,80 @@ export function normalizeSplit(total: number, raw: unknown): { ok: true; parts: 
 }
 
 // ---------------------------------------------------------------------------
+// Multi-item bill — one customer, several items, one payment. Stored as one
+// RegisterEntry per item (per payment channel when the payment is split), all
+// sharing details.split.id, so stock, item reports and cash/UPI/udhaar totals
+// stay correct and deleting the bill removes every row.
+// ---------------------------------------------------------------------------
+export interface BillLine {
+  item: string | null;
+  itemLabel: string | null;
+  qty: number | null;
+  unit: string | null;
+  rate: number | null;
+  amount: number;
+}
+const BILL_UNITS = ["kg", "ltr", "bags", "pcs", "box"];
+
+/** Validates the item lines of a bill (max 40). */
+export function normalizeBillLines(raw: unknown): { ok: true; lines: BillLine[] } | { ok: false; error: string } {
+  if (!Array.isArray(raw) || !raw.length) return { ok: false, error: "The bill has no items" };
+  if (raw.length > 40) return { ok: false, error: "Too many items in one bill (max 40)" };
+  const lines: BillLine[] = [];
+  for (const r of raw) {
+    const o = (r || {}) as Record<string, unknown>;
+    const amount = money2(Number(o.amount));
+    if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "Every item in the bill needs an amount" };
+    const qty = Number(o.qty);
+    const rate = Number(o.rate);
+    const label = typeof o.itemLabel === "string" && o.itemLabel.trim() ? o.itemLabel.trim().slice(0, 80) : null;
+    const item = typeof o.item === "string" && o.item ? o.item.slice(0, 60) : null;
+    if (item === "other" && !label) return { ok: false, error: "Type the name of the 'Other' item" };
+    const hasQty = Number.isFinite(qty) && qty > 0;
+    lines.push({
+      item,
+      itemLabel: label,
+      qty: hasQty ? qty : null,
+      unit: hasQty ? (BILL_UNITS.includes(o.unit as string) ? (o.unit as string) : "kg") : null,
+      rate: hasQty && Number.isFinite(rate) && rate > 0 ? rate : null,
+      amount,
+    });
+  }
+  return { ok: true, lines };
+}
+
+/**
+ * Spreads a bill's payment parts over its item lines, in order, so every row
+ * has one item and one payment channel. Quantity belongs to the first row of
+ * each line (`first`), so stock never counts an item twice.
+ */
+export function allocateBill<C>(lines: { amount: number }[], parts: { channel: C; amount: number }[]): { line: number; channel: C; amount: number; first: boolean }[] {
+  const out: { line: number; channel: C; amount: number; first: boolean }[] = [];
+  let p = 0;
+  let left = parts.length ? parts[0].amount : 0;
+  lines.forEach((ln, li) => {
+    let need = money2(ln.amount);
+    let first = true;
+    while (need > 0.004 && p < parts.length) {
+      const take = money2(Math.min(need, left));
+      if (take > 0) {
+        out.push({ line: li, channel: parts[p].channel, amount: take, first });
+        first = false;
+      }
+      need = money2(need - take);
+      left = money2(left - take);
+      if (left <= 0.004) {
+        p++;
+        left = p < parts.length ? parts[p].amount : 0;
+      }
+    }
+    // Rounding left a paisa over: it goes on the last channel.
+    if (need > 0.004 && parts.length) out.push({ line: li, channel: parts[parts.length - 1].channel, amount: need, first });
+  });
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Customer estimate ("how much for this qty?" / "how much oil for this cash?").
 // Nothing is saved; it only does the sums for the counter.
 // ---------------------------------------------------------------------------
