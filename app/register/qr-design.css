@@ -444,3 +444,37 @@ html[data-skin] .qr .pos-savebar .qr-save { flex: 1; margin: 0; }
 html[data-skin] .qr .pos-qty .qr-chips.compact { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 html[data-skin] .qr .pos-qty .qr-chips.compact::-webkit-scrollbar { display: none; }
 html[data-skin] .qr .pos-qty .qr-chips.compact .qr-chip { flex: none; min-height: calc(38px * var(--qs)); }
+
+/* ===========================================================================
+   POS counter mode (/register/pos and the POS button)
+   =========================================================================== */
+.qr-pos .qr-wrap.split { max-width: 1440px; }
+.pos-desk { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, 1fr); gap: 18px; align-items: start; margin-top: 6px; }
+@media (max-width: 900px) { .pos-desk { grid-template-columns: 1fr; } }
+.pos-main { min-width: 0; display: grid; gap: 10px; }
+.pos-side { min-width: 0; display: grid; gap: 0; position: sticky; top: 72px; }
+.pos-side > .qr-card:first-child, .pos-side > .qr-hero { margin-top: 0; }
+.pos-kinds { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+@media (max-width: 700px) { .pos-kinds { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.pos-kind {
+  --t: var(--q-in, #1e8a4c);
+  display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 6px 10px; border-radius: 14px; text-align: left; cursor: pointer;
+  border: 1px solid var(--q-line, var(--qr-line)); background: var(--q-surface, var(--qr-card)); color: var(--q-ink, var(--qr-ink)); font: inherit;
+  transition: transform .1s, border-color .15s, background .15s;
+}
+.pos-kind.out { --t: var(--q-out, #c8352e); }
+.pos-kind:active { transform: scale(.97); }
+.pos-kind .pk-ic { width: 32px; height: 32px; flex: none; border-radius: 10px; display: grid; place-items: center; font-size: 18px; color: var(--t); background: color-mix(in srgb, var(--t) 13%, transparent); }
+.pos-kind .pk-t { display: grid; line-height: 1.1; font-weight: 800; font-size: 14px; min-width: 0; }
+.pos-kind .pk-t small { font-size: 11px; font-weight: 600; color: var(--q-soft, var(--qr-soft)); }
+.pos-kind.on { border-color: var(--t); background: color-mix(in srgb, var(--t) 12%, var(--q-surface-solid, var(--qr-card))); box-shadow: inset 0 0 0 1px var(--t); }
+.pos-kind.on .pk-ic { background: var(--t); color: var(--q-on-tone, #fff); }
+.pos-main .qr-sheet.inline { margin: 0; }
+html[data-skin] .qr .qr-posbtn { gap: 6px; }
+html[data-skin] .qr .qr-posbtn.on { background: var(--q-accent); color: var(--q-accent-ink); border-color: transparent; }
+
+/* Money In ↓ / Money Out ↑ marks (style A: arrow in a circle) */
+.qa-h .mark { width: calc(26px * var(--qs, 1)); height: calc(26px * var(--qs, 1)); flex: none; align-self: center; border-radius: 50%; display: grid; place-items: center; color: var(--t); background: color-mix(in srgb, var(--t) 16%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--t) 28%, transparent); }
+.qa-h .mark svg { width: 60%; height: 60%; }
+.qa-h:has(.mark) .t { font-size: calc(13px * var(--qs, 1)); }
+@media (max-width: 700px) { .pos-kind .pk-t small { display: none; } .pos-kind { min-height: 46px; } }

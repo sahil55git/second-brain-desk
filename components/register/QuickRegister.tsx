@@ -649,7 +649,7 @@ function PartyField({
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
-export default function QuickRegister() {
+export default function QuickRegister({ pos: startPos = false }: { pos?: boolean } = {}) {
   const { data: session } = useSession();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isOwner = (session?.user as any)?.role === "OWNER";
@@ -657,6 +657,11 @@ export default function QuickRegister() {
   const { prefs: uiPrefs } = useCustomize();
   const skinned = uiPrefs.look.skin !== "none";
   const pillIc = (e: string, name: IconName) => (skinned ? <Icon name={name} size={18} /> : e);
+  // POS counter mode: one big entry window + today's list, nothing else on screen.
+  // /register/pos opens straight into it; the POS button switches in place.
+  const [posMode, setPosMode] = useState(startPos);
+  const [posKind, setPosKind] = useState<"SALE" | "FRESH_CRUSH" | "UDHAAR_IN" | "PURCHASE" | "EXPENSE" | "PAYMENT">("SALE");
+  const [posKey, setPosKey] = useState(0);
 
   const [date, setDate] = useState(todayIST);
   const [day, setDay] = useState<DayBundle | null>(null);
@@ -1016,11 +1021,11 @@ export default function QuickRegister() {
       <div className="qr-hero-v">{rs(counterNow)}</div>
       <div className="qr-hero-chips">
         <span className="in">
-          <small>IN · ಬರುವುದು</small>
+          <small>↓ IN · ಬರುವುದು</small>
           <b>{rs(totals.cashIn)}</b>
         </span>
         <span className="out">
-          <small>OUT · ಹೋದದ್ದು</small>
+          <small>↑ OUT · ಹೋದದ್ದು</small>
           <b>{rs(totals.cashOut)}</b>
         </span>
         <span className="upi">
@@ -1182,7 +1187,15 @@ export default function QuickRegister() {
   );
   const qaHead = (tone: string, k: WordKey, meta?: React.ReactNode) => (
     <div className={`qa-h t-${tone}`}>
-      <span className="dot" aria-hidden />
+      {tone === "in" || tone === "out" ? (
+        <span className="mark" aria-hidden>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
+            <path d={tone === "in" ? "M12 5v14M6 13l6 6 6-6" : "M12 19V5M6 11l6-6 6 6"} />
+          </svg>
+        </span>
+      ) : (
+        <span className="dot" aria-hidden />
+      )}
       <span className="t">
         <Txt k={k} lang={lang} />
       </span>
@@ -1790,9 +1803,62 @@ export default function QuickRegister() {
     />
   );
 
+  const POS_KINDS = ["SALE", "FRESH_CRUSH", "UDHAAR_IN", "PURCHASE", "EXPENSE", "PAYMENT"] as const;
+  const posSaved = (msg?: string) => {
+    toast(msg || word("saved", lang));
+    load();
+    setPosKey((k) => k + 1); // fresh form for the next customer
+  };
+  const posBlock = (
+    <div className="pos-desk">
+      <section className="pos-main" aria-label="POS">
+        <div className="pos-kinds" role="tablist">
+          {POS_KINDS.map((k) => {
+            const w = words(k, lang);
+            const sideK = KIND_SIDE[k];
+            return (
+              <button
+                key={k}
+                role="tab"
+                aria-selected={posKind === k}
+                className={`pos-kind ${sideK}${posKind === k ? " on" : ""}`}
+                onClick={() => {
+                  setPosKind(k);
+                  setPosKey((x) => x + 1);
+                }}
+                disabled={dbOffline}
+              >
+                <span className="pk-ic" aria-hidden>
+                  <G e={KIND_ICON[k]} />
+                </span>
+                <span className="pk-t">
+                  {w.main}
+                  {w.sub && <small>{w.sub}</small>}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <SheetModeCtx.Provider value="inline">
+          {!day ? (
+            <div className="qr-empty">{loadError ? (dbOffline ? word("offline", lang) : loadError) : "…"}</div>
+          ) : posKind === "FRESH_CRUSH" ? (
+            <FreshCrushSheet key={`fc-${posKey}`} day={day} lang={lang} date={date} onClose={() => setPosKey((x) => x + 1)} onSaved={() => posSaved()} toast={toast} />
+          ) : (
+            <EntrySheet key={`${posKind}-${posKey}`} kind={posKind} day={day} lang={lang} date={date} onClose={() => setPosKey((x) => x + 1)} onSaved={posSaved} toast={toast} />
+          )}
+        </SheetModeCtx.Provider>
+      </section>
+      <aside className="pos-side">
+        {heroBlock}
+        {entriesBlock}
+      </aside>
+    </div>
+  );
+
   return (
-    <div className="qr" data-size={skinned ? prefs.size : undefined}>
-      <div className={`qr-wrap${sideBySide ? " split" : ""}`}>
+    <div className={`qr${posMode ? " qr-pos" : ""}`} data-size={skinned ? prefs.size : undefined}>
+      <div className={`qr-wrap${sideBySide || posMode ? " split" : ""}`}>
         <div className="qr-top">
           {skinned && (
             <span className="qr-logo" aria-hidden>
@@ -1829,6 +1895,15 @@ export default function QuickRegister() {
               {layoutLabel[prefs.layout]}
             </button>
           )}
+          <button
+            className={`qr-pill qr-posbtn${posMode ? " on" : ""}`}
+            onClick={() => (posMode && startPos ? (window.location.href = "/register") : setPosMode((v) => !v))}
+            title={posMode ? (lang === "kn" ? "ಪೂರ್ಣ ರಿಜಿಸ್ಟರ್" : "Back to full register") : lang === "kn" ? "ಕೌಂಟರ್ ಮೋಡ್ (POS)" : "Counter mode (POS)"}
+            aria-pressed={posMode}
+          >
+            {skinned ? <Icon name="calc" size={18} /> : "🧾 "}
+            <b>{posMode ? (lang === "kn" ? "ಮುಚ್ಚಿ POS" : "Exit POS") : "POS"}</b>
+          </button>
           {skinned && (
             <button
               className="qr-pill qr-size"
@@ -1880,7 +1955,9 @@ export default function QuickRegister() {
           </div>
         )}
 
-        {sideBySide ? (
+        {posMode ? (
+          posBlock
+        ) : sideBySide ? (
           <div
             className="qr-split has-splitter"
             ref={splitRef}
@@ -1931,7 +2008,7 @@ export default function QuickRegister() {
         )}
       </div>
 
-      {!sideBySide && sheetEl}
+      {(!sideBySide || posMode) && sheetEl}
       {floating && (
         <div
           className="qr-float"
