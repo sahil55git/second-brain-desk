@@ -4,6 +4,7 @@ import { prisma, safeDbCall } from "@/lib/db";
 import DeskTabs from "@/components/DeskTabs";
 import CustomizeButton from "@/components/CustomizeButton";
 import SignOutButton from "@/components/SignOutButton";
+import { BrandMark } from "@/components/ui/Icons";
 import type {
   DailyClosingDTO,
   JobWorkIntakeDTO,
@@ -114,27 +115,32 @@ export default async function Home() {
       ? JSON.parse(JSON.stringify(vyaparResult.data))
       : null;
 
+  const userName = session?.user?.name || "";
+  const initial = userName.trim().slice(0, 1).toUpperCase();
+  const todayLabel = new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
+
   return (
     <main className="sb-app min-h-screen max-w-6xl mx-auto px-4 py-6 sm:px-6">
       <header className="sb-head mb-6 flex items-start justify-between gap-3">
         <div className="sb-brand">
           <span className="sb-logo" aria-hidden>
-            M
+            <BrandMark size={22} />
           </span>
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight">Second Brain Desk</h1>
-            <p className="text-sm opacity-70">
-              Job-Work, Manufacturing, Daily Closing, Sales, Purchase, Expenses, Parties,
-              Inventory &amp; Reports.
+            <h1 className="text-2xl font-bold tracking-tight">{settings?.businessName?.trim() || "Mahadev Traders"}</h1>
+            <p className="sb-tag text-sm opacity-70">
+              <span className="sb-tag-full">Second Brain Desk — Job-Work, Manufacturing, Daily Closing, Sales, Purchase, Expenses, Parties, Inventory &amp; Reports.</span>
+              <span className="sb-tag-short">Second Brain · {todayLabel}</span>
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="sb-actions flex flex-wrap items-center gap-2">
           <a
             href="/register"
-            className="px-3 py-1.5 text-sm font-semibold rounded-md bg-[var(--accent)] text-[var(--accent-contrast)]"
+            className="sb-cta px-3 py-1.5 text-sm font-semibold rounded-md bg-[var(--accent)] text-[var(--accent-contrast)]"
           >
-            📒 Quick Register
+            <span className="sb-cta-emoji">📒 </span>
+            <span className="sb-cta-plus" aria-hidden>+ </span>Quick Register
           </a>
           {isOwner && (
             <>
@@ -148,6 +154,11 @@ export default async function Home() {
           )}
           <CustomizeButton />
           <SignOutButton />
+          {initial && (
+            <span className="sb-avatar" title={userName} aria-hidden>
+              {initial}
+            </span>
+          )}
         </div>
       </header>
 

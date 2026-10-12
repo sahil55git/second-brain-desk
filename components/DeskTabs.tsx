@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import type {
   DailyClosingDTO,
@@ -27,11 +27,13 @@ import ExpensesDesk from "./ExpensesDesk";
 import VyaparDesk from "./VyaparDesk";
 import ScaleDashboard from "./ScaleDashboard";
 import LedgerDesk from "./LedgerDesk";
+import HomeDesk from "./home/HomeDesk";
 import GlobalSearch from "./GlobalSearch";
 import AlertsStrip from "./AlertsStrip";
 import { businessDate } from "@/lib/register";
 
 type Desk =
+  | "home"
   | "jobwork"
   | "manufacturing"
   | "closing"
@@ -75,8 +77,18 @@ export default function DeskTabs({
   const { data: session } = useSession();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isOwner = (session?.user as any)?.role === "OWNER";
+  // The Owner opens on Home (today's figures); Staff keep opening on the Job-Work desk.
+  const picked = useRef(false);
+  useEffect(() => {
+    if (isOwner && !picked.current) setActive("home");
+  }, [isOwner]);
+  const open = (d: Desk) => {
+    picked.current = true;
+    setActive(d);
+  };
 
   const tabs: { key: Desk; label: string }[] = [
+    ...(isOwner ? [{ key: "home" as const, label: "Home" }] : []),
     { key: "jobwork", label: "Job-Work Desk" },
     { key: "manufacturing", label: "Manufacturing" },
     { key: "closing", label: "Daily Closing" },
@@ -122,14 +134,14 @@ export default function DeskTabs({
   return (
     <div>
       <div className="mb-3 flex justify-end">
-        <GlobalSearch data={searchData} onOpen={(desk) => setActive(desk)} />
+        <GlobalSearch data={searchData} onOpen={(desk) => open(desk)} />
       </div>
-      <AlertsStrip data={alertData} today={today} onOpen={(desk) => setActive(desk as Desk)} />
+      <AlertsStrip data={alertData} today={today} onOpen={(desk) => open(desk as Desk)} />
       <nav className="sb-tabs flex flex-wrap gap-2 mb-6 border-b border-black/10 dark:border-white/10">
         {tabs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActive(tab.key)}
+            onClick={() => open(tab.key)}
             aria-current={active === tab.key ? "page" : undefined}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${active === tab.key ? "on " : ""}${
               active === tab.key
@@ -142,6 +154,7 @@ export default function DeskTabs({
         ))}
       </nav>
 
+      {active === "home" && isOwner && <HomeDesk onNavigate={(d) => open(d)} />}
       {active === "jobwork" && (
         <JobWorkDesk initialEntries={initialJobWork} dbConnected={dbConnected} />
       )}
@@ -178,10 +191,10 @@ export default function DeskTabs({
         />
       )}
       {active === "parties" && (
-        <PartiesDesk initialParties={initialParties} dbConnected={dbConnected} onNavigate={(d) => setActive(d as Desk)} />
+        <PartiesDesk initialParties={initialParties} dbConnected={dbConnected} onNavigate={(d) => open(d as Desk)} />
       )}
       {active === "inventory" && (
-        <InventoryDesk initialItems={initialItems} dbConnected={dbConnected} onNavigate={(d) => setActive(d as Desk)} />
+        <InventoryDesk initialItems={initialItems} dbConnected={dbConnected} onNavigate={(d) => open(d as Desk)} />
       )}
       {active === "scales" && <ScaleDashboard />}
       {active === "reports" && (
@@ -189,7 +202,7 @@ export default function DeskTabs({
           jobWork={initialJobWork}
           closing={initialClosing}
           mfg={initialMfg}
-          onNavigate={(desk) => setActive(desk === "mfg" ? "manufacturing" : desk)}
+          onNavigate={(desk) => open(desk === "mfg" ? "manufacturing" : desk)}
         />
       )}
       {active === "ledger" && isOwner && <LedgerDesk />}
