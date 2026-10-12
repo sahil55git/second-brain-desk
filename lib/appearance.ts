@@ -87,6 +87,11 @@ export const THEME_PRESETS: ThemePreset[] = [
   { key: "mahadev-gold", label: "Mahadev Gold", mode: "dark", accent: "#e0a526", colors: { bg: "#17120b", fg: "#f5ead7", card: "#231a0f", accent: "#e0a526" } },
   { key: "mustard-field", label: "Mustard Field", mode: "light", accent: "#b7791f", colors: { bg: "#fffbea", fg: "#3b2f0b", card: "#fff3c4", accent: "#b7791f" } },
   { key: "glass-sky", label: "Glass Sky", mode: "light", accent: "#2563eb", colors: { bg: "#e8f0fe", fg: "#10213f", card: "#ffffff", accent: "#2563eb" }, look: { pattern: "gradient", panelOpacity: 0.72 } },
+  // Design directions approved on the canvas (Oct 2026).
+  { key: "earth-clay", label: "Earth & Clay (linen, clay, sage)", mode: "light", accent: "#b5643c", colors: { bg: "#efe7d8", fg: "#2e2a24", card: "#f7f2e7", accent: "#b5643c" }, look: { radius: 1.2, tileStyle: "soft", pattern: "grid" } },
+  { key: "pastel-liquid", label: "Pastel Liquid (soft colour glass)", mode: "light", accent: "#8e6cc9", colors: { bg: "#fdf3f6", fg: "#3b2f4a", card: "#ffffff", accent: "#8e6cc9" }, look: { radius: 1.5, panelOpacity: 0.85, pattern: "gradient" } },
+  { key: "warm-frost", label: "Warm Frost (bronze glass, lime)", mode: "dark", accent: "#c6f432", colors: { bg: "#2b1d15", fg: "#fbf4ea", card: "#3a322c", accent: "#c6f432" }, look: { panelOpacity: 0.8, pattern: "gradient", radius: 1.3 } },
+  { key: "neon-glow", label: "Neon Glow (dark ink, oil gold)", mode: "dark", accent: "#c6f432", colors: { bg: "#161210", fg: "#f5ebdd", card: "#221b17", accent: "#c6f432" }, look: { radius: 1, tileStyle: "outline", contrast: "normal" } },
   { key: "high-contrast", label: "High contrast", mode: "dark", accent: "#ffd400", colors: { bg: "#000000", fg: "#ffffff", card: "#0b0b0b", accent: "#ffd400" }, look: { contrast: "high", tileStyle: "solid" } },
 ];
 
