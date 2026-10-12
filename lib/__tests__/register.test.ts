@@ -203,3 +203,27 @@ describe("fresh crush sale", () => {
     expect(t.extraByTank).toEqual({ "Tank 1": 2 });
   });
 });
+
+import { estimatePrice, estimateQty, fmtEstimateQty } from "../register";
+
+describe("customer estimate", () => {
+  it("price for a quantity", () => {
+    expect(estimatePrice(2.5, 180)).toBe(450);
+    expect(estimatePrice(0.25, 165)).toBe(41.25);
+    expect(estimatePrice(0, 180)).toBe(0);
+    expect(estimatePrice(2, 0)).toBe(0);
+  });
+  it("quantity for cash rounds down, never over-gives", () => {
+    expect(estimateQty(500, 200)).toBe(2.5);
+    expect(estimateQty(100, 165)).toBe(0.606);
+    expect(estimateQty(100, 165) * 165).toBeLessThanOrEqual(100);
+    expect(estimateQty(0, 165)).toBe(0);
+  });
+  it("formats like the counter says it", () => {
+    expect(fmtEstimateQty(0.25, "kg")).toBe("250 g");
+    expect(fmtEstimateQty(0.5, "ltr")).toBe("500 ml");
+    expect(fmtEstimateQty(2.5, "kg")).toBe("2.5 kg");
+    expect(fmtEstimateQty(3, "ltr")).toBe("3 l");
+    expect(fmtEstimateQty(4, "bags")).toBe("4 bags");
+  });
+});

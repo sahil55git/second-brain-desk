@@ -260,6 +260,33 @@ export function normalizeSplit(total: number, raw: unknown): { ok: true; parts: 
   return { ok: true, parts };
 }
 
+// ---------------------------------------------------------------------------
+// Customer estimate ("how much for this qty?" / "how much oil for this cash?").
+// Nothing is saved; it only does the sums for the counter.
+// ---------------------------------------------------------------------------
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Price of `qty` units at `rate` per unit (0 when either is missing). */
+export function estimatePrice(qty: number, rate: number): number {
+  return qty > 0 && rate > 0 ? r2(qty * rate) : 0;
+}
+
+/** How much a customer gets for `cash` at `rate` per unit (3 decimals, rounded down so it never over-gives). */
+export function estimateQty(cash: number, rate: number): number {
+  return cash > 0 && rate > 0 ? Math.floor((cash / rate) * 1000 + 1e-9) / 1000 : 0;
+}
+
+/** Quantity as people say it at the counter: 0.25 kg → "250 g", 0.5 l → "500 ml", else "2.5 kg". */
+export function fmtEstimateQty(qty: number, unit: string): string {
+  if ((unit === "kg" || unit === "ltr") && qty > 0 && qty < 1) {
+    const small = unit === "kg" ? "g" : "ml";
+    return `${Math.round(qty * 1000)} ${small}`;
+  }
+  const n = Math.round(qty * 1000) / 1000;
+  const u = unit === "ltr" ? "l" : unit;
+  return `${n} ${u}`;
+}
+
 /** Effect of one register entry on the physical counter cash. */
 export function entryCashEffect(e: RegisterEntryLike): number {
   const side = KIND_SIDE[e.kind];
