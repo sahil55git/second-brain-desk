@@ -70,6 +70,7 @@ import { REGISTER_FILL_KINDS, mapRegisterFill, matchCatalogItem, normUnit, type 
 import { DESK_PROMPTS } from "@/lib/aiPrompts";
 import { findItemByCode } from "@/lib/smartEntry";
 import MfgQuick from "@/components/mfg/MfgQuick";
+import BillSheet from "@/components/register/BillSheet";
 
 // Pre-fill for an entry form: from a voice command, or from a scanned slip
 // (linkProofId attaches that scan to the entry once it is saved).
@@ -146,6 +147,7 @@ type Sheet =
   | { t: "jw"; id?: string }
   | { t: "fresh" }
   | { t: "mfg"; startNew?: boolean }
+  | { t: "bill" }
   | { t: "jwpay"; id: string }
   | { t: "count" }
   | { t: "calc" }
@@ -157,6 +159,7 @@ type Sheet =
 // Per-device screen preferences (layout, favourite tiles, folded sections).
 type TileKey =
   | "SALE"
+  | "bill"
   | "FRESH_CRUSH"
   | "UDHAAR_IN"
   | "PURCHASE"
@@ -853,6 +856,7 @@ export default function QuickRegister() {
   };
   const TILES: Record<TileKey, { k: WordKey; icon: string; group: "in" | "out" | "jw" | "oth" | "tool"; open: () => void; needsDb?: boolean }> = {
     SALE: { k: "SALE", icon: "💰", group: "in", open: () => setSheet({ t: "entry", kind: "SALE" }), needsDb: true },
+    bill: { k: "bill", icon: "🧾", group: "in", open: () => setSheet({ t: "bill" }), needsDb: true },
     FRESH_CRUSH: { k: "FRESH_CRUSH", icon: "🫗", group: "in", open: () => setSheet({ t: "fresh" }), needsDb: true },
     UDHAAR_IN: { k: "UDHAAR_IN", icon: "🙌", group: "in", open: () => setSheet({ t: "entry", kind: "UDHAAR_IN" }), needsDb: true },
     PURCHASE: { k: "PURCHASE", icon: "🛒", group: "out", open: () => setSheet({ t: "entry", kind: "PURCHASE" }), needsDb: true },
@@ -1030,6 +1034,7 @@ export default function QuickRegister() {
             <span aria-hidden>⬇</span>
           </div>
           <Tile id="SALE" />
+          <Tile id="bill" />
           <Tile id="FRESH_CRUSH" />
           <Tile id="UDHAAR_IN" />
         </div>
@@ -1596,6 +1601,10 @@ export default function QuickRegister() {
     />
   ) : sheet.t === "stock" ? (
     <StockSheet lang={lang} date={date} onClose={() => setSheet(null)} onSaved={(m) => done(m)} toast={toast} />
+  ) : sheet.t === "bill" ? (
+    <SheetFrame icon="🧾" k="bill" lang={lang} onClose={() => setSheet(null)}>
+      <BillSheet lang={lang} date={date} onSaved={(m) => done(m)} toast={toast} />
+    </SheetFrame>
   ) : sheet.t === "mfg" ? (
     <SheetFrame icon="🛢️" k="mfgDesk" lang={lang} onClose={() => setSheet(null)}>
       <MfgQuick startNew={sheet.startNew} />

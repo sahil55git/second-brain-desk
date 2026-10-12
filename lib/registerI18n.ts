@@ -20,6 +20,7 @@ export const W = {
   jobWork: ["Job-Work", "ಕೆಲಸದ ಗಾಣ"],
   jwNew: ["New intake", "ಹೊಸ ದಾಖಲೆ"],
   jwSettle: ["Pay / settle", "ಇತ್ಯರ್ಥ"],
+  bill: ["Sales bill", "ಬಿಲ್"],
   count: ["Count cash", "ನಗದು ಎಣಿಕೆ"],
   calc: ["Calculator", "ಕ್ಯಾಲ್ಕುಲೇಟರ್"],
   reports: ["Reports", "ವರದಿ"],
