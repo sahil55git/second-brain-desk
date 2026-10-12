@@ -1,5 +1,6 @@
 // One profile (Owner only): rename it or change what it can see / use / open. The owner profile is fixed.
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
 import { requireOwner } from "@/lib/ownerGuard";
 import { loadProfiles } from "@/lib/accessServer";
@@ -17,8 +18,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const body = await req.json().catch(() => ({}));
   const name = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 40) : cur.name;
   const perms = body.perms ? normalizePerms(body.perms, cur.perms) : cur.perms;
+  const json = perms as unknown as Prisma.InputJsonValue;
   const r = await safeDbCall(() =>
-    prisma.accessProfile.upsert({ where: { id: params.id }, update: { name, perms }, create: { id: params.id, name, who: cur.who, perms } })
+    prisma.accessProfile.upsert({ where: { id: params.id }, update: { name, perms: json }, create: { id: params.id, name, who: cur.who, perms: json } })
   );
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 503 });
   return NextResponse.json({ data: { id: params.id, name, who: cur.who, perms } });
