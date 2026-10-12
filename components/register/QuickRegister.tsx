@@ -10,6 +10,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useSession } from "next-auth/react";
 import { useAccess } from "@/components/AccessProvider";
 import { kindToFn, MASK, type FnKey } from "@/lib/access";
+import { DEFAULT_WIN, WIN_LABEL, hideWin, moveWin, normalizeWin, showWin, toggleMin, type WinState } from "@/lib/workspaceWin";
 import {
   CAN_TYPES,
   STANDARD_RATE,
@@ -720,6 +721,36 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   const wide = useMedia("(min-width: 1100px)");
   const sideBySide = canSide && (prefs.layout === "side" || (prefs.layout === "auto" && wide));
   const splitRef = useRef<HTMLDivElement>(null);
+  const rightRef = useRef<HTMLDivElement>(null);
+  // Right-hand windows (entry form, workspace, job-work, entries): hide / fold / move, saved for this login on this device.
+  const winKey = `qr-win-v1:${String((session?.user as { username?: string } | undefined)?.username || "me")}`;
+  const [wins, setWinsState] = useState<WinState>(DEFAULT_WIN);
+  useEffect(() => {
+    try {
+      setWinsState(normalizeWin(JSON.parse(localStorage.getItem(winKey) || "null")));
+    } catch { /* storage blocked: keep the default arrangement */ }
+  }, [winKey]);
+  const setWins = (fn: (w: WinState) => WinState) =>
+    setWinsState((w) => {
+      const next = fn(w);
+      try { localStorage.setItem(winKey, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  // Tapping a tile on the left opens its form on the right and brings that panel into view,
+  // wherever the page is scrolled. The form window is shown again if it was hidden or folded.
+  useEffect(() => {
+    if (!sheet || !sideBySide) return;
+    if (wins.hid.includes("form") || wins.min.includes("form")) setWins((w) => showWin(w, "form"));
+    const t = window.setTimeout(() => {
+      const el = rightRef.current;
+      if (!el) return;
+      el.scrollTop = 0;
+      const top = el.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+    }, 30);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheet, sideBySide]);
   const floatRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
   // Drag the divider between the buttons column and the forms / tables.
@@ -2051,14 +2082,42 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
                 if (e.key === "ArrowRight") setPrefs((p) => ({ ...p, leftW: Math.min(900, cur + 20) }));
               }}
             />
-            <div className="qr-right">
+            <div className="qr-right" ref={rightRef}>
+              {wins.hid.length > 0 && (
+                <div className="qr-wrestore" role="group" aria-label="Hidden windows">
+                  <span>Hidden:</span>
+                  {wins.hid.map((id) => (
+                    <button key={id} type="button" className="qr-pill" onClick={() => setWins((w) => showWin(w, id))}>
+                      ＋ {WIN_LABEL[id]}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="qr-rforms">
-                <SheetModeCtx.Provider value="inline">{sheetEl}</SheetModeCtx.Provider>
-                {!floating && workspaceBlock}
-              </div>
-              <div className="qr-rtables">
-                {jobWorkBlock}
-                {entriesBlock}
+                {wins.order.map((id) => {
+                  const node: React.ReactNode =
+                    id === "form" ? (sheetEl ? <SheetModeCtx.Provider value="inline">{sheetEl}</SheetModeCtx.Provider> : null)
+                    : id === "work" ? (!floating ? workspaceBlock : null)
+                    : id === "jobwork" ? jobWorkBlock
+                    : entriesBlock;
+                  if (!node) return null;
+                  const hid = wins.hid.includes(id);
+                  const min = wins.min.includes(id);
+                  const shown = wins.order.filter((x) => !wins.hid.includes(x));
+                  const at = shown.indexOf(id);
+                  return (
+                    <div key={id} className={`qr-win${min ? " min" : ""}`} data-win={id} hidden={hid}>
+                      <div className="qr-wbar">
+                        <span className="t">{WIN_LABEL[id]}</span>
+                        <button type="button" aria-label="Move up" title="Move up" disabled={at <= 0} onClick={() => setWins((w) => moveWin(w, id, -1))}>▲</button>
+                        <button type="button" aria-label="Move down" title="Move down" disabled={at < 0 || at >= shown.length - 1} onClick={() => setWins((w) => moveWin(w, id, 1))}>▼</button>
+                        <button type="button" aria-label={min ? "Open" : "Minimise"} title={min ? "Open" : "Minimise"} onClick={() => setWins((w) => toggleMin(w, id))}>{min ? "▢" : "–"}</button>
+                        <button type="button" aria-label="Hide" title="Hide" onClick={() => setWins((w) => hideWin(w, id))}>✕</button>
+                      </div>
+                      <div className="qr-wbody" hidden={min}>{node}</div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
