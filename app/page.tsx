@@ -115,16 +115,21 @@ export default async function Home() {
       : null;
 
   return (
-    <main className="min-h-screen max-w-6xl mx-auto px-4 py-6 sm:px-6">
-      <header className="mb-6 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Second Brain Desk</h1>
-          <p className="text-sm opacity-70">
-            Job-Work, Manufacturing, Daily Closing, Sales, Purchase, Expenses, Parties,
-            Inventory &amp; Reports.
-          </p>
+    <main className="sb-app min-h-screen max-w-6xl mx-auto px-4 py-6 sm:px-6">
+      <header className="sb-head mb-6 flex items-start justify-between gap-3">
+        <div className="sb-brand">
+          <span className="sb-logo" aria-hidden>
+            M
+          </span>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight">Second Brain Desk</h1>
+            <p className="text-sm opacity-70">
+              Job-Work, Manufacturing, Daily Closing, Sales, Purchase, Expenses, Parties,
+              Inventory &amp; Reports.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <a
             href="/register"
             className="px-3 py-1.5 text-sm font-semibold rounded-md bg-[var(--accent)] text-[var(--accent-contrast)]"

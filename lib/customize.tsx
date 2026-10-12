@@ -9,7 +9,7 @@
 // data."
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { DEFAULT_LOOK, FONTS, clampLook, deriveSurface, fontHref, type Look } from "./appearance";
+import { DEFAULT_LOOK, FONTS, THEME_PRESETS, clampLook, deriveSurface, fontHref, type Look } from "./appearance";
 import type { DeskKey } from "./desksConfig";
 
 export type ThemeMode = "auto" | "light" | "dark";
@@ -34,6 +34,22 @@ export interface Prefs {
   // Deep appearance (lib/appearance.ts): theme colours, font, text size,
   // density, corners, transparency, contrast, motion, button style.
   look: Look;
+  /** 2 = saved after the glass looks arrived (see migrateLook). */
+  lookV?: number;
+}
+
+/**
+ * The glass looks became the default in look version 2. A device that was
+ * still on the untouched original look (Parchment) moves to Neon glass,
+ * keeping its own text size, density, contrast and motion choices. A device
+ * where someone picked another theme keeps it.
+ */
+export function migrateLook(saved: { look?: unknown; lookV?: number } | null | undefined): Look {
+  const old = clampLook(saved?.look);
+  if ((saved?.lookV ?? 1) >= 2) return old;
+  if (old.preset !== "parchment" || old.custom || old.skin !== "none") return old;
+  const neon = THEME_PRESETS.find((p) => p.key === DEFAULT_LOOK.preset);
+  return clampLook({ ...old, ...(neon?.look || {}), preset: DEFAULT_LOOK.preset, custom: DEFAULT_LOOK.custom });
 }
 
 // Merges a saved order over the definition's natural id order: saved
@@ -99,6 +115,7 @@ const DEFAULT_PREFS: Prefs = {
   widgets: {},
   columns: {},
   look: DEFAULT_LOOK,
+  lookV: 2,
 };
 const STORAGE_KEY = "sbd_prefs_v1";
 
@@ -208,7 +225,7 @@ export function CustomizeProvider({ children }: { children: React.ReactNode }) {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const saved = JSON.parse(raw);
-        setPrefsState({ ...DEFAULT_PREFS, ...saved, look: clampLook(saved.look) });
+        setPrefsState({ ...DEFAULT_PREFS, ...saved, look: migrateLook(saved), lookV: 2 });
       }
     } catch {
       // ignore — start from defaults
@@ -263,6 +280,8 @@ export function CustomizeProvider({ children }: { children: React.ReactNode }) {
       root.dataset.density = look.density;
       root.dataset.tiles = look.tileStyle;
       root.dataset.pattern = look.pattern;
+      if (look.skin !== "none") root.dataset.skin = look.skin;
+      else delete root.dataset.skin;
       const stack = FONTS[look.font]?.stack;
       if (stack) {
         root.style.setProperty("--ui-font", stack);

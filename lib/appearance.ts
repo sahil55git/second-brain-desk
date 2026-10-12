@@ -13,6 +13,16 @@ export type FontKey = "default" | "system" | "inter" | "rounded" | "serif" | "mo
 export type Density = "compact" | "comfortable" | "spacious";
 export type Pattern = "none" | "gradient" | "dots" | "grid" | "sunrise";
 export type TileStyle = "solid" | "soft" | "outline";
+/**
+ * Visual style ("skin") laid over the colours: the glass looks from the design
+ * references. "none" = the original flat look.
+ *   neon  — dark navy, see-through glowing glass cards, neon blue / pink light
+ *   frost — smoky frosted glass over a warm bronze background, lime accents
+ *   soft  — bright soft-grey cards, big numbers, gentle shadows (best in daylight)
+ * Every skin gives buttons the "liquid glass" finish (shine on top, coloured glow under).
+ */
+export type Skin = "none" | "neon" | "frost" | "soft";
+export const SKINS: readonly Skin[] = ["none", "neon", "frost", "soft"];
 
 export interface CustomTheme {
   bg: string;
@@ -34,9 +44,11 @@ export interface Look {
   contrast: "normal" | "high";
   motion: "full" | "reduced";
   tileStyle: TileStyle;
+  skin: Skin;
 }
 
-export const DEFAULT_LOOK: Look = {
+/** The original flat look (kept so the old themes stay exactly as they were). */
+export const CLASSIC_LOOK: Look = {
   preset: "parchment",
   custom: null,
   font: "default",
@@ -49,6 +61,20 @@ export const DEFAULT_LOOK: Look = {
   contrast: "normal",
   motion: "full",
   tileStyle: "solid",
+  skin: "none",
+};
+
+export const NEON_COLORS: CustomTheme = { bg: "#0a0e24", fg: "#e9edff", card: "#161c42", accent: "#6d8bff" };
+
+/** Default for every device: Neon glass. */
+export const DEFAULT_LOOK: Look = {
+  ...CLASSIC_LOOK,
+  preset: "neon-glass",
+  custom: NEON_COLORS,
+  font: "inter",
+  radius: 1.3,
+  panelOpacity: 0.62,
+  skin: "neon",
 };
 
 export const FONTS: Record<FontKey, { label: string; stack: string | null; google?: string; sample: string }> = {
@@ -77,6 +103,10 @@ export interface ThemePreset {
 }
 
 export const THEME_PRESETS: ThemePreset[] = [
+  // Glass looks (from the design references) — first, as they are the new default family.
+  { key: "neon-glass", label: "Neon glass (dark)", mode: "dark", accent: NEON_COLORS.accent, colors: NEON_COLORS, look: { skin: "neon", font: "inter", radius: 1.3, panelOpacity: 0.62, pattern: "none" } },
+  { key: "warm-frost", label: "Warm frosted glass", mode: "dark", accent: "#c6f432", colors: { bg: "#3a2a1f", fg: "#fbf4ea", card: "#2a201a", accent: "#c6f432" }, look: { skin: "frost", font: "inter", radius: 1.4, panelOpacity: 0.55, pattern: "none" } },
+  { key: "soft-light", label: "Soft light cards", mode: "light", accent: "#16a34a", colors: { bg: "#eceeec", fg: "#1b1f1c", card: "#f8f9f8", accent: "#16a34a" }, look: { skin: "soft", font: "inter", radius: 1.6, panelOpacity: 1, pattern: "none" } },
   { key: "parchment", label: "Parchment (original)", mode: "auto", accent: "#d97706", background: "default" },
   { key: "ocean-slate", label: "Ocean Slate", mode: "auto", accent: "#1d6fb8", background: "slate" },
   { key: "sage-field", label: "Sage Field", mode: "light", accent: "#3f8f4f", background: "sage" },
@@ -172,7 +202,7 @@ export function clampLook(raw: unknown): Look {
   const one = <T extends string>(v: unknown, allowed: readonly T[], d: T): T => (allowed.includes(v as T) ? (v as T) : d);
   const custom = r.custom && isHex(r.custom.bg) && isHex(r.custom.fg) && isHex(r.custom.accent) ? { ...r.custom, card: isHex(r.custom.card) ? r.custom.card : deriveSurface(r.custom.bg, r.custom.fg).card } : null;
   return {
-    preset: typeof r.preset === "string" ? r.preset : DEFAULT_LOOK.preset,
+    preset: typeof r.preset === "string" ? r.preset : CLASSIC_LOOK.preset,
     custom,
     font: one(r.font, Object.keys(FONTS) as FontKey[], "default"),
     textScale: num(r.textScale, 0.85, 1.4, 1),
@@ -184,6 +214,7 @@ export function clampLook(raw: unknown): Look {
     contrast: one(r.contrast, ["normal", "high"] as const, "normal"),
     motion: one(r.motion, ["full", "reduced"] as const, "full"),
     tileStyle: one(r.tileStyle, ["solid", "soft", "outline"] as const, "solid"),
+    skin: one(r.skin, SKINS, "none"),
   };
 }
 
