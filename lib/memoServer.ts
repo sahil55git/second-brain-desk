@@ -1,7 +1,7 @@
 // Server side of the Cash tally memo totals (see lib/memoTotals.ts). Reads the
 // separate memo tables; never touches RegisterEntry.
 import { prisma } from "./db";
-import { withUpiTaken, appLines, extrasDelta, extrasTyped, isExtraLine, isMemoLine, isUpiLine, memoAdjustedCash, type ExtraTotals, type MemoRow } from "./memoTotals";
+import { MEMO_META, withUpiTaken, appLines, extrasDelta, extrasTyped, isExtraLine, isMemoLine, isUpiLine, memoAdjustedCash, type ExtraTotals, type MemoRow } from "./memoTotals";
 import type { CashEvent, RegisterEntryLike } from "./register";
 import type { ScaleLine } from "./scaleReport";
 
@@ -10,7 +10,8 @@ export async function loadMemoView(date: string, entries: RegisterEntryLike[], j
     prisma.cashMemoTotal.findMany({ where: { date }, orderBy: { updatedAt: "asc" } }),
     prisma.scaleReportScan.findUnique({ where: { date } }),
     prisma.cashHandover.findMany({ where: { date } }),
-    prisma.cashTallyLog.findMany({ where: { date }, orderBy: { createdAt: "desc" }, take: 200 }),
+    // the log is extra: if its table is not there yet, the cash tally must still load
+    prisma.cashTallyLog.findMany({ where: { date }, orderBy: { createdAt: "desc" }, take: 200 }).catch(() => []),
   ]);
   const app = appLines(entries, jwEvents, uptoMs);
   const memoRaw: (MemoRow & { updatedAt: string })[] = rows
@@ -33,6 +34,7 @@ export async function loadMemoView(date: string, entries: RegisterEntryLike[], j
     extraRows,
     extrasTyped: extrasTyped(extras),
     memoDelta: Math.round((memoOnly - appSystemCash) * 100) / 100,
+    memoLines: memo.map((m) => ({ line: m.line, delta: Math.round(MEMO_META[m.line].sign * (m.cashInr - app[m.line].cash) * 100) / 100 })),
     adjustedCash: Math.round((memoOnly + extrasDelta(extras, appOpening)) * 100) / 100,
     log: logRows.map((l) => ({ id: l.id, line: l.line, action: l.action, amountInr: l.amountInr, prevInr: l.prevInr, session: l.session, enteredByName: l.enteredByName, createdAt: l.createdAt.toISOString() })),
     scale: scale && {

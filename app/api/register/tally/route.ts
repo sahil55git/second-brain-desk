@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
     const logCount = async () => {
-      await prisma.cashTallyLog.create({ data: { date: body.date, line: "COUNT", action: "SAVE", amountInr: counted, session, note: direct > 0 ? "typed total" : "counted by notes", enteredByName: user.name } });
+      await prisma.cashTallyLog.create({ data: { date: body.date, line: "COUNT", action: "SAVE", amountInr: counted, session, note: direct > 0 ? "typed total" : "counted by notes", enteredByName: user.name } }).catch(() => undefined);
     };
     if (stockOnly) {
       const upd = await prisma.dailyClosing.update({

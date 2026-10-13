@@ -70,7 +70,7 @@ export interface CashSummary {
 }
 
 /** How the counter cash is made: the app's buckets, plus the typed extras and memo-sheet change. */
-export function cashSummary(b: Record<string, number>, extras: ExtraTotals, memoDelta: number): CashSummary {
+export function cashSummary(b: Record<string, number>, extras: ExtraTotals, memoLines: { line: MemoLine; delta: number }[]): CashSummary {
   const opening = extras.opening === null ? b.cashInOpening : extras.opening;
   const inRows: SummaryRow[] = [
     { label: extras.opening === null ? "Opening cash" : "Opening cash (typed)", amount: opening, dir: "in" },
@@ -86,7 +86,13 @@ export function cashSummary(b: Record<string, number>, extras: ExtraTotals, memo
     { label: "Owner draw / pigmee", amount: b.cashOutDraw, dir: "out" },
     { label: "Owner withdraw (typed)", amount: extras.ownerDraw, dir: "out" },
   ];
-  if (Math.abs(memoDelta) >= 0.01) (memoDelta > 0 ? inRows : outRows).push({ label: "Memo sheet change", amount: Math.abs(memoDelta), dir: memoDelta > 0 ? "in" : "out" });
+  // Each saved memo line replaces the app's cash for that line. Show its change on the side it belongs to.
+  for (const m of memoLines) {
+    if (Math.abs(m.delta) < 0.01) continue;
+    const label = `${MEMO_META[m.line].en} (memo sheet)`;
+    if (m.delta > 0) inRows.push({ label, amount: m.delta, dir: "in" });
+    else outRows.push({ label, amount: -m.delta, dir: "out" });
+  }
   const sum = (r: SummaryRow[]) => Math.round(r.reduce((a, x) => a + x.amount, 0) * 100) / 100;
   const totalIn = sum(inRows);
   const totalOut = sum(outRows);

@@ -55,6 +55,7 @@ interface CashApi {
   extraRows: { line: ExtraLine; amountInr: number; enteredByName?: string | null; updatedAt?: string }[];
   extrasTyped: boolean;
   memoDelta: number;
+  memoLines: { line: MemoLine; delta: number }[];
   log: LogRow[];
 }
 interface StockApiLite {
@@ -291,7 +292,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
   }
 
   const bk = api?.buckets;
-  const summary = api && bk ? cashSummary(bk, api.extras, api.memoDelta) : null;
+  const summary = api && bk ? cashSummary(bk, api.extras, api.memoLines) : null;
   const appUpi = api ? { gpay: api.app.SALE.upi + api.app.UDHAAR.upi, phonepe: api.app.SALE.phonepe + api.app.UDHAAR.phonepe } : { gpay: 0, phonepe: 0 };
   const checks = api
     ? buildChecklist({ app: api.app, memo: api.memo, upi: api.upi, extras: api.extras, appUpi, counted, scaleKept: !!api.scale, handoverSaved: !!api.handovers?.[session] })
@@ -491,7 +492,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
                   const label = k === "OPENING" ? "🌅 Opening cash" : k === "OTHER_IN" ? "➕ Cash in (other, not scale sales)" : "🧔 Owner withdraw";
                   return (
                     <label key={k}>
-                      <span>{label}{k === "OPENING" && !sv ? <small> · last closing {rs(api.buckets.cashInOpening)}</small> : null}</span>
+                      <span>{label}{k === "OPENING" && !sv ? <small> · last closing {rs(api.buckets.cashInOpening)}</small> : null}{k === "OWNER_DRAW" && api.buckets.cashOutDraw > 0 ? <small> · app already has {rs(api.buckets.cashOutDraw)} owner draw / pigmee. Type only extra.</small> : null}</span>
                       <input type="number" inputMode="decimal" min={0} placeholder={sv ? String(sv.amountInr) : "₹"} aria-label={EXTRA_META[k].en} value={extraTyped[k]} onChange={(e) => setExtraTyped({ ...extraTyped, [k]: e.target.value })} />
                       {sv && extraTyped[k] === "" ? (
                         <em>saved {rs(sv.amountInr)}{sv.enteredByName ? ` by ${sv.enteredByName}` : ""}{sv.updatedAt ? ` · ${hm(sv.updatedAt)}` : ""} <button type="button" className="hub-btn sm" title="Remove" onClick={() => clearExtra(k)}>✕</button></em>

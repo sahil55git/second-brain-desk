@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       await prisma.cashHandover.upsert({ where: { date_session: { date, session: hand.session as string } }, create: { date, session: hand.session as string, ...data }, update: data });
       logRows.push({ date, line: "HANDOVER", action: "SAVE", amountInr: null, prevInr: null, session: hand.session as string, note: `${data.countedBy} to ${data.handedTo}`, enteredByName: user.name });
     }
-    if (logRows.length) await prisma.cashTallyLog.createMany({ data: logRows });
+    if (logRows.length) await prisma.cashTallyLog.createMany({ data: logRows }).catch(() => undefined); // the log never blocks a save
     return { saved: lines.length + upiLines.length + extraLines.length };
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 503 });
@@ -107,7 +107,7 @@ export async function DELETE(req: NextRequest) {
       prev = (await prisma.cashMemoTotal.findUnique({ where: { date_line: { date: date as string, line: what } } }))?.amountInr ?? null;
       await prisma.cashMemoTotal.deleteMany({ where: { date: date as string, line: what } });
     }
-    await prisma.cashTallyLog.create({ data: { date: date as string, line: what, action: "DELETE", amountInr: null, prevInr: prev, enteredByName: user.name } });
+    await prisma.cashTallyLog.create({ data: { date: date as string, line: what, action: "DELETE", amountInr: null, prevInr: prev, enteredByName: user.name } }).catch(() => undefined);
     return { ok: true };
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 503 });

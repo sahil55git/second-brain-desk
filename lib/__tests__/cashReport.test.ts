@@ -36,15 +36,27 @@ describe("withUpiTaken", () => {
 
 describe("cashSummary", () => {
   it("adds up cash in and out to the expected cash", () => {
-    const s = cashSummary(buckets, { opening: null, otherIn: 0, ownerDraw: 0 }, 0);
+    const s = cashSummary(buckets, { opening: null, otherIn: 0, ownerDraw: 0 }, []);
     expect(s.totalIn).toBe(1860);
     expect(s.totalOut).toBe(100);
     expect(s.expected).toBe(1760);
   });
   it("uses typed extras and the memo change", () => {
-    const s = cashSummary(buckets, { opening: 2000, otherIn: 300, ownerDraw: 500 }, -50);
+    const s = cashSummary(buckets, { opening: 2000, otherIn: 300, ownerDraw: 500 }, [{ line: "EXPENSE", delta: -50 }]);
     expect(s.expected).toBe(2000 + 860 + 300 - 100 - 500 - 50);
-    expect(cashSummary(buckets, { opening: null, otherIn: 0, ownerDraw: 0 }, 70).expected).toBe(1830);
+    expect(cashSummary(buckets, { opening: null, otherIn: 0, ownerDraw: 0 }, [{ line: "SALE", delta: 70 }]).expected).toBe(1830);
+  });
+});
+
+describe("cashSummary with memo lines (the user's real numbers)", () => {
+  it("shows each memo line on its own side and reaches the same expected cash", () => {
+    const b = { cashInOpening: 0, cashInSales: 0, cashInOther: 0, cashOutGrn: 0, cashOutExpenses: 0, cashOutOther: 0, cashOutSalary: 0, cashOutUpi: 0, cashOutDraw: 10900 };
+    // memo: Sales 29,201 less UPI 6,438 = 22,763 cash; Expense 560; Job-work 3,438; Salary 200; opening typed 7,036
+    const s = cashSummary(b, { opening: 7036, otherIn: 0, ownerDraw: 0 }, [{ line: "SALE", delta: 22763 }, { line: "EXPENSE", delta: -560 }, { line: "JOBWORK", delta: -3438 }, { line: "SALARY", delta: -200 }]);
+    expect(s.totalIn).toBe(7036 + 22763);
+    expect(s.totalOut).toBe(560 + 3438 + 200 + 10900);
+    expect(s.expected).toBe(14701);
+    expect(s.outRows.map((r) => r.label)).toContain("Expense (memo sheet)");
   });
 });
 
@@ -88,5 +100,22 @@ describe("log text", () => {
     expect(logAmount({ amountInr: 1200, prevInr: 1000, action: "SAVE" })).toBe("₹1,000 → ₹1,200");
     expect(logAmount({ amountInr: 1200, prevInr: null, action: "SAVE" })).toBe("₹1,200");
     expect(logAmount({ amountInr: null, prevInr: 800, action: "DELETE" })).toBe("was ₹800");
+  });
+});
+
+describe("server maths end to end (screenshot numbers)", () => {
+  it("memo + UPI + typed opening + app owner draw gives 14,701 and a 319 gap against 15,020", async () => {
+    const { memoAdjustedCash, extrasDelta } = await import("../memoTotals");
+    const a = app();
+    const memo: MemoRow[] = [
+      { line: "SALE", amountInr: 29201, cashInr: 29201, qty: null, unit: null },
+      { line: "EXPENSE", amountInr: 560, cashInr: 560, qty: null, unit: null },
+      { line: "JOBWORK", amountInr: 3438, cashInr: 3438, qty: null, unit: null },
+      { line: "SALARY", amountInr: 200, cashInr: 200, qty: null, unit: null },
+    ];
+    const appSystemCash = 0 - 10900; // app opening 0, owner draw 10,900
+    const adjusted = memoAdjustedCash(appSystemCash, a, withUpiTaken(memo, 6438)) + extrasDelta({ opening: 7036, otherIn: 0, ownerDraw: 0 }, 0);
+    expect(adjusted).toBe(14701);
+    expect(15020 - adjusted).toBe(319);
   });
 });
