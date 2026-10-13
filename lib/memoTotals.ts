@@ -121,3 +121,45 @@ export function normalizeUpiLine(raw: unknown): { line: UpiLine; amountInr: numb
   if (!Number.isFinite(amt) || amt < 0 || amt > 100_000_000) return null;
   return { line: r.line, amountInr: Math.round(amt * 100) / 100 };
 }
+
+/** Cash lines typed in the tally only: opening cash (replaces the app's computed opening), other cash in, owner withdraw. */
+export const EXTRA_LINES = ["OPENING", "OTHER_IN", "OWNER_DRAW"] as const;
+export type ExtraLine = (typeof EXTRA_LINES)[number];
+export const isExtraLine = (v: unknown): v is ExtraLine => typeof v === "string" && (EXTRA_LINES as readonly string[]).includes(v);
+export const EXTRA_META: Record<ExtraLine, { icon: string; en: string }> = {
+  OPENING: { icon: "🌅", en: "Opening cash" },
+  OTHER_IN: { icon: "➕", en: "Cash in (other)" },
+  OWNER_DRAW: { icon: "🧔", en: "Owner withdraw" },
+};
+
+export function normalizeExtraLine(raw: unknown): { line: ExtraLine; amountInr: number } | null {
+  const r = raw as Record<string, unknown> | null;
+  if (!r || !isExtraLine(r.line)) return null;
+  const amt = Number(r.amountInr);
+  if (!Number.isFinite(amt) || amt < 0 || amt > 100_000_000) return null;
+  return { line: r.line, amountInr: Math.round(amt * 100) / 100 };
+}
+
+export interface ExtraTotals {
+  /** typed opening cash, or null when the app's own opening is used */
+  opening: number | null;
+  otherIn: number;
+  ownerDraw: number;
+}
+
+/** Change to the expected cash made by the typed extras (never touches the register). */
+export function extrasDelta(extras: ExtraTotals, appOpening: number): number {
+  const open = extras.opening === null ? 0 : extras.opening - appOpening;
+  return Math.round((open + extras.otherIn - extras.ownerDraw) * 100) / 100;
+}
+
+export const extrasTyped = (e: ExtraTotals): boolean => e.opening !== null || e.otherIn > 0 || e.ownerDraw > 0;
+
+/**
+ * The memo sheet's Sales total is everything sold. UPI taken through the GPay / PhonePe apps never reached the counter,
+ * so when UPI totals are typed they are taken off the Sales cash (never below zero). Other lines are left as typed.
+ */
+export function withUpiTaken(memo: MemoRow[], upiTotal: number): MemoRow[] {
+  if (!(upiTotal > 0)) return memo;
+  return memo.map((m) => (m.line === "SALE" ? { ...m, cashInr: Math.round(Math.max(0, Math.min(m.cashInr, m.amountInr - upiTotal)) * 100) / 100 } : m));
+}

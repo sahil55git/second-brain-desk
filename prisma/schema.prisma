@@ -845,3 +845,20 @@ model CashHandover {
 
   @@unique([date, session])
 }
+
+// Append-only record of every Cash tally save / change / delete (who, when, old and new value).
+// Rows are only ever added, never edited or removed, so the history survives refreshes and corrections.
+model CashTallyLog {
+  id            String   @id @default(cuid())
+  date          String // business date the entry belongs to
+  line          String // SALE | PURCHASE | ... | UPI_GPAY | OPENING | OTHER_IN | OWNER_DRAW | SCALE | COUNT | HANDOVER
+  action        String // SAVE | DELETE
+  amountInr     Float? // new value (null on delete)
+  prevInr       Float? // value before this change
+  session       String? // AFTERNOON | NIGHT for counts / handovers
+  note          String?
+  enteredByName String?
+  createdAt     DateTime @default(now())
+
+  @@index([date, createdAt])
+}
