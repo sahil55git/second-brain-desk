@@ -31,12 +31,12 @@ describe("buildSheet with the memo sheet (the 13 Oct numbers)", () => {
   const row = (l: string) => s.rows.find((r) => r.line === l)!;
   it("Sales shows as Sales: memo total less UPI", () => {
     expect(row("SALE").memo).toBe(29201);
-    expect(row("SALE").upiOff).toBe(6438);
-    expect(row("SALE").used).toBe(22763);
+    expect(row("SALE").used).toBe(29201);
+    expect(s.upiOut).toBe(6438);
   });
   it("each line sits on its own side and totals add up", () => {
-    expect(s.totalIn).toBe(7036 + 22763);
-    expect(s.totalOut).toBe(560 + 3438 + 200 + 10900);
+    expect(s.totalIn).toBe(7036 + 29201);
+    expect(s.totalOut).toBe(560 + 3438 + 200 + 10900 + 6438);
     expect(s.expected).toBe(14701);
     expect(row("OWNER_DRAW").used).toBe(10900);
   });
@@ -52,7 +52,7 @@ describe("buildSheet with the memo sheet (the 13 Oct numbers)", () => {
   it("without typed UPI, the app's UPI sales come off the memo sales", () => {
     const a2 = appSheet(0, [e("SALE", 1000, "UPI")], []);
     const s3 = buildSheet(a2, { SALE: { amountInr: 5000 } }, {}, { gpay: 1000, phonepe: 0 });
-    expect(s3.rows[1].used).toBe(4000);
+    expect(s3.expected).toBe(4000);
     expect(s3.upi.total).toBe(1000);
   });
   it("checklist uses the same sheet", () => {

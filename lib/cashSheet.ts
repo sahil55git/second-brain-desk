@@ -99,6 +99,8 @@ export interface Sheet {
   /** expected cash from the app's entries alone */
   appExpected: number;
   anyTyped: boolean;
+  /** UPI received, counted on the cash-out side when Sales is typed from the memo sheet */
+  upiOut: number;
   upi: { gpay: number; phonepe: number; gpayTyped: boolean; phonepeTyped: boolean; total: number };
 }
 
@@ -116,20 +118,21 @@ export function buildSheet(
     const a = app[line];
     const t = typed[line];
     const memo = t ? r2(t.amountInr) : null;
-    let upiOff = 0;
+    const upiOff = 0;
     let used = a.cash;
     if (memo !== null) {
-      if (line === "SALE") {
-        upiOff = r2(gpayTyped || phonepeTyped ? gpay + phonepe : a.upi);
-        used = r2(Math.max(0, memo - upiOff));
-      } else used = memo;
+      used = memo;
     }
     const missing = memo === null || line === "OPENING" ? null : r2(Math.max(0, memo - a.amount));
     return { line, dir: SHEET_META[line].dir, app: a.cash, memo, upiOff, used: r2(used), missing, by: t?.enteredByName ?? null, at: t?.updatedAt };
   });
   const sum = (d: "in" | "out", k: "used" | "app") => r2(rows.filter((x) => x.dir === d).reduce((s, x) => s + x[k], 0));
   const totalIn = sum("in", "used");
-  const totalOut = sum("out", "used");
+  // Paper method: Sales is the whole day's sales (cash in); UPI received goes on the cash-out side.
+  // When Sales comes from the app instead, the app's cash sales already leave UPI out.
+  const saleTyped = rows.some((x) => x.line === "SALE" && x.memo !== null);
+  const upiOut = saleTyped ? r2(gpay + phonepe) : 0;
+  const totalOut = r2(sum("out", "used") + upiOut);
   return {
     rows,
     totalIn,
@@ -137,6 +140,7 @@ export function buildSheet(
     expected: r2(totalIn - totalOut),
     appExpected: r2(sum("in", "app") - sum("out", "app")),
     anyTyped: rows.some((x) => x.memo !== null),
+    upiOut,
     upi: { gpay: r2(gpay), phonepe: r2(phonepe), gpayTyped, phonepeTyped, total: r2(gpay + phonepe) },
   };
 }

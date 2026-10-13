@@ -395,50 +395,44 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
         </div>
         {scanBusy && <div className="hub-banner">{scanBusy}</div>}
         {live && api ? (
-          <div className="csh-sheet">
-            <div className="csh-sh h"><span>LINE</span><span>IN APP</span><span>MEMO SHEET ₹</span><span>USED IN TALLY</span></div>
+          <div className="csh-paper">
             {(["in", "out"] as const).map((dir) => (
-              <div key={dir} className="csh-grp">
+              <div key={dir} className={`csh-side ${dir}`}>
                 <div className={`csh-sec ${dir}`}>{dir === "in" ? "＋ CASH IN" : "－ CASH OUT"}</div>
                 {live.rows.filter((r) => r.dir === dir).map((r) => {
                   const m = SHEET_META[r.line];
                   const sv = savedSheet?.rows.find((x) => x.line === r.line);
                   const isTyped = typed[r.line].trim() !== "";
                   return (
-                    <div key={r.line} className={`csh-sh${isTyped ? " typing" : ""}`}>
-                      <span className="nm"><b>{m.icon} {m.en}</b><small>{m.hint}</small></span>
-                      <span className="app">{rs(r.app)}</span>
+                    <div key={r.line} className={`csh-pl${isTyped ? " typing" : ""}`}>
+                      <span className="nm"><b>{m.icon} {m.en}</b><small>{r.memo === null && !isTyped ? (r.line === "OPENING" ? `last closing ${rs(r.app)}` : `from entries ${rs(r.app)}`) : sv?.memo != null && !isTyped ? `typed by ${sv.by || "—"}${sv.at ? " · " + hm(sv.at) : ""}` : "not saved yet"}</small></span>
                       <span className="csh-in">
-                        <input type="number" inputMode="decimal" min={0} placeholder={sv?.memo != null ? String(sv.memo) : "₹"} aria-label={`${m.en} from the memo sheet`} value={typed[r.line]} onChange={(e) => setTyped({ ...typed, [r.line]: e.target.value })} />
-                        {sv?.memo != null && !isTyped ? <button type="button" className="hub-btn sm" title="Remove — use the app's figure" onClick={() => clearLine(r.line)}>✕</button> : null}
+                        <input type="number" inputMode="decimal" min={0} placeholder={sv?.memo != null ? String(sv.memo) : String(Math.round(r.app) || "₹")} aria-label={m.en} value={typed[r.line]} onChange={(e) => setTyped({ ...typed, [r.line]: e.target.value })} />
+                        {sv?.memo != null && !isTyped ? <button type="button" className="hub-btn sm" title="Remove — use the entries figure" onClick={() => clearLine(r.line)}>✕</button> : null}
                       </span>
-                      <span className="used"><b>{rs(r.used)}</b><small>{usedNote(r)}</small></span>
-                      {sv?.memo != null && <span className="csh-by">typed by {sv.by || "—"}{sv.at ? ` · ${hm(sv.at)}` : ""}</span>}
+                      <b className="amt">{rs(r.used)}</b>
                     </div>
                   );
                 })}
-                <div className={`csh-sh tot ${dir}`}><span>{dir === "in" ? "Total cash in" : "Total cash out"}</span><span /><span /><span className="used"><b>{rs(dir === "in" ? live.totalIn : live.totalOut)}</b></span></div>
+                {dir === "out" &&
+                  ([["UPI_GPAY", "📱 UPI · Shop GPay", api.appUpi.gpay, live.upi.gpay], ["UPI_PHONEPE", "🟣 UPI · Owner PhonePe", api.appUpi.phonepe, live.upi.phonepe]] as const).map(([k, label, inApp, val]) => {
+                    const sv = api.upi[k];
+                    const isTyped = typed[k].trim() !== "";
+                    return (
+                      <div key={k} className={`csh-pl${isTyped ? " typing" : ""}`}>
+                        <span className="nm"><b>{label}</b><small>{live.upiOut ? "received, not in drawer" : `in entries ${rs(inApp)} · counts here once Sales is typed`}</small></span>
+                        <span className="csh-in">
+                          <input type="number" inputMode="decimal" min={0} placeholder={sv ? String(sv.amountInr) : "₹ app total"} aria-label={label} value={typed[k]} onChange={(e) => setTyped({ ...typed, [k]: e.target.value })} />
+                          {sv && !isTyped ? <button type="button" className="hub-btn sm" title="Remove" onClick={() => clearLine(k)}>✕</button> : null}
+                        </span>
+                        <b className="amt">{live.upiOut ? rs(val) : "—"}</b>
+                      </div>
+                    );
+                  })}
+                <div className="csh-pl tot"><span>{dir === "in" ? "Total cash in" : "Total cash out"}</span><span /><b className="amt">{rs(dir === "in" ? live.totalIn : live.totalOut)}</b></div>
               </div>
             ))}
-            <div className="csh-exp"><span>Cash that should be in the drawer <small>(total in − total out)</small></span><b>{rs(live.expected)}</b></div>
-
-            <div className="csh-sec upi">📱 UPI — not in the drawer (type the day&apos;s total from the app)</div>
-            {([["UPI_GPAY", "📱 Shop GPay", api.appUpi.gpay, live.upi.gpay], ["UPI_PHONEPE", "🟣 Owner PhonePe", api.appUpi.phonepe, live.upi.phonepe]] as const).map(([k, label, inApp, val]) => {
-              const sv = api.upi[k];
-              const isTyped = typed[k].trim() !== "";
-              return (
-                <div key={k} className={`csh-sh${isTyped ? " typing" : ""}`}>
-                  <span className="nm"><b>{label}</b><small>taken off cash Sales</small></span>
-                  <span className="app">{rs(inApp)}</span>
-                  <span className="csh-in">
-                    <input type="number" inputMode="decimal" min={0} placeholder={sv ? String(sv.amountInr) : "₹ app total"} aria-label={`${label} total from the app`} value={typed[k]} onChange={(e) => setTyped({ ...typed, [k]: e.target.value })} />
-                    {sv && !isTyped ? <button type="button" className="hub-btn sm" title="Remove" onClick={() => clearLine(k)}>✕</button> : null}
-                  </span>
-                  <span className="used"><b>{rs(val)}</b><small>{sv || isTyped ? "app total" : "from app entries"}</small></span>
-                </div>
-              );
-            })}
-            <div className="csh-exp upi"><span>UPI received today</span><b>{rs(live.upi.total)}</b></div>
+            <div className="csh-exp full"><span>Cash that should be in the drawer <small>(total in − total out)</small></span><b>{rs(live.expected)}</b></div>
           </div>
         ) : (
           <div className="hub-empty">Loading…</div>
@@ -448,7 +442,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
             {pending.length ? `✓ Save ${pending.length} figure${pending.length > 1 ? "s" : ""}` : "Type a figure to save"}
           </button>
           {pending.length > 0 && <button className="hub-btn sm" onClick={() => { setTyped(EMPTY_TYPED()); setSaleFromScale(false); }}>Undo typing</button>}
-          <span className="hub-m">Sales on the memo sheet include GPay / PhonePe, so the UPI totals are taken off the cash Sales.</span>
+          <span className="hub-m">Like the paper sheet: Sales = whole day&apos;s sales on the left; UPI received goes on the right.</span>
         </div>
       </section>
 
@@ -582,6 +576,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
                     {reportRows(savedSheet, dir).map((r) => (
                       <div key={r.line} className="rr"><span>{dir === "in" ? "＋" : "－"} {SHEET_META[r.line].en} <small>· {usedNote(r)}</small></span><b>{rs(r.used)}</b></div>
                     ))}
+                    {dir === "out" && savedSheet.upiOut > 0 && <div className="rr"><span>－ UPI received <small>· GPay {rs(savedSheet.upi.gpay)} + PhonePe {rs(savedSheet.upi.phonepe)}</small></span><b>{rs(savedSheet.upiOut)}</b></div>}
                     <div className="rr tot"><span>{dir === "in" ? "Total cash in" : "Total cash out"}</span><b>{rs(dir === "in" ? savedSheet.totalIn : savedSheet.totalOut)}</b></div>
                   </div>
                 ))}

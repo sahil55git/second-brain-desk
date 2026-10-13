@@ -133,3 +133,16 @@
   .csh-sh .app::before { content: "In app "; font-size: 11px; }
   .csh-sh.tot span:empty { display: none; }
 }
+
+/* paper layout: cash in left, cash out right */
+.csh-paper { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 8px; }
+.csh-side { display: grid; gap: 4px; align-content: start; }
+.csh-pl { display: grid; grid-template-columns: 1fr 120px 90px; gap: 8px; align-items: center; padding: 5px 8px; border-radius: calc(10px * var(--ui-r, 1)); border: 1px solid var(--h-line); background: var(--h-card); }
+.csh-pl.typing { border-color: #e8cf8a; box-shadow: inset 3px 0 0 #e8cf8a; }
+.csh-pl .nm { display: grid; } .csh-pl .nm small { font-size: 11px; color: var(--h-soft); }
+.csh-pl input { width: 100%; min-width: 0; font-weight: 800; text-align: right; }
+.csh-pl .amt { text-align: right; font-variant-numeric: tabular-nums; font-size: 15px; }
+.csh-pl.tot { background: none; border: none; border-top: 1px solid var(--h-line); border-radius: 0; font-weight: 800; }
+.csh-side.in .csh-pl.tot .amt { color: var(--h-g); } .csh-side.out .csh-pl.tot .amt { color: #e0705a; }
+.csh-exp.full { grid-column: 1 / -1; }
+@media (max-width: 760px) { .csh-paper { grid-template-columns: 1fr; } .csh-pl { grid-template-columns: 1fr 100px 80px; } }
