@@ -1,11 +1,12 @@
-// Server side of the Cash tally memo totals (see lib/memoTotals.ts). Reads the
-// separate memo tables; never touches RegisterEntry.
+// Server side of the Cash tally (see lib/cashSheet.ts). Reads the separate memo tables;
+// never touches RegisterEntry. One sheet gives every number the page and the report show.
 import { prisma } from "./db";
-import { MEMO_META, withUpiTaken, appLines, extrasDelta, extrasTyped, isExtraLine, isMemoLine, isUpiLine, memoAdjustedCash, type ExtraTotals, type MemoRow } from "./memoTotals";
+import { appLines, isUpiLine } from "./memoTotals";
+import { appSheet, buildSheet, isSheetLine, type SheetLine, type TypedLine } from "./cashSheet";
 import type { CashEvent, RegisterEntryLike } from "./register";
 import type { ScaleLine } from "./scaleReport";
 
-export async function loadMemoView(date: string, entries: RegisterEntryLike[], jwEvents: CashEvent[], uptoMs: number | undefined, appSystemCash: number, appOpening = 0) {
+export async function loadMemoView(date: string, entries: RegisterEntryLike[], jwEvents: CashEvent[], uptoMs: number | undefined, appOpening: number) {
   const [rows, scale, hand, logRows] = await Promise.all([
     prisma.cashMemoTotal.findMany({ where: { date }, orderBy: { updatedAt: "asc" } }),
     prisma.scaleReportScan.findUnique({ where: { date } }),
@@ -13,29 +14,22 @@ export async function loadMemoView(date: string, entries: RegisterEntryLike[], j
     // the log is extra: if its table is not there yet, the cash tally must still load
     prisma.cashTallyLog.findMany({ where: { date }, orderBy: { createdAt: "desc" }, take: 200 }).catch(() => []),
   ]);
-  const app = appLines(entries, jwEvents, uptoMs);
-  const memoRaw: (MemoRow & { updatedAt: string })[] = rows
-    .filter((r) => isMemoLine(r.line))
-    .map((r) => ({ line: r.line as MemoRow["line"], amountInr: r.amountInr, cashInr: r.cashInr, qty: r.qty, unit: r.unit, source: r.source, enteredByName: r.enteredByName, updatedAt: r.updatedAt.toISOString() }));
+  const lines = appLines(entries, jwEvents, uptoMs);
+  const appUpi = { gpay: lines.SALE.upi + lines.UDHAAR.upi, phonepe: lines.SALE.phonepe + lines.UDHAAR.phonepe };
+  const typed: Partial<Record<SheetLine, TypedLine>> = {};
+  for (const r of rows) if (isSheetLine(r.line)) typed[r.line] = { amountInr: r.amountInr, enteredByName: r.enteredByName, updatedAt: r.updatedAt.toISOString() };
+  const upiRow = (l: string) => rows.find((r) => r.line === l);
+  const sheetApp = appSheet(appOpening, entries, jwEvents, uptoMs);
+  const sheet = buildSheet(sheetApp, typed, { gpay: upiRow("UPI_GPAY")?.amountInr ?? null, phonepe: upiRow("UPI_PHONEPE")?.amountInr ?? null }, appUpi);
   const upi = Object.fromEntries(
     rows.filter((r) => isUpiLine(r.line)).map((r) => [r.line, { amountInr: r.amountInr, enteredByName: r.enteredByName, updatedAt: r.updatedAt.toISOString() }])
   ) as Record<string, { amountInr: number; enteredByName: string | null; updatedAt: string }>;
-  const upiSum = rows.filter((r) => isUpiLine(r.line)).reduce((a, r) => a + r.amountInr, 0);
-  const memo = withUpiTaken(memoRaw, upiSum) as (MemoRow & { updatedAt: string })[];
-  const amt = (l: string) => rows.find((r) => r.line === l)?.amountInr;
-  const extras: ExtraTotals = { opening: amt("OPENING") ?? null, otherIn: amt("OTHER_IN") ?? 0, ownerDraw: amt("OWNER_DRAW") ?? 0 };
-  const memoOnly = memoAdjustedCash(appSystemCash, app, memo);
-  const extraRows = rows.filter((r) => isExtraLine(r.line)).map((r) => ({ line: r.line, amountInr: r.amountInr, enteredByName: r.enteredByName, updatedAt: r.updatedAt.toISOString() }));
   return {
-    app,
-    memo,
+    sheet,
+    sheetApp,
+    appUpi,
     upi,
-    extras,
-    extraRows,
-    extrasTyped: extrasTyped(extras),
-    memoDelta: Math.round((memoOnly - appSystemCash) * 100) / 100,
-    memoLines: memo.map((m) => ({ line: m.line, delta: Math.round(MEMO_META[m.line].sign * (m.cashInr - app[m.line].cash) * 100) / 100 })),
-    adjustedCash: Math.round((memoOnly + extrasDelta(extras, appOpening)) * 100) / 100,
+    adjustedCash: sheet.expected,
     log: logRows.map((l) => ({ id: l.id, line: l.line, action: l.action, amountInr: l.amountInr, prevInr: l.prevInr, session: l.session, enteredByName: l.enteredByName, createdAt: l.createdAt.toISOString() })),
     scale: scale && {
       totalKg: scale.totalKg,
