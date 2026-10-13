@@ -58,10 +58,11 @@ describe("buildSheet with the memo sheet (the 13 Oct numbers)", () => {
   it("checklist uses the same sheet", () => {
     const c = buildChecklist({ sheet: s, appUpi: { gpay: 0, phonepe: 0 }, counted: 15020, scaleKept: false, handoverSaved: false });
     const by = Object.fromEntries(c.map((x) => [x.key, x]));
-    expect(by.SALE.status).toBe("miss");
+    expect(by.SALE.status).toBe("ok");
     expect(by.OPENING.status).toBe("ok");
     expect(by.OWNER_DRAW.status).toBe("ok");
-    expect(by.UPI_GPAY.status).toBe("miss");
+    expect(by.PURCHASE.status).toBe("none");
+    expect(by.UPI.status).toBe("ok");
     expect(by.COUNT.status).toBe("ok");
     expect(by.HANDOVER.status).toBe("miss");
   });

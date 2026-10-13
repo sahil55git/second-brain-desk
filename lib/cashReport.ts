@@ -22,35 +22,20 @@ export interface ChecklistInput {
   handoverSaved: boolean;
 }
 
-/** Entered vs missing, line by line, from the same sheet the tally uses. */
+/** Tally checklist: has every figure needed to tally the drawer been filled in? (No comparison with app entries.) */
 export function buildChecklist(i: ChecklistInput): CheckItem[] {
   const out: CheckItem[] = [];
+  const used = (l: string) => i.sheet.rows.find((r) => r.line === l)!;
   for (const r of i.sheet.rows) {
     const m = SHEET_META[r.line];
     const label = `${m.icon} ${m.en}`;
-    if (r.line === "OPENING") {
-      out.push({ key: r.line, label, status: "ok", note: r.memo === null ? `${rs(r.used)} from the last closing` : `${rs(r.memo)} typed` });
-      continue;
-    }
-    if (r.memo === null) {
-      out.push({ key: r.line, label, status: r.app > 0 ? "ok" : "none", note: r.app > 0 ? `${rs(r.app)} in the app` : "nothing today" });
-      continue;
-    }
-    const miss = r.missing ?? 0;
-    out.push({ key: r.line, label, status: miss > 0 ? "miss" : "ok", note: miss > 0 ? `memo sheet ${rs(r.memo)} · ${rs(miss)} not entered in the app` : `memo sheet ${rs(r.memo)} · all in the app` });
+    const filled = r.memo !== null || r.app > 0;
+    const must = r.line === "OPENING" || r.line === "SALE";
+    out.push({ key: r.line, label, status: filled ? "ok" : must ? "miss" : "none", note: filled ? `${rs(r.used)}${r.memo !== null ? " typed" : " from entries"}` : must ? "not filled — type it" : "nothing (₹0)" });
   }
-  for (const [k, label, typed, inApp, val] of [
-    ["UPI_GPAY", "📱 Shop GPay", i.sheet.upi.gpayTyped, i.appUpi.gpay, i.sheet.upi.gpay],
-    ["UPI_PHONEPE", "🟣 Owner PhonePe", i.sheet.upi.phonepeTyped, i.appUpi.phonepe, i.sheet.upi.phonepe],
-  ] as const) {
-    if (!typed) {
-      out.push({ key: k, label, status: inApp > 0 ? "ok" : "none", note: inApp > 0 ? `${rs(inApp)} in the app` : "nothing today" });
-      continue;
-    }
-    const gap = Math.max(0, Math.round((val - inApp) * 100) / 100);
-    out.push({ key: k, label, status: gap > 0 ? "miss" : "ok", note: gap > 0 ? `app total ${rs(val)} · ${rs(gap)} not entered` : `app total ${rs(val)} · all entered` });
-  }
-  out.push({ key: "SCALE", label: "⚖️ Scale report", status: i.scaleKept ? "ok" : "miss", note: i.scaleKept ? "kept for the day" : "not scanned yet" });
+  const saleTyped = used("SALE").memo !== null;
+  const upiDone = i.sheet.upi.gpayTyped || i.sheet.upi.phonepeTyped;
+  out.push({ key: "UPI", label: "📱 UPI totals (GPay / PhonePe)", status: upiDone ? "ok" : saleTyped ? "miss" : "none", note: upiDone ? `${rs(i.sheet.upi.total)} typed` : saleTyped ? "type the app totals — they come off Sales" : "nothing typed" });
   out.push({ key: "COUNT", label: "✍️ Cash counted", status: i.counted > 0 ? "ok" : "miss", note: i.counted > 0 ? `${rs(i.counted)} counted` : "count not done yet" });
   out.push({ key: "HANDOVER", label: "🤝 Handover", status: i.handoverSaved ? "ok" : "miss", note: i.handoverSaved ? "saved" : "who counted and who took over" });
   return out;

@@ -396,7 +396,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
         {scanBusy && <div className="hub-banner">{scanBusy}</div>}
         {live && api ? (
           <div className="csh-sheet">
-            <div className="csh-sh h"><span>LINE</span><span>IN APP</span><span>MEMO SHEET ₹</span><span>USED IN TALLY</span><span>CHECK</span></div>
+            <div className="csh-sh h"><span>LINE</span><span>IN APP</span><span>MEMO SHEET ₹</span><span>USED IN TALLY</span></div>
             {(["in", "out"] as const).map((dir) => (
               <div key={dir} className="csh-grp">
                 <div className={`csh-sec ${dir}`}>{dir === "in" ? "＋ CASH IN" : "－ CASH OUT"}</div>
@@ -413,12 +413,11 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
                         {sv?.memo != null && !isTyped ? <button type="button" className="hub-btn sm" title="Remove — use the app's figure" onClick={() => clearLine(r.line)}>✕</button> : null}
                       </span>
                       <span className="used"><b>{rs(r.used)}</b><small>{usedNote(r)}</small></span>
-                      <span className={`chk ${r.missing ? "warn" : r.memo !== null ? "ok" : ""}`}>{r.missing ? `${rs(r.missing)} not in app` : r.memo !== null && r.line !== "OPENING" ? "✓ in app" : "—"}</span>
                       {sv?.memo != null && <span className="csh-by">typed by {sv.by || "—"}{sv.at ? ` · ${hm(sv.at)}` : ""}</span>}
                     </div>
                   );
                 })}
-                <div className={`csh-sh tot ${dir}`}><span>{dir === "in" ? "Total cash in" : "Total cash out"}</span><span /><span /><span className="used"><b>{rs(dir === "in" ? live.totalIn : live.totalOut)}</b></span><span /></div>
+                <div className={`csh-sh tot ${dir}`}><span>{dir === "in" ? "Total cash in" : "Total cash out"}</span><span /><span /><span className="used"><b>{rs(dir === "in" ? live.totalIn : live.totalOut)}</b></span></div>
               </div>
             ))}
             <div className="csh-exp"><span>Cash that should be in the drawer <small>(total in − total out)</small></span><b>{rs(live.expected)}</b></div>
@@ -427,7 +426,6 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
             {([["UPI_GPAY", "📱 Shop GPay", api.appUpi.gpay, live.upi.gpay], ["UPI_PHONEPE", "🟣 Owner PhonePe", api.appUpi.phonepe, live.upi.phonepe]] as const).map(([k, label, inApp, val]) => {
               const sv = api.upi[k];
               const isTyped = typed[k].trim() !== "";
-              const gap = Math.max(0, Math.round((val - inApp) * 100) / 100);
               return (
                 <div key={k} className={`csh-sh${isTyped ? " typing" : ""}`}>
                   <span className="nm"><b>{label}</b><small>taken off cash Sales</small></span>
@@ -437,7 +435,6 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
                     {sv && !isTyped ? <button type="button" className="hub-btn sm" title="Remove" onClick={() => clearLine(k)}>✕</button> : null}
                   </span>
                   <span className="used"><b>{rs(val)}</b><small>{sv || isTyped ? "app total" : "from app entries"}</small></span>
-                  <span className={`chk ${gap > 0 ? "warn" : ""}`}>{gap > 0 ? `${rs(gap)} not in app` : "—"}</span>
                 </div>
               );
             })}
@@ -510,7 +507,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
           )}
         </section>
         <section className="hub-card">
-          <div className="hub-card-head"><h3>✅ Entered vs missing</h3><span className={`csh-miss ${missing ? "warn" : "ok"}`}>{missing ? `${missing} to do` : "all done"}</span></div>
+          <div className="hub-card-head"><h3>✅ Tally checklist</h3><span className={`csh-miss ${missing ? "warn" : "ok"}`}>{missing ? `${missing} to do` : "all done"}</span></div>
           <div className="csh-checks">
             {checks.map((c) => (
               <div key={c.key} className={`csh-ck ${c.status}`}>
@@ -520,7 +517,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
               </div>
             ))}
           </div>
-          <div className="hub-m">Checks saved figures. &quot;Not entered&quot; means the memo sheet shows more than the app has.</div>
+          <div className="hub-m">Shows what is still needed to tally the drawer. Lines with nothing are taken as ₹0.</div>
         </section>
       </div>
 
