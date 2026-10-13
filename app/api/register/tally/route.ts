@@ -34,7 +34,10 @@ export async function POST(req: NextRequest) {
     if (n) denoms[String(d)] = n;
   }
   const coins = Math.max(0, Number(body.coins) || 0);
-  const counted = denominationTotal(denoms, coins);
+  // A typed "total cash counted" replaces the note-by-note addition (notes are then not needed).
+  const directIn = Math.round((Number(body.directInr) || 0) * 100) / 100;
+  const direct = directIn > 0 && directIn <= 100_000_000 ? directIn : 0;
+  const counted = direct > 0 ? direct : denominationTotal(denoms, coins);
 
   const result = await safeDbCall(async () => {
     const now = new Date();
@@ -55,8 +58,8 @@ export async function POST(req: NextRequest) {
     let systemCash = base.systemCash;
     if (body.useMemo === true) {
       const cutoff = cashCutoffMs(body.date, session, now.getTime());
-      const view = await loadMemoView(body.date, entries as unknown as RegisterEntryLike[], jwEvents, cutoff, base.systemCash);
-      if (view.memo.length) systemCash = view.adjustedCash;
+      const view = await loadMemoView(body.date, entries as unknown as RegisterEntryLike[], jwEvents, cutoff, base.systemCash, buckets.cashInOpening);
+      if (view.memo.length || view.extrasTyped) systemCash = view.adjustedCash;
     }
     const gap = cashGapFlag({ ...buckets, cashInOpening: buckets.cashInOpening + (systemCash - base.systemCash) }, counted);
     const { diff, flagged } = gap;
@@ -66,8 +69,11 @@ export async function POST(req: NextRequest) {
       where: { date: body.date, session, source: "register-stock" },
       orderBy: { createdAt: "desc" },
     });
+    const logCount = async () => {
+      await prisma.cashTallyLog.create({ data: { date: body.date, line: "COUNT", action: "SAVE", amountInr: counted, session, note: direct > 0 ? "typed total" : "counted by notes", enteredByName: user.name } });
+    };
     if (stockOnly) {
-      return prisma.dailyClosing.update({
+      const upd = await prisma.dailyClosing.update({
         where: { id: stockOnly.id },
         data: {
           ...buckets,
@@ -75,12 +81,14 @@ export async function POST(req: NextRequest) {
           systemCashInr: systemCash,
           cashDiffInr: diff,
           cashMismatch: flagged,
-          denoms: { ...denoms, coins } as Prisma.InputJsonValue,
+          denoms: { ...denoms, coins, ...(direct > 0 ? { direct } : {}) } as Prisma.InputJsonValue,
           source: "register",
         },
       });
+      await logCount();
+      return upd;
     }
-    return prisma.dailyClosing.create({
+    const created = await prisma.dailyClosing.create({
       data: {
         date: body.date,
         session,
@@ -89,11 +97,13 @@ export async function POST(req: NextRequest) {
         systemCashInr: systemCash,
         cashDiffInr: diff,
         cashMismatch: flagged,
-        denoms: { ...denoms, coins } as Prisma.InputJsonValue,
+        denoms: { ...denoms, coins, ...(direct > 0 ? { direct } : {}) } as Prisma.InputJsonValue,
         source: "register",
         createdAt: body.date === todayIst ? now : sessionStamp(body.date, session),
       },
     });
+    await logCount();
+    return created;
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 503 });
   return NextResponse.json({ data: result.data }, { status: 201 });

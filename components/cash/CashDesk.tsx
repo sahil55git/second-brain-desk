@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { DENOMINATIONS, businessDate, denominationTotal } from "@/lib/register";
 import { useLauncher } from "@/components/launcher/LauncherProvider";
-import { MEMO_LINES, MEMO_META, notInApp, type AppLine, type MemoLine, type MemoRow } from "@/lib/memoTotals";
+import { EXTRA_LINES, EXTRA_META, MEMO_LINES, MEMO_META, type AppLine, type ExtraLine, type ExtraTotals, type MemoLine, type MemoRow } from "@/lib/memoTotals";
+import { buildChecklist, cashSummary, countedTotal, logAmount, logWhat, type LogRow } from "@/lib/cashReport";
 import { TANKS, fillPct, tankFigures, tankStatus } from "@/lib/stockTanks";
 import { mergeScaleReports, soldByStockKey, type ScaleLine, type ScaleReport } from "@/lib/scaleReport";
 import { preparePhoto } from "@/lib/proofClient";
@@ -50,6 +51,11 @@ interface CashApi {
   scale: ScaleSaved | null;
   handovers: Partial<Record<Session, Handover>>;
   sessions: Record<Session, Saved | null>;
+  extras: ExtraTotals;
+  extraRows: { line: ExtraLine; amountInr: number; enteredByName?: string | null; updatedAt?: string }[];
+  extrasTyped: boolean;
+  memoDelta: number;
+  log: LogRow[];
 }
 interface StockApiLite {
   sessions: Record<Session, { stock?: Record<string, { today?: number | null }> } | null>;
@@ -65,7 +71,6 @@ const ENTRY_TILES: [string, string, string][] = [
   ["pigmee", "🏦", "Pigmee"],
   ["draw", "🧔", "Owner draw"],
 ];
-const UNITS = ["kg", "ltr", "bags", "pcs", ""];
 const fnum = (v: string | undefined) => {
   const n = parseFloat(String(v ?? "").replace(/,/g, ""));
   return Number.isFinite(n) ? n : 0;
@@ -93,6 +98,8 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
   const [stockApi, setStockApi] = useState<StockApiLite | null>(null);
   const [drafts, setDrafts] = useState<Partial<Record<MemoLine, Draft>>>({});
   const [upiTyped, setUpiTyped] = useState<{ UPI_GPAY: string; UPI_PHONEPE: string }>({ UPI_GPAY: "", UPI_PHONEPE: "" });
+  const [extraTyped, setExtraTyped] = useState<Record<ExtraLine, string>>({ OPENING: "", OTHER_IN: "", OWNER_DRAW: "" });
+  const [direct, setDirect] = useState("");
   const [hand, setHand] = useState({ countedBy: "", handedTo: "" });
   const [scanBusy, setScanBusy] = useState<string | null>(null);
   const [scanOut, setScanOut] = useState<{ kind: "scale"; report: ScaleReport; warnings: string[]; net: boolean; aiError?: string } | null>(null);
@@ -134,6 +141,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
   useEffect(() => {
     setDrafts({});
     setUpiTyped({ UPI_GPAY: "", UPI_PHONEPE: "" });
+    setExtraTyped({ OPENING: "", OTHER_IN: "", OWNER_DRAW: "" });
   }, [date]);
   const handKey = `${api?.handovers?.[session]?.updatedAt ?? ""}|${session}|${date}`;
   useEffect(() => {
@@ -150,14 +158,16 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
     const d = (s?.denoms || {}) as Record<string, number>;
     setCounts(Object.fromEntries(DENOMINATIONS.filter((x) => d[String(x)]).map((x) => [String(x), String(d[String(x)])])));
     setCoins(d.coins ? String(d.coins) : "");
+    setDirect(d.direct ? String(d.direct) : "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, session, savedId]);
 
   const nums = Object.fromEntries(DENOMINATIONS.map((d) => [String(d), int(counts[String(d)])]));
-  const counted = denominationTotal(nums, parseFloat(coins) || 0);
+  const notesTotal = denominationTotal(nums, parseFloat(coins) || 0);
+  const { counted, usingDirect } = countedTotal(direct, notesTotal);
   const appOnly = api?.systemCash ?? 0;
   const sys = api?.adjustedCash ?? appOnly;
-  const usingMemo = !!api && api.memo.length > 0 && Math.abs(sys - appOnly) >= 0.01;
+  const usingMemo = !!api && (api.memo.length > 0 || api.extrasTyped) && Math.abs(sys - appOnly) >= 0.01;
   const diff = counted - sys; // + extra, − short
   const big = Math.abs(sys - counted) >= 300;
   const saved = api?.sessions[session] || null;
@@ -167,7 +177,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
     setBusy(true);
     setMsg(null);
     try {
-      const r = await fetch("/api/register/tally", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date, session, coins: parseFloat(coins) || 0, denoms: nums, useMemo: true }) });
+      const r = await fetch("/api/register/tally", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date, session, coins: parseFloat(coins) || 0, denoms: nums, useMemo: true, ...(usingDirect ? { directInr: counted } : {}) }) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
       const d: number = j.data.cashDiffInr; // system - counted
@@ -228,6 +238,17 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
     if (r.ok) load();
     else setErr((await r.json().catch(() => ({}))).error || "Could not remove");
   }
+  const extrasToSave = EXTRA_LINES.filter((k) => extraTyped[k].trim() !== "");
+  async function saveExtras() {
+    if (!extrasToSave.length) return;
+    const ok = await post({ extras: extrasToSave.map((k) => ({ line: k, amountInr: fnum(extraTyped[k]) })) }, "Saved in this tally only. Expected cash updated, the register is not changed.");
+    if (ok) setExtraTyped({ OPENING: "", OTHER_IN: "", OWNER_DRAW: "" });
+  }
+  async function clearExtra(k: ExtraLine) {
+    const r = await fetch(`/api/register/memo?date=${date}&line=${k}`, { method: "DELETE" });
+    if (r.ok) load();
+    else setErr((await r.json().catch(() => ({}))).error || "Could not remove");
+  }
   async function saveHandover() {
     await post({ handover: { session, countedBy: hand.countedBy, handedTo: hand.handedTo } }, "Handover saved ✓");
   }
@@ -270,10 +291,15 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
   }
 
   const bk = api?.buckets;
-  const inRows: [string, number][] = bk ? [["Opening", bk.cashInOpening], ["Sales (cash)", bk.cashInSales], ["Other in (udhar received)", bk.cashInOther]] : [];
-  const outRows: [string, number][] = bk
-    ? [["Job-work payouts", bk.cashOutGrn], ["Expenses / purchases", bk.cashOutExpenses + bk.cashOutOther], ["Salary", bk.cashOutSalary], ["UPI out", bk.cashOutUpi], ["Owner draw / pigmee", bk.cashOutDraw]]
+  const summary = api && bk ? cashSummary(bk, api.extras, api.memoDelta) : null;
+  const appUpi = api ? { gpay: api.app.SALE.upi + api.app.UDHAAR.upi, phonepe: api.app.SALE.phonepe + api.app.UDHAAR.phonepe } : { gpay: 0, phonepe: 0 };
+  const checks = api
+    ? buildChecklist({ app: api.app, memo: api.memo, upi: api.upi, extras: api.extras, appUpi, counted, scaleKept: !!api.scale, handoverSaved: !!api.handovers?.[session] })
     : [];
+  const missing = checks.filter((c) => c.status === "miss").length;
+  const upiGpay = api?.upi?.UPI_GPAY ? api.upi.UPI_GPAY.amountInr : appUpi.gpay;
+  const upiPhonepe = api?.upi?.UPI_PHONEPE ? api.upi.UPI_PHONEPE.amountInr : appUpi.phonepe;
+  const logTime = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
 
   const sold = api?.scale ? soldByStockKey({ reportDate: null, totalKg: null, totalInr: null, taxInr: null, lines: api.scale.lines }) : {};
   const stockCards = (() => {
@@ -347,8 +373,8 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
       {msg && <div className="hub-banner" style={{ borderColor: "var(--h-g)", color: "var(--h-g)" }}>{msg}</div>}
 
       <div className="hub-kpis">
-        <div className="hub-kpi b"><div className="l">Should be in counter</div><div className="v">{rs(sys)}</div><div className="s">{usingMemo ? <>uses memo sheet totals · app entries alone: <b>{rs(appOnly)}</b></> : <>opening {rs(api?.opening ?? 0)} + today&apos;s movement</>}</div></div>
-        <div className="hub-kpi"><div className="l">Counted now</div><div className="v">{rs(counted)}</div><div className="s">{notes} notes{parseFloat(coins) ? ` + ${rs(parseFloat(coins))} coins` : ""}</div></div>
+        <div className="hub-kpi b"><div className="l">Cash in counter</div><div className="v">{rs(sys)}</div><div className="s">{usingMemo ? <>uses memo sheet totals · app entries alone: <b>{rs(appOnly)}</b></> : <>opening {rs(api?.opening ?? 0)} + today&apos;s movement</>}</div></div>
+        <div className="hub-kpi"><div className="l">Cash counted now</div><div className="v">{rs(counted)}</div><div className="s">{usingDirect ? "typed total" : <>{notes} notes{parseFloat(coins) ? ` + ${rs(parseFloat(coins))} coins` : ""}</>}</div></div>
         <div className={`hub-kpi ${counted <= 0 ? "" : big ? "r" : "g"}`}>
           <div className="l">Gap</div>
           <div className="v">{counted <= 0 ? "—" : Math.abs(diff) < 1 ? "✓ matches" : `${diff < 0 ? "short" : "extra"} ${rs(Math.abs(diff))}`}</div>
@@ -406,12 +432,20 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
 
       <section className="hub-card" style={{ marginTop: 12 }}>
         <div className="hub-card-head">
-          <h3>✍️ Count notes — {LABEL[session]}</h3>
+          <h3>✍️ Cash counted — {LABEL[session]}</h3>
           <div className="hr stk-row">
-            <button className="hub-btn sm" onClick={() => { setCounts({}); setCoins(""); }}>Clear</button>
+            <button className="hub-btn sm" onClick={() => { setCounts({}); setCoins(""); setDirect(""); }}>Clear</button>
             <button className="hub-btn sm" onClick={load}>↻ Refresh expected</button>
           </div>
         </div>
+        <div className="csh-direct">
+          <label>
+            <b>Total cash counted</b>
+            <input type="number" inputMode="decimal" min={0} placeholder="₹ type the total" aria-label="Total cash counted" value={direct} onChange={(e) => setDirect(e.target.value)} />
+          </label>
+          <div className="hub-m">{usingDirect ? "Using the total you typed. The notes below are ignored. Clear it to count by notes." : "Type the total here to skip the notes, or count by notes below (optional)."}</div>
+        </div>
+        <div className="hub-m" style={{ marginTop: 8, fontWeight: 800 }}>Or count by notes (optional)</div>
         <div className="csh-grid">
           {DENOMINATIONS.map((d) => {
             const n = int(counts[String(d)]);
@@ -445,45 +479,97 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
       </section>
 
 
+      {/* ---- cash in & out, and entered vs missing ---- */}
+      <div className="csh-two csh-io">
+        <section className="hub-card">
+          <div className="hub-card-head"><h3>🧮 Cash in &amp; out — how the cash in counter is made</h3></div>
+          {summary && api ? (
+            <>
+              <div className="csh-typed">
+                {EXTRA_LINES.map((k) => {
+                  const sv = api.extraRows.find((x) => x.line === k);
+                  const label = k === "OPENING" ? "🌅 Opening cash" : k === "OTHER_IN" ? "➕ Cash in (other, not scale sales)" : "🧔 Owner withdraw";
+                  return (
+                    <label key={k}>
+                      <span>{label}{k === "OPENING" && !sv ? <small> · last closing {rs(api.buckets.cashInOpening)}</small> : null}</span>
+                      <input type="number" inputMode="decimal" min={0} placeholder={sv ? String(sv.amountInr) : "₹"} aria-label={EXTRA_META[k].en} value={extraTyped[k]} onChange={(e) => setExtraTyped({ ...extraTyped, [k]: e.target.value })} />
+                      {sv && extraTyped[k] === "" ? (
+                        <em>saved {rs(sv.amountInr)}{sv.enteredByName ? ` by ${sv.enteredByName}` : ""}{sv.updatedAt ? ` · ${hm(sv.updatedAt)}` : ""} <button type="button" className="hub-btn sm" title="Remove" onClick={() => clearExtra(k)}>✕</button></em>
+                      ) : null}
+                    </label>
+                  );
+                })}
+                <button className="hub-btn" style={{ background: extrasToSave.length ? "var(--h-acc)" : undefined, color: extrasToSave.length ? "#fff" : undefined }} disabled={busy || !extrasToSave.length} onClick={saveExtras}>
+                  {extrasToSave.length ? "Save for this tally" : "Type a figure to save"}
+                </button>
+              </div>
+              <div className="csh-cols">
+                <div>
+                  <h4>＋ CASH IN</h4>
+                  {summary.inRows.map((r) => <div key={r.label}><span>{r.label}</span><b>{rs(r.amount)}</b></div>)}
+                  <div className="tot in"><span>Total cash in</span><b>{rs(summary.totalIn)}</b></div>
+                </div>
+                <div>
+                  <h4>－ CASH OUT</h4>
+                  {summary.outRows.map((r) => <div key={r.label}><span>{r.label}</span><b>{rs(r.amount)}</b></div>)}
+                  <div className="tot out"><span>Total cash out</span><b>{rs(summary.totalOut)}</b></div>
+                </div>
+              </div>
+              <div className="csh-exp"><span>Cash that should be in the counter</span><b>{rs(summary.expected)}</b></div>
+              <div className="csh-exp upi"><span>📱 UPI payment received <small>(not in the counter)</small></span><b>{rs(upiGpay + upiPhonepe)}</b></div>
+              <div className="hub-m">GPay {rs(upiGpay)} + PhonePe {rs(upiPhonepe)}{api.upi?.UPI_GPAY || api.upi?.UPI_PHONEPE ? " (typed app totals)" : " (from app entries)"}. Typed figures stay in this tally only. The register is not changed.</div>
+            </>
+          ) : (
+            <div className="hub-empty">Loading…</div>
+          )}
+        </section>
+        <section className="hub-card">
+          <div className="hub-card-head"><h3>✅ Entered vs missing</h3><span className={`csh-miss ${missing ? "warn" : "ok"}`}>{missing ? `${missing} to do` : "all done"}</span></div>
+          <div className="csh-checks">
+            {checks.map((c) => (
+              <div key={c.key} className={`csh-ck ${c.status}`}>
+                <b aria-hidden>{c.status === "ok" ? "✓" : c.status === "miss" ? "✗" : "–"}</b>
+                <span>{c.label}</span>
+                <em>{c.note}</em>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
       {/* ---- day totals from the cash memo sheet ---- */}
       <section className="hub-card" style={{ marginTop: 12 }}>
         <div className="hub-card-head">
           <h3>📋 Day totals from the cash memo sheet</h3>
           <div className="hr stk-row">
-            <label className="hub-btn sm" style={{ cursor: "pointer" }}>
-              ⚖️ From scale report
+            <label className="hub-btn sm" style={{ cursor: "pointer", background: "var(--h-acc)", color: "#fff" }} title="Opens the camera on a phone">
+              📷 Scan scale report
+              <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => { readScale(e.target.files); e.target.value = ""; }} />
+            </label>
+            <label className="hub-btn sm" style={{ cursor: "pointer" }} title="Pick one or more saved photos">
+              🖼️ Choose photos
               <input type="file" accept="image/*" multiple hidden onChange={(e) => { readScale(e.target.files); e.target.value = ""; }} />
             </label>
           </div>
         </div>
         <div className="hub-m">
-          Entries were written on paper? Type the sheet&apos;s <b>total amount</b> and <b>total quantity</b> for each line. These totals <b>stay in this Cash tally only</b>. The register, stock, sales, reports, GST and party balances are not changed. Paper sales do not appear in the day&apos;s sales report until they are entered in the app.
+          Entries were written on paper? Type the sheet&apos;s <b>total amount</b> for each line. These totals <b>stay in this Cash tally only</b>. The register, stock, sales, reports, GST and party balances are not changed. Paper sales do not appear in the day&apos;s sales report until they are entered in the app.
         </div>
         {scanBusy && <div className="hub-banner">{scanBusy}</div>}
         <div className="csh-memo">
-          <div className="csh-memo-h"><span>LINE</span><span>IN APP NOW</span><span>MEMO TOTAL ₹</span><span>QTY</span><span>OF WHICH CASH ₹</span><span>NOT IN APP YET</span></div>
+          <div className="csh-memo-h"><span>LINE</span><span>IN APP NOW</span><span>MEMO TOTAL ₹</span></div>
           {MEMO_LINES.map((l) => {
             const m = MEMO_META[l];
             const a = api?.app[l];
             const saved = memoOf(l);
             const d = drafts[l];
             const typed = d && d.amt.trim() !== "";
-            const memoAmt = typed ? fnum(d!.amt) : saved ? saved.amountInr : null;
-            const gap = memoAmt !== null && a ? notInApp(memoAmt, a) : null;
             return (
               <div key={l} className={`csh-memo-r${typed ? " typing" : ""}`}>
                 <b>{m.icon} {m.en}</b>
                 <span>{a ? rs(a.amount) : "—"}{saved ? <em> · 📋 {rs(saved.amountInr)}</em> : null}</span>
-                <input type="number" inputMode="decimal" min={0} placeholder={saved ? String(saved.amountInr) : "₹"} aria-label={`${m.en} memo total`} value={d?.amt ?? ""} onChange={(e) => setDraft(l, { amt: e.target.value, source: d?.source === "scale-scan" ? "scale-scan" : "typed" })} />
-                <span className="csh-qty">
-                  <input type="number" inputMode="decimal" min={0} placeholder={saved?.qty != null ? String(saved.qty) : "qty"} aria-label={`${m.en} quantity`} value={d?.qty ?? ""} onChange={(e) => setDraft(l, { qty: e.target.value })} />
-                  {m.unit !== "" && (
-                    <button type="button" className="hub-btn sm" onClick={() => setDraft(l, { unit: UNITS[(UNITS.indexOf(d?.unit ?? m.unit) + 1) % 4] })}>{d?.unit ?? saved?.unit ?? m.unit}</button>
-                  )}
-                </span>
-                <input type="number" inputMode="decimal" min={0} placeholder={typed ? "all cash" : saved ? String(saved.cashInr) : "₹"} aria-label={`${m.en} of which cash`} value={d?.cash ?? ""} onChange={(e) => setDraft(l, { cash: e.target.value })} />
-                <span className={`csh-gap ${gap === null ? "" : gap > 0 ? "warn" : "ok"}`}>
-                  {gap === null ? "—" : gap > 0 ? rs(gap) : "✓ all in app"}
+                <span className="csh-in">
+                  <input type="number" inputMode="decimal" min={0} placeholder={saved ? String(saved.amountInr) : "₹"} aria-label={`${m.en} memo total`} value={d?.amt ?? ""} onChange={(e) => setDraft(l, { amt: e.target.value, source: d?.source === "scale-scan" ? "scale-scan" : "typed" })} />
                   {saved && !typed ? <button type="button" className="hub-btn sm" title="Remove this memo total" onClick={() => clearMemo(l)}>✕</button> : null}
                 </span>
                 {saved && (
@@ -497,7 +583,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
           <button className="hub-btn" style={{ background: draftLines.length ? "var(--h-acc)" : undefined, color: draftLines.length ? "#fff" : undefined }} disabled={busy || !draftLines.length} onClick={saveMemo}>
             {draftLines.length ? "Save for this tally" : "Type a memo total to save"}
           </button>
-          <span className="hub-m">Expected cash uses the memo cash for lines with a saved total, and the app&apos;s own cash for the rest.</span>
+          <span className="hub-m">Sales on the sheet include GPay / PhonePe, so the UPI totals you type above are taken off the Sales cash. Other lines count as cash. Lines without a saved total use the app&apos;s own cash.</span>
         </div>
       </section>
 
@@ -537,18 +623,58 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
         {api?.handovers?.[session] && <div className="hub-m">Saved: {api.handovers[session]!.countedBy} → {api.handovers[session]!.handedTo}{api.handovers[session]!.updatedAt ? ` at ${hm(api.handovers[session]!.updatedAt!)}` : ""}.</div>}
       </section>
 
-      <section className="hub-card" style={{ marginTop: 12 }}>
+      {/* ---- full cash tally report (prints cleanly) ---- */}
+      <section className="hub-card csh-report" style={{ marginTop: 12 }}>
         <div className="hub-card-head">
-          <h3>🧮 How the expected cash is made</h3>
+          <h3>📄 Cash tally report — {date} · {LABEL[session]}</h3>
+          <div className="hr stk-row"><button className="hub-btn sm" onClick={() => window.print()}>🖨️ Print / save PDF</button></div>
         </div>
-        {bk ? (
-          <div className="csh-sys">
-            {inRows.map(([k, v]) => <div key={k}><span>＋ {k}</span><b>{rs(v)}</b></div>)}
-            {outRows.map(([k, v]) => <div key={k}><span>－ {k}</span><b>{rs(v)}</b></div>)}
-            <div><span><b>{usingMemo ? "= From the app's own entries" : "= Should be in counter"}</b></span><b>{rs(appOnly)}</b></div>
-            {usingMemo && <div><span>± Memo sheet totals replace the app cash for their lines</span><b>{sys - appOnly >= 0 ? "+" : "−"}{rs(Math.abs(sys - appOnly))}</b></div>}
-            {usingMemo && <div><span><b>= Should be in counter</b></span><b>{rs(sys)}</b></div>}
-          </div>
+        {api && summary ? (
+          <>
+            <div className="csh-rhead">
+              <div><span>Cash in counter</span><b>{rs(sys)}</b><small>{usingMemo ? "uses memo sheet / typed figures" : "from app entries"}</small></div>
+              <div><span>Cash counted</span><b>{counted > 0 ? rs(counted) : "—"}</b><small>{counted <= 0 ? "count not done yet" : usingDirect ? "typed total" : "added from notes"}</small></div>
+              <div className={counted > 0 && big ? "bad" : ""}><span>Gap</span><b>{counted <= 0 ? "—" : Math.abs(diff) < 1 ? "✓ matches" : `${diff < 0 ? "short" : "extra"} ${rs(Math.abs(diff))}`}</b><small>₹300 or more is flagged</small></div>
+              <div><span>UPI received</span><b>{rs(upiGpay + upiPhonepe)}</b><small>not in the counter</small></div>
+            </div>
+            <div className="csh-rgrid">
+              <div>
+                <h4>1 · How the counter cash is made</h4>
+                {summary.inRows.map((r) => <div key={r.label} className="r"><span>＋ {r.label}</span><b>{rs(r.amount)}</b></div>)}
+                <div className="r tot"><span>Total cash in</span><b>{rs(summary.totalIn)}</b></div>
+                {summary.outRows.map((r) => <div key={r.label} className="r"><span>－ {r.label}</span><b>{rs(r.amount)}</b></div>)}
+                <div className="r tot"><span>Total cash out</span><b>{rs(summary.totalOut)}</b></div>
+                <div className="r tot big"><span>Cash that should be in the counter</span><b>{rs(summary.expected)}</b></div>
+              </div>
+              <div>
+                <h4>2 · Cash counted</h4>
+                {usingDirect ? (
+                  <div className="r"><span>Total typed directly (notes not used)</span><b>{rs(counted)}</b></div>
+                ) : (
+                  <>
+                    {DENOMINATIONS.filter((d) => nums[String(d)] > 0).map((d) => <div key={d} className="r"><span>₹{d} × {nums[String(d)]}</span><b>{rs(d * nums[String(d)])}</b></div>)}
+                    {parseFloat(coins) > 0 && <div className="r"><span>Coins</span><b>{rs(parseFloat(coins))}</b></div>}
+                    <div className="r tot"><span>Total cash counted</span><b>{rs(counted)}</b></div>
+                  </>
+                )}
+                <h4 style={{ marginTop: 10 }}>3 · UPI, scale and handover</h4>
+                <div className="r"><span>📱 Shop GPay</span><b>{rs(upiGpay)}</b></div>
+                <div className="r"><span>🟣 Owner PhonePe</span><b>{rs(upiPhonepe)}</b></div>
+                <div className="r"><span>⚖️ Scale report</span><b>{api.scale ? `${api.scale.totalKg ?? "?"} kg · ${api.scale.totalInr != null ? rs(api.scale.totalInr) : "?"}` : "not scanned"}</b></div>
+                {stockCards.filter((c) => c.kg != null).map((c) => <div key={c.key} className="r"><span>Stock · {c.name}</span><b>{c.kg!.toLocaleString("en-IN")} kg{c.low ? " · LOW" : ""}</b></div>)}
+                <div className="r"><span>Counted by → handed to</span><b>{api.handovers?.[session] ? `${api.handovers[session]!.countedBy} → ${api.handovers[session]!.handedTo}` : "not saved"}</b></div>
+                <div className="r"><span>Entries still missing</span><b>{missing ? `${missing} to do` : "none"}</b></div>
+              </div>
+              <div>
+                <h4>4 · Entry log — every entry with date, time and who</h4>
+                <div className="hub-m">Kept for good. Changes and removals are added to this list, never erased.</div>
+                {api.log.length === 0 ? <div className="hub-empty">Nothing typed in this tally yet.</div> : api.log.slice(0, 40).map((l) => (
+                  <div key={l.id} className="r log"><span><small>{logTime(l.createdAt)}</small> {logWhat(l)} <small>· {l.enteredByName || "—"}</small></span><b>{logAmount(l)}</b></div>
+                ))}
+              </div>
+            </div>
+            <div className="hub-m">Informational report. Memo sheet and typed totals stay inside the Cash tally. They never change the register, stock, GST or party reports.</div>
+          </>
         ) : (
           <div className="hub-empty">Loading…</div>
         )}
@@ -574,7 +700,7 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
                 <button className={scanOut.net ? "on" : ""} onClick={() => setScanOut({ ...scanOut, net: true })}>Without tax {rs(scanOut.report.totalInr - scanOut.report.taxInr)}</button>
               )}
             </div>
-            <div className="hub-m">The report does not say cash or UPI. After filling, type &quot;of which cash&quot; if some sales were GPay or udhaar. Cans are counted in pieces and left out of the kg.</div>
+            <div className="hub-m">The report does not say cash or UPI. If some sales were GPay or PhonePe, type those totals in the UPI box. Cans are counted in pieces and left out of the kg.</div>
             <button className="hub-btn" style={{ background: "var(--h-g)", color: "#fff" }} disabled={busy || (!scanOut.report.lines.length && scanOut.report.totalInr == null)} onClick={useScale}>✓ Use these numbers</button>
           </div>
         </div>
