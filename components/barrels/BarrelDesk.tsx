@@ -18,7 +18,7 @@ import { findBarrelCode, registerRows, registerTotals, type Flag, type ShapedRec
 import BarrelCard from "@/components/barrels/BarrelCard";
 import BarrelRegister from "@/components/barrels/BarrelRegister";
 import WeighPanel from "@/components/barrels/WeighPanel";
-import RowPrint from "@/components/barrels/RowPrint";
+import { BarrelPrintMenu, Dropdown, LotPrintMenu, MenuBtn, WeightMenu } from "@/components/barrels/Menus";
 import WeightCell from "@/components/barrels/WeightCell";
 import { preparePhoto, stampLines, uploadProof } from "@/lib/proofClient";
 import { businessDate } from "@/lib/register";
@@ -534,7 +534,8 @@ function LotView({
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [events, setEvents] = useState<EventRow[] | null>(null);
   const [addN, setAddN] = useState("");
-  const [preset, setPreset] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [histOpen, setHistOpen] = useState(false);
 
   const patch = async (json: Record<string, unknown>) => {
     setBusy(true);
@@ -616,32 +617,23 @@ function LotView({
         </div>
         <Flags flags={s.flags} />
         <div className="bd-row">
-          <a className="bd-btn" href={`/barrels/labels?lot=${lotQ}`} target="_blank" rel="noreferrer">
-            🏷️ <L en="Print barrel labels" kn="ಲೇಬಲ್ ಪ್ರಿಂಟ್" />
-          </a>
-          <a className="bd-btn" href={`/barrels/labels?lot=${lotQ}&type=full`} target="_blank" rel="noreferrer">
-            🏷️ <L en="FULL-weight labels" kn="ತುಂಬಿದ ತೂಕ ಲೇಬಲ್" />
-          </a>
-          <a className="bd-btn" href={`/barrels/labels?lot=${lotQ}&type=empty`} target="_blank" rel="noreferrer">
-            🏷️ <L en="EMPTY-weight labels" kn="ಖಾಲಿ ತೂಕ ಲೇಬಲ್" />
-          </a>
-          <a className="bd-btn" href={`/barrels/labels?lot=${lotQ}&type=sum`} target="_blank" rel="noreferrer">
-            🏷️ <L en="FULL + EMPTY + NET label" kn="ತುಂಬಿದ + ಖಾಲಿ + ನಿವ್ವಳ ಲೇಬಲ್" />
-          </a>
-          <a className="bd-btn" href={`/barrels/print?report=${lotQ}`} target="_blank" rel="noreferrer">
-            📄 <L en="Lot weighment report" kn="ತೂಕ ವರದಿ" />
-          </a>
-          <a className="bd-btn" href={`/barrels/print?slips=${lotQ}`} target="_blank" rel="noreferrer">
-            🧾 <L en="All slips" kn="ಎಲ್ಲಾ ಸ್ಲಿಪ್" />
-          </a>
-          <label className="bd-btn">
-            📸 <L en="Challan photo" kn="ಚಲನ್ ಫೋಟೋ" />
-            <input hidden type="file" accept="image/*" capture="environment" onChange={(e) => { onChallanPhoto(e.target.files?.[0]); e.target.value = ""; }} />
-          </label>
-          {!closed && (
+          <LotPrintMenu lotQ={lotQ} />
+          <Dropdown label="⋯ Lot ▾" width={230}>
+            {(close) => (
+              <>
+                <label className="bd-mi" style={{ cursor: "pointer" }}>
+                  📸 <L en="Challan photo" kn="ಚಲನ್ ಫೋಟೋ" />
+                  <input hidden type="file" accept="image/*" capture="environment" onChange={(e) => { onChallanPhoto(e.target.files?.[0]); e.target.value = ""; close(); }} />
+                </label>
+                {!closed && <MenuBtn onClick={() => { close(); setAddOpen((v) => !v); }}>＋ Add barrels</MenuBtn>}
+                {isOwner && <MenuBtn onClick={() => { close(); loadEvents(); setHistOpen(true); }}>🕘 Show history</MenuBtn>}
+              </>
+            )}
+          </Dropdown>
+          {!closed && addOpen && (
             <span className="bd-inline">
-              <input className="bd-n" inputMode="numeric" placeholder="+ barrels" value={addN} onChange={(e) => setAddN(e.target.value)} aria-label="How many barrels to add" />
-              <button className="bd-btn" disabled={busy || !Number(addN)} onClick={async () => (await patch({ action: "addBarrels", count: Number(addN) })) && setAddN("")}>
+              <input className="bd-n" inputMode="numeric" placeholder="+ barrels" value={addN} onChange={(e) => setAddN(e.target.value)} aria-label="How many barrels to add" autoFocus />
+              <button className="bd-btn" disabled={busy || !Number(addN)} onClick={async () => (await patch({ action: "addBarrels", count: Number(addN) })) && (setAddN(""), setAddOpen(false))}>
                 Add
               </button>
             </span>
@@ -650,9 +642,11 @@ function LotView({
         {msg && <div className={msg.ok ? "bd-ok" : "bd-err"}>{msg.text}</div>}
       </div>
 
-      {!closed && <WeighPanel lots={lots} isOwner={isOwner} hintLot={lot} presetCode={preset} onSaved={onChange} />}
-
+      <div className="bd-split">
+      <div className="bd-main">
       <div className="bd-card">
+        <h2>📋 <L en="Barrels — enter every weight here" kn="ಬ್ಯಾರಲ್ ತೂಕ ಇಲ್ಲಿ ಬರೆಯಿರಿ" /></h2>
+        <div className="bd-m small">Type kg and Save. Use ⋯ to edit or delete a weight. Print ▾ has every label and receipt for that barrel.</div>
         <div className="bd-tablewrap">
           <table className="bd-table">
             <thead>
@@ -684,27 +678,31 @@ function LotView({
                       {b.grossKg == null && !closed ? (
                         <WeightCell code={b.code} phase="GROSS" onDone={(j) => onChange(j.data)} />
                       ) : (
-                        <>
-                          {kg(b.grossKg)}
-                          {b.grossSource === "MANUAL" && isOwner && <span title={b.grossNote || "typed"}> ✋</span>}
-                          <div className="bd-m tiny">{when(b.grossAt)}</div>
-                        </>
+                        <div className="bd-wval">
+                          <span>
+                            {kg(b.grossKg)}
+                            {b.grossSource === "MANUAL" && isOwner && <span title={b.grossNote || "typed"}> ✋</span>}
+                            <div className="bd-m tiny">{when(b.grossAt)}</div>
+                          </span>
+                          {!closed && b.grossKg != null && <WeightMenu lotRef={lot.lotNo} code={b.code} phase="GROSS" kg={b.grossKg} otherKg={b.emptyKg} onDone={onChange} />}
+                        </div>
                       )}
-                      <RowPrint lotQ={lotQ} seq={b.seq} code={b.code} phase="GROSS" done={b.grossKg != null} />
                     </td>
                     <td className="num">
                       {b.grossKg != null && b.emptyKg == null && !closed ? (
                         <WeightCell code={b.code} phase="EMPTY" onDone={(j) => onChange(j.data)} />
                       ) : (
-                        <>
-                          {kg(b.emptyKg)}
-                          {b.emptySource === "MANUAL" && isOwner && <span title={b.emptyNote || "typed"}> ✋</span>}
-                          <div className="bd-m tiny">{when(b.emptyAt)}</div>
-                        </>
+                        <div className="bd-wval">
+                          <span>
+                            {kg(b.emptyKg)}
+                            {b.emptySource === "MANUAL" && isOwner && <span title={b.emptyNote || "typed"}> ✋</span>}
+                            <div className="bd-m tiny">{when(b.emptyAt)}</div>
+                          </span>
+                          {!closed && b.emptyKg != null && <WeightMenu lotRef={lot.lotNo} code={b.code} phase="EMPTY" kg={b.emptyKg} otherKg={b.grossKg} onDone={onChange} />}
+                        </div>
                       )}
-                      <RowPrint lotQ={lotQ} seq={b.seq} code={b.code} phase="EMPTY" done={b.emptyKg != null} />
                     </td>
-                    <td className="num"><b>{kg(b.net)}</b>{b.net != null && <div><a className="bd-linkbtn tiny" href={`/barrels/labels?lot=${lotQ}&seq=${b.seq}&type=sum`} target="_blank" rel="noreferrer">🏷️ all-in-one label</a></div>}</td>
+                    <td className="num"><b>{kg(b.net)}</b></td>
                     {isOwner && (
                       <td className="num">
                         <DeclaredCell value={b.declaredNetKg} disabled={busy} onSave={(v) => patch({ action: "setBarrel", barrelId: b.id, declaredNetKg: v })} />
@@ -712,19 +710,7 @@ function LotView({
                     )}
                     <td>{st === "NEW" ? "Not weighed" : st === "FULL" ? "Full, waiting" : "Done ✓"}</td>
                     <td>
-                      {!closed && st !== "DONE" && (
-                        <button
-                          className="bd-linkbtn"
-                          onClick={() => {
-                            setPreset(b.code);
-                            window.scrollTo({ top: 0, behavior: "smooth" });
-                          }}
-                        >
-                          weigh
-                        </button>
-                      )}
-                      {" "}
-                      <a className="bd-linkbtn" href={`/barrels/print?slip=${encodeURIComponent(b.code)}`} target="_blank" rel="noreferrer">slip</a>
+                      <BarrelPrintMenu lotQ={lotQ} seq={b.seq} code={b.code} hasGross={b.grossKg != null} hasEmpty={b.emptyKg != null} />
                     </td>
                   </tr>
                 );
@@ -745,8 +731,15 @@ function LotView({
         </div>
         <div className="bd-m small">Totals count only barrels that have both weights, so gross − tare = net always adds up.</div>
       </div>
+      </div>
+      {!closed && (
+        <div className="bd-side">
+          <WeighPanel lots={lots} isOwner={isOwner} hintLot={lot} presetCode={null} onSaved={onChange} />
+        </div>
+      )}
+      </div>
 
-      {isOwner && <OwnerPanel lot={lot} busy={busy} closed={closed} patch={patch} events={events} loadEvents={loadEvents} />}
+      {isOwner && <OwnerPanel lot={lot} busy={busy} closed={closed} patch={patch} events={events} loadEvents={loadEvents} histOpen={histOpen} setHistOpen={setHistOpen} />}
     </>
   );
 }
@@ -812,8 +805,12 @@ function OwnerPanel({
   patch,
   events,
   loadEvents,
+  histOpen,
+  setHistOpen,
 }: {
   lot: Lot;
+  histOpen: boolean;
+  setHistOpen: (v: boolean) => void;
   busy: boolean;
   closed: boolean;
   patch: (j: Record<string, unknown>) => Promise<boolean>;
@@ -827,8 +824,8 @@ function OwnerPanel({
   }, [lot.declaredNetKg, lot.rateInrPerKg, lot.challanNo, lot.declaredBarrels]);
   const unfinished = lot.barrels.filter((b) => b.state !== "DONE").length;
   return (
-    <div className="bd-card">
-      <h3>🔒 Owner</h3>
+    <details className="bd-card bd-fold" open={histOpen || undefined} onToggle={(e) => setHistOpen((e.target as HTMLDetailsElement).open)}>
+      <summary>🔒 Owner — challan figures, close lot, history</summary>
       <div className="bd-form">
         <label>
           Total oil on challan (kg)
@@ -878,6 +875,6 @@ function OwnerPanel({
           ))}
         </ul>
       )}
-    </div>
+    </details>
   );
 }
