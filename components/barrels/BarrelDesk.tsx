@@ -624,6 +624,9 @@ function LotView({
           <a className="bd-btn" href={`/barrels/labels?lot=${lotQ}&type=empty`} target="_blank" rel="noreferrer">
             🏷️ <L en="EMPTY-weight labels" kn="ಖಾಲಿ ತೂಕ ಲೇಬಲ್" />
           </a>
+          <a className="bd-btn" href={`/barrels/labels?lot=${lotQ}&type=sum`} target="_blank" rel="noreferrer">
+            🏷️ <L en="FULL + EMPTY + NET label" kn="ತುಂಬಿದ + ಖಾಲಿ + ನಿವ್ವಳ ಲೇಬಲ್" />
+          </a>
           <a className="bd-btn" href={`/barrels/print?report=${lotQ}`} target="_blank" rel="noreferrer">
             📄 <L en="Lot weighment report" kn="ತೂಕ ವರದಿ" />
           </a>
@@ -700,7 +703,7 @@ function LotView({
                         </>
                       )}
                     </td>
-                    <td className="num"><b>{kg(b.net)}</b></td>
+                    <td className="num"><b>{kg(b.net)}</b>{b.net != null && <div><a className="bd-linkbtn tiny" href={`/barrels/labels?lot=${lotQ}&seq=${b.seq}&type=sum`} target="_blank" rel="noreferrer">🏷️ all-in-one label</a></div>}</td>
                     {isOwner && (
                       <td className="num">
                         <DeclaredCell value={b.declaredNetKg} disabled={busy} onSave={(v) => patch({ action: "setBarrel", barrelId: b.id, declaredNetKg: v })} />

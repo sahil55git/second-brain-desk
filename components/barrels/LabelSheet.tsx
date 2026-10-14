@@ -8,8 +8,9 @@ import { barrelLink, type Phase } from "@/lib/barrels";
 import { LABEL_SIZES, labelLayout, labelSize, pageCss, type PaperSize } from "@/lib/printSizes";
 import { PrinterPanel, SizePicker, useSavedPrint } from "@/components/barrels/PrintKit";
 
-type Kind = "id" | "full" | "empty" | "both";
-const KIND_LABEL: Record<Kind, string> = { id: "Barrel ID label", full: "FULL-weight label", empty: "EMPTY-weight label", both: "FULL + EMPTY labels" };
+type Kind = "id" | "full" | "empty" | "both" | "sum";
+const KIND_LABEL: Record<Kind, string> = { id: "Barrel ID label", full: "FULL-weight label", empty: "EMPTY-weight label", both: "FULL + EMPTY (2 labels)", sum: "FULL + EMPTY + NET (1 label)" };
+const kg = (n: number | null) => (n == null ? "____" : String(Math.round(n * 100) / 100));
 const stamp = (t: string | null) =>
   t ? new Date(t).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }) : "";
 
@@ -40,7 +41,7 @@ export default function LabelSheet() {
   }, [saved.label]);
   const lay = labelLayout(size);
   const vars = { "--lw": size.w, "--lh": size.h ?? 30, "--sc": lay.sc, "--barh": lay.barH, "--qr": lay.qr } as React.CSSProperties;
-  const [kind, setKind] = useState<Kind>((["full", "empty", "both"] as const).find((k) => k === sp.get("type")) ?? "id");
+  const [kind, setKind] = useState<Kind>((["full", "empty", "both", "sum"] as const).find((k) => k === sp.get("type")) ?? "id");
   const [lot, setLot] = useState<Lot | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [only, setOnly] = useState<number[] | null>(Number(sp.get("seq")) > 0 ? [Number(sp.get("seq"))] : null);
@@ -74,7 +75,7 @@ export default function LabelSheet() {
   if (!lot) return <div className="bd-wrap"><div className="bd-m">Loading…</div></div>;
   const barrels = only ? lot.barrels.filter((b) => only.includes(b.seq)) : lot.barrels;
   const total = lot.barrels.length;
-  const kinds: ("id" | Phase)[] = kind === "id" ? ["id"] : kind === "full" ? ["GROSS"] : kind === "empty" ? ["EMPTY"] : ["GROSS", "EMPTY"];
+  const kinds: ("id" | "sum" | Phase)[] = kind === "id" ? ["id"] : kind === "sum" ? ["sum"] : kind === "full" ? ["GROSS"] : kind === "empty" ? ["EMPTY"] : ["GROSS", "EMPTY"];
   const sheet = barrels.flatMap((b) => kinds.map((k) => ({ b, k })));
 
   return (
@@ -93,10 +94,10 @@ export default function LabelSheet() {
           {only && <button className="bd-btn" onClick={() => setOnly(null)}>Show all</button>}
           {test && <button className="bd-btn" onClick={() => setTest(false)}>Back to the real labels</button>}
         </div>
-        <PrinterPanel size={size} kind="label" saved={saved} onSave={save} onTest={() => { setTest(true); window.scrollTo({ top: 0 }); }} />
+        <PrinterPanel size={size} kind="label" saved={saved} onSave={save} onSize={setSize} onTest={() => { setTest(true); window.scrollTo({ top: 0 }); }} />
         {kind !== "id" && (
           <div className="bd-m small">
-            <b>FULL / EMPTY weight labels:</b> print them <b>after</b> weighing — the weight, date and time are printed on the label, so stick it on the barrel as its record. The barcode ends in -F (full) or -E (empty): scan it on the Weigh tab and the right step opens by itself. A label for a barrel not weighed yet prints a blank line to write the weight on.
+            <b>FULL + EMPTY + NET (1 label):</b> one sticker per barrel with full weight, empty weight and net oil (full − empty), plus the date and time of each weighing — print it after both weighings. Its barcode is the plain barrel code, so a scan opens the barrel&apos;s record. <br /><b>FULL / EMPTY weight labels:</b> print them <b>after</b> weighing — the weight, date and time are printed on the label, so stick it on the barrel as its record. The barcode ends in -F (full) or -E (empty): scan it on the Weigh tab and the right step opens by itself. A label for a barrel not weighed yet prints a blank line to write the weight on.
           </div>
         )}
         <div className="bd-m small">
@@ -119,14 +120,23 @@ export default function LabelSheet() {
         {!test && sheet.map(({ b, k }) => {
           const w = k === "GROSS" ? b.grossKg : k === "EMPTY" ? b.emptyKg : null;
           const at = k === "GROSS" ? b.grossAt : k === "EMPTY" ? b.emptyAt : null;
-          const value = k === "id" ? b.code : `${b.code}-${k === "GROSS" ? "F" : "E"}`;
+          const net = b.grossKg != null && b.emptyKg != null ? b.grossKg - b.emptyKg : null;
+          const value = k === "id" || k === "sum" ? b.code : `${b.code}-${k === "GROSS" ? "F" : "E"}`;
           return (
             <div className={`bd-label ${k === "id" ? "" : "wt"}`} key={`${b.id}-${k}`}>
               <div className="bd-lhead">
                 <b>MAHADEV TRADERS</b>
                 <span>{lot.date.split("-").reverse().join("-")}</span>
               </div>
-              {k !== "id" && (
+              {k === "sum" && (
+                <div className="bd-lband sum">
+                  <span>FULL<b>{kg(b.grossKg)}</b></span>
+                  <span>EMPTY<b>{kg(b.emptyKg)}</b></span>
+                  <span>NET<b>{kg(net)}</b></span>
+                  <small>{b.grossAt ? `F ${stamp(b.grossAt)}` : ""}{b.grossAt && b.emptyAt ? " · " : ""}{b.emptyAt ? `E ${stamp(b.emptyAt)}` : ""}</small>
+                </div>
+              )}
+              {k !== "id" && k !== "sum" && (
                 <div className="bd-lband">
                   {k === "GROSS" ? "FULL BARREL" : "EMPTY BARREL"} · {w != null ? <b>{Math.round(w * 100) / 100} kg</b> : <span>________ kg</span>}
                   {at && <small> {stamp(at)}</small>}
@@ -146,7 +156,7 @@ export default function LabelSheet() {
                     <span>{lot.supplierName}{lot.vehicleNo ? ` · ${lot.vehicleNo}` : ""}</span>
                   </div>
                 </div>
-                <QrCode className="bd-lqr" value={barrelLink(origin, b.code, k === "id" ? undefined : k)} moduleSize={3} />
+                <QrCode className="bd-lqr" value={barrelLink(origin, b.code, k === "id" || k === "sum" ? undefined : k)} moduleSize={3} />
               </div>
             </div>
           );

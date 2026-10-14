@@ -3,12 +3,13 @@
 // Shared bits for the label and slip print pages: size chips + custom size, remembered choices,
 // and the "Printer settings / connecting a printer" help.
 import { useEffect, useState } from "react";
-import { PRINTER_TYPES, customSize, type PaperSize, type PrinterType } from "@/lib/printSizes";
+import { LABEL_SIZES, PRINTER_MODELS, PRINTER_TYPES, SLIP_SIZES, customSize, printerModel, type PaperSize, type PrinterType } from "@/lib/printSizes";
 
 const KEY = "bd-print-v1";
 export interface SavedPrint {
   printer: string;
   type: PrinterType;
+  model?: string;
   label?: string;
   slip?: string;
 }
@@ -64,13 +65,34 @@ export function SizePicker({ options, value, onPick, roll }: { options: PaperSiz
   );
 }
 
-export function PrinterPanel({ size, kind, saved, onSave, onTest }: { size: PaperSize; kind: "label" | "slip"; saved: SavedPrint; onSave: (p: Partial<SavedPrint>) => void; onTest?: () => void }) {
+export function PrinterPanel({ size, kind, saved, onSave, onTest, onSize }: { size: PaperSize; kind: "label" | "slip"; saved: SavedPrint; onSave: (p: Partial<SavedPrint>) => void; onTest?: () => void; onSize?: (s: PaperSize) => void }) {
   const dim = size.id === "a4" ? "A4" : size.h == null ? `${size.w} mm wide, auto length (roll)` : `${size.w} × ${size.h} mm`;
   const t = saved.type;
+  const model = printerModel(saved.model);
+  const all = kind === "label" ? LABEL_SIZES : SLIP_SIZES;
+  const suggested = model ? (kind === "label" ? model.labelSizes : model.slipSizes) ?? [] : [];
+  const tooWide = model && size.id !== "a4" && size.w > model.maxWidth;
+  const pickModel = (id: string) => {
+    const m = printerModel(id);
+    if (!m) return onSave({ model: undefined });
+    onSave({ model: m.id, type: m.type, printer: m.name });
+    const first = (kind === "label" ? m.labelSizes : m.slipSizes)?.[0];
+    const sz = all.find((x) => x.id === first);
+    if (sz && onSize) onSize(sz);
+  };
   return (
     <details className="bd-pp bd-noprint">
       <summary>🖨️ Printer settings and connecting a printer</summary>
       <div className="bd-row">
+        <label>
+          My printer{" "}
+          <select value={saved.model ?? ""} onChange={(e) => pickModel(e.target.value)}>
+            <option value="">— other / not listed —</option>
+            {PRINTER_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+        </label>
         <label>
           Printer type{" "}
           <select value={t} onChange={(e) => onSave({ type: e.target.value as PrinterType })}>
@@ -85,6 +107,24 @@ export function PrinterPanel({ size, kind, saved, onSave, onTest }: { size: Pape
         </label>
         {onTest && <button className="bd-btn" onClick={onTest}>🧪 Print a test label at this size</button>}
       </div>
+      {model && (
+        <div className="bd-m small">
+          <b>{model.name}:</b> {model.about}
+          {suggested.length > 0 && onSize && (
+            <div className="bd-row" style={{ marginTop: 6 }}>
+              <span>Sizes that suit it:</span>
+              {suggested.map((id) => {
+                const sz = all.find((x) => x.id === id);
+                return sz ? <button key={id} className={`bd-chip${size.id === id ? " on" : ""}`} onClick={() => onSize(sz)}>{sz.name}</button> : null;
+              })}
+            </div>
+          )}
+          {tooWide && <div style={{ color: "#b00" }}>This size is {size.w} mm wide but the {model.name} prints up to {model.maxWidth} mm. Pick a narrower size.</div>}
+          {model.type === "receipt" && kind === "label" && <div style={{ color: "#b00" }}>This is a receipt-roll printer; it cannot print gap labels. Use the label printer for barrel stickers.</div>}
+          <h4>Setting up the {model.name}</h4>
+          <ol>{model.setup.map((x, i) => <li key={i}>{x}</li>)}</ol>
+        </div>
+      )}
       <div className="bd-m small">
         This page cannot pick or talk to a printer by itself. It sends the job to your browser, which prints on the printers installed on <b>this</b> computer or phone. So: connect the printer to the device first, then choose it in the print window.
       </div>
