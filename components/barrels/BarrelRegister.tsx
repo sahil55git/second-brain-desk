@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { registerCsv, type RegisterRow, type RegisterTotals } from "@/lib/barrels";
 import { api, BARREL_CHIP, kg, kg1, L, when } from "@/components/barrels/shared";
 import { businessDate } from "@/lib/register";
-import { BarrelPrintMenu, WeightMenu } from "@/components/barrels/Menus";
+import { BarrelPrintMenu, CellPrint, WeightMenu } from "@/components/barrels/Menus";
 import WeightCell from "@/components/barrels/WeightCell";
 
 type Status = "all" | "waiting" | "done" | "new";
@@ -171,6 +171,7 @@ export default function BarrelRegister({ initialStatus = "all", open }: { initia
                               {r.grossSource === "MANUAL" && isOwner && <span title={r.grossNote || "typed"}> ✋</span>}
                               <div className="bd-m tiny">{when(r.grossAt)}</div>
                             </span>
+                            {r.grossKg != null && <CellPrint lotQ={encodeURIComponent(r.lotNo)} seq={r.seq} code={r.code} phase="GROSS" />}
                             {r.lotStatus === "OPEN" && r.grossKg != null && <WeightMenu lotRef={r.lotNo} code={r.code} phase="GROSS" kg={r.grossKg} otherKg={r.emptyKg} onDone={() => load()} />}
                           </div>
                         )}
@@ -185,6 +186,7 @@ export default function BarrelRegister({ initialStatus = "all", open }: { initia
                               {r.emptySource === "MANUAL" && isOwner && <span title={r.emptyNote || "typed"}> ✋</span>}
                               <div className="bd-m tiny">{when(r.emptyAt)}</div>
                             </span>
+                            {r.emptyKg != null && <CellPrint lotQ={encodeURIComponent(r.lotNo)} seq={r.seq} code={r.code} phase="EMPTY" />}
                             {r.lotStatus === "OPEN" && r.emptyKg != null && <WeightMenu lotRef={r.lotNo} code={r.code} phase="EMPTY" kg={r.emptyKg} otherKg={r.grossKg} onDone={() => load()} />}
                           </div>
                         )}
