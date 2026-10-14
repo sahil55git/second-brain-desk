@@ -122,6 +122,7 @@ export default function BarrelDesk() {
 
       {view.t === "home" && (
         <>
+          <FlowSteps lots={lots} goEntry={entry} />
           <WeighPanel lots={lots} isOwner={isOwner} presetCode={preset} onSaved={replaceLot} />
           <Waiting
             lots={lots}
@@ -183,6 +184,42 @@ export default function BarrelDesk() {
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The five steps — a picture staff and managers can follow from left to right
+// ---------------------------------------------------------------------------
+function FlowSteps({ lots, goEntry }: { lots: Lot[]; goEntry: () => void }) {
+  const open = lots.filter((l) => l.status === "OPEN");
+  const n = open.reduce((a, l) => a + l.barrels.length, 0);
+  const full = open.reduce((a, l) => a + l.barrels.filter((b) => b.grossKg != null).length, 0);
+  const done = open.reduce((a, l) => a + l.barrels.filter((b) => b.state === "DONE").length, 0);
+  const net = open.reduce((a, l) => a + l.barrels.reduce((x, b) => x + (b.net ?? 0), 0), 0);
+  const steps = [
+    { icon: "🚚", en: "Vehicle arrives", kn: "ವಾಹನ ಬಂದಿದೆ", how: "Tap Barrel entry → New lot. Supplier, oil, challan, barrel count.", stat: `${open.length} open lot(s)`, ok: open.length > 0, go: goEntry },
+    { icon: "🏷️", en: "Tag each barrel", kn: "ಲೇಬಲ್ ಹಚ್ಚಿ", how: "Print labels, stick one on every barrel. Write its tag / serial no.", stat: `${n} barrel(s) labelled`, ok: n > 0, go: goEntry },
+    { icon: "⚖️", en: "Weigh FULL", kn: "ತುಂಬಿದ ತೂಕ", how: "Scan the label, put the barrel on the scale. Scale broken? Enter weight by hand.", stat: `${full}/${n} weighed`, ok: n > 0 && full === n },
+    { icon: "🛢️", en: "Pour, weigh EMPTY", kn: "ಖಾಲಿ ತೂಕ", how: "Pour into the tank, drain, scan again, weigh the empty barrel (any day).", stat: `${done}/${n} weighed`, ok: n > 0 && done === n },
+    { icon: "✅", en: "Net oil + slip", kn: "ನಿವ್ವಳ ಎಣ್ಣೆ", how: "Net = full − empty. Print the slip, see the Dashboard and Report.", stat: `${kg(net)} kg oil`, ok: n > 0 && done === n },
+  ];
+  const here = steps.findIndex((x) => !x.ok);
+  return (
+    <ol className="bd-flow bd-noprint" aria-label="Barrel receiving steps">
+      {steps.map((x, i) => (
+        <li key={i} className={`${x.ok ? "ok" : ""} ${i === here ? "here" : ""}`}>
+          <button type="button" onClick={x.go} disabled={!x.go}>
+            <span className="no">{x.ok ? "✓" : i + 1}</span>
+            <span className="ic">{x.icon}</span>
+            <b>{x.en}</b>
+            <span className="kn">{x.kn}</span>
+            <small>{x.how}</small>
+            <em>{x.stat}</em>
+            {i === here && <span className="hr">You are here</span>}
+          </button>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -623,6 +660,7 @@ function LotView({
             <thead>
               <tr>
                 <th>#</th>
+                <th>Tag / serial<small> on the barrel</small></th>
                 <th>Gross kg<small> oil+barrel</small></th>
                 <th>Tare kg<small> empty barrel</small></th>
                 <th>Net oil kg</th>
@@ -640,6 +678,9 @@ function LotView({
                     <td>
                       <button className="bd-linkbtn" onClick={() => openBarrel(b.code)}><b>{pad(b.seq)}</b></button>
                       <div className="bd-m tiny">{b.code}</div>
+                    </td>
+                    <td>
+                      <MarkCell value={b.supplierMark} disabled={busy || closed} onSave={(v) => patch({ action: "setBarrel", barrelId: b.id, supplierMark: v })} />
                     </td>
                     <td className="num">
                       {kg(b.grossKg)}
@@ -680,6 +721,7 @@ function LotView({
             <tfoot>
               <tr>
                 <td>Total</td>
+                <td />
                 <td className="num">{kg(s.grossTotalKg)}</td>
                 <td className="num">{kg(s.emptyTotalKg)}</td>
                 <td className="num"><b>{kg(s.measuredNetKg)}</b></td>
@@ -711,6 +753,24 @@ function Flags({ flags }: { flags: Flag[] }) {
   );
 }
 
+function MarkCell({ value, disabled, onSave }: { value: string | null; disabled: boolean; onSave: (v: string) => Promise<boolean> }) {
+  const [edit, setEdit] = useState(false);
+  const [v, setV] = useState("");
+  if (!edit)
+    return (
+      <button className="bd-linkbtn" disabled={disabled} onClick={() => { setV(value ?? ""); setEdit(true); }}>
+        {value || "add tag"}
+      </button>
+    );
+  return (
+    <span className="bd-inline">
+      <input className="bd-n" value={v} maxLength={30} onChange={(e) => setV(e.target.value)} autoFocus aria-label="Tag or serial number painted on the barrel" />
+      <button className="bd-linkbtn" disabled={disabled} onClick={async () => (await onSave(v)) && setEdit(false)}>
+        ok
+      </button>
+    </span>
+  );
+}
 function DeclaredCell({ value, disabled, onSave }: { value: number | null; disabled: boolean; onSave: (v: string) => Promise<boolean> }) {
   const [edit, setEdit] = useState(false);
   const [v, setV] = useState("");
