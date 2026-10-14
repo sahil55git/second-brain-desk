@@ -4,6 +4,8 @@ import {
   BARREL_DEFAULTS,
   allowedDiffKg,
   barrelCode,
+  barrelLink,
+  findBarrelCode,
   barrelFlags,
   barrelNet,
   barrelState,
@@ -269,5 +271,20 @@ describe("barrel register", () => {
     expect(csv).not.toContain("Supplier kg");
     expect(csv.split("\r\n")[1]).toContain("180");
     expect(registerCsv(rows, true)).toContain("Supplier kg");
+  });
+});
+
+
+describe("FULL / EMPTY weight labels", () => {
+  it("reads the -F / -E tail as the weighing step and keeps the plain code", () => {
+    expect(parseBarrelCode("R261013-1-01-F")).toMatchObject({ code: "R261013-1-01", phase: "GROSS" });
+    expect(parseBarrelCode("r261013-1-02-e")).toMatchObject({ code: "R261013-1-02", phase: "EMPTY" });
+    expect(parseBarrelCode("R261013-1-01")?.phase).toBeUndefined();
+    expect(parseBarrelCode("R261013-1-01-X")).toBeNull();
+  });
+  it("reads the phase from a QR link", () => {
+    expect(findBarrelCode("https://x.app/barrels?barrel=R261013-1-03&phase=EMPTY")).toMatchObject({ code: "R261013-1-03", phase: "EMPTY" });
+    expect(findBarrelCode("https://x.app/barrels?barrel=R261013-1-03")?.phase).toBeUndefined();
+    expect(barrelLink("https://x.app/", "R261013-1-03", "GROSS")).toBe("https://x.app/barrels?barrel=R261013-1-03&phase=GROSS");
   });
 });
