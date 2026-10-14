@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import Barcode from "@/components/barrels/Barcode";
 import QrCode from "@/components/barrels/QrCode";
 import { barrelLink, type Phase } from "@/lib/barrels";
+import { LABEL_SIZES, labelLayout, labelSize, pageCss, type PaperSize } from "@/lib/printSizes";
+import { PrinterPanel, SizePicker, useSavedPrint } from "@/components/barrels/PrintKit";
 
 type Kind = "id" | "full" | "empty" | "both";
 const KIND_LABEL: Record<Kind, string> = { id: "Barrel ID label", full: "FULL-weight label", empty: "EMPTY-weight label", both: "FULL + EMPTY labels" };
@@ -24,7 +26,20 @@ interface Lot {
 export default function LabelSheet() {
   const sp = useSearchParams();
   const lotKey = sp.get("lot") || "";
-  const [size, setSize] = useState<"a4" | "thermal">(sp.get("size") === "thermal" ? "thermal" : "a4");
+  const [size, setSizeState] = useState<PaperSize>(labelSize(sp.get("size")));
+  const [saved, save] = useSavedPrint();
+  const [test, setTest] = useState(false);
+  const setSize = (x: PaperSize) => {
+    setSizeState(x);
+    save({ label: x.id });
+  };
+  // no size in the link: start with the size used last time on this device
+  useEffect(() => {
+    if (!sp.get("size") && saved.label) setSizeState(labelSize(saved.label));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saved.label]);
+  const lay = labelLayout(size);
+  const vars = { "--lw": size.w, "--lh": size.h ?? 30, "--sc": lay.sc, "--barh": lay.barH, "--qr": lay.qr } as React.CSSProperties;
   const [kind, setKind] = useState<Kind>((["full", "empty", "both"] as const).find((k) => k === sp.get("type")) ?? "id");
   const [lot, setLot] = useState<Lot | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -45,7 +60,7 @@ export default function LabelSheet() {
   // Paper size for the print dialog.
   useEffect(() => {
     const style = document.createElement("style");
-    style.textContent = size === "thermal" ? "@page { size: 50mm 30mm; margin: 0 }" : "@page { size: A4; margin: 8mm 6mm }";
+    style.textContent = pageCss(size, "label");
     document.head.appendChild(style);
     return () => style.remove();
   }, [size]);
@@ -72,12 +87,13 @@ export default function LabelSheet() {
             <button key={k} className={`bd-chip${kind === k ? " on" : ""}`} onClick={() => setKind(k)}>{KIND_LABEL[k]}</button>
           ))}
         </div>
+        <SizePicker options={LABEL_SIZES} value={size} onPick={setSize} />
         <div className="bd-row">
-          <button className={`bd-chip${size === "a4" ? " on" : ""}`} onClick={() => setSize("a4")}>A4 sticker sheet (21 per page)</button>
-          <button className={`bd-chip${size === "thermal" ? " on" : ""}`} onClick={() => setSize("thermal")}>Thermal 50 × 30 mm</button>
-          <button className="bd-btn primary" onClick={print}>🖨️ Print</button>
+          <button className="bd-btn primary" onClick={print}>🖨️ Print {sheet.length} label(s)</button>
           {only && <button className="bd-btn" onClick={() => setOnly(null)}>Show all</button>}
+          {test && <button className="bd-btn" onClick={() => setTest(false)}>Back to the real labels</button>}
         </div>
+        <PrinterPanel size={size} kind="label" saved={saved} onSave={save} onTest={() => { setTest(true); window.scrollTo({ top: 0 }); }} />
         {kind !== "id" && (
           <div className="bd-m small">
             <b>FULL / EMPTY weight labels:</b> print them <b>after</b> weighing — the weight, date and time are printed on the label, so stick it on the barrel as its record. The barcode ends in -F (full) or -E (empty): scan it on the Weigh tab and the right step opens by itself. A label for a barrel not weighed yet prints a blank line to write the weight on.
@@ -92,8 +108,15 @@ export default function LabelSheet() {
           ))}
         </div>
       </div>
-      <div className={`bd-labels ${size}`}>
-        {sheet.map(({ b, k }) => {
+      <div className={`bd-labels ${size.cls}${size.cls === "gen" ? ` ${lay.compact ? "compact" : ""} ${lay.roomy ? "roomy" : ""}` : ""}`} style={vars}>
+        {test && (
+          <div className="bd-label bd-test">
+            <div className="bd-testmark">TEST · {size.name}<br />{size.h ? `${size.w} × ${size.h} mm` : `${size.w} mm`}</div>
+            <Barcode className="bd-lbar" value="R000000-0-00" moduleWidth={2} height={40} fill={size.cls === "gen"} />
+            <div className="bd-lbottom"><div className="bd-ltext"><div className="bd-lcode">R000000-0-00</div></div><QrCode className="bd-lqr" value="TEST" moduleSize={3} /></div>
+          </div>
+        )}
+        {!test && sheet.map(({ b, k }) => {
           const w = k === "GROSS" ? b.grossKg : k === "EMPTY" ? b.emptyKg : null;
           const at = k === "GROSS" ? b.grossAt : k === "EMPTY" ? b.emptyAt : null;
           const value = k === "id" ? b.code : `${b.code}-${k === "GROSS" ? "F" : "E"}`;
@@ -109,7 +132,7 @@ export default function LabelSheet() {
                   {at && <small> {stamp(at)}</small>}
                 </div>
               )}
-              <Barcode className="bd-lbar" value={value} moduleWidth={2} height={size === "thermal" ? (k === "id" ? 66 : 44) : k === "id" ? 76 : 50} />
+              <Barcode className="bd-lbar" value={value} moduleWidth={2} height={size.id === "50x30" ? (k === "id" ? 66 : 44) : k === "id" ? 76 : 50} fill={size.cls === "gen"} />
               <div className="bd-lbottom">
                 <div className="bd-ltext">
                   <div className="bd-lcode">{value}</div>
