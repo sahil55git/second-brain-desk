@@ -62,6 +62,7 @@ export default function WeighPanel({
   const [manualReason, setManualReason] = useState(MANUAL_REASONS[0]);
   const [manualAt, setManualAt] = useState(localNow());
   const [reweigh, setReweigh] = useState(false);
+  const [scanPhase, setScanPhase] = useState<Phase | null>(null); // a FULL / EMPTY weight label says which weight it is for
   const [why, setWhy] = useState("");
   const codeRef = useRef<HTMLInputElement>(null);
 
@@ -120,6 +121,10 @@ export default function WeighPanel({
     setReweigh(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target?.id, target?.grossKg, target?.emptyKg]);
+
+  useEffect(() => {
+    if (target && scanPhase) setPhase(scanPhase);
+  }, [target?.id, scanPhase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const problem = useMemo(() => {
     if (!target || !targetLot) return null;
@@ -226,7 +231,9 @@ export default function WeighPanel({
           value={codeText}
           onChange={(e) => {
             const v = e.target.value;
-            setCodeText(findBarrelCode(v)?.code ?? v); // a scanned QR link turns into the plain code
+            const f = findBarrelCode(v);
+            setCodeText(f?.code ?? v); // a scanned QR link turns into the plain code
+            setScanPhase(f?.phase ?? null);
             setMsg(null);
           }}
           placeholder="Scan or type the barrel label…"
@@ -383,7 +390,9 @@ export default function WeighPanel({
         <BarcodeScanner
           onClose={() => setScanning(false)}
           onCode={(c) => {
-            setCodeText(findBarrelCode(c)?.code ?? c);
+            const f = findBarrelCode(c);
+            setCodeText(f?.code ?? c);
+            setScanPhase(f?.phase ?? null);
             setScanning(false);
             setMsg(null);
           }}

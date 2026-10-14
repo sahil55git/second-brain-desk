@@ -18,12 +18,12 @@ import { findBarrelCode, registerRows, registerTotals, type Flag, type ShapedRec
 import BarrelCard from "@/components/barrels/BarrelCard";
 import BarrelRegister from "@/components/barrels/BarrelRegister";
 import WeighPanel from "@/components/barrels/WeighPanel";
+import WeightCell from "@/components/barrels/WeightCell";
 import { preparePhoto, stampLines, uploadProof } from "@/lib/proofClient";
 import { businessDate } from "@/lib/register";
 import { api, kg, L, pad, rs, STATE_CHIP, when, type EventRow, type Lot } from "@/components/barrels/shared";
 
 const PRODUCTS = ["Sunflower oil", "Rice bran oil", "Soyabean oil", "Groundnut oil", "Mustard oil", "Karadi (safflower) oil", "Goldrop"];
-const TANKS = ["Sunflower tank", "Karadi tank 1", "K2"];
 
 type View = { t: "home" } | { t: "entry" } | { t: "dashboard" } | { t: "register"; status?: "waiting" | "all" } | { t: "new" } | { t: "lot"; id: string } | { t: "barrel"; code: string; back: View };
 
@@ -160,7 +160,6 @@ export default function BarrelDesk() {
       )}
       {view.t === "new" && (
         <NewLot
-          isOwner={isOwner}
           onCancel={entry}
           onCreated={(l) => {
             replaceLot(l);
@@ -431,8 +430,8 @@ function LotList({
 // ---------------------------------------------------------------------------
 // New lot
 // ---------------------------------------------------------------------------
-function NewLot({ isOwner, onCancel, onCreated }: { isOwner: boolean; onCancel: () => void; onCreated: (l: Lot) => void }) {
-  const [f, setF] = useState({ supplierName: "", product: "", vehicleNo: "", challanNo: "", barrelCount: "", declaredNetKg: "", tankTarget: "", rateInrPerKg: "", notes: "" });
+function NewLot({ onCancel, onCreated }: { onCancel: () => void; onCreated: (l: Lot) => void }) {
+  const [f, setF] = useState({ supplierName: "", product: "", vehicleNo: "", challanNo: "", barrelCount: "", declaredNetKg: "", notes: "" });
   const [suppliers, setSuppliers] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -450,7 +449,7 @@ function NewLot({ isOwner, onCancel, onCreated }: { isOwner: boolean; onCancel: 
     try {
       const j = await api<{ data: Lot }>("/api/barrels", {
         method: "POST",
-        json: { ...f, barrelCount: Number(f.barrelCount), declaredBarrels: Number(f.barrelCount) || null, declaredNetKg: f.declaredNetKg || null, rateInrPerKg: f.rateInrPerKg || null },
+        json: { ...f, barrelCount: Number(f.barrelCount), declaredBarrels: Number(f.barrelCount) || null, declaredNetKg: f.declaredNetKg || null },
       });
       onCreated(j.data);
     } catch (e) {
@@ -493,17 +492,6 @@ function NewLot({ isOwner, onCancel, onCreated }: { isOwner: boolean; onCancel: 
           <input inputMode="decimal" value={f.declaredNetKg} onChange={set("declaredNetKg")} placeholder="optional" />
           <span className="bd-m small">Only the owner will see this once saved.</span>
         </label>
-        <label>
-          <L en="Pour into tank" kn="ಯಾವ ಟ್ಯಾಂಕ್‌ಗೆ" />
-          <input list="bd-tanks" value={f.tankTarget} onChange={set("tankTarget")} placeholder="optional" />
-          <datalist id="bd-tanks">{TANKS.map((s) => <option key={s} value={s} />)}</datalist>
-        </label>
-        {isOwner && (
-          <label>
-            Rate ₹ per kg <span className="bd-m small">(owner only)</span>
-            <input inputMode="decimal" value={f.rateInrPerKg} onChange={set("rateInrPerKg")} placeholder="to price any shortage" />
-          </label>
-        )}
         <label className="wide">
           Notes
           <textarea value={f.notes} onChange={set("notes")} rows={2} />
@@ -630,6 +618,12 @@ function LotView({
           <a className="bd-btn" href={`/barrels/labels?lot=${lotQ}`} target="_blank" rel="noreferrer">
             🏷️ <L en="Print barrel labels" kn="ಲೇಬಲ್ ಪ್ರಿಂಟ್" />
           </a>
+          <a className="bd-btn" href={`/barrels/labels?lot=${lotQ}&type=full`} target="_blank" rel="noreferrer">
+            🏷️ <L en="FULL-weight labels" kn="ತುಂಬಿದ ತೂಕ ಲೇಬಲ್" />
+          </a>
+          <a className="bd-btn" href={`/barrels/labels?lot=${lotQ}&type=empty`} target="_blank" rel="noreferrer">
+            🏷️ <L en="EMPTY-weight labels" kn="ಖಾಲಿ ತೂಕ ಲೇಬಲ್" />
+          </a>
           <a className="bd-btn" href={`/barrels/print?report=${lotQ}`} target="_blank" rel="noreferrer">
             📄 <L en="Lot weighment report" kn="ತೂಕ ವರದಿ" />
           </a>
@@ -683,14 +677,28 @@ function LotView({
                       <MarkCell value={b.supplierMark} disabled={busy || closed} onSave={(v) => patch({ action: "setBarrel", barrelId: b.id, supplierMark: v })} />
                     </td>
                     <td className="num">
-                      {kg(b.grossKg)}
-                      {b.grossSource === "MANUAL" && isOwner && <span title={b.grossNote || "typed"}> ✋</span>}
-                      <div className="bd-m tiny">{when(b.grossAt)}</div>
+                      {b.grossKg == null && !closed ? (
+                        <WeightCell code={b.code} phase="GROSS" onDone={(j) => onChange(j.data)} />
+                      ) : (
+                        <>
+                          {kg(b.grossKg)}
+                          {b.grossSource === "MANUAL" && isOwner && <span title={b.grossNote || "typed"}> ✋</span>}
+                          <div className="bd-m tiny">{when(b.grossAt)}</div>
+                          {b.grossKg != null && <a className="bd-linkbtn tiny" href={`/barrels/labels?lot=${lotQ}&seq=${b.seq}&type=full`} target="_blank" rel="noreferrer">🏷️ label</a>}
+                        </>
+                      )}
                     </td>
                     <td className="num">
-                      {kg(b.emptyKg)}
-                      {b.emptySource === "MANUAL" && isOwner && <span title={b.emptyNote || "typed"}> ✋</span>}
-                      <div className="bd-m tiny">{when(b.emptyAt)}</div>
+                      {b.grossKg != null && b.emptyKg == null && !closed ? (
+                        <WeightCell code={b.code} phase="EMPTY" onDone={(j) => onChange(j.data)} />
+                      ) : (
+                        <>
+                          {kg(b.emptyKg)}
+                          {b.emptySource === "MANUAL" && isOwner && <span title={b.emptyNote || "typed"}> ✋</span>}
+                          <div className="bd-m tiny">{when(b.emptyAt)}</div>
+                          {b.emptyKg != null && <a className="bd-linkbtn tiny" href={`/barrels/labels?lot=${lotQ}&seq=${b.seq}&type=empty`} target="_blank" rel="noreferrer">🏷️ label</a>}
+                        </>
+                      )}
                     </td>
                     <td className="num"><b>{kg(b.net)}</b></td>
                     {isOwner && (
