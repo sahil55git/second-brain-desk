@@ -58,8 +58,8 @@ export async function POST(req: NextRequest) {
     let systemCash = base.systemCash;
     if (body.useMemo === true) {
       const cutoff = cashCutoffMs(body.date, session, now.getTime());
-      const view = await loadMemoView(body.date, entries as unknown as RegisterEntryLike[], jwEvents, cutoff, base.systemCash, buckets.cashInOpening);
-      if (view.memo.length || view.extrasTyped) systemCash = view.adjustedCash;
+      const view = await loadMemoView(body.date, entries as unknown as RegisterEntryLike[], jwEvents, cutoff, buckets.cashInOpening);
+      if (view.sheet.anyTyped) systemCash = view.adjustedCash;
     }
     const gap = cashGapFlag({ ...buckets, cashInOpening: buckets.cashInOpening + (systemCash - base.systemCash) }, counted);
     const { diff, flagged } = gap;
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
     const logCount = async () => {
-      await prisma.cashTallyLog.create({ data: { date: body.date, line: "COUNT", action: "SAVE", amountInr: counted, session, note: direct > 0 ? "typed total" : "counted by notes", enteredByName: user.name } });
+      await prisma.cashTallyLog.create({ data: { date: body.date, line: "COUNT", action: "SAVE", amountInr: counted, session, note: direct > 0 ? "typed total" : "counted by notes", enteredByName: user.name } }).catch(() => undefined);
     };
     if (stockOnly) {
       const upd = await prisma.dailyClosing.update({

@@ -96,10 +96,10 @@
 .csh-rhead span { font-size: 11.5px; font-weight: 800; color: var(--h-soft); } .csh-rhead b { font-size: 24px; font-variant-numeric: tabular-nums; } .csh-rhead small { font-size: 11px; color: var(--h-soft); }
 .csh-rgrid { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 14px; }
 .csh-rgrid h4 { margin: 0 0 4px; font-size: 11px; letter-spacing: .08em; color: var(--h-soft); }
-.csh-rgrid .r { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 3px 0; border-bottom: 1px dashed var(--h-line); }
-.csh-rgrid .r.tot { font-weight: 800; border-bottom: 1px solid var(--h-line); }
-.csh-rgrid .r.big b { font-size: 16px; }
-.csh-rgrid .r.log small { color: var(--h-soft); }
+.csh-rgrid .rr { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 3px 0; border-bottom: 1px dashed var(--h-line); }
+.csh-rgrid .rr.tot { font-weight: 800; border-bottom: 1px solid var(--h-line); }
+.csh-rgrid .rr.big b { font-size: 16px; }
+.csh-rgrid .rr.log small { color: var(--h-soft); }
 @media (max-width: 960px) { .csh-io, .csh-rgrid, .csh-rhead { grid-template-columns: 1fr; } }
 @media print {
   body * { visibility: hidden !important; }
@@ -107,3 +107,42 @@
   .csh-report { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; }
   .csh-report .hr { display: none !important; }
 }
+
+/* ---- one cash tally sheet ---- */
+.csh-sheet { display: grid; gap: 4px; margin-top: 8px; }
+.csh-sh { display: grid; grid-template-columns: 1.5fr .8fr 1.3fr 1.1fr; gap: 8px; align-items: center; padding: 6px 8px; border-radius: calc(12px * var(--ui-r, 1)); border: 1px solid var(--h-line); background: var(--h-card); }
+.csh-sh.h { background: none; border: none; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; color: var(--h-soft); padding: 2px 8px; }
+.csh-sh.typing { border-color: #e8cf8a; box-shadow: inset 3px 0 0 #e8cf8a; }
+.csh-sh .nm { display: grid; } .csh-sh .nm small { font-size: 11px; color: var(--h-soft); }
+.csh-sh .app { font-variant-numeric: tabular-nums; color: var(--h-soft); font-weight: 700; }
+.csh-sh .used { display: grid; } .csh-sh .used b { font-size: 16px; font-variant-numeric: tabular-nums; } .csh-sh .used small { font-size: 11px; color: var(--h-soft); }
+.csh-sh .chk { font-size: 12px; font-weight: 800; color: var(--h-soft); }
+.csh-sh .chk.warn { color: #e0705a; } .csh-sh .chk.ok { color: var(--h-g); }
+.csh-sh input { width: 100%; min-width: 0; font-weight: 800; }
+.csh-sh.tot { background: none; border: none; border-top: 1px solid var(--h-line); border-radius: 0; font-weight: 800; }
+.csh-sh.tot.in .used b { color: var(--h-g); } .csh-sh.tot.out .used b { color: #e0705a; }
+.csh-sec { font-size: 11px; font-weight: 800; letter-spacing: .08em; padding: 8px 8px 2px; color: var(--h-soft); }
+.csh-sec.in { color: var(--h-g); } .csh-sec.out { color: #e0705a; } .csh-sec.upi { margin-top: 6px; }
+.csh-grp { display: grid; gap: 4px; }
+.csh-counts { display: grid; gap: 3px; margin-top: 8px; font-size: 12.5px; }
+.csh-counts > div { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--h-line); padding: 2px 0; }
+@media (max-width: 760px) {
+  .csh-sh { grid-template-columns: 1fr 1fr; }
+  .csh-sh.h { display: none; }
+  .csh-sh .nm { grid-column: 1 / -1; }
+  .csh-sh .app::before { content: "In app "; font-size: 11px; }
+  .csh-sh.tot span:empty { display: none; }
+}
+
+/* paper layout: cash in left, cash out right */
+.csh-paper { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 8px; }
+.csh-side { display: grid; gap: 4px; align-content: start; }
+.csh-pl { display: grid; grid-template-columns: 1fr 120px 90px; gap: 8px; align-items: center; padding: 5px 8px; border-radius: calc(10px * var(--ui-r, 1)); border: 1px solid var(--h-line); background: var(--h-card); }
+.csh-pl.typing { border-color: #e8cf8a; box-shadow: inset 3px 0 0 #e8cf8a; }
+.csh-pl .nm { display: grid; } .csh-pl .nm small { font-size: 11px; color: var(--h-soft); }
+.csh-pl input { width: 100%; min-width: 0; font-weight: 800; text-align: right; }
+.csh-pl .amt { text-align: right; font-variant-numeric: tabular-nums; font-size: 15px; }
+.csh-pl.tot { background: none; border: none; border-top: 1px solid var(--h-line); border-radius: 0; font-weight: 800; }
+.csh-side.in .csh-pl.tot .amt { color: var(--h-g); } .csh-side.out .csh-pl.tot .amt { color: #e0705a; }
+.csh-exp.full { grid-column: 1 / -1; }
+@media (max-width: 760px) { .csh-paper { grid-template-columns: 1fr; } .csh-pl { grid-template-columns: 1fr 100px 80px; } }
