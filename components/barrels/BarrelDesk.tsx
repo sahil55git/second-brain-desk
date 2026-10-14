@@ -25,7 +25,7 @@ import { api, kg, L, pad, rs, STATE_CHIP, when, type EventRow, type Lot } from "
 const PRODUCTS = ["Sunflower oil", "Rice bran oil", "Soyabean oil", "Groundnut oil", "Mustard oil", "Karadi (safflower) oil", "Goldrop"];
 const TANKS = ["Sunflower tank", "Karadi tank 1", "K2"];
 
-type View = { t: "home" } | { t: "register"; status?: "waiting" | "all" } | { t: "new" } | { t: "lot"; id: string } | { t: "barrel"; code: string; back: View };
+type View = { t: "home" } | { t: "entry" } | { t: "dashboard" } | { t: "register"; status?: "waiting" | "all" } | { t: "new" } | { t: "lot"; id: string } | { t: "barrel"; code: string; back: View };
 
 // ---------------------------------------------------------------------------
 // Page
@@ -78,7 +78,8 @@ export default function BarrelDesk() {
   const replaceLot = (l: Lot) => setLots((all) => (all.some((x) => x.id === l.id) ? all.map((x) => (x.id === l.id ? l : x)) : [l, ...all]));
   const current = view.t === "lot" ? lots.find((l) => l.id === view.id) : undefined;
   const home = () => { setView({ t: "home" }); load(); };
-  const tab = view.t === "register" ? "register" : view.t === "home" ? "home" : null;
+  const entry = () => { setView({ t: "entry" }); load(); };
+  const tab = view.t === "register" ? "register" : view.t === "home" ? "home" : view.t === "dashboard" ? "dashboard" : view.t === "entry" || view.t === "new" || view.t === "lot" ? "entry" : null;
 
   return (
     <div className="bd-wrap">
@@ -91,23 +92,31 @@ export default function BarrelDesk() {
             🛢️ <L en="Barrel receiving" kn="ಬ್ಯಾರಲ್ ಸ್ವೀಕಾರ" />
           </h1>
         </div>
-        {view.t === "home" && (
+        {view.t === "entry" && (
           <button className="bd-btn primary big" onClick={() => setView({ t: "new" })}>
             ➕ <L en="New lot" kn="ಹೊಸ ಲೋಡ್" />
           </button>
         )}
       </header>
 
-      {(tab || view.t === "barrel") && (
-        <div className="bd-steps bd-tabs bd-noprint" role="tablist">
-          <button role="tab" aria-selected={tab === "home"} className={tab === "home" ? "on" : ""} onClick={home}>
-            ⚖️ <L en="Weigh" kn="ತೂಕ" />
-          </button>
-          <button role="tab" aria-selected={tab === "register"} className={tab === "register" ? "on" : ""} onClick={() => setView({ t: "register" })}>
-            📒 <L en="Barrel register" kn="ಬ್ಯಾರಲ್ ದಾಖಲೆ" />
-          </button>
-        </div>
-      )}
+      <div className="bd-steps bd-tabs bd-noprint" role="tablist">
+        <button role="tab" aria-selected={tab === "entry"} className={tab === "entry" ? "on" : ""} onClick={entry}>
+          🛢️ <L en="Barrel entry" kn="ಬ್ಯಾರಲ್ ಎಂಟ್ರಿ" />
+          <small>new lot, barrel labels</small>
+        </button>
+        <button role="tab" aria-selected={tab === "home"} className={tab === "home" ? "on" : ""} onClick={home}>
+          ⚖️ <L en="Weigh" kn="ತೂಕ" />
+          <small>full &amp; empty weight</small>
+        </button>
+        <button role="tab" aria-selected={tab === "dashboard"} className={tab === "dashboard" ? "on" : ""} onClick={() => setView({ t: "dashboard" })}>
+          📊 <L en="Dashboard" kn="ಡ್ಯಾಶ್‌ಬೋರ್ಡ್" />
+          <small>totals, waiting, alerts</small>
+        </button>
+        <button role="tab" aria-selected={tab === "register"} className={tab === "register" ? "on" : ""} onClick={() => setView({ t: "register" })}>
+          📋 <L en="Report" kn="ವರದಿ" />
+          <small>every barrel, print / Excel</small>
+        </button>
+      </div>
 
       {err && <div className="bd-err">{err}</div>}
 
@@ -122,8 +131,20 @@ export default function BarrelDesk() {
             }}
             seeAll={() => setView({ t: "register", status: "waiting" })}
           />
-          <LotList lots={lots} loading={loading} isOwner={isOwner} showClosed={showClosed} setShowClosed={setShowClosed} open={(id) => setView({ t: "lot", id })} />
         </>
+      )}
+      {view.t === "entry" && (
+        <LotList lots={lots} loading={loading} isOwner={isOwner} showClosed={showClosed} setShowClosed={setShowClosed} open={(id) => setView({ t: "lot", id })} />
+      )}
+      {view.t === "dashboard" && (
+        <Dashboard
+          lots={lots}
+          isOwner={isOwner}
+          loading={loading}
+          weigh={(code) => { setPreset(code); setView({ t: "home" }); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          openLot={(id) => setView({ t: "lot", id })}
+          openReport={(status) => setView({ t: "register", status })}
+        />
       )}
       {view.t === "register" && <BarrelRegister key={view.status ?? "all"} initialStatus={view.status ?? "all"} open={(code) => setView({ t: "barrel", code, back: view })} />}
       {view.t === "barrel" && (
@@ -139,7 +160,7 @@ export default function BarrelDesk() {
       {view.t === "new" && (
         <NewLot
           isOwner={isOwner}
-          onCancel={() => setView({ t: "home" })}
+          onCancel={entry}
           onCreated={(l) => {
             replaceLot(l);
             setView({ t: "lot", id: l.id });
@@ -152,16 +173,100 @@ export default function BarrelDesk() {
           lots={lots}
           isOwner={isOwner}
           onChange={replaceLot}
-          onBack={home}
+          onBack={entry}
           openBarrel={(code) => setView({ t: "barrel", code, back: { t: "lot", id: current.id } })}
         />
       )}
       {view.t === "lot" && !current && !loading && (
         <div className="bd-card">
-          That lot is not in the list (it may be closed). <button className="bd-linkbtn" onClick={() => setView({ t: "home" })}>Back</button>
+          That lot is not in the list (it may be closed). <button className="bd-linkbtn" onClick={entry}>Back</button>
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard — the whole barrel position on one screen
+// ---------------------------------------------------------------------------
+function Dashboard({
+  lots,
+  isOwner,
+  loading,
+  weigh,
+  openLot,
+  openReport,
+}: {
+  lots: Lot[];
+  isOwner: boolean;
+  loading: boolean;
+  weigh: (code: string) => void;
+  openLot: (id: string) => void;
+  openReport: (status: "waiting" | "all") => void;
+}) {
+  const open = lots.filter((l) => l.status === "OPEN");
+  const rows = useMemo(() => registerRows(open as unknown as ShapedReceipt[], Date.now()), [open]);
+  const t = registerTotals(rows);
+  const notWeighed = rows.filter((r) => r.state === "NEW").length;
+  const flags = open.flatMap((l) => l.summary.flags.map((f) => ({ ...f, lotNo: l.lotNo, lotId: l.id }))).sort((a, b) => (a.level === b.level ? 0 : a.level === "alert" ? -1 : 1));
+  return (
+    <>
+      <div className="bd-card">
+        <h3>
+          📊 <L en="Barrel dashboard" kn="ಬ್ಯಾರಲ್ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್" /> <span className="bd-m small">· open lots only</span>
+        </h3>
+        {loading && <div className="bd-m">Loading…</div>}
+        <div className="bd-kpis">
+          <div className="bd-kpi"><div className="l">Open lots</div><div className="v">{open.length}</div></div>
+          <div className="bd-kpi"><div className="l">Barrels</div><div className="v">{t.barrels}</div><div className="s">{notWeighed} not weighed yet</div></div>
+          <div className="bd-kpi o"><div className="l">Waiting to empty</div><div className="v">{t.waiting}</div><div className="s">{t.waitingOldestDays != null ? `oldest ${t.waitingOldestDays} day(s)` : "none waiting"}</div></div>
+          <div className="bd-kpi g"><div className="l">Emptied &amp; weighed</div><div className="v">{t.emptied}</div></div>
+          <div className="bd-kpi g"><div className="l">Oil received (net)</div><div className="v">{kg(t.netKg)} kg</div><div className="s">full − empty, finished barrels</div></div>
+          {t.waitingEstKg > 0 && <div className="bd-kpi"><div className="l">Still inside waiting barrels</div><div className="v">≈ {kg(t.waitingEstKg)} kg</div><div className="s">estimate</div></div>}
+        </div>
+        <div className="bd-row">
+          <button className="bd-btn" onClick={() => openReport("waiting")}>Waiting barrels in the report →</button>
+          <button className="bd-btn" onClick={() => openReport("all")}>Full report →</button>
+        </div>
+      </div>
+
+      {isOwner && flags.length > 0 && (
+        <div className="bd-card">
+          <h3>⚠️ <L en="Needs a look" kn="ಗಮನಿಸಿ" /></h3>
+          <ul className="bd-flags">
+            {flags.map((f, i) => (
+              <li key={i} className={f.level}>
+                {f.level === "alert" ? "🚨" : "⚠️"} <b>{f.lotNo}</b> — {f.msg}{" "}
+                <button className="bd-linkbtn" onClick={() => openLot(f.lotId)}>open</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <Waiting lots={lots} weigh={weigh} seeAll={() => openReport("waiting")} />
+
+      {open.length > 0 && (
+        <div className="bd-card">
+          <h3>🛢️ <L en="Lot progress" kn="ಲೋಡ್ ಪ್ರಗತಿ" /></h3>
+          {open.map((l) => {
+            const s = l.summary;
+            const n = s.barrels || 1;
+            return (
+              <button key={l.id} className="bd-lot" onClick={() => openLot(l.id)}>
+                <div className="bd-lot-top"><b>{l.lotNo}</b></div>
+                <div className="bd-lot-mid">{l.supplierName} · {l.product}</div>
+                <div className="bd-bar" aria-hidden>
+                  <i className="full" style={{ width: `${(s.fullWeighed / n) * 100}%` }} />
+                  <i className="done" style={{ width: `${(s.done / n) * 100}%` }} />
+                </div>
+                <div className="bd-m small">{s.fullWeighed}/{s.barrels} weighed full · {s.done}/{s.barrels} emptied &amp; weighed</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </>
   );
 }
 
