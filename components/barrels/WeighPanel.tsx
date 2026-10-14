@@ -21,6 +21,14 @@ interface Saved {
   slipCode?: string;
 }
 
+const MANUAL_REASONS = ["Scale not working", "Weighed at the weighbridge", "Other"];
+
+/** "191.300" or "191,3" → number (0 when empty / not a number). */
+const toNum = (v: string) => {
+  const n = Number(v.trim().replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+};
+
 /** `datetime-local` value for "now" in the browser's clock. */
 function localNow(): string {
   const d = new Date();
@@ -51,6 +59,7 @@ export default function WeighPanel({
   const [manual, setManual] = useState(false);
   const [manualKg, setManualKg] = useState("");
   const [manualWhy, setManualWhy] = useState("");
+  const [manualReason, setManualReason] = useState(MANUAL_REASONS[0]);
   const [manualAt, setManualAt] = useState(localNow());
   const [reweigh, setReweigh] = useState(false);
   const [why, setWhy] = useState("");
@@ -122,6 +131,34 @@ export default function WeighPanel({
     return null;
   }, [target, targetLot, phase, reweigh, isOwner]);
 
+  const manualNote = manualReason === "Other" ? manualWhy.trim() : manualReason;
+
+  // Barrels that can take this weight right now — so a weight can be typed without scanning.
+  const pickList = useMemo(() => {
+    const out: { code: string; text: string }[] = [];
+    for (const l of hintLot ? [hintLot] : lots) {
+      if (l.status === "CLOSED") continue;
+      for (const b of l.barrels) {
+        const needs = phase === "GROSS" ? b.grossKg == null : b.grossKg != null && b.emptyKg == null;
+        if (needs) out.push({ code: b.code, text: `Barrel ${pad(b.seq)} · ${l.supplierName} · ${l.product} · ${l.lotNo}` });
+      }
+    }
+    return out;
+  }, [lots, hintLot, phase]);
+
+  // Why the "Enter weight" button cannot save yet — shown in words, never a silent grey button.
+  const manualBlock = !target
+    ? "First choose the barrel: scan it, type its label, or pick it from the list."
+    : problem
+      ? problem
+      : !(toNum(manualKg) > 0)
+        ? "Type the weight in kg in the big box."
+        : manualNote.length < 3
+          ? "Write the reason."
+          : !manualAt
+            ? "Set the date and time of weighing."
+            : null;
+
   const save = async (viaManual: boolean) => {
     if (!target || !targetLot) return;
     setBusy(true);
@@ -134,9 +171,9 @@ export default function WeighPanel({
           phase,
           source: viaManual ? "MANUAL" : "SCALE",
           tickId: viaManual ? undefined : usable?.id,
-          kg: viaManual ? Number(manualKg) : undefined,
+          kg: viaManual ? toNum(manualKg) : undefined,
           weighedAt: viaManual && manualAt ? new Date(manualAt).toISOString() : undefined,
-          note: viaManual ? manualWhy : reweigh ? why : undefined,
+          note: viaManual ? manualNote : reweigh ? why : undefined,
           reweigh,
         },
       });
@@ -153,6 +190,7 @@ export default function WeighPanel({
       setCodeText("");
       setManualKg("");
       setManualWhy("");
+      setManualReason(MANUAL_REASONS[0]);
       setManualAt(localNow());
       setWhy("");
       setReweigh(false);
@@ -262,6 +300,71 @@ export default function WeighPanel({
         <div className="bd-m small">No reading has come from the scale in the last 15 minutes. Check that the scale bridge is running on the shop PC (see docs/BARREL-RECEIVING.md).</div>
       )}
 
+      <div className="bd-manual">
+        <button className={`bd-btn ${manual ? "" : "big"}`} onClick={() => setManual((v) => !v)}>
+          ✍️ {manual ? "Close" : <L en="Enter weight by hand" kn="ತೂಕವನ್ನು ಕೈಯಿಂದ ಬರೆಯಿರಿ" />}
+        </button>
+        {manual && (
+          <div className="bd-mbox">
+            <div className="bd-mstep">
+              <b>1 · Barrel</b>
+              {target ? (
+                <span>
+                  Barrel {pad(target.seq)} · {target.code}
+                </span>
+              ) : (
+                <select className="bd-pick" value="" onChange={(e) => { setCodeText(e.target.value); setMsg(null); }} aria-label="Choose barrel">
+                  <option value="">{pickList.length ? "— choose the barrel —" : "No barrel is waiting for this weight"}</option>
+                  {pickList.map((o) => (
+                    <option key={o.code} value={o.code}>
+                      {o.text}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {target && (
+                <button className="bd-linkbtn" onClick={() => setCodeText("")}>
+                  change
+                </button>
+              )}
+            </div>
+            <div className="bd-mstep">
+              <b>2 · {phase === "GROSS" ? "Full barrel weight (oil + barrel)" : "Empty barrel weight"}</b>
+              <div className="bd-mkg">
+                <input
+                  className="bd-mkg-in"
+                  inputMode="decimal"
+                  placeholder="0.000"
+                  value={manualKg}
+                  onChange={(e) => setManualKg(e.target.value)}
+                  aria-label="Weight in kg"
+                />
+                <span>kg</span>
+              </div>
+            </div>
+            <div className="bd-mstep">
+              <b>3 · Weighed on</b>
+              <input type="datetime-local" className="bd-dt" value={manualAt} max={localNow()} onChange={(e) => setManualAt(e.target.value)} aria-label="Date and time of weighing" />
+            </div>
+            <div className="bd-mstep">
+              <b>4 · Reason</b>
+              <select value={manualReason} onChange={(e) => setManualReason(e.target.value)} aria-label="Reason for typing the weight">
+                {MANUAL_REASONS.map((r) => (
+                  <option key={r}>{r}</option>
+                ))}
+              </select>
+              {manualReason === "Other" && <input className="bd-why" placeholder="Write the reason" value={manualWhy} onChange={(e) => setManualWhy(e.target.value)} />}
+            </div>
+            <button className="bd-btn primary huge" disabled={busy} onClick={() => (manualBlock ? setMsg({ ok: false, text: manualBlock }) : save(true))}>
+              ✅ <L en={`Enter ${phase === "GROSS" ? "full" : "empty"} weight`} kn="ತೂಕ ದಾಖಲಿಸಿ" />
+              {toNum(manualKg) > 0 ? ` — ${kg(toNum(manualKg))} kg` : ""}
+            </button>
+            {manualBlock && <div className="bd-m small">{manualBlock}</div>}
+            <div className="bd-m small">A typed weight is marked “typed” in the record with your name and the time, and the owner sees a flag.</div>
+          </div>
+        )}
+      </div>
+
       {msg && (
         <div className={msg.ok ? "bd-ok" : "bd-err"}>
           {msg.text}
@@ -275,30 +378,6 @@ export default function WeighPanel({
           )}
         </div>
       )}
-
-      <div className="bd-manual">
-        <button className="bd-linkbtn" onClick={() => setManual((v) => !v)}>
-          {manual ? "Hide" : "Scale not working? Type the weight"}
-        </button>
-        {manual && (
-          <>
-            <div className="bd-row">
-              <input className="bd-n" inputMode="decimal" placeholder="kg" value={manualKg} onChange={(e) => setManualKg(e.target.value)} aria-label="Weight in kg" />
-              <label className="bd-inline small">
-                Weighed on
-                <input type="datetime-local" className="bd-dt" value={manualAt} max={localNow()} onChange={(e) => setManualAt(e.target.value)} aria-label="Date and time of weighing" />
-              </label>
-            </div>
-            <div className="bd-row">
-              <input className="bd-why" placeholder="Why? (required — e.g. scale not working, weighed at weighbridge)" value={manualWhy} onChange={(e) => setManualWhy(e.target.value)} />
-              <button className="bd-btn" disabled={busy || !target || !!problem || !Number(manualKg) || manualWhy.trim().length < 3 || !manualAt} onClick={() => save(true)}>
-                Save typed weight
-              </button>
-            </div>
-            <div className="bd-m small">A typed weight is marked in the record, the owner is shown a warning, and the real time it was saved is kept next to the time you enter.</div>
-          </>
-        )}
-      </div>
 
       {scanning && (
         <BarcodeScanner

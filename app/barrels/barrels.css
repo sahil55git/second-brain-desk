@@ -228,3 +228,12 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
 }
 
 .bd-labelpage input { border: 1px solid #c9cfcc; border-radius: 6px; padding: 4px 6px; background: #fff; color: #111; }
+
+/* typed weight — numbered steps, big weight box */
+.bd-mbox { margin-top: 10px; border: 2px solid var(--bd-acc); border-radius: 14px; padding: 12px; display: grid; gap: 12px; }
+.bd-mstep { display: grid; gap: 6px; font-size: 14px; }
+.bd-pick { width: 100%; font-size: 16px; }
+.bd-mkg { display: flex; align-items: center; gap: 8px; }
+.bd-mkg span { font-size: 22px; font-weight: 800; }
+.bd-wrap .bd-mkg-in { flex: 1; font-size: 34px; font-weight: 900; padding: 12px; font-variant-numeric: tabular-nums; }
+.bd-steps.bd-tabs { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
