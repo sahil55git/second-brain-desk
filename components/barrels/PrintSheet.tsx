@@ -17,6 +17,7 @@ export default function PrintSheet() {
   const sp = useSearchParams();
   const slip = sp.get("slip");
   const slips = sp.get("slips");
+  const only = sp.get("phase") === "GROSS" ? "GROSS" : sp.get("phase") === "EMPTY" ? "EMPTY" : null;
   const report = sp.get("report");
   const [size, setSizeState] = useState<PaperSize>(slipSize(sp.get("size")));
   const [saved, save] = useSavedPrint();
@@ -74,7 +75,7 @@ export default function PrintSheet() {
   return (
     <div className="bd-printpage">
       <div className="bd-noprint bd-labelbar">
-        <b>{isReport ? "📄 Lot weighment report" : "🧾 Weighment slip"}</b>
+        <b>{isReport ? "📄 Lot weighment report" : only === "GROSS" ? "🧾 Full-weight receipt" : only === "EMPTY" ? "🧾 Empty-weight receipt" : "🧾 Weighment slip"}</b>
         {!isReport && <SizePicker options={SLIP_SIZES} value={size} onPick={setSize} roll />}
         <div className="bd-row">
           <button className="bd-btn primary" onClick={() => window.print()}>🖨️ Print</button>
@@ -90,7 +91,7 @@ export default function PrintSheet() {
       ) : (
         <div className={`bd-slips ${size.cls}${size.cls === "gen" ? `${lay.short ? " short" : ""}${lay.fixed ? " fixed" : ""}` : ""}`} style={vars}>
           {rows.map((r) => (
-            <Slip key={r.code} r={r} origin={origin} printedAt={printedAt} />
+            <Slip key={r.code} r={r} origin={origin} printedAt={printedAt} only={only} />
           ))}
         </div>
       )}
@@ -98,13 +99,13 @@ export default function PrintSheet() {
   );
 }
 
-function Slip({ r, origin, printedAt }: { r: RegisterRow; origin: string; printedAt: string }) {
-  const both = r.grossKg != null && r.emptyKg != null;
+function Slip({ r, origin, printedAt, only }: { r: RegisterRow; origin: string; printedAt: string; only?: "GROSS" | "EMPTY" | null }) {
+  const both = r.grossKg != null && r.emptyKg != null && !only;
   return (
     <div className="bd-slip">
       <div className="bd-sh">
         <b>{COMPANY}</b>
-        <span>Barrel weighment slip</span>
+        <span>{only === "GROSS" ? "Full barrel weight receipt" : only === "EMPTY" ? "Empty barrel weight receipt" : "Barrel weighment slip"}</span>
       </div>
       <div className="bd-scodes">
         <Barcode value={r.code} moduleWidth={2} height={70} />
@@ -124,30 +125,30 @@ function Slip({ r, origin, printedAt }: { r: RegisterRow; origin: string; printe
       </table>
       <table className="bd-sw">
         <tbody>
-          <tr>
+          {only !== "EMPTY" && <tr>
             <td>
               <b>Gross</b>
               <small>oil + barrel</small>
             </td>
             <td className="n">{kg1(r.grossKg)} kg</td>
-          </tr>
-          <tr className="sub">
+          </tr>}
+          {only !== "EMPTY" && <tr className="sub">
             <td colSpan={2}>{r.grossAt ? `${whenFull(r.grossAt)} · ${r.grossSource === "MANUAL" ? "typed by hand" : r.grossScale || "scale"}${r.grossBy ? ` · ${r.grossBy}` : ""}` : "not yet weighed"}</td>
-          </tr>
-          <tr>
+          </tr>}
+          {only !== "GROSS" && <tr>
             <td>
               <b>Tare</b>
               <small>empty barrel</small>
             </td>
             <td className="n">{kg1(r.emptyKg)} kg</td>
-          </tr>
-          <tr className="sub">
+          </tr>}
+          {only !== "GROSS" && <tr className="sub">
             <td colSpan={2}>{r.emptyAt ? `${whenFull(r.emptyAt)} · ${r.emptySource === "MANUAL" ? "typed by hand" : r.emptyScale || "scale"}${r.emptyBy ? ` · ${r.emptyBy}` : ""}` : r.grossAt ? `pending — full for ${r.waitingDays ?? 0} day(s); scan again when emptied` : "pending"}</td>
-          </tr>
-          <tr className="net">
+          </tr>}
+          {!only && <tr className="net">
             <td><b>NET OIL</b></td>
             <td className="n">{both ? `${kg1(r.netKg)} kg` : "—"}</td>
-          </tr>
+          </tr>}
         </tbody>
       </table>
       {both && <div className="bd-seq">{kg1(r.grossKg)} − {kg1(r.emptyKg)} = {kg1(r.netKg)} kg</div>}

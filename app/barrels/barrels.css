@@ -321,3 +321,9 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
 .bd-label.wt .bd-lband.sum b { font-size: 9.5pt; }
 .bd-label.wt .bd-lband.sum small { flex-basis: 100%; text-align: center; display: block; font-size: 5pt; }
 .bd-labels.gen .bd-label.wt .bd-lband.sum { font-size: calc(var(--sc) * 5.5pt); } .bd-labels.gen .bd-label.wt .bd-lband.sum b { font-size: calc(var(--sc) * 9pt); } .bd-labels.gen .bd-label.wt .bd-lband.sum small { font-size: calc(var(--sc) * 4.5pt); }
+
+/* per-barrel Label / Receipt buttons under a weight cell */
+.bd-rowact { display: flex; gap: 4px; justify-content: flex-end; flex-wrap: wrap; margin-top: 4px; }
+.bd-pbtn { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 9px; border: 1px solid #7f98ff; border-radius: 999px; color: #c9d5ff; text-decoration: none; white-space: nowrap; background: rgba(91,123,255,.1); }
+.bd-pbtn:hover { background: rgba(91,123,255,.25); }
+.bd-pbtn.off { opacity: .4; border-style: dashed; cursor: not-allowed; }
