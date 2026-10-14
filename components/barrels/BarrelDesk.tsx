@@ -18,6 +18,7 @@ import { findBarrelCode, registerRows, registerTotals, type Flag, type ShapedRec
 import BarrelCard from "@/components/barrels/BarrelCard";
 import BarrelRegister from "@/components/barrels/BarrelRegister";
 import WeighPanel from "@/components/barrels/WeighPanel";
+import RowPrint from "@/components/barrels/RowPrint";
 import WeightCell from "@/components/barrels/WeightCell";
 import { preparePhoto, stampLines, uploadProof } from "@/lib/proofClient";
 import { businessDate } from "@/lib/register";
@@ -687,9 +688,9 @@ function LotView({
                           {kg(b.grossKg)}
                           {b.grossSource === "MANUAL" && isOwner && <span title={b.grossNote || "typed"}> ✋</span>}
                           <div className="bd-m tiny">{when(b.grossAt)}</div>
-                          {b.grossKg != null && <a className="bd-linkbtn tiny" href={`/barrels/labels?lot=${lotQ}&seq=${b.seq}&type=full`} target="_blank" rel="noreferrer">🏷️ label</a>}
                         </>
                       )}
+                      <RowPrint lotQ={lotQ} seq={b.seq} code={b.code} phase="GROSS" done={b.grossKg != null} />
                     </td>
                     <td className="num">
                       {b.grossKg != null && b.emptyKg == null && !closed ? (
@@ -699,9 +700,9 @@ function LotView({
                           {kg(b.emptyKg)}
                           {b.emptySource === "MANUAL" && isOwner && <span title={b.emptyNote || "typed"}> ✋</span>}
                           <div className="bd-m tiny">{when(b.emptyAt)}</div>
-                          {b.emptyKg != null && <a className="bd-linkbtn tiny" href={`/barrels/labels?lot=${lotQ}&seq=${b.seq}&type=empty`} target="_blank" rel="noreferrer">🏷️ label</a>}
                         </>
                       )}
+                      <RowPrint lotQ={lotQ} seq={b.seq} code={b.code} phase="EMPTY" done={b.emptyKg != null} />
                     </td>
                     <td className="num"><b>{kg(b.net)}</b>{b.net != null && <div><a className="bd-linkbtn tiny" href={`/barrels/labels?lot=${lotQ}&seq=${b.seq}&type=sum`} target="_blank" rel="noreferrer">🏷️ all-in-one label</a></div>}</td>
                     {isOwner && (

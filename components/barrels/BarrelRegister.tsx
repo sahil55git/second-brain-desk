@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { registerCsv, type RegisterRow, type RegisterTotals } from "@/lib/barrels";
 import { api, BARREL_CHIP, kg, kg1, L, when } from "@/components/barrels/shared";
 import { businessDate } from "@/lib/register";
+import RowPrint from "@/components/barrels/RowPrint";
 import WeightCell from "@/components/barrels/WeightCell";
 
 type Status = "all" | "waiting" | "done" | "new";
@@ -167,9 +168,9 @@ export default function BarrelRegister({ initialStatus = "all", open }: { initia
                             {kg1(r.grossKg)}
                             {r.grossSource === "MANUAL" && isOwner && <span title={r.grossNote || "typed"}> ✋</span>}
                             <div className="bd-m tiny">{when(r.grossAt)}</div>
-                            {r.grossKg != null && <a className="bd-linkbtn tiny bd-noprint" href={`/barrels/labels?lot=${encodeURIComponent(r.lotNo)}&seq=${r.seq}&type=full`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>🏷️ label</a>}
                           </>
                         )}
+                        <RowPrint className="bd-noprint" lotQ={encodeURIComponent(r.lotNo)} seq={r.seq} code={r.code} phase="GROSS" done={r.grossKg != null} />
                       </td>
                       <td className="num">
                         {r.grossKg != null && r.emptyKg == null && r.lotStatus === "OPEN" ? (
@@ -179,9 +180,9 @@ export default function BarrelRegister({ initialStatus = "all", open }: { initia
                             {kg1(r.emptyKg)}
                             {r.emptySource === "MANUAL" && isOwner && <span title={r.emptyNote || "typed"}> ✋</span>}
                             <div className="bd-m tiny">{when(r.emptyAt)}</div>
-                            {r.emptyKg != null && <a className="bd-linkbtn tiny bd-noprint" href={`/barrels/labels?lot=${encodeURIComponent(r.lotNo)}&seq=${r.seq}&type=empty`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>🏷️ label</a>}
                           </>
                         )}
+                        <RowPrint className="bd-noprint" lotQ={encodeURIComponent(r.lotNo)} seq={r.seq} code={r.code} phase="EMPTY" done={r.emptyKg != null} />
                       </td>
                       <td className="num">
                         <b>{r.state === "DONE" ? kg1(r.netKg) : r.estNetKg != null ? `≈ ${kg1(r.estNetKg)}` : "—"}</b>{r.state === "DONE" && <a className="bd-linkbtn tiny bd-noprint" style={{ display: "block" }} href={`/barrels/labels?lot=${encodeURIComponent(r.lotNo)}&seq=${r.seq}&type=sum`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>🏷️ all-in-one label</a>}
