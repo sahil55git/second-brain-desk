@@ -4,6 +4,8 @@ import {
   BARREL_DEFAULTS,
   allowedDiffKg,
   barrelCode,
+  barrelLink,
+  findBarrelCode,
   barrelFlags,
   barrelNet,
   barrelState,
@@ -269,5 +271,51 @@ describe("barrel register", () => {
     expect(csv).not.toContain("Supplier kg");
     expect(csv.split("\r\n")[1]).toContain("180");
     expect(registerCsv(rows, true)).toContain("Supplier kg");
+  });
+});
+
+
+describe("FULL / EMPTY weight labels", () => {
+  it("reads the -F / -E tail as the weighing step and keeps the plain code", () => {
+    expect(parseBarrelCode("R261013-1-01-F")).toMatchObject({ code: "R261013-1-01", phase: "GROSS" });
+    expect(parseBarrelCode("r261013-1-02-e")).toMatchObject({ code: "R261013-1-02", phase: "EMPTY" });
+    expect(parseBarrelCode("R261013-1-01")?.phase).toBeUndefined();
+    expect(parseBarrelCode("R261013-1-01-X")).toBeNull();
+  });
+  it("reads the phase from a QR link", () => {
+    expect(findBarrelCode("https://x.app/barrels?barrel=R261013-1-03&phase=EMPTY")).toMatchObject({ code: "R261013-1-03", phase: "EMPTY" });
+    expect(findBarrelCode("https://x.app/barrels?barrel=R261013-1-03")?.phase).toBeUndefined();
+    expect(barrelLink("https://x.app/", "R261013-1-03", "GROSS")).toBe("https://x.app/barrels?barrel=R261013-1-03&phase=GROSS");
+  });
+});
+
+import { labelSize, slipSize, customSize, pageCss, labelLayout, LABEL_SIZES, SLIP_SIZES } from "../printSizes";
+describe("print sizes", () => {
+  it("offers the common sticker and receipt sizes", () => {
+    const ids = LABEL_SIZES.map((s) => s.id);
+    expect(ids).toEqual(expect.arrayContaining(["4x6", "2x2", "50x30", "50x25", "50x75", "75x50", "100x50", "a4"]));
+    expect(SLIP_SIZES.map((s) => s.id)).toEqual(expect.arrayContaining(["80mm", "58mm", "50mm", "4x6", "2x2", "a4"]));
+    expect(pageCss(labelSize("4x6"), "label")).toBe("@page { size: 101.6mm 152.4mm; margin: 0 }");
+    expect(pageCss(labelSize("50x25"), "label")).toBe("@page { size: 50mm 25mm; margin: 0 }");
+    expect(pageCss(slipSize("58mm"), "slip")).toBe("@page { size: 58mm auto; margin: 2mm }");
+  });
+  it("keeps the old thermal links working and falls back safely", () => {
+    expect(labelSize("thermal").id).toBe("50x30");
+    expect(slipSize("thermal").id).toBe("80mm");
+    expect(labelSize("nonsense").id).toBe("a4");
+    expect(slipSize(null).id).toBe("80mm");
+  });
+  it("accepts a typed size in mm and rejects silly ones", () => {
+    expect(labelSize("c60x40")).toMatchObject({ w: 60, h: 40, custom: true });
+    expect(customSize(60, 40)?.id).toBe("c60x40");
+    expect(customSize(5, 40)).toBeNull();
+    expect(customSize(60, "")).toBeNull();
+    expect(customSize(58, "", true)).toMatchObject({ w: 58, h: null });
+    expect(slipSize("c58x0")).toMatchObject({ w: 58, h: null });
+  });
+  it("uses the compact layout for labels under 38 mm tall", () => {
+    expect(labelLayout(labelSize("50x25")).compact).toBe(true);
+    expect(labelLayout(labelSize("50x75")).compact).toBe(false);
+    expect(labelLayout(labelSize("4x6")).roomy).toBe(true);
   });
 });

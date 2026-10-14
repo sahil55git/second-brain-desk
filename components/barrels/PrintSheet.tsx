@@ -2,6 +2,8 @@
 
 // Printable weighment slip (per barrel) and lot weighment report.
 // Every slip carries a Code 128 barcode (scanner guns) and a QR code (any phone camera).
+import { SLIP_SIZES, pageCss, slipLayout, slipSize, type PaperSize } from "@/lib/printSizes";
+import { PrinterPanel, SizePicker, useSavedPrint } from "@/components/barrels/PrintKit";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { barrelLink, registerRows, type RegisterRow, type ShapedReceipt } from "@/lib/barrels";
@@ -16,7 +18,18 @@ export default function PrintSheet() {
   const slip = sp.get("slip");
   const slips = sp.get("slips");
   const report = sp.get("report");
-  const [size, setSize] = useState<"thermal" | "a4">(sp.get("size") === "a4" ? "a4" : "thermal");
+  const [size, setSizeState] = useState<PaperSize>(slipSize(sp.get("size")));
+  const [saved, save] = useSavedPrint();
+  const setSize = (x: PaperSize) => {
+    setSizeState(x);
+    save({ slip: x.id });
+  };
+  useEffect(() => {
+    if (!sp.get("size") && saved.slip) setSizeState(slipSize(saved.slip));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saved.slip]);
+  const lay = slipLayout(size);
+  const vars = { "--sw": lay.inner, "--ss": lay.ss, "--sh": size.h ?? 0 } as React.CSSProperties;
   const [rows, setRows] = useState<RegisterRow[] | null>(null);
   const [lot, setLot] = useState<Lot | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -50,7 +63,7 @@ export default function PrintSheet() {
   const isReport = !!report;
   useEffect(() => {
     const style = document.createElement("style");
-    style.textContent = isReport ? "@page { size: A4; margin: 12mm }" : size === "thermal" ? "@page { size: 80mm auto; margin: 3mm }" : "@page { size: A4; margin: 10mm }";
+    style.textContent = isReport ? "@page { size: A4; margin: 12mm }" : pageCss(size, "slip");
     document.head.appendChild(style);
     return () => style.remove();
   }, [size, isReport]);
@@ -62,15 +75,11 @@ export default function PrintSheet() {
     <div className="bd-printpage">
       <div className="bd-noprint bd-labelbar">
         <b>{isReport ? "📄 Lot weighment report" : "🧾 Weighment slip"}</b>
+        {!isReport && <SizePicker options={SLIP_SIZES} value={size} onPick={setSize} roll />}
         <div className="bd-row">
-          {!isReport && (
-            <>
-              <button className={`bd-chip${size === "thermal" ? " on" : ""}`} onClick={() => setSize("thermal")}>Thermal roll 80 mm</button>
-              <button className={`bd-chip${size === "a4" ? " on" : ""}`} onClick={() => setSize("a4")}>A4 paper</button>
-            </>
-          )}
           <button className="bd-btn primary" onClick={() => window.print()}>🖨️ Print</button>
         </div>
+        {!isReport && <PrinterPanel size={size} kind="slip" saved={saved} onSave={save} />}
         <div className="bd-m small">
           {isReport ? "Print on A4. Keep with the supplier's challan." : "Print after the full weighing and again after the empty weighing — the second slip shows gross − tare = net."}
         </div>
@@ -79,7 +88,7 @@ export default function PrintSheet() {
       {isReport && lot ? (
         <Report lot={lot} rows={rows} origin={origin} printedAt={printedAt} />
       ) : (
-        <div className={`bd-slips ${size}`}>
+        <div className={`bd-slips ${size.cls}${size.cls === "gen" ? `${lay.short ? " short" : ""}${lay.fixed ? " fixed" : ""}` : ""}`} style={vars}>
           {rows.map((r) => (
             <Slip key={r.code} r={r} origin={origin} printedAt={printedAt} />
           ))}

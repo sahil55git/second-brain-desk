@@ -250,3 +250,67 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
 .bd-flow small { font-size: 12px; color: var(--bd-soft); line-height: 1.3; } .bd-flow em { font-style: normal; font-weight: 800; font-size: 13px; margin-top: auto; }
 .bd-flow .hr { position: absolute; top: -9px; right: 8px; background: var(--bd-acc); color: #fff; font-size: 11px; font-weight: 800; border-radius: 99px; padding: 1px 8px; }
 @media (max-width: 760px) { .bd-flow { grid-template-columns: 1fr; } .bd-flow li button { flex-direction: row; flex-wrap: wrap; align-items: center; } .bd-flow small { flex-basis: 100%; } .bd-flow em { margin-top: 0; } }
+
+/* weights typed in table columns */
+.bd-wcell { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; justify-content: flex-end; max-width: 150px; }
+.bd-wcell input { width: 78px; padding: 6px; }
+.bd-wcell .bd-btn { padding: 6px 10px; }
+/* FULL / EMPTY weight labels */
+.bd-label.wt .bd-lband { width: 100%; background: #000; color: #fff; font-size: 8.5pt; font-weight: 800; text-align: center; padding: .4mm 1mm; letter-spacing: .3px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.bd-label.wt .bd-lband b { font-size: 10pt; } .bd-label.wt .bd-lband small { font-weight: 500; font-size: 6.5pt; }
+.bd-labels.thermal .bd-lband { font-size: 7pt; } .bd-labels.thermal .bd-lband b { font-size: 8.5pt; }
+.bd-label.wt .bd-lhead { display: none; }
+.bd-label.wt .bd-lband { white-space: nowrap; }
+.bd-label.wt .bd-lband small { font-size: 6pt; }
+.bd-label.wt .bd-ltext .bd-lline.small:last-child { display: none; }
+
+/* ---- any sticker / receipt size (sizes come from inline CSS variables) ---- */
+.bd-labels.gen { grid-template-columns: calc(var(--lw) * 1mm); justify-content: center; }
+.bd-labels.gen .bd-label { width: calc(var(--lw) * 1mm); height: calc(var(--lh) * 1mm); padding: calc(var(--sc) * 2mm); break-after: page; }
+.bd-labels.gen .bd-lhead, .bd-labels.gen .bd-lline { font-size: calc(var(--sc) * 6pt); } .bd-labels.gen .bd-lhead b { font-size: calc(var(--sc) * 6.5pt); }
+.bd-labels.gen .bd-lline.small { font-size: calc(var(--sc) * 5.5pt); } .bd-labels.gen .bd-lcode { font-size: calc(var(--sc) * 7.5pt); }
+.bd-labels.gen .bd-lbar.fill { height: calc(var(--barh) * 1mm); }
+.bd-labels.gen .bd-lqr svg { width: calc(var(--qr) * 1mm) !important; height: calc(var(--qr) * 1mm) !important; }
+.bd-labels.gen .bd-lband { font-size: calc(var(--sc) * 7pt); padding: calc(var(--sc) * .4mm) calc(var(--sc) * 1mm); } .bd-labels.gen .bd-lband b { font-size: calc(var(--sc) * 9pt); } .bd-labels.gen .bd-lband small { font-size: calc(var(--sc) * 5pt); }
+.bd-labels.gen .bd-label.wt .bd-lhead { display: none; }
+.bd-labels.gen.roomy .bd-label.wt .bd-lhead { display: flex; } .bd-labels.gen.roomy .bd-label.wt .bd-ltext .bd-lline.small:last-child { display: flex; }
+/* short labels (under 38 mm tall): barcode and text on the left, QR on the right */
+.bd-labels.gen.compact .bd-label { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "band band" "bar qr" "txt qr"; align-content: stretch; gap: calc(var(--sc) * .6mm) calc(var(--sc) * 1.5mm); }
+.bd-labels.gen.compact .bd-lhead { display: none; } .bd-labels.gen.compact .bd-lbottom { display: contents; }
+.bd-labels.gen.compact .bd-lband { grid-area: band; } .bd-labels.gen.compact .bd-lbar { grid-area: bar; align-self: center; }
+.bd-labels.gen.compact .bd-ltext { grid-area: txt; } .bd-labels.gen.compact .bd-ltext .bd-lline { display: none; } .bd-labels.gen.compact .bd-ltext .bd-lcode { display: block; }
+.bd-labels.gen.compact .bd-lqr { grid-area: qr; align-self: center; }
+.bd-labels.gen.compact .bd-label:not(.wt) .bd-lband { display: none; }
+.bd-test { border: 2px solid #000 !important; }
+.bd-testmark { font: 700 calc(var(--sc) * 7pt) Arial, sans-serif; text-align: center; line-height: 1.2; }
+/* slips */
+.bd-slips.gen .bd-slip { width: calc(var(--sw) * 1mm); padding: calc(var(--ss) * 3mm); font-size: calc(var(--ss) * 9.5pt); break-after: page; }
+.bd-slips.gen .bd-sh b { font-size: calc(var(--ss) * 11pt); } .bd-slips.gen .bd-sh span { font-size: calc(var(--ss) * 8.5pt); }
+.bd-slips.gen .bd-sqr svg { width: calc(var(--ss) * 19mm) !important; height: calc(var(--ss) * 19mm) !important; } .bd-slips.gen .bd-sbig { font-size: calc(var(--ss) * 13pt); }
+.bd-slips.gen .bd-sinfo { font-size: calc(var(--ss) * 9pt); } .bd-slips.gen .bd-sinfo td:first-child { width: calc(var(--ss) * 20mm); }
+.bd-slips.gen .bd-sw .n { font-size: calc(var(--ss) * 14pt); } .bd-slips.gen .bd-sw .net .n { font-size: calc(var(--ss) * 17pt); } .bd-slips.gen .bd-sw small, .bd-slips.gen .bd-sw .sub td { font-size: calc(var(--ss) * 7.5pt); }
+.bd-slips.gen .bd-sign { margin-top: calc(var(--ss) * 7mm); }
+.bd-slips.gen.fixed .bd-slip { height: calc(var(--sh) * 1mm - 2mm); overflow: hidden; }
+.bd-slips.gen.short .bd-sinfo, .bd-slips.gen.short .bd-sign, .bd-slips.gen.short .bd-sfoot, .bd-slips.gen.short .bd-sqr, .bd-slips.gen.short .bd-sw small, .bd-slips.gen.short .bd-sw .sub, .bd-slips.gen.short .bd-sh span { display: none; }
+.bd-slips.gen.short .bd-slip { padding: calc(var(--ss) * 1.2mm); font-size: 6pt; }
+.bd-slips.gen.short .bd-sh { padding-bottom: .5mm; margin-bottom: 1mm; } .bd-slips.gen.short .bd-sh b { font-size: 7pt; }
+.bd-slips.gen.short .bd-sbig { font-size: 8pt; margin: .5mm 0 1mm; }
+.bd-slips.gen.short .bd-sw { margin-top: 1mm; } .bd-slips.gen.short .bd-sw td { padding: .3mm 0; font-size: 7pt; }
+.bd-slips.gen.short .bd-sw .n { font-size: 9pt; } .bd-slips.gen.short .bd-sw .net td { padding-top: .5mm; font-size: 7.5pt; } .bd-slips.gen.short .bd-sw .net .n { font-size: 12pt; }
+.bd-slips.gen.short .bd-seq { font-size: 6pt; }
+/* print set-up panel + size picker */
+.bd-sizes { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bd-sizes .bd-chip small { font-weight: 400; margin-left: 4px; color: #666; }
+.bd-custom { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.bd-custom input { width: 70px; }
+.bd-pp { border: 1px solid #c9cfcc; border-radius: 8px; padding: 8px 10px; background: #f7f9f8; color: #222; }
+.bd-pp summary { cursor: pointer; font-weight: 700; }
+.bd-pp ol, .bd-pp ul { margin: 6px 0 6px 18px; padding: 0; font-size: 13px; line-height: 1.45; }
+.bd-pp h4 { margin: 10px 0 2px; font-size: 13px; }
+.bd-pp code { background: #e9eeec; padding: 0 4px; border-radius: 4px; font-size: 12px; }
+.bd-pp .bd-row select, .bd-pp .bd-row input { background: #fff; color: #111; border: 1px solid #c9cfcc; border-radius: 6px; padding: 4px 6px; }
+.bd-labels.gen:not(.compact) .bd-label.wt .bd-lband { white-space: normal; }
+.bd-labels.gen:not(.compact) .bd-label.wt .bd-lband small { display: block; margin-top: calc(var(--sc) * .3mm); }
+.bd-slips.gen.short .bd-seq { display: none; }
+.bd-pp ul { list-style: disc; } .bd-pp ol { list-style: decimal; }
+.bd-labelpage input::placeholder { color: #888; }

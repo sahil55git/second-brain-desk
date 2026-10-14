@@ -93,26 +93,30 @@ export function barrelCode(lotNo: string, seq: number): string {
 }
 
 /** Read a scanned / typed code back. Tolerates spaces, lower case, and a scanner that swallowed the dashes. */
-export function parseBarrelCode(raw: string): { lotNo: string; seq: number; code: string } | null {
+export function parseBarrelCode(raw: string): { lotNo: string; seq: number; code: string; phase?: Phase } | null {
   const t = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
-  const m = /^R(\d{6})-?(\d{1,3})-?(\d{2,3})$/.exec(t);
+  // an optional "-F" / "-E" tail is printed on the FULL-weight / EMPTY-weight labels
+  const m = /^R(\d{6})-?(\d{1,3})-?(\d{2,3})(?:-([FE]))?$/.exec(t);
   if (!m) return null;
   const lotNo = `R${m[1]}-${Number(m[2])}`;
   const seq = Number(m[3]);
-  return { lotNo, seq, code: barrelCode(lotNo, seq) };
+  return { lotNo, seq, code: barrelCode(lotNo, seq), ...(m[4] ? { phase: (m[4] === "F" ? "GROSS" : "EMPTY") as Phase } : {}) };
 }
 
 /** Find a barrel code inside whatever the scanner gave us: the bare code (barcode) or the QR link. */
-export function findBarrelCode(raw: string): { lotNo: string; seq: number; code: string } | null {
+export function findBarrelCode(raw: string): { lotNo: string; seq: number; code: string; phase?: Phase } | null {
   const direct = parseBarrelCode(raw);
   if (direct) return direct;
   const m = /R\d{6}-\d{1,3}-\d{2,3}/i.exec(String(raw || ""));
-  return m ? parseBarrelCode(m[0]) : null;
+  if (!m) return null;
+  const found = parseBarrelCode(m[0]);
+  const ph = /[?&]phase=(GROSS|EMPTY)\b/i.exec(String(raw || ""));
+  return found && ph ? { ...found, phase: ph[1].toUpperCase() as Phase } : found;
 }
 
 /** What the QR code on a barrel label holds: a link that opens the barrel's record. */
-export function barrelLink(origin: string, code: string): string {
-  return `${origin.replace(/\/+$/, "")}/barrels?barrel=${encodeURIComponent(code)}`;
+export function barrelLink(origin: string, code: string, phase?: Phase): string {
+  return `${origin.replace(/\/+$/, "")}/barrels?barrel=${encodeURIComponent(code)}${phase ? `&phase=${phase}` : ""}`;
 }
 
 // ---------------------------------------------------------------------------

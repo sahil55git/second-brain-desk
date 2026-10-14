@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { registerCsv, type RegisterRow, type RegisterTotals } from "@/lib/barrels";
 import { api, BARREL_CHIP, kg, kg1, L, when } from "@/components/barrels/shared";
 import { businessDate } from "@/lib/register";
+import WeightCell from "@/components/barrels/WeightCell";
 
 type Status = "all" | "waiting" | "done" | "new";
 const TABS: { id: Status; en: string; kn: string }[] = [
@@ -159,14 +160,28 @@ export default function BarrelRegister({ initialStatus = "all", open }: { initia
                         <div className="bd-m tiny">{r.product}{r.vehicleNo ? ` · ${r.vehicleNo}` : ""}</div>
                       </td>
                       <td className="num">
-                        {kg1(r.grossKg)}
-                        {r.grossSource === "MANUAL" && isOwner && <span title={r.grossNote || "typed"}> ✋</span>}
-                        <div className="bd-m tiny">{when(r.grossAt)}</div>
+                        {r.grossKg == null && r.lotStatus === "OPEN" ? (
+                          <WeightCell code={r.code} phase="GROSS" onDone={load} />
+                        ) : (
+                          <>
+                            {kg1(r.grossKg)}
+                            {r.grossSource === "MANUAL" && isOwner && <span title={r.grossNote || "typed"}> ✋</span>}
+                            <div className="bd-m tiny">{when(r.grossAt)}</div>
+                            {r.grossKg != null && <a className="bd-linkbtn tiny bd-noprint" href={`/barrels/labels?lot=${encodeURIComponent(r.lotNo)}&seq=${r.seq}&type=full`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>🏷️ label</a>}
+                          </>
+                        )}
                       </td>
                       <td className="num">
-                        {kg1(r.emptyKg)}
-                        {r.emptySource === "MANUAL" && isOwner && <span title={r.emptyNote || "typed"}> ✋</span>}
-                        <div className="bd-m tiny">{when(r.emptyAt)}</div>
+                        {r.grossKg != null && r.emptyKg == null && r.lotStatus === "OPEN" ? (
+                          <WeightCell code={r.code} phase="EMPTY" onDone={load} />
+                        ) : (
+                          <>
+                            {kg1(r.emptyKg)}
+                            {r.emptySource === "MANUAL" && isOwner && <span title={r.emptyNote || "typed"}> ✋</span>}
+                            <div className="bd-m tiny">{when(r.emptyAt)}</div>
+                            {r.emptyKg != null && <a className="bd-linkbtn tiny bd-noprint" href={`/barrels/labels?lot=${encodeURIComponent(r.lotNo)}&seq=${r.seq}&type=empty`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>🏷️ label</a>}
+                          </>
+                        )}
                       </td>
                       <td className="num">
                         <b>{r.state === "DONE" ? kg1(r.netKg) : r.estNetKg != null ? `≈ ${kg1(r.estNetKg)}` : "—"}</b>
@@ -200,7 +215,7 @@ export default function BarrelRegister({ initialStatus = "all", open }: { initia
               )}
             </table>
           </div>
-          <div className="bd-m small">Net = gross − tare. Tap a row for the full record, slip and QR.</div>
+          <div className="bd-m small">Net = gross − tare. Type a weight straight into an empty Gross / Tare box and tap Save. Tap a row for the full record, slip and QR.</div>
         </div>
       )}
     </>
