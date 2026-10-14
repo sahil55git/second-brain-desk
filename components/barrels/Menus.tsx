@@ -112,6 +112,21 @@ export function LotPrintMenu({ lotQ }: { lotQ: string }) {
   );
 }
 
+/** One-tap print for the weight in this column: its own sticker label and its own receipt. */
+export function CellPrint({ lotQ, seq, code, phase }: { lotQ: string; seq: number; code: string; phase: "GROSS" | "EMPTY" }) {
+  const word = phase === "GROSS" ? "FULL" : "EMPTY";
+  return (
+    <span className="bd-noprint bd-cellprint" onClick={(e) => e.stopPropagation()}>
+      <a className="bd-dots" href={`/barrels/labels?lot=${lotQ}&seq=${seq}&type=${phase === "GROSS" ? "full" : "empty"}`} target="_blank" rel="noreferrer" title={`Print the ${word}-weight sticker label`} aria-label={`Print the ${word}-weight label`}>
+        🏷️
+      </a>
+      <a className="bd-dots" href={`/barrels/print?slip=${encodeURIComponent(code)}&phase=${phase}`} target="_blank" rel="noreferrer" title={`Print the ${word}-weight receipt`} aria-label={`Print the ${word}-weight receipt`}>
+        🧾
+      </a>
+    </span>
+  );
+}
+
 /** ⋯ next to a saved weight: edit it or delete it, always with a reason that goes into History. */
 export function WeightMenu({ lotRef, code, phase, kg, otherKg, onDone }: { lotRef: string; code: string; phase: "GROSS" | "EMPTY"; kg: number; otherKg: number | null; onDone: (l: Lot) => void }) {
   const [mode, setMode] = useState<"edit" | "delete" | null>(null);
