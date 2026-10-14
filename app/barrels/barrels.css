@@ -314,3 +314,10 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
 .bd-slips.gen.short .bd-seq { display: none; }
 .bd-pp ul { list-style: disc; } .bd-pp ol { list-style: decimal; }
 .bd-labelpage input::placeholder { color: #888; }
+
+/* one label with full, empty and net together */
+.bd-label.wt .bd-lband.sum { display: flex; flex-wrap: wrap; justify-content: space-around; align-items: flex-end; gap: 0 1.5mm; white-space: normal; font-size: 6pt; line-height: 1.1; }
+.bd-label.wt .bd-lband.sum span { display: flex; flex-direction: column; align-items: center; }
+.bd-label.wt .bd-lband.sum b { font-size: 9.5pt; }
+.bd-label.wt .bd-lband.sum small { flex-basis: 100%; text-align: center; display: block; font-size: 5pt; }
+.bd-labels.gen .bd-label.wt .bd-lband.sum { font-size: calc(var(--sc) * 5.5pt); } .bd-labels.gen .bd-label.wt .bd-lband.sum b { font-size: calc(var(--sc) * 9pt); } .bd-labels.gen .bd-label.wt .bd-lband.sum small { font-size: calc(var(--sc) * 4.5pt); }

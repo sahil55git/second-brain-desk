@@ -184,7 +184,7 @@ export default function BarrelRegister({ initialStatus = "all", open }: { initia
                         )}
                       </td>
                       <td className="num">
-                        <b>{r.state === "DONE" ? kg1(r.netKg) : r.estNetKg != null ? `≈ ${kg1(r.estNetKg)}` : "—"}</b>
+                        <b>{r.state === "DONE" ? kg1(r.netKg) : r.estNetKg != null ? `≈ ${kg1(r.estNetKg)}` : "—"}</b>{r.state === "DONE" && <a className="bd-linkbtn tiny bd-noprint" style={{ display: "block" }} href={`/barrels/labels?lot=${encodeURIComponent(r.lotNo)}&seq=${r.seq}&type=sum`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>🏷️ all-in-one label</a>}
                         {r.state !== "DONE" && r.estNetKg != null && <div className="bd-m tiny">estimate</div>}
                       </td>
                       {isOwner && (
