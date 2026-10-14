@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
 import { TABLE_HINT, missingTable } from "@/lib/attachmentServer";
-import { barrelCode } from "@/lib/barrels";
+import { barrelCode, validKg, WEIGH_MAX_KG } from "@/lib/barrels";
 import { MAX_BARRELS_PER_LOT, RECEIPT_INCLUDE, logEvent, posNum, shapeReceipt, str } from "@/lib/barrelServer";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const ownerOnly = () => NextResponse.json({ error: "Only the owner can do this." }, { status: 403 });
 
   const result = await safeDbCall(async () => {
-    const r = await prisma.oilReceipt.findUnique({ where: { id: params.id }, include: RECEIPT_INCLUDE });
+    const r = await prisma.oilReceipt.findFirst({ where: { OR: [{ id: params.id }, { lotNo: params.id }] }, include: RECEIPT_INCLUDE });
     if (!r) return { error: "Lot not found.", status: 404 } as const;
     const action = body.action;
 
@@ -103,6 +103,42 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       await prisma.$transaction(async (tx) => {
         await tx.oilReceipt.update({ where: { id: r.id }, data: { status: "OPEN", closedAt: null, closedBy: null, closeNote: null } });
         await logEvent(tx, r.id, "REOPEN", by, { note: str(body.note, 300) });
+      });
+    } else if (action === "editWeight" || action === "deleteWeight") {
+      // Fix a wrong weight (or remove it so it can be weighed again). Anyone may, with a reason;
+      // the old figure stays in the history and the owner sees it there.
+      if (r.status !== "OPEN") return { error: "This lot is closed. The owner can reopen it first.", status: 409 } as const;
+      const b = r.barrels.find((x) => x.id === body.barrelId || x.code === body.code);
+      if (!b) return { error: "Barrel not found.", status: 404 } as const;
+      const phase = body.phase === "GROSS" || body.phase === "EMPTY" ? body.phase : null;
+      if (!phase) return { error: "Say whether this is the full or the empty weight.", status: 400 } as const;
+      const reason = str(body.reason, 300);
+      if (!reason || reason.length < 3) return { error: "Write a reason (at least 3 letters).", status: 400 } as const;
+      const old = phase === "GROSS" ? b.grossKg : b.emptyKg;
+      if (old == null) return { error: "There is no weight saved to change.", status: 400 } as const;
+      const now = new Date();
+      let data: Record<string, unknown>;
+      let detail: Record<string, unknown>;
+      if (action === "editWeight") {
+        const kgNew = Number(body.kg);
+        if (!validKg(kgNew)) return { error: `Weight must be more than 0 and at most ${WEIGH_MAX_KG} kg.`, status: 400 } as const;
+        if (phase === "GROSS" && b.emptyKg != null && kgNew <= b.emptyKg) return { error: "Full weight cannot be less than the empty weight.", status: 400 } as const;
+        if (phase === "EMPTY" && b.grossKg != null && kgNew >= b.grossKg) return { error: "Empty barrel cannot weigh as much as (or more than) the full barrel.", status: 400 } as const;
+        if (kgNew === old) return { error: "That is the same weight.", status: 400 } as const;
+        data = phase === "GROSS"
+          ? { grossKg: kgNew, grossRecordedAt: now, grossBy: by, grossSource: "MANUAL", grossScale: null, grossTickId: null, grossNote: `Edited: ${reason}` }
+          : { emptyKg: kgNew, emptyRecordedAt: now, emptyBy: by, emptySource: "MANUAL", emptyScale: null, emptyTickId: null, emptyNote: `Edited: ${reason}` };
+        detail = { phase, previousKg: old, kg: kgNew, reason };
+      } else {
+        if (phase === "GROSS" && b.emptyKg != null) return { error: "Delete the empty weight first. A barrel cannot have an empty weight without a full weight.", status: 400 } as const;
+        data = phase === "GROSS"
+          ? { grossKg: null, grossAt: null, grossRecordedAt: null, grossBy: null, grossSource: null, grossScale: null, grossTickId: null, grossNote: null }
+          : { emptyKg: null, emptyAt: null, emptyRecordedAt: null, emptyBy: null, emptySource: null, emptyScale: null, emptyTickId: null, emptyNote: null };
+        detail = { phase, previousKg: old, reason };
+      }
+      await prisma.$transaction(async (tx) => {
+        await tx.barrel.update({ where: { id: b.id }, data });
+        await logEvent(tx, r.id, action === "editWeight" ? "EDIT_WEIGHT" : "DELETE_WEIGHT", by, detail, b.code);
       });
     } else if (action === "labelsPrinted") {
       await logEvent(prisma, r.id, "LABELS", by, { barrels: r.barrels.length });

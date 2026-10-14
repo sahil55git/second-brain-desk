@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { registerCsv, type RegisterRow, type RegisterTotals } from "@/lib/barrels";
 import { api, BARREL_CHIP, kg, kg1, L, when } from "@/components/barrels/shared";
 import { businessDate } from "@/lib/register";
-import RowPrint from "@/components/barrels/RowPrint";
+import { BarrelPrintMenu, WeightMenu } from "@/components/barrels/Menus";
 import WeightCell from "@/components/barrels/WeightCell";
 
 type Status = "all" | "waiting" | "done" | "new";
@@ -143,6 +143,7 @@ export default function BarrelRegister({ initialStatus = "all", open }: { initia
                   <th>Net oil kg</th>
                   {isOwner && <th>Supplier kg</th>}
                   <th>Status</th>
+                  <th className="bd-noprint">Print</th>
                 </tr>
               </thead>
               <tbody>
@@ -164,28 +165,32 @@ export default function BarrelRegister({ initialStatus = "all", open }: { initia
                         {r.grossKg == null && r.lotStatus === "OPEN" ? (
                           <WeightCell code={r.code} phase="GROSS" onDone={load} />
                         ) : (
-                          <>
-                            {kg1(r.grossKg)}
-                            {r.grossSource === "MANUAL" && isOwner && <span title={r.grossNote || "typed"}> ✋</span>}
-                            <div className="bd-m tiny">{when(r.grossAt)}</div>
-                          </>
+                          <div className="bd-wval">
+                            <span>
+                              {kg1(r.grossKg)}
+                              {r.grossSource === "MANUAL" && isOwner && <span title={r.grossNote || "typed"}> ✋</span>}
+                              <div className="bd-m tiny">{when(r.grossAt)}</div>
+                            </span>
+                            {r.lotStatus === "OPEN" && r.grossKg != null && <WeightMenu lotRef={r.lotNo} code={r.code} phase="GROSS" kg={r.grossKg} otherKg={r.emptyKg} onDone={() => load()} />}
+                          </div>
                         )}
-                        <RowPrint className="bd-noprint" lotQ={encodeURIComponent(r.lotNo)} seq={r.seq} code={r.code} phase="GROSS" done={r.grossKg != null} />
                       </td>
                       <td className="num">
                         {r.grossKg != null && r.emptyKg == null && r.lotStatus === "OPEN" ? (
                           <WeightCell code={r.code} phase="EMPTY" onDone={load} />
                         ) : (
-                          <>
-                            {kg1(r.emptyKg)}
-                            {r.emptySource === "MANUAL" && isOwner && <span title={r.emptyNote || "typed"}> ✋</span>}
-                            <div className="bd-m tiny">{when(r.emptyAt)}</div>
-                          </>
+                          <div className="bd-wval">
+                            <span>
+                              {kg1(r.emptyKg)}
+                              {r.emptySource === "MANUAL" && isOwner && <span title={r.emptyNote || "typed"}> ✋</span>}
+                              <div className="bd-m tiny">{when(r.emptyAt)}</div>
+                            </span>
+                            {r.lotStatus === "OPEN" && r.emptyKg != null && <WeightMenu lotRef={r.lotNo} code={r.code} phase="EMPTY" kg={r.emptyKg} otherKg={r.grossKg} onDone={() => load()} />}
+                          </div>
                         )}
-                        <RowPrint className="bd-noprint" lotQ={encodeURIComponent(r.lotNo)} seq={r.seq} code={r.code} phase="EMPTY" done={r.emptyKg != null} />
                       </td>
                       <td className="num">
-                        <b>{r.state === "DONE" ? kg1(r.netKg) : r.estNetKg != null ? `≈ ${kg1(r.estNetKg)}` : "—"}</b>{r.state === "DONE" && <a className="bd-linkbtn tiny bd-noprint" style={{ display: "block" }} href={`/barrels/labels?lot=${encodeURIComponent(r.lotNo)}&seq=${r.seq}&type=sum`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>🏷️ all-in-one label</a>}
+                        <b>{r.state === "DONE" ? kg1(r.netKg) : r.estNetKg != null ? `≈ ${kg1(r.estNetKg)}` : "—"}</b>
                         {r.state !== "DONE" && r.estNetKg != null && <div className="bd-m tiny">estimate</div>}
                       </td>
                       {isOwner && (
@@ -199,6 +204,7 @@ export default function BarrelRegister({ initialStatus = "all", open }: { initia
                         {r.waitingDays != null && <div className="bd-m tiny">{r.waitingDays} day(s)</div>}
                         {r.flags.length > 0 && <div className="tiny">⚠ {r.flags.length}</div>}
                       </td>
+                      <td className="bd-noprint"><BarrelPrintMenu lotQ={encodeURIComponent(r.lotNo)} seq={r.seq} code={r.code} hasGross={r.grossKg != null} hasEmpty={r.emptyKg != null} /></td>
                     </tr>
                   );
                 })}
@@ -210,7 +216,7 @@ export default function BarrelRegister({ initialStatus = "all", open }: { initia
                     <td className="num">{kg(totals.grossKg)}</td>
                     <td className="num">{kg(totals.tareKg)}</td>
                     <td className="num"><b>{kg(totals.netKg)}</b></td>
-                    <td colSpan={isOwner ? 2 : 1} />
+                    <td colSpan={isOwner ? 3 : 2} />
                   </tr>
                 </tfoot>
               )}
