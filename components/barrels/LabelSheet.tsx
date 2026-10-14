@@ -94,7 +94,7 @@ export default function LabelSheet() {
           {only && <button className="bd-btn" onClick={() => setOnly(null)}>Show all</button>}
           {test && <button className="bd-btn" onClick={() => setTest(false)}>Back to the real labels</button>}
         </div>
-        <PrinterPanel size={size} kind="label" saved={saved} onSave={save} onTest={() => { setTest(true); window.scrollTo({ top: 0 }); }} />
+        <PrinterPanel size={size} kind="label" saved={saved} onSave={save} onSize={setSize} onTest={() => { setTest(true); window.scrollTo({ top: 0 }); }} />
         {kind !== "id" && (
           <div className="bd-m small">
             <b>FULL + EMPTY + NET (1 label):</b> one sticker per barrel with full weight, empty weight and net oil (full − empty), plus the date and time of each weighing — print it after both weighings. Its barcode is the plain barrel code, so a scan opens the barrel&apos;s record. <br /><b>FULL / EMPTY weight labels:</b> print them <b>after</b> weighing — the weight, date and time are printed on the label, so stick it on the barrel as its record. The barcode ends in -F (full) or -E (empty): scan it on the Weigh tab and the right step opens by itself. A label for a barrel not weighed yet prints a blank line to write the weight on.

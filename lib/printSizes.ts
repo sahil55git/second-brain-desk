@@ -119,3 +119,54 @@ export const PRINTER_TYPES: { id: PrinterType; name: string }[] = [
   { id: "laser", name: "Laser / inkjet printer (A4)" },
   { id: "bluetooth", name: "Bluetooth printer / phone" },
 ];
+
+// ---------------------------------------------------------------------------
+// Printers this shop uses. Picking one sets the type, remembers the name, suggests sizes and
+// warns when a chosen size is wider than the printer can print.
+// ---------------------------------------------------------------------------
+export interface PrinterModel {
+  id: string;
+  name: string;
+  type: PrinterType;
+  /** widest paper the printer takes, mm (from the maker's / retailer's spec) */
+  maxWidth: number;
+  /** size ids to suggest, first one is the default */
+  labelSizes?: string[];
+  slipSizes?: string[];
+  about: string;
+  setup: string[];
+}
+export const PRINTER_MODELS: PrinterModel[] = [
+  {
+    id: "h30c",
+    name: "Helett (Rapid Label) Neo H30C",
+    type: "label",
+    maxWidth: 108,
+    labelSizes: ["50x30", "50x25", "50x75", "75x50", "100x50", "4x6"],
+    slipSizes: ["4x6", "100x75", "50x75"],
+    about: "Direct-thermal label printer, USB, 203 dpi, labels about 27 to 108 mm wide (no ribbon needed). Listed specs; check your unit's box if it differs.",
+    setup: [
+      "Install the Helett H30C driver (Windows) from Helett's support page, then connect it by USB and switch it on. It then appears in the Printers list.",
+      "Load direct-thermal labels with gaps. Slide the paper guides to touch the label edges.",
+      "In the driver's Printing preferences set the stock to the label size shown here (create a user-defined size if it is not listed), media type \"labels with gaps\", direction normal.",
+      "Run the printer's gap / label calibration once after changing label rolls (hold the feed button as in the manual, or use the driver's Calibrate button).",
+      "Set darkness about medium and speed medium; very high speed makes barcodes faint. Always scan one printed label with a phone before printing the whole lot.",
+    ],
+  },
+  {
+    id: "posiflow80b",
+    name: "POSIFLOW Thermal Receipt Printer 80B",
+    type: "receipt",
+    maxWidth: 80,
+    slipSizes: ["80mm", "58mm"],
+    about: "80 mm direct-thermal receipt printer. It prints on a continuous roll, so use the 80 mm roll size for slips. It cannot print gap labels.",
+    setup: [
+      "Install the POSIFLOW 80B driver (from the maker or the CD / link in the box), connect it by USB (or the network / Bluetooth port your unit has) and switch it on.",
+      "Load an 80 mm thermal roll with the shiny (heat-sensitive) side facing out.",
+      "In the driver set paper to 80 mm roll (\"80mm × Receipt\" / continuous) and cut mode to cut after each page if your unit has the cutter.",
+      "If the print comes out cut off at the edges, choose the 80 mm roll size here and set margins to none in the print window; if it is too small, check scale is 100%.",
+      "Barrel labels do not suit this printer: use it for the weighment slips and receipts (Print slips page). Use the H30C for barrel stickers.",
+    ],
+  },
+];
+export const printerModel = (id: string | undefined) => PRINTER_MODELS.find((m) => m.id === id);

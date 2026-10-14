@@ -79,7 +79,7 @@ export default function PrintSheet() {
         <div className="bd-row">
           <button className="bd-btn primary" onClick={() => window.print()}>🖨️ Print</button>
         </div>
-        {!isReport && <PrinterPanel size={size} kind="slip" saved={saved} onSave={save} />}
+        {!isReport && <PrinterPanel size={size} kind="slip" saved={saved} onSave={save} onSize={setSize} />}
         <div className="bd-m small">
           {isReport ? "Print on A4. Keep with the supplier's challan." : "Print after the full weighing and again after the empty weighing — the second slip shows gross − tare = net."}
         </div>

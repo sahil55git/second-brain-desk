@@ -319,3 +319,15 @@ describe("print sizes", () => {
     expect(labelLayout(labelSize("4x6")).roomy).toBe(true);
   });
 });
+
+describe("printer models", () => {
+  it("has the shop printers with sizes that exist", async () => {
+    const m = await import("@/lib/printSizes");
+    expect(m.printerModel("h30c")?.maxWidth).toBe(108);
+    expect(m.printerModel("posiflow80b")?.type).toBe("receipt");
+    for (const p of m.PRINTER_MODELS) {
+      for (const id of p.labelSizes ?? []) expect(m.LABEL_SIZES.some((x) => x.id === id)).toBe(true);
+      for (const id of p.slipSizes ?? []) expect(m.SLIP_SIZES.some((x) => x.id === id)).toBe(true);
+    }
+  });
+});
