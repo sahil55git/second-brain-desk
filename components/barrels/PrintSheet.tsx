@@ -30,7 +30,7 @@ export default function PrintSheet() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saved.slip]);
   const lay = slipLayout(size);
-  const vars = { "--sw": lay.inner, "--ss": lay.ss, "--sh": size.h ?? 0 } as React.CSSProperties;
+  const vars = { "--sw": lay.inner, "--ss": lay.ss, "--sh": lay.innerH ?? 0 } as React.CSSProperties;
   const [rows, setRows] = useState<RegisterRow[] | null>(null);
   const [lot, setLot] = useState<Lot | null>(null);
   const [err, setErr] = useState<string | null>(null);
