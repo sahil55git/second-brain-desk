@@ -734,6 +734,76 @@ model ScaleTick {
   @@index([source, settledAt])
 }
 
+// ---------------------------------------------------------------------------
+// Barrel fleet — the shop's OWN reusable barrels (about 20), rotated between
+// storage, transport, purchase and sale. Unlike `Barrel` above (one row per
+// supplier lot, used once), a FleetBarrel keeps one permanent code (BRL-07) and
+// one registered tare, and every weighing and movement is appended to
+// FleetEvent. Net oil = gross − tare (lib/barrelFleet.ts). Weights come from the
+// same `ScaleTick` readings the platform scale bridge posts.
+// ---------------------------------------------------------------------------
+model FleetBarrel {
+  id         String    @id @default(cuid())
+  code       String    @unique // printed on the label, "BRL-07"
+  mark       String? // paint mark / description, "blue, dent on lid"
+  capacityKg Float     @default(190) // most oil it may take (usual fill 180 kg)
+  tareKg     Float? // registered empty weight, used for every net weight
+  tareAt     DateTime?
+  tareBy     String?
+  status     String    @default("NEW") // NEW (no tare yet) | EMPTY | FULL
+  product    String? // oil inside now
+  grossKg    Float? // last full weight (oil + barrel)
+  grossAt    DateTime?
+  netKg      Float? // oil inside as of the last full weighing
+  lastGrossDiffKg Float? // last full weight minus the full weight before it
+  lastEmptyKg Float? // last empty weight seen (compare with tareKg)
+  lastEmptyAt DateTime?
+  location   String    @default("SHOP") // SHOP | VEHICLE | CUSTOMER | SUPPLIER | REPAIR
+  holder     String? // who has it when it is not in the shop
+  sinceAt    DateTime  @default(now()) // in this place since
+  condition  String    @default("OK") // OK | DENTED | LEAKING | RETIRED
+  notes      String?
+  active     Boolean   @default(true)
+  createdBy  String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  events FleetEvent[]
+
+  @@index([location])
+  @@index([status])
+}
+
+// Append-only ledger: one row per weighing, movement or change of a fleet barrel.
+model FleetEvent {
+  id         String      @id @default(cuid())
+  barrelId   String
+  barrel     FleetBarrel @relation(fields: [barrelId], references: [id], onDelete: Cascade)
+  barrelCode String
+  action     String // REGISTER | GROSS | EMPTY | MOVE | EDIT
+  at         DateTime // when it happened (a scale weighing: when the scale settled)
+  recordedAt DateTime    @default(now()) // when the system saved it
+  by         String
+  source     String? // SCALE | MANUAL (weighings)
+  scale      String?
+  tickId     String?
+  kg         Float? // the weight read on the scale
+  tareKg     Float? // tare in force at that moment
+  netKg      Float? // oil: gross − tare (full weighing) or oil sent out
+  product    String?
+  fromLoc    String?
+  toLoc      String?
+  party      String? // customer / supplier / holder
+  vehicleNo  String?
+  purpose    String? // SALE | TRANSPORT | STORAGE | REFILL | OTHER
+  ref        String? // challan / invoice / LR number
+  note       String?
+  detail     Json? // driftKg, diffKg, pouredKg, previous values …
+
+  @@index([barrelCode, at])
+  @@index([at])
+}
+
 // Bill builder — a bill put on hold at the counter. The draft (lines, party,
 // date, payment mode, notes) is stored as JSON and restored on resume. Held
 // bills do NOT reserve stock; stock moves only when the bill is saved.

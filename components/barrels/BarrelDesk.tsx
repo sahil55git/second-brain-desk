@@ -89,6 +89,10 @@ export default function BarrelDesk() {
           <a href="/go" className="bd-m small">
             ← Quick links
           </a>
+          {" · "}
+          <a href="/barrels/fleet" className="bd-m small">
+            <L en="Our own barrels →" kn="ನಮ್ಮ ಬ್ಯಾರಲ್‌ಗಳು →" />
+          </a>
           <h1>
             🛢️ <L en="Barrel receiving" kn="ಬ್ಯಾರಲ್ ಸ್ವೀಕಾರ" />
           </h1>
