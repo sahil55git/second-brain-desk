@@ -6,7 +6,7 @@ import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
 import { TABLE_HINT, missingTable } from "@/lib/attachmentServer";
 import { FLEET_DEFAULTS, fleetSummary, nextFleetCodes, type FleetBarrelLike } from "@/lib/barrelFleet";
-import { MAX_FLEET_REGISTER, logFleetEvent, shapeFleetBarrel } from "@/lib/barrelFleetServer";
+import { MAX_FLEET_REGISTER, shapeFleetBarrel } from "@/lib/barrelFleetServer";
 import { posNum, str } from "@/lib/barrelServer";
 
 export const dynamic = "force-dynamic";
