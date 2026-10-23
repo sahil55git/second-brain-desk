@@ -18,7 +18,7 @@ import { findBarrelCode, registerRows, registerTotals, type Flag, type ShapedRec
 import BarrelCard from "@/components/barrels/BarrelCard";
 import BarrelRegister from "@/components/barrels/BarrelRegister";
 import WeighPanel from "@/components/barrels/WeighPanel";
-import { BarrelPrintMenu, Dropdown, LotPrintMenu, MenuBtn, WeightMenu } from "@/components/barrels/Menus";
+import { BarrelPrintMenu, CellPrint, Dropdown, LotPrintMenu, MenuBtn, WeightMenu } from "@/components/barrels/Menus";
 import WeightCell from "@/components/barrels/WeightCell";
 import { preparePhoto, stampLines, uploadProof } from "@/lib/proofClient";
 import { businessDate } from "@/lib/register";
@@ -684,6 +684,7 @@ function LotView({
                             {b.grossSource === "MANUAL" && isOwner && <span title={b.grossNote || "typed"}> ✋</span>}
                             <div className="bd-m tiny">{when(b.grossAt)}</div>
                           </span>
+                          {b.grossKg != null && <CellPrint lotQ={lotQ} seq={b.seq} code={b.code} phase="GROSS" />}
                           {!closed && b.grossKg != null && <WeightMenu lotRef={lot.lotNo} code={b.code} phase="GROSS" kg={b.grossKg} otherKg={b.emptyKg} onDone={onChange} />}
                         </div>
                       )}
@@ -698,6 +699,7 @@ function LotView({
                             {b.emptySource === "MANUAL" && isOwner && <span title={b.emptyNote || "typed"}> ✋</span>}
                             <div className="bd-m tiny">{when(b.emptyAt)}</div>
                           </span>
+                          {b.emptyKg != null && <CellPrint lotQ={lotQ} seq={b.seq} code={b.code} phase="EMPTY" />}
                           {!closed && b.emptyKg != null && <WeightMenu lotRef={lot.lotNo} code={b.code} phase="EMPTY" kg={b.emptyKg} otherKg={b.grossKg} onDone={onChange} />}
                         </div>
                       )}
