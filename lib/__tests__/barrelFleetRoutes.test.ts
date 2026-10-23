@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-const db = vi.hoisted(() => ({ barrels: [] as Row[], events: [] as Row[], ticks: [] as Row[], user: { name: "Nilkant", role: "STAFF", isOwner: false } as Row | null }));
+const db = vi.hoisted(() => ({ queries: 0, barrels: [] as Row[], events: [] as Row[], ticks: [] as Row[], user: { name: "Nilkant", role: "STAFF", isOwner: false } as Row | null }));
 
 vi.mock("@/lib/registerServer", () => ({
   getUser: async () => db.user,
@@ -16,7 +16,16 @@ vi.mock("@/lib/db", () => {
   const prisma = {
     fleetBarrel: {
       findUnique: async ({ where }: Row) => db.barrels.find((b) => (where.code ? b.code === where.code : b.id === where.id)) ?? null,
-      findMany: async () => [...db.barrels].sort((a, b) => a.code.localeCompare(b.code)),
+      findMany: async ({ where }: Row = {}) => {
+        db.queries++;
+        return db.barrels.filter((b) => (where?.code?.in ? where.code.in.includes(b.code) : true)).sort((a, b) => a.code.localeCompare(b.code));
+      },
+      createMany: async ({ data }: Row) => {
+        db.queries++;
+        if (data.some((d: Row) => db.barrels.some((b) => b.code === d.code))) throw Object.assign(new Error("dup"), { code: "P2002" });
+        for (const d of data) db.barrels.push({ id: `b${db.barrels.length + 1}`, status: "NEW", capacityKg: 190, tareKg: null, tareAt: null, tareBy: null, product: null, grossKg: null, grossAt: null, netKg: null, lastGrossDiffKg: null, lastEmptyKg: null, lastEmptyAt: null, location: "SHOP", holder: null, sinceAt: new Date(), condition: "OK", notes: null, active: true, ...d });
+        return { count: data.length };
+      },
       create: async ({ data }: Row) => {
         if (db.barrels.some((b) => b.code === data.code)) throw Object.assign(new Error("dup"), { code: "P2002" });
         const b = { id: `b${++seq}`, status: "NEW", capacityKg: 190, tareKg: null, tareAt: null, tareBy: null, product: null, grossKg: null, grossAt: null, netKg: null, lastGrossDiffKg: null, lastEmptyKg: null, lastEmptyAt: null, location: "SHOP", holder: null, sinceAt: new Date(), condition: "OK", notes: null, active: true, ...data };
@@ -26,6 +35,11 @@ vi.mock("@/lib/db", () => {
       update: async ({ where, data }: Row) => Object.assign(db.barrels.find((b) => b.id === where.id)!, data),
     },
     fleetEvent: {
+      createMany: async ({ data }: Row) => {
+        db.queries++;
+        for (const d of data) db.events.push({ id: `e${db.events.length + 1}`, recordedAt: new Date(), ...d });
+        return { count: data.length };
+      },
       create: async ({ data }: Row) => {
         const e = { id: `e${db.events.length + 1}`, recordedAt: new Date(), ...data };
         db.events.push(e);
@@ -72,6 +86,7 @@ beforeEach(() => {
   db.barrels = [];
   db.events = [];
   db.ticks = [];
+  db.queries = 0;
 });
 
 async function twoBarrels() {
@@ -81,6 +96,18 @@ async function twoBarrels() {
 }
 
 describe("register", () => {
+  it("registers 26 barrels in a handful of queries, not one pair per barrel (database transaction time limit)", async () => {
+    owner();
+    const res = await register(req("/api/barrel-fleet", "POST", { count: 26, startNo: 1, capacityKg: 180 }));
+    expect(res.status).toBe(201);
+    expect(db.barrels).toHaveLength(26);
+    expect(db.barrels.every((b) => b.capacityKg === 180)).toBe(true);
+    expect(db.events.filter((e) => e.action === "REGISTER")).toHaveLength(26);
+    expect(db.queries).toBeLessThanOrEqual(4);
+    const j = await res.json();
+    expect(j.data[0].code).toBe("BRL-01");
+    expect(j.data[25].code).toBe("BRL-26");
+  });
   it("owner registers BRL-01..03 and each gets a REGISTER row; staff cannot", async () => {
     staff();
     expect((await register(req("/api/barrel-fleet", "POST", { count: 3 }))).status).toBe(403);
