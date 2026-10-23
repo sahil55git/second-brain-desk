@@ -32,7 +32,7 @@ export default function FleetPrint() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saved.slip]);
   const lay = slipLayout(size);
-  const vars = { "--sw": lay.inner, "--ss": lay.ss, "--sh": size.h ?? 0 } as React.CSSProperties;
+  const vars = { "--sw": lay.inner, "--ss": lay.ss, "--sh": lay.innerH ?? 0 } as React.CSSProperties;
 
   const [event, setEvent] = useState<{ e: FEvent; b: FBarrel | null } | null>(null);
   const [fleet, setFleet] = useState<FleetList | null>(null);

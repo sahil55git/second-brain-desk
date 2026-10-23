@@ -103,6 +103,8 @@ export function slipLayout(s: PaperSize) {
   const margin = s.w <= 60 ? 2 : 3;
   return {
     inner: r1(s.w - margin * 2),
+    /** Height of the printable area (page height minus the @page margins); null on a roll. A fixed-height slip must be shorter than this or it spills onto a second page. */
+    innerH: s.h == null ? null : r1(s.h - margin * 2),
     ss: Math.max(0.8, Math.min(1.4, r1(s.w / 80 * 100) / 100)),
     short: s.h != null && s.h <= 60,
     fixed: s.h != null,
