@@ -6,7 +6,7 @@ import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
 import { TABLE_HINT, missingTable } from "@/lib/attachmentServer";
 import { FLEET_DEFAULTS, fleetSummary, nextFleetCodes, type FleetBarrelLike } from "@/lib/barrelFleet";
-import { MAX_FLEET_REGISTER, logFleetEvent, shapeFleetBarrel } from "@/lib/barrelFleetServer";
+import { MAX_FLEET_REGISTER, shapeFleetBarrel } from "@/lib/barrelFleetServer";
 import { posNum, str } from "@/lib/barrelServer";
 
 export const dynamic = "force-dynamic";
@@ -53,15 +53,19 @@ export async function POST(req: NextRequest) {
       const existing = await prisma.fleetBarrel.findMany({ select: { code: true } });
       const codes = nextFleetCodes(existing.map((e) => e.code), count, startNo); // numbers already used are skipped
       try {
-        return await prisma.$transaction(async (tx) => {
-          const made = [];
-          for (const code of codes) {
-            const b = await tx.fleetBarrel.create({ data: { code, mark, capacityKg, createdBy: by } });
-            await logFleetEvent(tx, b, "REGISTER", by, { detail: { capacityKg, mark } });
-            made.push(b);
-          }
-          return made;
-        });
+        // Three queries however many barrels: a loop of one-by-one inserts needs 2 per barrel, and 26 barrels
+        // on a remote database outlast Prisma's 5 s transaction limit ("Transaction not found").
+        return await prisma.$transaction(
+          async (tx) => {
+            await tx.fleetBarrel.createMany({ data: codes.map((code) => ({ code, mark, capacityKg, createdBy: by })) });
+            const made = await tx.fleetBarrel.findMany({ where: { code: { in: codes } }, orderBy: { code: "asc" } });
+            await tx.fleetEvent.createMany({
+              data: made.map((b) => ({ barrelId: b.id, barrelCode: b.code, action: "REGISTER", by, at: new Date(), detail: { capacityKg, mark } })),
+            });
+            return made;
+          },
+          { maxWait: 10_000, timeout: 20_000 },
+        );
       } catch (e) {
         if ((e as { code?: string }).code === "P2002" && attempt < 2) continue; // someone registered at the same moment
         throw e;
