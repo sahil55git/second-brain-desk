@@ -26,6 +26,12 @@ Screen: `/barrels/fleet` (Quick Links → "Our barrels"). Staff and owner can bo
 
 Weights come from the platform scale through the scale bridge (same single-use, fresh-within-2-minutes tick as Barrel receiving). A typed weight is allowed as a fallback, needs a reason, and is marked "typed" in the ledger and on slips.
 
+## What scanning does
+
+- **QR code (phone camera):** opens that barrel's own page, `/barrels/fleet/BRL-07`: what is in it (kg and oil), where it is and for how long, tare and capacity, any warnings, its history, and the buttons to weigh it, send it out or bring it back. If the phone is not logged in, it asks for the login first and then returns to the same barrel.
+- **Barcode (scanner gun):** a barcode can only hold text, so it holds the code `BRL-07`. A gun types that into the scan box at the top of the Our barrels screen (or the label box on the Weigh tab); press Enter and the barrel's page opens. The "Scan" button does the same with the phone or PC camera and reads either code.
+- Labels printed earlier (QR with `?barrel=BRL-07`) still work: they are sent on to the barrel's page. No reprint is needed.
+
 ## Prints
 
 - `/barrels/fleet/labels?codes=all` (or `codes=BRL-07`): permanent labels. Sizes include 50 × 30 mm for the Helett Neo H30C. "With tare" or "code only". If the owner changes a barrel's tare, reprint that label.

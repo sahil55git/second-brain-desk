@@ -62,7 +62,7 @@ describe("codes", () => {
   });
   it("finds the code inside the QR link", () => {
     const link = fleetLink("https://shop.example/", "BRL-07");
-    expect(link).toBe("https://shop.example/barrels/fleet?barrel=BRL-07");
+    expect(link).toBe("https://shop.example/barrels/fleet/BRL-07");
     expect(findFleetCode(link)?.code).toBe("BRL-07");
   });
   it("numbers new barrels after the highest in use and skips used numbers", () => {

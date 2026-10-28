@@ -47,7 +47,7 @@ export async function middleware(req: NextRequest) {
 
   if (!token) {
     const loginUrl = new URL("/login", req.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
+    loginUrl.searchParams.set("callbackUrl", pathname + req.nextUrl.search); // keep ?query so old barrel QR links still land on the barrel
     return NextResponse.redirect(loginUrl);
   }
 

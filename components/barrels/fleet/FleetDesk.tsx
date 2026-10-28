@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { findFleetCode } from "@/lib/barrelFleet";
 import { api, L } from "@/components/barrels/shared";
+import BarcodeScanner, { cameraScanSupported } from "@/components/barrels/BarcodeScanner";
 import FleetBoard from "@/components/barrels/fleet/FleetBoard";
 import FleetWeigh from "@/components/barrels/fleet/FleetWeigh";
 import FleetLedger from "@/components/barrels/fleet/FleetLedger";
@@ -25,7 +26,7 @@ export default function FleetDesk() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("board");
-  const [preset, setPreset] = useState<string | null>(null);
+  const [preset] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -45,19 +46,23 @@ export default function FleetDesk() {
     return () => clearInterval(t);
   }, [load]);
 
-  // Deep link: /barrels/fleet?barrel=BRL-07 is what the QR on a barrel label opens.
+  // Old labels hold /barrels/fleet?barrel=BRL-07: send them to that barrel's own page.
   useEffect(() => {
     const b = findFleetCode(new URLSearchParams(window.location.search).get("barrel") || "");
-    if (b) {
-      setPreset(b.code);
-      setTab("weigh");
-    }
+    if (b) window.location.replace(`/barrels/fleet/${b.code}`);
   }, []);
 
+  // A barrel tile, a scanned label, or a typed code opens that barrel's page.
   const openBarrel = (code: string) => {
-    setPreset(code);
-    setTab("weigh");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.location.href = `/barrels/fleet/${encodeURIComponent(code)}`;
+  };
+  const [scan, setScan] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanErr, setScanErr] = useState<string | null>(null);
+  const goScan = (raw: string) => {
+    const f = findFleetCode(raw);
+    if (!f) return setScanErr("That is not one of our barrel labels.");
+    openBarrel(f.code);
   };
 
   return (
@@ -72,6 +77,28 @@ export default function FleetDesk() {
           </h1>
         </div>
       </header>
+
+      <div className="bd-scanrow bd-noprint" style={{ marginBottom: 10 }}>
+        <input
+          className="bd-code"
+          value={scan}
+          autoFocus
+          onChange={(e) => {
+            setScanErr(null);
+            setScan(e.target.value);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && goScan(scan)}
+          placeholder="Scan a barrel label with the gun, or type BRL-07 and press Enter…"
+          autoCapitalize="characters"
+          autoComplete="off"
+          aria-label="Scan a barrel label"
+        />
+        <button className="bd-btn big" onClick={() => setScanning(true)} disabled={!cameraScanSupported()}>
+          📷 <L en="Scan" kn="ಸ್ಕ್ಯಾನ್" />
+        </button>
+      </div>
+      {scanErr && <div className="bd-err">{scanErr}</div>}
+      {scanning && <BarcodeScanner title="Scan a barrel label" onCode={(c) => { setScanning(false); goScan(c); }} onClose={() => setScanning(false)} />}
 
       <div className="bd-steps bd-tabs bd-noprint" role="tablist">
         <button role="tab" aria-selected={tab === "board"} className={tab === "board" ? "on" : ""} onClick={() => { setTab("board"); load(); }}>
