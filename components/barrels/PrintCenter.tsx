@@ -15,9 +15,11 @@ import {
 } from "@/lib/printHelper";
 import { canCancel, canReprint, statusText } from "@/lib/printQueue";
 import {
-  connectBluetooth, connectUsb, currentConnection, directConfig, directSupport, disconnectPrinter, dotsAcross, explainError, knownUsbPrinters, monoFromDataUrl, sendBytes, unsupportedReason,
+  connectBluetooth, connectUsb, currentConnection, directConfig, directSupport, disconnectPrinter, dotsAcross, explainError, knownUsbPrinters, monoFromDataUrl, reconnectBluetooth, sendBytes, unsupportedReason, usbMatches,
   type DirectCfg, type DirectConnection,
 } from "@/lib/directPrint";
+import SavedPrinterBar from "@/components/barrels/SavedPrinterBar";
+import { defaultPrinter, makeDefault, patchPrinter, printersFor, readBook, removePrinter, savePrinter, type SavedPrinter } from "@/lib/savedPrinters";
 import { PRINTER_LANGS, buildJob, mmToDots, testPattern } from "@/lib/printerLang";
 import { rasterize } from "@/lib/rasterize";
 
@@ -61,9 +63,49 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
   const [prog, setProg] = useState("");
   const [usbKnown, setUsbKnown] = useState(0);
   const cfg = directConfig(kind, size.w, kind === "label" ? saved.dlabel : saved.dslip);
-  const setCfg = (p: Partial<DirectCfg>) => onSave(kind === "label" ? { dlabel: { ...saved.dlabel, ...p } } : { dslip: { ...saved.dslip, ...p } });
+  const setCfg = (p: Partial<DirectCfg>) => {
+    const { widthMm: _w, ...rest } = p; // print width follows the paper, not the printer
+    void _w;
+    onSave({
+      ...(kind === "label" ? { dlabel: { ...saved.dlabel, ...p } } : { dslip: { ...saved.dslip, ...p } }),
+      ...(activeId && Object.keys(rest).length ? { book: patchPrinter(readBook(saved.book), activeId, { cfg: rest }) } : {}),
+    });
+  };
   const support = typeof window === "undefined" ? { bluetooth: false, usb: false, secure: true } : directSupport();
   const whyNot = typeof navigator === "undefined" ? "" : unsupportedReason(support, navigator.userAgent);
+
+  // --- saved printers (this device): the default one is used as soon as the page opens
+  const book = readBook(saved.book);
+  const mine = printersFor(book, kind);
+  const [activeId, setActiveId] = useState("");
+  const [spErr, setSpErr] = useState("");
+  const active = mine.find((p) => p.id === activeId) ?? null;
+  const defaultId = book.defaults[kind] ?? "";
+  const appliedFor = useRef("");
+  const cfgOf = (p: SavedPrinter): Partial<DirectCfg> => {
+    const w = (kind === "label" ? saved.dlabel : saved.dslip)?.widthMm; // print width follows the paper, so keep it
+    return { ...p.cfg, ...(w ? { widthMm: w } : {}) };
+  };
+  const applyPrinter = (p: SavedPrinter) => {
+    setActiveId(p.id);
+    setMode(p.mode);
+    setMsg(null);
+    onSave({
+      mode: p.mode,
+      ...(kind === "label" ? { dlabel: cfgOf(p) } : { dslip: cfgOf(p) }),
+      ...(p.mode === "helper" && p.helper ? (kind === "label" ? { hlabel: p.helper } : { hslip: p.helper }) : {}),
+    });
+  };
+  useEffect(() => {
+    // once the saved choices have loaded: open on the default printer of this page
+    if (appliedFor.current === kind) return;
+    const d = defaultPrinter(book, kind);
+    if (d) {
+      appliedFor.current = kind;
+      applyPrinter(d);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saved.book, kind]);
 
   // first visit on a phone or tablet: print straight to the printer when the browser can, else share a picture
   useEffect(() => {
@@ -81,6 +123,7 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
   useEffect(() => setPics(null), [size.id, count, selector]);
 
   const pick = (m: PrintMode) => {
+    if (active && active.mode !== m) setActiveId(""); // a different way to print is no longer that saved printer
     setMode(m);
     setMsg(null);
     onSave({ mode: m });
@@ -180,14 +223,91 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
       setBusy(false);
     }
   };
+  // --- saved printer actions
+  const saveCurrent = (name: string) => {
+    try {
+      const { widthMm: _w, ...rest } = cfg;
+      void _w;
+      const direct = mode === "direct";
+      const c = direct ? conn ?? currentConnection() : null;
+      const { book: next, saved: sp } = savePrinter(book, {
+        id: active?.id,
+        name,
+        for: kind,
+        mode,
+        ...(direct ? { cfg: rest } : {}),
+        ...(c ? { via: c.kind, deviceId: c.deviceId } : active?.via ? { via: active.via, deviceId: active.deviceId } : {}),
+        ...(mode === "helper" && hprinter ? { helper: hprinter } : {}),
+      });
+      appliedFor.current = kind; // it is already what the page shows
+      onSave({ book: next });
+      setActiveId(sp.id);
+      setSpErr("");
+      setMsg({ ok: true, text: `Saved "${sp.name}". ${defaultPrinter(next, kind)?.id === sp.id ? "It is the default: it opens by itself and Print uses it." : "Choose it from the list any time."}` });
+    } catch (e) {
+      setSpErr(e instanceof Error ? e.message : "Could not save.");
+    }
+  };
+  const pickSaved = (id: string) => {
+    const p = mine.find((x) => x.id === id);
+    if (!p) return setActiveId("");
+    applyPrinter(p);
+  };
+  const deleteSaved = (id: string) => {
+    onSave({ book: removePrinter(book, id) });
+    setActiveId("");
+  };
   const hangUp = async () => {
     await disconnectPrinter();
     setConn(null);
     setMsg(null);
   };
+  // Use the open connection, else reconnect the saved printer by itself, else open the chooser (Print is a tap, so it may).
+  const ensureConnected = async (): Promise<DirectConnection> => {
+    const cur = currentConnection();
+    if (cur) return cur;
+    let c: DirectConnection | null = null;
+    if (active?.via === "usb") {
+      const list = await knownUsbPrinters();
+      const dev = (active.deviceId && list.find((d) => usbMatches(d, active.deviceId!))) || list[0];
+      if (dev) c = await connectUsb(dev, lost);
+    } else if (active?.via === "bluetooth" && active.deviceId) {
+      c = await reconnectBluetooth(active.deviceId, cfg.service, lost, setDlog);
+    }
+    if (!c) c = active?.via === "usb" || (!support.bluetooth && support.usb) ? await connectUsb(undefined, lost) : await connectBluetooth(cfg.service, lost, setDlog);
+    setConn(c);
+    setDlog(c.log);
+    if (active && c.deviceId !== active.deviceId) onSave({ book: patchPrinter(book, active.id, { via: c.kind, deviceId: c.deviceId }) });
+    return c;
+  };
+  // opening the page on a saved Bluetooth / USB printer: reconnect quietly, no tap needed
+  useEffect(() => {
+    if (mode !== "direct" || !active?.deviceId || currentConnection()) return;
+    let live = true;
+    (async () => {
+      try {
+        let c: DirectConnection | null = null;
+        if (active.via === "usb") {
+          const dev = (await knownUsbPrinters()).find((d) => usbMatches(d, active.deviceId!));
+          if (dev) c = await connectUsb(dev, lost);
+        } else c = await reconnectBluetooth(active.deviceId!, cfg.service, lost, setDlog);
+        if (c && live) {
+          setConn(c);
+          setMsg({ ok: true, text: `Connected to ${c.name}.` });
+        }
+      } catch {
+        /* printer off or busy: Print will try again and say why */
+      }
+    })();
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, activeId]);
   // send one 1-bit picture (or several) to the connected printer in the chosen language
-  const sendMono = async (monos: Awaited<ReturnType<typeof monoFromDataUrl>>[], n: number) => {
-    if (!conn || !conn.isOpen()) throw new Error("The printer is not connected. Tap Connect.");
+  const sendMono = async (monos: Awaited<ReturnType<typeof monoFromDataUrl>>[], n: number, via?: DirectConnection) => {
+    const conn = via ?? currentConnection();
+    if (!conn) throw new Error("The printer is not connected. Tap Connect.");
     let total = 0;
     for (let i = 0; i < monos.length; i++) {
       const m = monos[i];
@@ -216,8 +336,9 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
     setMsg(null);
     setBusy(true);
     try {
+      const c = await ensureConnected();
       const m = testPattern(dotsAcross(cfg.widthMm), mmToDots(Math.min(size.h ?? 40, 40)));
-      await sendMono([m], 1);
+      await sendMono([m], 1, c);
       setMsg({ ok: true, text: "Test label sent. Solid square top-left and a frame = right. Hollow square or all black = tick/untick Invert. Nothing = try another language." });
     } catch (e) {
       setProg("");
@@ -252,13 +373,13 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
         setMsg({ ok: true, text: `Sent ${items.length} ${kind}${items.length > 1 ? "s" : ""} to the shop printer.${q?.agent.online ? "" : " The print helper on the shop PC is not running yet: it will print as soon as it starts."}` });
         void loadQueue();
       } else if (mode === "direct") {
-        if (!conn || !conn.isOpen()) throw new Error("Connect the printer first (Connect Bluetooth or Connect USB).");
+        const c = await ensureConnected(); // first: it may need the chooser, which only opens right after the tap
         const pngs = await raster();
         const w = dotsAcross(cfg.widthMm);
         const monos = await Promise.all(pngs.map((u) => monoFromDataUrl(u, w, cfg.threshold)));
-        const sent = await sendMono(monos, clampCopies(copies));
+        const sent = await sendMono(monos, clampCopies(copies), c);
         onDone?.();
-        setMsg({ ok: true, text: `Sent ${sent} ${kind}${sent > 1 ? "s" : ""} to ${conn.name}${copies > 1 ? ` × ${clampCopies(copies)}` : ""}.` });
+        setMsg({ ok: true, text: `Sent ${sent} ${kind}${sent > 1 ? "s" : ""} to ${c.name}${copies > 1 ? ` × ${clampCopies(copies)}` : ""}.${active ? "" : " Tap Save this printer so Print uses it next time."}` });
       } else if (mode === "helper") {
         if (!pairingCodeOk(code)) throw new Error("Paste the pairing code from the helper window first.");
         if (!hprinter) throw new Error("Choose the printer first.");
@@ -327,11 +448,23 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
 
   const dimText = size.id === "a4" ? "A4" : size.h == null ? `${size.w} mm roll` : `${size.w} × ${size.h} mm`;
   const showCopies = mode === "oneclick" || mode === "helper" || mode === "queue" || mode === "direct";
-  const helperReady = (mode !== "helper" || (!!ping && pairingCodeOk(code) && !!hprinter)) && (mode !== "direct" || !!conn);
+  const helperReady = mode !== "helper" || (!!ping && pairingCodeOk(code) && !!hprinter);
 
   return (
     <div className="bd-pc bd-noprint">
       <div className="bd-pc-title"><b>🖨️ How to print</b><span className="bd-m"> · {dimText}</span></div>
+      <SavedPrinterBar
+        kind={kind}
+        printers={mine}
+        activeId={activeId}
+        defaultId={defaultId}
+        suggestedName={mode === "direct" ? (conn ?? currentConnection())?.name ?? "" : mode === "helper" ? hprinter : PRINT_MODES.find((m) => m.id === mode)?.name ?? ""}
+        error={spErr}
+        onPick={pickSaved}
+        onSave={saveCurrent}
+        onDefault={(id) => onSave({ book: makeDefault(book, id) })}
+        onDelete={deleteSaved}
+      />
       <div className="bd-pc-modes" role="tablist">
         {PRINT_MODES.map((m) => (
           <button key={m.id} role="tab" aria-selected={mode === m.id} className={`bd-pc-mode${mode === m.id ? " on" : ""}`} onClick={() => pick(m.id)}>
@@ -344,6 +477,7 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
       {mode === "window" && (
         <div className="bd-m small">
           Chrome opens its print window. Pick the printer and paper {dimText}, Margins <b>None</b>, Scale <b>100%</b>, Headers and footers <b>off</b>.
+          A web page cannot choose the printer for Chrome&apos;s window: Chrome pre-selects the one you used last (or the Windows default printer). To print with no window to a chosen printer, use <b>Bluetooth / USB</b>, <b>This PC&apos;s helper</b> or <b>One-click</b> and save that printer.
         </div>
       )}
 
@@ -368,7 +502,7 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
                 {support.bluetooth && <button className="bd-btn" disabled={busy} onClick={() => void connect("bluetooth")}>🔵 Connect Bluetooth</button>}
                 {support.usb && <button className="bd-btn" disabled={busy} onClick={() => void connect("usb")}>🔌 Connect USB</button>}
                 {support.usb && usbKnown > 0 && !conn && <button className="bd-btn" disabled={busy} onClick={() => void reuseUsb()}>🔌 Use the USB printer from before</button>}
-                <button className="bd-btn" disabled={busy || !conn} onClick={() => void testLabel()}>🧪 Test label</button>
+                <button className="bd-btn" disabled={busy} onClick={() => void testLabel()}>🧪 Test label</button>
               </div>
               <div className="bd-pc-set">
                 <label>

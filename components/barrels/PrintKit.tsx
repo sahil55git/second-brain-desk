@@ -4,6 +4,7 @@
 // and the "Printer settings / connecting a printer" help.
 import { useEffect, useState } from "react";
 import type { DirectCfg } from "@/lib/directPrint";
+import type { PrinterBook } from "@/lib/savedPrinters";
 import { LABEL_SIZES, PRINTER_MODELS, PRINTER_TYPES, SLIP_SIZES, customSize, printerModel, type PaperSize, type PrinterType } from "@/lib/printSizes";
 
 const KEY = "bd-print-v1";
@@ -23,6 +24,8 @@ export interface SavedPrint {
   /** Bluetooth / USB direct printing settings, one set for labels and one for slips (this device only) */
   dlabel?: Partial<DirectCfg>;
   dslip?: Partial<DirectCfg>;
+  /** printers saved on this device, with the default for labels and for slips */
+  book?: PrinterBook;
 }
 
 /** Remembered on this device only (printer name, type, last sizes). Works without storage. */

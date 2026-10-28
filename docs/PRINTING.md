@@ -11,6 +11,17 @@ Every label and slip page (barrel labels, barrel slips, receiving labels, receiv
 | **One-click** | shop PC | Prints with no window, to the printer last used | a special Chrome shortcut (downloaded from the panel) |
 | **This PC's helper** | shop PC | Prints to a named printer at the exact paper size, no window | `py tools/print_helper.py` running |
 
+## Saved printers (Print uses your printer by itself)
+
+At the top of the panel, **Label printer** / **Slip printer** lists the printers saved **on this device**. Set up a printer once (connect it, test label, settings), tap **💾 Save this printer**, give it a name. The first one saved for labels (or for slips) is the **★ default**:
+
+- When the page opens it switches to that printer's way of printing and settings (labels and slips each have their own).
+- For Bluetooth / USB it **reconnects by itself** (no chooser, no tap) when the printer is on and in range, and pressing **Print** connects first if needed: there is no separate Connect step any more. The very first time, or after the browser forgets the permission, Print opens the Bluetooth chooser once.
+- **Make default** switches the default; **Delete** removes it; changing the darkness, language, gap etc. while a printer is selected is saved into it.
+- Saved printers live in this browser only (the tablet, the phone and the PC each have their own list).
+- A page cannot choose the printer inside Chrome's own **Print window**; Chrome pre-selects the printer used last (or the Windows default printer). For a chosen printer with no window use Bluetooth / USB, This PC's helper or One-click.
+- Needs a recent Chrome for the silent reconnect (`getDevices`); if the browser lacks it Print simply opens the chooser each time.
+
 The paper size is chosen above the panel (4 × 6 in, 50 × 75 mm, 50 × 30 mm, 80 mm roll, or any size typed in mm). On a phone the size list starts folded: tap "Paper size" to change it.
 
 ## 1. Print window
