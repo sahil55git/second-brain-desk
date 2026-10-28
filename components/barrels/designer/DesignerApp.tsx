@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  blankLabel, blankSlip, canRedo, canUndo, cleanName, histNew, histPush, histRedo, histUndo, sampleData, starterFor, type History, type TemplateDoc, type TemplateKind, type TemplateRow,
+  LABEL_STARTS, blankSlip, canRedo, canUndo, cleanName, histNew, histPush, histRedo, histUndo, sampleData, startLabel, starterFor, type History, type LabelStartId, type TemplateDoc, type TemplateKind, type TemplateRow,
 } from "@/lib/labelTemplate";
 import { LABEL_SIZES } from "@/lib/printSizes";
 import { api } from "@/components/barrels/shared";
@@ -40,6 +40,7 @@ export default function DesignerApp() {
   const [newSize, setNewSize] = useState("50x75");
   const [newWidth, setNewWidth] = useState(80);
   const [newBlank, setNewBlank] = useState(false);
+  const [newStart, setNewStart] = useState<LabelStartId>("standard");
   const [barrelCode, setBarrelCode] = useState("");
 
   useEffect(() => {
@@ -106,7 +107,7 @@ export default function DesignerApp() {
     let d: TemplateDoc;
     if (kind === "label") {
       const z = LABEL_SIZES.find((s) => s.id === newSize) ?? LABEL_SIZES[5];
-      d = newBlank ? blankLabel(z.w, z.h ?? 30) : starterFor("label", z.w, z.h ?? 30);
+      d = startLabel(newStart, z.w, z.h ?? 30);
     } else {
       d = newBlank ? blankSlip(newWidth) : starterFor("slip", newWidth, null);
     }
@@ -245,7 +246,20 @@ export default function DesignerApp() {
                       </select>
                     </label>
                   )}
-                  <label className="dz-inl"><input type="checkbox" checked={newBlank} onChange={(e) => setNewBlank(e.target.checked)} /> Start empty (not from the standard layout)</label>
+                  {kind === "label" ? (
+                    <fieldset className="dz-starts">
+                      <legend>Start from</legend>
+                      {LABEL_STARTS.map((st) => (
+                        <label key={st.id} className={`dz-start${newStart === st.id ? " on" : ""}`}>
+                          <input type="radio" name="dz-start" checked={newStart === st.id} onChange={() => setNewStart(st.id)} />
+                          <b>{st.name}</b>
+                          <small>{st.note}</small>
+                        </label>
+                      ))}
+                    </fieldset>
+                  ) : (
+                    <label className="dz-inl"><input type="checkbox" checked={newBlank} onChange={(e) => setNewBlank(e.target.checked)} /> Start empty (not from the standard layout)</label>
+                  )}
                   <button type="button" className="bd-btn primary" onClick={createNew}>Create</button>
                 </div>
               )}

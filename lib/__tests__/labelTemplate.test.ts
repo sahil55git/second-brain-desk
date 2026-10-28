@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  LIMITS, TINY_PNG, alignEls, barcodeDots, docFontSpec, qrFit, blankLabel, blankSlip, canRedo, canUndo, checkDoc, cleanName, barcodeModuleCount, distributeEls, duplicateItems, fillTokens, histNew, histPush, histRedo, histUndo,
+  LABEL_STARTS, LIMITS, TINY_PNG, matchSize, startLabel, alignEls, barcodeDots, docFontSpec, qrFit, blankLabel, blankSlip, canRedo, canUndo, checkDoc, cleanName, barcodeModuleCount, distributeEls, duplicateItems, fillTokens, histNew, histPush, histRedo, histUndo,
   moveBlock, newBlock, newDateCorner, newLabelEl, newWeightDate, nextId, reorder, resizeBox, resizeLabel, sampleData, sanitizeDoc, snapBox, snapTo, starterLabel, starterSlip, unknownTokens,
   type LabelDoc, type LabelEl, type SlipDoc, type TextEl,
 } from "@/lib/labelTemplate";
@@ -362,5 +362,53 @@ describe("weight and date", () => {
     const d = newDateCorner(doc);
     expect(d.x + d.w).toBeLessThanOrEqual(doc.widthMm);
     expect(d.y).toBeLessThan(2);
+  });
+});
+
+describe("starting points, rotation, frame", () => {
+  const SIZES: [number, number][] = [[50, 30], [50, 75], [100, 50], [100, 150]];
+  it("blank starts empty; every other start passes the checks at every size", () => {
+    for (const [w, h] of SIZES) {
+      expect(startLabel("blank", w, h).els).toEqual([]);
+      for (const st of LABEL_STARTS.filter((x) => x.id !== "blank")) {
+        const doc = startLabel(st.id, w, h);
+        expect(doc.els.length).toBeGreaterThanOrEqual(3);
+        expect(checkDoc(doc, sampleData("label")), `${st.id} ${w}x${h}`).toEqual([]);
+        for (const e of doc.els) { expect(e.x).toBeGreaterThanOrEqual(0); expect(e.y).toBeGreaterThanOrEqual(0); expect(e.x + e.w).toBeLessThanOrEqual(doc.widthMm + 0.01); expect(e.y + e.h).toBeLessThanOrEqual(doc.heightMm + 0.01); }
+        expect(sanitizeDoc(doc, "label").ok).toBe(true);
+      }
+    }
+  });
+  it("big weight puts the weight above its date; big code uses the code", () => {
+    const wd = startLabel("weight", 50, 75).els.filter((e): e is TextEl => e.type === "text");
+    const wt = wd.find((e) => e.text.includes("{tare"))!;
+    const dt = wd.find((e) => e.text === "{tareDate}")!;
+    expect(dt.y).toBeGreaterThanOrEqual(wt.y + wt.h - 0.01);
+    expect(startLabel("bigcode", 50, 75).els.some((e) => e.type === "text" && e.text === "{code}" && e.size >= 20)).toBe(true);
+  });
+  it("rotation, frame and underline survive sanitizing; bad values are dropped", () => {
+    const doc = blankLabel(50, 30);
+    const t = newLabelEl("text", doc) as TextEl;
+    const raw = { ...doc, els: [{ ...t, rot: 90, border: 0.4, underline: true }, { ...newLabelEl("qr", doc), rot: 45 }, { ...newLabelEl("barcode", doc), rot: 270 }] };
+    const r = sanitizeDoc(raw, "label");
+    expect(r.ok).toBe(true);
+    if (!r.ok || r.doc.kind !== "label") return;
+    const [a, b, c] = r.doc.els as [TextEl, LabelEl, LabelEl];
+    expect(a.rot).toBe(90); expect(a.border).toBe(0.4); expect(a.underline).toBe(true);
+    expect(b.rot).toBeUndefined();
+    expect(c.rot).toBe(270);
+    const plain = sanitizeDoc({ ...doc, els: [{ ...t, border: 0, underline: false, rot: 0 }] }, "label");
+    expect(plain.ok && JSON.stringify(plain.doc)).not.toMatch(/border|underline|rot/);
+  });
+  it("matchSize copies the first chosen item's size and stays inside the label", () => {
+    const doc = blankLabel(50, 30);
+    const a = { ...newLabelEl("text", doc), id: "a", x: 1, y: 1, w: 20, h: 6 };
+    const b = { ...newLabelEl("text", doc), id: "b", x: 40, y: 20, w: 5, h: 3 };
+    const out = matchSize([a, b], ["a", "b"], "both", 50, 30);
+    const nb = out.find((e) => e.id === "b")!;
+    expect(nb.w).toBe(10); // 50 - 40: cannot leave the label
+    expect(nb.h).toBe(6);
+    expect(matchSize([a, b], ["a", "b"], "w", 50, 30).find((e) => e.id === "b")!.h).toBe(3);
+    expect(matchSize([a, b], ["b"], "both", 50, 30)).toEqual([a, b]);
   });
 });
