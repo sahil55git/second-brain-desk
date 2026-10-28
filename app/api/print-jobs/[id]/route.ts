@@ -1,5 +1,6 @@
 // One queued job: cancel it while it waits, or queue it again.  POST { action: "cancel" | "reprint" }
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
 import { TABLE_HINT, missingTable } from "@/lib/attachmentServer";
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
     if (!canReprint(job.status)) return { code: 409 as const, error: "Wait until it has finished." };
     const again = await prisma.printJob.create({
-      data: { createdBy: user.name || user.username, kind: job.kind, title: job.title, widthMm: job.widthMm, heightMm: job.heightMm, copies: job.copies, items: job.items ?? [] },
+      data: { createdBy: user.name || user.username, kind: job.kind, title: job.title, widthMm: job.widthMm, heightMm: job.heightMm, copies: job.copies, items: (job.items ?? []) as Prisma.InputJsonValue },
       select: { id: true },
     });
     return { code: 201 as const, id: again.id };

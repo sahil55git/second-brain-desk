@@ -2,6 +2,7 @@
 //   POST  { kind: "label"|"slip", title, copies, items: [{ png, widthMm, heightMm }] }  -> { id }
 //   GET   ?limit=12   recent jobs (no pictures) + whether the shop printer is online
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
 import { TABLE_HINT, missingTable } from "@/lib/attachmentServer";
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
   const first = job.items[0];
   const result = await safeDbCall(() =>
     prisma.printJob.create({
-      data: { createdBy: user.name || user.username, kind: job.kind, title: job.title, widthMm: first.widthMm, heightMm: first.heightMm, copies: job.copies, items: job.items },
+      data: { createdBy: user.name || user.username, kind: job.kind, title: job.title, widthMm: first.widthMm, heightMm: first.heightMm, copies: job.copies, items: job.items as unknown as Prisma.InputJsonValue },
       select: { id: true },
     })
   );
