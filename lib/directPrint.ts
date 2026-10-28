@@ -241,12 +241,19 @@ export function explainError(e: unknown, via: "bluetooth" | "usb" | "print" = "p
   return msg || "Printing did not work.";
 }
 
+/** Find a printer the browser already has permission for, by the id saved with it. */
+export const pickKnownDevice = <T extends { id: string }>(list: T[], id: string): T | null => list.find((d) => d.id === id) ?? null;
+export const usbDeviceId = (vendorId: number, productId: number) => `usb:${vendorId.toString(16)}:${productId.toString(16)}`;
+export const usbMatches = (d: { vendorId: number; productId: number }, id: string) => usbDeviceId(d.vendorId, d.productId) === id;
+
 // ---------------------------------------------------------------------------
 // Connections (browser only)
 // ---------------------------------------------------------------------------
 export interface DirectConnection {
   kind: "bluetooth" | "usb";
   name: string;
+  /** Bluetooth device id, or "usb:<vendor>:<product>": lets a saved printer find this one again */
+  deviceId: string;
   /** what was found on the printer, for the diagnostics panel */
   log: string[];
   sink: Sink;
@@ -320,21 +327,51 @@ export async function disconnectPrinter() {
   if (c) await c.close().catch(() => {});
 }
 
-/** Open the Bluetooth chooser (must be called from a tap) and connect to the printer that is picked. */
-export async function connectBluetooth(extraService = "", onLost?: () => void, onLog?: (lines: string[]) => void): Promise<DirectConnection> {
-  const bt = (navigator as unknown as { bluetooth?: { requestDevice(o: unknown): Promise<BtDevice> } }).bluetooth;
-  if (!bt) throw new Error("This browser has no Bluetooth printing. Use Chrome on Android or PC.");
-  await disconnectPrinter();
+type BtNav = { requestDevice(o: unknown): Promise<BtDevice>; getDevices?: () => Promise<BtDevice[]> };
+const btNav = () => (navigator as unknown as { bluetooth?: BtNav }).bluetooth;
+function btServices(extraService: string): string[] {
   const services = [...PRINTER_SERVICES];
   const extra = extraService.trim().toLowerCase();
   if (/^[0-9a-f]{4}$/.test(extra)) services.push(base(parseInt(extra, 16)));
   else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(extra)) services.push(extra);
+  return services;
+}
+
+/** Open the Bluetooth chooser (must be called from a tap) and connect to the printer that is picked. */
+export async function connectBluetooth(extraService = "", onLost?: () => void, onLog?: (lines: string[]) => void): Promise<DirectConnection> {
+  const bt = btNav();
+  if (!bt) throw new Error("This browser has no Bluetooth printing. Use Chrome on Android or PC.");
+  await disconnectPrinter();
+  const services = btServices(extraService);
+  const dev = await bt.requestDevice({ acceptAllDevices: true, optionalServices: services });
+  return openBluetooth(dev, services, onLost, onLog);
+}
+
+/**
+ * Connect to a printer this site was allowed to use before, with no chooser and no tap.
+ * Returns null when the browser cannot do that (older Chrome) or the printer is not in range / not known.
+ */
+export async function reconnectBluetooth(deviceId: string, extraService = "", onLost?: () => void, onLog?: (lines: string[]) => void): Promise<DirectConnection | null> {
+  const bt = btNav();
+  if (!bt || typeof bt.getDevices !== "function") return null;
+  let list: BtDevice[] = [];
+  try {
+    list = await bt.getDevices();
+  } catch {
+    return null;
+  }
+  const dev = pickKnownDevice(list, deviceId);
+  if (!dev) return null;
+  await disconnectPrinter();
+  return openBluetooth(dev, btServices(extraService), onLost, onLog);
+}
+
+async function openBluetooth(dev: BtDevice, services: string[], onLost?: () => void, onLog?: (lines: string[]) => void): Promise<DirectConnection> {
   const log: string[] = [];
   const say = (m: string) => {
     log.push(m);
     onLog?.([...log]);
   };
-  const dev = await bt.requestDevice({ acceptAllDevices: true, optionalServices: services });
   say(`Chosen: ${dev.name || "(no name)"} [${dev.id.slice(0, 8)}…]`);
   if (!dev.gatt) throw new Error("This printer cannot be used over Bluetooth Low Energy.");
   const gatt = dev.gatt;
@@ -432,6 +469,7 @@ export async function connectBluetooth(extraService = "", onLost?: () => void, o
   });
   const conn: DirectConnection = {
     kind: "bluetooth",
+    deviceId: dev.id,
     name: dev.name || "Bluetooth printer",
     log,
     sink,
@@ -497,6 +535,7 @@ export async function connectUsb(device?: UsbDevice, onLost?: () => void): Promi
   });
   const conn: DirectConnection = {
     kind: "usb",
+    deviceId: usbDeviceId(dev.vendorId, dev.productId),
     name: label,
     log,
     sink: {

@@ -431,3 +431,10 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
 .bd-pc-adv > summary { cursor: pointer; font-weight: 600; font-size: 13px; }
 .bd-pc-adv[open] > summary { margin-bottom: 6px; }
 .bd-pc-log { margin: 0 0 6px; padding: 8px; background: #f3f5f4; border-radius: 6px; font-size: 11.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-all; max-height: 220px; overflow: auto; }
+
+/* saved printers bar */
+.bd-spb { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 8px 10px; border: 1px solid #d5dbd8; border-radius: 8px; background: #fff; }
+.bd-spb label { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.bd-spb select { max-width: 100%; min-height: 36px; }
+.bd-spb-name { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.bd-spb-name input { min-height: 36px; width: 190px; max-width: 100%; }
