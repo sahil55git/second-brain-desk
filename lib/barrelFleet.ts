@@ -86,9 +86,10 @@ export function findFleetCode(raw: string): { code: string; no: number } | null 
   return m ? parseFleetCode(m[0]) : null;
 }
 
-/** What the QR on a fleet barrel label holds: a link that opens the barrel's record. */
+/** What the QR on a fleet barrel label holds: a link that opens that barrel's page (what is in it, where it is, its history, and the buttons to weigh or send it). The path (not a ?query) so a login redirect keeps it. */
 export function fleetLink(origin: string, code: string): string {
-  return `${origin.replace(/\/+$/, "")}/barrels/fleet?barrel=${encodeURIComponent(code)}`;
+  const c = findFleetCode(code)?.code ?? code;
+  return `${origin.replace(/\/+$/, "")}/barrels/fleet/${encodeURIComponent(c)}`;
 }
 
 /** The next `count` free codes, counting on from the highest number already used (or from `startNo`). */
