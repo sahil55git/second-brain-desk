@@ -193,5 +193,103 @@ class DryRunTests(unittest.TestCase):
             self.assertIn("50.0x30.0mm-x3", files[0].name)
 
 
+class QueueWorkerTests(unittest.TestCase):
+    """The helper takes jobs from a fake app server."""
+
+    def setUp(self):
+        self.calls = []
+        self.jobs = []
+        test = self
+
+        class H(ph.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                test.calls.append((self.headers.get("x-print-secret"), body))
+                if self.headers.get("x-print-secret") != "sekret-sekret-sekret":
+                    out, code = {"error": "Wrong secret."}, 401
+                elif body["action"] == "claim":
+                    out, code = {"ok": True, "job": test.jobs.pop(0) if test.jobs else None}, 200
+                else:
+                    out, code = {"ok": True}, 200
+                raw = json.dumps(out).encode()
+                self.send_response(code)
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+
+        self.srv = ph.ThreadingHTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.url = f"http://127.0.0.1:{self.srv.server_address[1]}/api/print-jobs/agent"
+        self.backend = FakeBackend()
+        self.logs = []
+
+    def tearDown(self):
+        self.srv.shutdown()
+        self.srv.server_close()
+
+    def worker(self, secret="sekret-sekret-sekret", **kw):
+        return ph.QueueWorker(self.url, secret, self.backend, log=self.logs.append, **kw)
+
+    def job(self, kind="label", **kw):
+        j = {"id": "j1", "kind": kind, "title": "BRL-01", "copies": 2, "items": [{"png": b64(tiny_png(100, 60)), "widthMm": 50, "heightMm": 30}]}
+        j.update(kw)
+        return j
+
+    def test_idle_round_just_says_hello(self):
+        self.assertFalse(self.worker().step())
+        self.assertEqual(self.calls[0][1]["action"], "claim")
+        self.assertEqual(self.calls[0][1]["version"], ph.VERSION)
+        self.assertEqual(self.backend.jobs, [])
+
+    def test_label_job_goes_to_the_label_printer_and_is_reported_done(self):
+        self.jobs.append(self.job())
+        self.assertTrue(self.worker().step())
+        printed = self.backend.jobs[0]
+        self.assertEqual(printed["printer"], "H30C Thermal Printer")  # found by name
+        self.assertEqual(printed["copies"], 2)
+        done = self.calls[-1][1]
+        self.assertEqual((done["action"], done["id"], done["ok"]), ("done", "j1", True))
+
+    def test_slip_job_goes_to_the_receipt_printer(self):
+        self.jobs.append(self.job("slip", items=[{"png": b64(tiny_png(100, 200)), "widthMm": 80, "heightMm": None}]))
+        self.worker().step()
+        self.assertEqual(self.backend.jobs[0]["printer"], "POSIFLOW 80B")
+        self.assertEqual(self.backend.jobs[0]["items"][0]["heightMm"], 160.0)
+
+    def test_printer_names_given_on_the_command_line_win(self):
+        self.jobs.append(self.job())
+        self.worker(label_printer="My Label Printer").step()
+        self.assertEqual(self.backend.jobs[0]["printer"], "My Label Printer")
+
+    def test_failure_is_reported_not_raised(self):
+        self.backend.fail = "Printer not found: X"
+        self.jobs.append(self.job())
+        self.assertTrue(self.worker().step())
+        done = self.calls[-1][1]
+        self.assertFalse(done["ok"])
+        self.assertIn("Printer not found", done["error"])
+
+    def test_a_bad_picture_is_reported_as_failed(self):
+        self.jobs.append(self.job(items=[{"png": "!!", "widthMm": 50, "heightMm": 30}]))
+        self.worker().step()
+        self.assertFalse(self.calls[-1][1]["ok"])
+        self.assertEqual(self.backend.jobs, [])
+
+    def test_wrong_secret_is_an_error_the_loop_survives(self):
+        with self.assertRaises(RuntimeError) as cm:
+            self.worker(secret="nope-nope-nope-nope").step()
+        self.assertIn("401", str(cm.exception))
+
+    def test_pick_printer(self):
+        names = ["Microsoft Print to PDF", "H30C Thermal Printer", "POSIFLOW 80B"]
+        self.assertEqual(ph.pick_printer("label", names, "Microsoft Print to PDF"), "H30C Thermal Printer")
+        self.assertEqual(ph.pick_printer("slip", names, "x"), "POSIFLOW 80B")
+        self.assertEqual(ph.pick_printer("label", ["Brother HL"], "Brother HL"), "Brother HL")
+        self.assertEqual(ph.pick_printer("label", [], ""), "")
+
+
 if __name__ == "__main__":
     unittest.main()

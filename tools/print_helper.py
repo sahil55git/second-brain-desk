@@ -12,8 +12,17 @@ First run: it prints a PAIRING CODE. Paste that code once into the app (Print pa
 helper" -> Pairing code). Only a browser that knows the code can print. The helper listens only
 on this computer (127.0.0.1), never on the shop network.
 
+Phones and tablets (no Bluetooth needed): the helper can also fetch jobs from the app. A phone or tablet
+queues a label or slip in the app ("Shop printer" mode); the helper, with the printers on USB, prints it:
+    set PRINT_QUEUE_SECRET=<16+ characters, the same value as in Vercel>   (SCALE_PUSH_SECRET also works)
+    py tools/print_helper.py --queue-url https://<your-app>/api/print-jobs/agent ^
+        --label-printer "H30C Thermal Printer" --slip-printer "POSIFLOW 80B"
+
 Options:
     --port 9101       change the port (also change it in the app)
+    --queue-url URL   also print jobs queued from phones and tablets
+    --label-printer N printer name for labels (default: the one that looks like a label printer)
+    --slip-printer N  printer name for slips and receipts
     --dry-run         do not print; save each picture into the print-jobs folder instead
                       (use this to check the app and helper talk to each other before using paper)
     --show-code       print the pairing code again and exit
@@ -34,13 +43,17 @@ import platform
 import secrets
 import struct
 import subprocess
+import re
 import sys
 import tempfile
 import threading
+import time
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.0"
+VERSION = "1.1"
 NAME = "mahadev-print-helper"
 DEFAULT_PORT = 9101
 MAX_BODY = 25 * 1024 * 1024  # a 4x6 label at 203 dpi is well under 1 MB; this is a safety stop
@@ -72,6 +85,9 @@ def load_token(directory: Path = CONFIG_DIR) -> str:
 # ---------------------------------------------------------------------------
 class JobError(ValueError):
     pass
+
+
+PRINT_LOCK = threading.Lock()  # one print job at a time: two jobs at once would mix up the printer
 
 
 def png_size(data: bytes) -> tuple[int, int]:
@@ -221,8 +237,6 @@ class DryRunBackend:
 # HTTP server
 # ---------------------------------------------------------------------------
 def make_handler(token: str, backend, log=print):
-    lock = threading.Lock()  # one print job at a time: two jobs at once would mix up the printer
-
     class Handler(BaseHTTPRequestHandler):
         server_version = f"{NAME}/{VERSION}"
 
@@ -292,7 +306,7 @@ def make_handler(token: str, backend, log=print):
                 job = check_job(body)
             except (JobError, ValueError, UnicodeDecodeError) as e:
                 return self._send(400, {"ok": False, "error": str(e)[:300]})
-            with lock:
+            with PRINT_LOCK:
                 try:
                     n = backend.print_job(job)
                 except Exception as e:  # noqa: BLE001
@@ -308,11 +322,108 @@ def make_server(port: int, token: str, backend, log=print) -> ThreadingHTTPServe
     return ThreadingHTTPServer(("127.0.0.1", port), make_handler(token, backend, log))
 
 
+# ---------------------------------------------------------------------------
+# Jobs queued from phones and tablets
+# ---------------------------------------------------------------------------
+LABEL_HINT = re.compile(r"h30c|helett|label|tsc|zebra|godex|xprinter", re.I)
+SLIP_HINT = re.compile(r"posiflow|receipt|pos[- ]?80|pos[- ]?58|thermal receipt", re.I)
+
+
+def pick_printer(kind: str, names: list[str], default: str, wanted: str = "") -> str:
+    """The printer a queued job should use: the one named on the command line, else one that looks right."""
+    if wanted:
+        return wanted
+    hint = LABEL_HINT if kind == "label" else SLIP_HINT
+    for n in names:
+        if hint.search(n):
+            return n
+    return default or (names[0] if names else "")
+
+
+class QueueWorker:
+    """Asks the app for queued print jobs and prints them. step() does one round and is easy to test."""
+
+    def __init__(self, url: str, secret: str, backend, label_printer: str = "", slip_printer: str = "", log=print):
+        self.url, self.secret, self.backend, self.log = url, secret, backend, log
+        self.label_printer, self.slip_printer = label_printer, slip_printer
+        self._names: tuple[list[str], str] | None = None
+        self.last_error = ""
+
+    def _post(self, payload: dict) -> dict:
+        req = urllib.request.Request(self.url, data=json.dumps(payload).encode("utf-8"), method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("x-print-secret", self.secret)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.loads(r.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            try:
+                msg = json.loads(e.read() or b"{}").get("error")
+            except Exception:  # noqa: BLE001
+                msg = None
+            raise RuntimeError(f"The app answered {e.code}: {msg or e.reason}")
+
+    def _printers(self) -> tuple[list[str], str]:
+        if self._names is None:
+            try:
+                d = self.backend.printers()
+                self._names = (d.get("printers") or [], d.get("default") or "")
+            except Exception:  # noqa: BLE001
+                self._names = ([], "")
+        return self._names
+
+    def printer_for(self, kind: str) -> str:
+        names, default = self._printers()
+        return pick_printer(kind, names, default, self.label_printer if kind == "label" else self.slip_printer)
+
+    def step(self) -> bool:
+        """One round: tell the app we are here, take a job if there is one, print it, report. True if a job was handled."""
+        res = self._post({"action": "claim", "version": VERSION, "dryRun": self.backend.dry_run, "labelPrinter": self.printer_for("label"), "slipPrinter": self.printer_for("slip")})
+        job = res.get("job")
+        if not job:
+            return False
+        ok, err = True, ""
+        try:
+            cleaned = check_job({
+                "printer": self.printer_for(job.get("kind", "label")),
+                "copies": job.get("copies", 1),
+                "items": [{"png": it.get("png"), "widthMm": it.get("widthMm"), "heightMm": it.get("heightMm")} for it in job.get("items", [])],
+                "title": job.get("title", ""),
+            })
+            with PRINT_LOCK:
+                n = self.backend.print_job(cleaned)
+            self.log(f"queue: printed {n} x{cleaned['copies']} for '{job.get('title') or job.get('id')}' on {cleaned['printer']}" + (" (dry run)" if self.backend.dry_run else ""))
+        except Exception as e:  # noqa: BLE001
+            ok, err = False, str(e)[:300]
+            self.log(f"queue: job failed: {err}")
+        self._post({"action": "done", "id": job.get("id"), "ok": ok, "error": err})
+        return True
+
+    def run_forever(self, every: float = 2.0):
+        while True:
+            try:
+                busy = self.step()
+                if self.last_error:
+                    self.log("queue: connected again")
+                    self.last_error = ""
+                if busy:
+                    continue  # more jobs may be waiting
+            except Exception as e:  # noqa: BLE001
+                msg = str(e)[:200]
+                if msg != self.last_error:  # say it once, not every 2 seconds
+                    self.log(f"queue: cannot reach the app ({msg}). Will keep trying.")
+                    self.last_error = msg
+            time.sleep(every)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Mahadev print helper")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--dry-run", action="store_true", help="save pictures instead of printing")
     ap.add_argument("--show-code", action="store_true", help="show the pairing code and exit")
+    ap.add_argument("--queue-url", default="", help="also print jobs queued from phones and tablets (the app's /api/print-jobs/agent address)")
+    ap.add_argument("--label-printer", default="", help="printer name for labels")
+    ap.add_argument("--slip-printer", default="", help="printer name for slips and receipts")
     args = ap.parse_args(argv)
 
     token = load_token()
@@ -321,12 +432,20 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     dry = args.dry_run or platform.system() != "Windows"
     backend = DryRunBackend(Path.cwd() / "print-jobs") if dry else WindowsBackend()
+    secret = os.environ.get("PRINT_QUEUE_SECRET") or os.environ.get("SCALE_PUSH_SECRET") or ""
+    if args.queue_url and len(secret) < 16:
+        print("--queue-url needs PRINT_QUEUE_SECRET (16+ characters, the same value as in Vercel) set first.")
+        return 2
     srv = make_server(args.port, token, backend)
     print(f"Mahadev print helper {VERSION} is running on http://127.0.0.1:{args.port}")
     print(f"Pairing code (paste it once into the app): {token}")
     if dry:
         why = "asked for" if args.dry_run else "not Windows"
         print(f"DRY RUN ({why}): pictures are saved to {Path.cwd() / 'print-jobs'} instead of being printed.")
+    if args.queue_url:
+        worker = QueueWorker(args.queue_url, secret, backend, args.label_printer, args.slip_printer)
+        threading.Thread(target=worker.run_forever, daemon=True).start()
+        print(f"Also printing jobs queued from phones and tablets: labels on '{worker.printer_for('label') or '?'}', slips on '{worker.printer_for('slip') or '?'}'.")
     print("Leave this window open while you print. Press Ctrl+C to stop.")
     try:
         srv.serve_forever()

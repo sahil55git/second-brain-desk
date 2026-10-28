@@ -33,6 +33,18 @@ export async function rasterize(opts: RasterOpts): Promise<string[]> {
   const { toPng } = await import("html-to-image");
   const margin = opts.marginMm ?? 0;
   const out: string[] = [];
+  // the preview may be zoomed on screen; the picture is always made at real size
+  const staged = Array.from(document.querySelectorAll<HTMLElement>(".bd-stage > *")).map((e) => [e, e.style.zoom] as const);
+  staged.forEach(([e]) => (e.style.zoom = "1"));
+  try {
+    await rasterAll(els, opts, dpi, margin, toPng, out);
+  } finally {
+    staged.forEach(([e, z]) => (e.style.zoom = z));
+  }
+  return out;
+}
+
+async function rasterAll(els: HTMLElement[], opts: RasterOpts, dpi: number, margin: number, toPng: typeof import("html-to-image").toPng, out: string[]) {
   for (const el of els) {
     const shot = await toPng(el, { pixelRatio: pixelRatioFor(dpi), backgroundColor: "#ffffff", skipFonts: true, style: { border: "none", margin: "0" } });
     const img = await loadImage(shot);
@@ -52,5 +64,4 @@ export async function rasterize(opts: RasterOpts): Promise<string[]> {
     g.drawImage(img, ox, ox, dw, Math.min(img.height, ch - ox));
     out.push(canvas.toDataURL("image/png"));
   }
-  return out;
 }
