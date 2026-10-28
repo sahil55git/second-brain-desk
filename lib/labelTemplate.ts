@@ -496,6 +496,34 @@ export function newLabelEl(type: LabelElType, doc: LabelDoc, rnd?: () => number)
   }
 }
 
+/**
+ * Empty weight and its date as two separate pieces, so each can be moved on its own:
+ * the weight in a black band on top, the date in small letters just under it (right side, like a stamp).
+ */
+export function newWeightDate(doc: LabelDoc, rnd?: () => number): LabelEl[] {
+  const W = doc.widthMm;
+  const H = doc.heightMm;
+  const taken = doc.els.map((e) => e.id);
+  const bw = r1(Math.max(8, W - 2));
+  const bh = r1(Math.max(3.5, Math.min(H * 0.2, 9)));
+  const dh = r1(Math.max(2.4, Math.min(H * 0.08, 4)));
+  const x = r1((W - bw) / 2);
+  const y = r1(Math.max(0, Math.min(H - bh - dh, H * 0.2)));
+  const idA = nextId(taken, rnd);
+  const idB = nextId([...taken, idA], rnd);
+  const weight: LabelEl = { id: idA, type: "text", x, y, w: bw, h: bh, text: "TARE (EMPTY) {tare|________} kg", font: "sans", size: r1(Math.min(14, bh * 1.6)), bold: true, italic: false, align: "center", valign: "middle", invert: true, fit: true };
+  const date: LabelEl = { id: idB, type: "text", x, y: r1(y + bh + 0.3), w: bw, h: dh, text: "{tareDate}", font: "sans", size: r1(Math.min(8, dh * 2)), bold: false, italic: false, align: "right", valign: "middle", invert: false, fit: true };
+  return [weight, date];
+}
+
+/** Just the date, small, in the top right corner. */
+export function newDateCorner(doc: LabelDoc, rnd?: () => number): LabelEl {
+  const W = doc.widthMm;
+  const bw = r1(Math.min(W - 2, Math.max(14, W * 0.4)));
+  const bh = r1(Math.max(2.4, Math.min(doc.heightMm * 0.07, 3.5)));
+  return { id: nextId(doc.els.map((e) => e.id), rnd), type: "text", x: r1(W - bw - 1), y: 0.8, w: bw, h: bh, text: "{tareDate}", font: "sans", size: r1(Math.min(8, bh * 2)), bold: false, italic: false, align: "right", valign: "middle", invert: false, fit: true };
+}
+
 /** 1×1 grey placeholder: a new Picture element shows this until a logo is chosen. */
 export const TINY_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mO8+x8AAuEB4vP0dZYAAAAASUVORK5CYII=";
 
@@ -551,8 +579,12 @@ export function starterLabel(w: number, h: number): LabelDoc {
   }
   const bandH = r1(compact ? 4.2 : 7 * Math.min(s, 1.5));
   text(m, y, iw, bandH, "TARE (EMPTY) {tare|________} kg", compact ? 7 * s : 9.5 * s, { bold: true, invert: true });
-  y += bandH + 1;
-  const barH = r1(compact ? H * 0.27 : Math.min(H * 0.2, 40));
+  y += bandH + 0.3;
+  // the date of that weighing sits on its own line right under the weight (a separate item: move it anywhere)
+  const dateH = r1(compact ? 2.6 : 3.2 * Math.min(s, 1.5));
+  text(m, y, iw, dateH, "{tareDate}", (compact ? 5 : 6) * s, { align: "right" });
+  y += dateH + 0.7;
+  const barH = r1(compact ? H * 0.2 : Math.min(H * 0.2, 40));
   add({ type: "barcode", x: m, y: r1(y), w: iw, h: barH, value: "{code}", human: false });
   y += barH + 1;
   const rest = r1(H - m - y);

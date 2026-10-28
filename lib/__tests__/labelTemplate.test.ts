@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   LIMITS, TINY_PNG, alignEls, barcodeDots, docFontSpec, qrFit, blankLabel, blankSlip, canRedo, canUndo, checkDoc, cleanName, barcodeModuleCount, distributeEls, duplicateItems, fillTokens, histNew, histPush, histRedo, histUndo,
-  moveBlock, newBlock, newLabelEl, nextId, reorder, resizeBox, resizeLabel, sampleData, sanitizeDoc, snapBox, snapTo, starterLabel, starterSlip, unknownTokens,
+  moveBlock, newBlock, newDateCorner, newLabelEl, newWeightDate, nextId, reorder, resizeBox, resizeLabel, sampleData, sanitizeDoc, snapBox, snapTo, starterLabel, starterSlip, unknownTokens,
   type LabelDoc, type LabelEl, type SlipDoc, type TextEl,
 } from "@/lib/labelTemplate";
 
@@ -333,5 +333,34 @@ describe("qrFit / docFontSpec", () => {
     expect(docFontSpec(doc, kn)).toContain("kannada:");
     const slip = starterSlip(80);
     expect(docFontSpec(slip, sampleData("slip"))).toBe("sans:400,sans:700");
+  });
+});
+
+describe("weight and date", () => {
+  const find = (els: LabelEl[], t: string) => els.findIndex((e) => e.type === "text" && e.text === t);
+  it("the standard label puts the weight band above a separate date line", () => {
+    for (const [w, h] of [[50, 30], [50, 75], [100, 150]]) {
+      const els = starterLabel(w, h).els.filter((e): e is TextEl => e.type === "text");
+      const band = els.find((e) => e.text?.includes("{tare"))!;
+      const date = els.find((e) => e.text === "{tareDate}")!;
+      expect(band && date).toBeTruthy();
+      expect(date.y).toBeGreaterThanOrEqual(band.y + band.h - 0.01);
+      expect(band.text).not.toContain("{tareDate}");
+    }
+  });
+  it("newWeightDate gives two separate items, date under weight, inside the label", () => {
+    const doc = starterLabel(50, 75);
+    const two = newWeightDate({ ...doc, els: [] });
+    expect(two).toHaveLength(2);
+    expect(find(two, "{tareDate}")).toBe(1);
+    expect(new Set([...doc.els, ...two].map((e) => e.id)).size).toBe(doc.els.length + 2);
+    expect(two[1].y).toBeGreaterThanOrEqual(two[0].y + two[0].h - 0.01);
+    for (const e of two) { expect(e.x).toBeGreaterThanOrEqual(0); expect(e.x + e.w).toBeLessThanOrEqual(doc.widthMm + 0.01); expect(e.y + e.h).toBeLessThanOrEqual(doc.heightMm + 0.01); }
+  });
+  it("newDateCorner sits top right inside the label", () => {
+    const doc = starterLabel(50, 30);
+    const d = newDateCorner(doc);
+    expect(d.x + d.w).toBeLessThanOrEqual(doc.widthMm);
+    expect(d.y).toBeLessThan(2);
   });
 });

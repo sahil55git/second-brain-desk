@@ -4,7 +4,7 @@
 // are dragged, resized and styled. Works with a mouse and with a finger.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  LIMITS, alignEls, checkDoc, distributeEls, duplicateItems, newLabelEl, r1, reorder, resizeBox, resizeLabel, snapBox, snapTo,
+  LIMITS, alignEls, checkDoc, distributeEls, duplicateItems, newDateCorner, newLabelEl, newWeightDate, r1, reorder, resizeBox, resizeLabel, snapBox, snapTo,
   type AlignMode, type Box, type Handle, type LabelDoc, type LabelEl, type LabelElType, type Order, type TokenData,
 } from "@/lib/labelTemplate";
 import { LABEL_SIZES } from "@/lib/printSizes";
@@ -114,6 +114,20 @@ export default function LabelEditor({ doc, data, readOnly, onChange, onUndo, onR
   const add = (t: LabelElType) => {
     if (doc.els.length >= LIMITS.maxEls) return setMsg(`A label can hold at most ${LIMITS.maxEls} items.`);
     const e = newLabelEl(t, doc);
+    commit([...doc.els, e]);
+    setSel([e.id]);
+    setMsg(null);
+  };
+  const addWeightDate = () => {
+    if (doc.els.length + 2 > LIMITS.maxEls) return setMsg(`A label can hold at most ${LIMITS.maxEls} items.`);
+    const two = newWeightDate(doc);
+    commit([...doc.els, ...two]);
+    setSel(two.map((e) => e.id));
+    setMsg(null);
+  };
+  const addDateCorner = () => {
+    if (doc.els.length >= LIMITS.maxEls) return setMsg(`A label can hold at most ${LIMITS.maxEls} items.`);
+    const e = newDateCorner(doc);
     commit([...doc.els, e]);
     setSel([e.id]);
     setMsg(null);
@@ -311,6 +325,12 @@ export default function LabelEditor({ doc, data, readOnly, onChange, onUndo, onR
                   <b>{a.icon}</b> {a.name}
                 </button>
               ))}
+              <button type="button" className="dz-tb" onClick={addWeightDate} title="Add the empty weight on top and its date just below, as two separate items">
+                <b>⚖</b> Weight + date
+              </button>
+              <button type="button" className="dz-tb" onClick={addDateCorner} title="Add just the date, small, in the top right corner">
+                <b>📅</b> Date
+              </button>
               <button type="button" className="dz-tb" onClick={() => { replaceId.current = null; fileRef.current?.click(); }} title="Add a logo or picture">
                 <b>🖼</b> Logo
               </button>
