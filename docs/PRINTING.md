@@ -116,6 +116,21 @@ Test it before using paper: run with `--dry-run`, press Print, and look in the `
 - Tested here (headless Chrome against the running app, with a **simulated** Bluetooth printer that records every byte): every label size prints one page; slips print one page; the Bluetooth / USB mode connects, sends a correct TSPL label (size, gap, darkness, 1-bit bitmap of the right size, copies) and copes with a printer that refuses big writes; the helper mode sends exact-size pictures; share mode makes and saves exact-size pictures; the shop queue routes (login, secret, claim, done, cancel, reprint) and the helper's checks (23 tests, `py -m unittest tools/test_print_helper.py`); the printer languages TSPL, ESC/POS and ZPL byte by byte (`lib/__tests__/printerLang.test.ts`).
 - **Not tested** (needs your hardware): the real Helett H30C over Bluetooth or USB. Which language it wants (TSPL, ESC/POS or ZPL), whether its bitmap is "0 = black", and whether its Bluetooth is BLE are not known from here, which is why there is a **Test label** and the language / Invert / piece-size settings. Also not tested: the POSIFLOW printer, the Windows driver path, the Chrome shortcut on your PC, and sharing to your printer's app. Print one test label on each path and scan a real one before a full roll.
 
+## Label & receipt designer
+
+Open **🎨 Design / edit layouts** (next to **Layout** on the label and slip print pages), or go to `/barrels/fleet/designer`.
+
+- **Barrel labels** are a free canvas in millimetres: add text, barcode, QR code, logo, box and line; drag to move, drag the dots to resize, arrow keys nudge, Delete removes, Ctrl+Z / Ctrl+Y undo and redo, Ctrl+D copies. Guides snap to the label's edges, centre and other items. Align / space evenly / bring to front are in the side panel. It works with a finger on the tablet too.
+- **Slips & receipts** are blocks stacked top to bottom on a 50 / 58 / 80 mm roll (or any width): text, label : value rows, Gross / Tare / Net columns, barcode, QR, logo, lines, gaps, signature lines. A row whose field is empty can hide itself.
+- **Fields**: type `{code}`, `{tare}`, `{mark}`, `{company}`... or use **＋ Insert field**. `{tare|________}` prints `________` when the tare is empty. The lists of fields are in the designer.
+- **Fonts**: Sans, Narrow, Serif, Typewriter, ಕನ್ನಡ and हिन्दी / मराठी. They are served from the app itself and embedded in the printed picture, so every device prints the same letters. Kannada / Devanagari letters typed in any font are picked up automatically.
+- **Logo**: choose a PNG / JPEG; it is shrunk and (by default) made black and white, which is what a thermal printer prints.
+- Barcodes and QR codes are drawn in whole printer dots (203 dpi) so they come out sharp; the designer warns when a barcode is too tight to scan, a QR is under 12 mm, text is tiny, or a field name is misspelt.
+- **Saving**: only the owner can save. Saved layouts are shared by every device. **★ Make shop default** is what the print pages use unless a device picks another with **Use on this device**. **Print a test label** opens the label page with that layout.
+- Paper size comes from the layout. Direct Bluetooth / USB, the print window, share, shop queue and helper all print layouts the same way.
+
+Not tested here: printing a designed layout on the real Helett H30C (the picture path is tested; the printer is not), and the Kannada / Hindi fonts on the printer's paper.
+
 ## Label text
 
 On tall labels (50 × 75 mm, 4 × 6 in) the tare date, the code (BRL-01) and the QR are larger so they are readable on a 203 dpi thermal print.

@@ -15,6 +15,10 @@ import { PrinterPanel, SizePicker, useSavedPrint } from "@/components/barrels/Pr
 import PrintCenter from "@/components/barrels/PrintCenter";
 import { api, kg } from "@/components/barrels/shared";
 import type { FBarrel } from "@/components/barrels/fleet/types";
+import { LabelView, templatePageCss, templatePaper } from "@/components/barrels/designer/render";
+import LayoutPicker from "@/components/barrels/designer/LayoutPicker";
+import { labelData } from "@/components/barrels/designer/data";
+import { useLayoutChoice, useTemplates } from "@/components/barrels/designer/useTemplates";
 
 type Kind = "tare" | "id";
 const stamp = (t: string | null) => (t ? new Date(t).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit", timeZone: "Asia/Kolkata" }) : "");
@@ -29,6 +33,10 @@ export default function FleetLabels() {
   const [err, setErr] = useState<string | null>(null);
   const [only, setOnly] = useState<string[] | null>(null);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const { rows: layouts } = useTemplates("label");
+  const layoutLink = sp.get("layout");
+  const { template, choiceId, choose } = useLayoutChoice("label", layouts, layoutLink);
+  const tdoc = template && template.doc.kind === "label" ? template.doc : null;
 
   const setSize = (x: PaperSize) => {
     setSizeState(x);
@@ -39,6 +47,7 @@ export default function FleetLabels() {
     if (!sp.get("size") && saved.label) setSizeState(labelSize(saved.label));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saved.label]);
+  const pageSize = (tdoc && templatePaper(tdoc)) || size;
   const lay = labelLayout(size);
   const vars = { "--lw": size.w, "--lh": size.h ?? 30, "--sc": lay.sc, "--barh": lay.barH, "--qr": lay.qr } as React.CSSProperties;
 
@@ -50,10 +59,10 @@ export default function FleetLabels() {
 
   useEffect(() => {
     const style = document.createElement("style");
-    style.textContent = pageCss(size, "label");
+    style.textContent = tdoc ? templatePageCss(tdoc) : pageCss(size, "label");
     document.head.appendChild(style);
     return () => style.remove();
-  }, [size]);
+  }, [size, tdoc]);
 
   const wanted = useMemo(() => {
     const raw = sp.get("codes") || "all";
@@ -62,7 +71,7 @@ export default function FleetLabels() {
   }, [sp]);
 
   if (err) return <div className="bd-wrap"><div className="bd-err">{err}</div></div>;
-  if (!barrels) return <div className="bd-wrap"><div className="bd-m">Loading…</div></div>;
+  if (!barrels || !layouts) return <div className="bd-wrap"><div className="bd-m">Loading…</div></div>;
 
   const pick = only ?? wanted;
   const list = barrels.filter((b) => b.condition !== "RETIRED" && (!pick || pick.includes(b.code)));
@@ -74,29 +83,45 @@ export default function FleetLabels() {
       <div className="bd-noprint bd-labelbar">
         <b>🏷️ Barrel labels (permanent)</b>
         <span className="bd-m"> · {list.length} label(s)</span>
-        <div className="bd-row">
-          <button className={`bd-chip${kind === "tare" ? " on" : ""}`} onClick={() => setKind("tare")}>With tare weight</button>
-          <button className={`bd-chip${kind === "id" ? " on" : ""}`} onClick={() => setKind("id")}>Code only</button>
-        </div>
-        <SizePicker options={LABEL_SIZES} value={size} onPick={setSize} />
-        <PrintCenter kind="label" size={size} selector=".bd-label" count={list.length} label={`Print ${list.length} label(s)`} disabled={!list.length} name={list.length === 1 ? list[0].code : "barrel-labels"} saved={saved} onSave={save} />
+        <LayoutPicker kind="label" rows={layouts} choiceId={choiceId} onChoose={choose} fixedByLink={!!layoutLink} />
+        {tdoc ? (
+          <div className="bd-m small">Paper size comes from the layout: {tdoc.widthMm} × {tdoc.heightMm} mm. Change it in the designer.</div>
+        ) : (
+          <>
+            <div className="bd-row">
+              <button className={`bd-chip${kind === "tare" ? " on" : ""}`} onClick={() => setKind("tare")}>With tare weight</button>
+              <button className={`bd-chip${kind === "id" ? " on" : ""}`} onClick={() => setKind("id")}>Code only</button>
+            </div>
+            <SizePicker options={LABEL_SIZES} value={size} onPick={setSize} />
+          </>
+        )}
+        <PrintCenter kind="label" size={pageSize} selector=".bd-label" count={list.length} label={`Print ${list.length} label(s)`} disabled={!list.length} name={list.length === 1 ? list[0].code : "barrel-labels"} saved={saved} onSave={save} />
         <div className="bd-row">
           {only && <button className="bd-btn" onClick={() => setOnly(null)}>Show all</button>}
           {test && <button className="bd-btn" onClick={() => setTest(false)}>Back to the real labels</button>}
         </div>
-        <PrinterPanel size={size} kind="label" saved={saved} onSave={save} onSize={setSize} onTest={() => { setTest(true); window.scrollTo({ top: 0 }); }} />
-        {missingTare > 0 && (
+        <PrinterPanel size={pageSize} kind="label" saved={saved} onSave={save} onSize={setSize} onTest={() => { setTest(true); window.scrollTo({ top: 0 }); }} />
+        {!tdoc && missingTare > 0 && (
           <div className="bd-err">{missingTare} barrel(s) have no tare yet, so their label shows a blank line. Weigh each one empty first, then print the labels (or write the tare with a marker).</div>
         )}
         <div className="bd-m small">
           Barcode for a scanner gun, QR for any phone camera (it opens the barrel&apos;s record). Stick one label on the side of each barrel (not the lid) and cover it with clear tape; oil and handling wear paper labels. These labels are permanent: the same barrel keeps its code for life.
-          {showTare && " The tare is printed on the label. If the owner changes a barrel's tare, reprint that label."} To reprint one barrel, tap it:{" "}
+          {!tdoc && showTare && " The tare is printed on the label. If the owner changes a barrel's tare, reprint that label."} To reprint one barrel, tap it:{" "}
           {barrels.filter((b) => b.condition !== "RETIRED").map((b) => (
             <button key={b.code} className="bd-linkbtn" onClick={() => setOnly([b.code])}>{b.code.replace("BRL-", "")}</button>
           ))}
         </div>
       </div>
 
+      {tdoc ? (
+        <div className="bd-labels tpl">
+          {test ? (
+            <LabelView doc={tdoc} data={labelData({ ...(list[0] ?? barrels[0]), code: "BRL-00", mark: "TEST" }, origin)} />
+          ) : (
+            list.map((b) => <LabelView key={b.id} doc={tdoc} data={labelData(b, origin)} />)
+          )}
+        </div>
+      ) : (
       <div className={`bd-labels ${size.cls}${size.cls === "gen" ? ` ${lay.compact ? "compact" : ""} ${lay.roomy ? "roomy" : ""}` : ""}`} style={vars}>
         {test && (
           <div className="bd-label bd-test">
@@ -130,6 +155,7 @@ export default function FleetLabels() {
             </div>
           ))}
       </div>
+      )}
     </div>
   );
 }

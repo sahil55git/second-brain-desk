@@ -14,6 +14,10 @@ import { PrinterPanel, SizePicker, useSavedPrint } from "@/components/barrels/Pr
 import PrintCenter from "@/components/barrels/PrintCenter";
 import { api, kg1, whenFull } from "@/components/barrels/shared";
 import type { FBarrel, FEvent, FleetList } from "@/components/barrels/fleet/types";
+import { SlipView, templatePageCss, templatePaper } from "@/components/barrels/designer/render";
+import LayoutPicker from "@/components/barrels/designer/LayoutPicker";
+import { slipData } from "@/components/barrels/designer/data";
+import { useLayoutChoice, useTemplates } from "@/components/barrels/designer/useTemplates";
 
 const COMPANY = "MAHADEV TRADERS";
 const place = (l: string | null) => (l ? LOCATION_LABEL[l as Location]?.en ?? l : "");
@@ -32,6 +36,11 @@ export default function FleetPrint() {
     if (!sp.get("size") && saved.slip) setSizeState(slipSize(saved.slip));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saved.slip]);
+  const { rows: layouts } = useTemplates("slip");
+  const layoutLink = sp.get("layout");
+  const { template, choiceId, choose } = useLayoutChoice("slip", layouts, layoutLink);
+  const tdoc = !isReport && template && template.doc.kind === "slip" ? template.doc : null;
+  const pageSize = (tdoc && templatePaper(tdoc)) || size;
   const lay = slipLayout(size);
   const vars = { "--sw": lay.inner, "--ss": lay.ss, "--sh": lay.innerH ?? 0 } as React.CSSProperties;
 
@@ -59,27 +68,28 @@ export default function FleetPrint() {
 
   useEffect(() => {
     const style = document.createElement("style");
-    style.textContent = isReport ? "@page { size: A4; margin: 12mm }" : pageCss(size, "slip");
+    style.textContent = isReport ? "@page { size: A4; margin: 12mm }" : tdoc ? templatePageCss(tdoc) : pageCss(size, "slip");
     document.head.appendChild(style);
     return () => style.remove();
-  }, [size, isReport]);
+  }, [size, isReport, tdoc]);
 
   if (err) return <div className="bd-wrap"><div className="bd-err">{err}</div></div>;
-  if (!event && !fleet) return <div className="bd-wrap"><div className="bd-m">Loading…</div></div>;
+  if ((!event && !fleet) || (!isReport && !layouts)) return <div className="bd-wrap"><div className="bd-m">Loading…</div></div>;
 
   return (
     <div className="bd-printpage">
       <div className="bd-noprint bd-labelbar">
         <b>{isReport ? "📄 Barrel fleet report" : "🧾 Barrel slip"}</b>
-        {!isReport && <SizePicker options={SLIP_SIZES} value={size} onPick={setSize} roll />}
+        {!isReport && layouts && <LayoutPicker kind="slip" rows={layouts} choiceId={choiceId} onChoose={choose} fixedByLink={!!layoutLink} />}
+        {!isReport && (tdoc ? <div className="bd-m small">Paper width comes from the layout: {tdoc.widthMm} mm. Change it in the designer.</div> : <SizePicker options={SLIP_SIZES} value={size} onPick={setSize} roll />)}
         {isReport ? (
           <div className="bd-row">
             <button className="bd-btn primary" onClick={() => window.print()}>🖨️ Print</button>
           </div>
         ) : (
-          <PrintCenter kind="slip" size={size} selector=".bd-slip" marginMm={lay.margin} count={1} label="Print slip" name="barrel-slip" saved={saved} onSave={save} />
+          <PrintCenter kind="slip" size={pageSize} selector=".bd-slip" marginMm={tdoc ? tdoc.marginMm : lay.margin} count={1} label="Print slip" name="barrel-slip" saved={saved} onSave={save} />
         )}
-        {!isReport && <PrinterPanel size={size} kind="slip" saved={saved} onSave={save} onSize={setSize} />}
+        {!isReport && <PrinterPanel size={pageSize} kind="slip" saved={saved} onSave={save} onSize={setSize} />}
         <div className="bd-m small">
           {isReport ? "Print on A4. It shows where every barrel is right now and how much oil is in it." : "Give one copy to the driver or customer with the barrel; keep one in the file."}
         </div>
@@ -87,6 +97,10 @@ export default function FleetPrint() {
 
       {isReport && fleet ? (
         <Report fleet={fleet} origin={origin} printedAt={printedAt} />
+      ) : event && tdoc ? (
+        <div className="bd-slips tpl">
+          <SlipView doc={tdoc} data={slipData(event.e, event.b, origin, printedAt)} />
+        </div>
       ) : event ? (
         <div className={`bd-slips ${size.cls}${size.cls === "gen" ? `${lay.short ? " short" : ""}${lay.fixed ? " fixed" : ""}` : ""}`} style={vars}>
           <Slip e={event.e} b={event.b} origin={origin} printedAt={printedAt} />
