@@ -4,8 +4,8 @@
 // are dragged, resized and styled. Works with a mouse and with a finger.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  LIMITS, alignEls, checkDoc, distributeEls, duplicateItems, newDateCorner, newLabelEl, newWeightDate, r1, reorder, resizeBox, resizeLabel, snapBox, snapTo,
-  type AlignMode, type Box, type Handle, type LabelDoc, type LabelEl, type LabelElType, type Order, type TokenData,
+  LIMITS, alignEls, checkDoc, distributeEls, duplicateItems, matchSize, newDateCorner, newLabelEl, newWeightDate, r1, reorder, resizeBox, resizeLabel, snapBox, snapTo,
+  type AlignMode, type Box, type Handle, type LabelDoc, type LabelEl, type LabelElType, type Order, type Rot, type TokenData,
 } from "@/lib/labelTemplate";
 import { LABEL_SIZES } from "@/lib/printSizes";
 import { LabelView } from "@/components/barrels/designer/render";
@@ -429,6 +429,8 @@ export default function LabelEditor({ doc, data, readOnly, onChange, onUndo, onR
                 <div className="dz-grp">
                   <button type="button" className="dz-tb" onClick={() => commit(distributeEls(doc.els, sel, "h"))}>Space evenly ↔</button>
                   <button type="button" className="dz-tb" onClick={() => commit(distributeEls(doc.els, sel, "v"))}>Space evenly ↕</button>
+                  <button type="button" className="dz-tb" onClick={() => commit(matchSize(doc.els, sel, "w", W, H))} title="Make all the chosen items as wide as the first one you chose">Same width</button>
+                  <button type="button" className="dz-tb" onClick={() => commit(matchSize(doc.els, sel, "h", W, H))} title="Make all the chosen items as tall as the first one you chose">Same height</button>
                 </div>
               )}
               <div className="dz-grp">
@@ -453,9 +455,13 @@ export default function LabelEditor({ doc, data, readOnly, onChange, onUndo, onR
                       <span className="dz-grp">
                         <Toggle on={text.bold} onChange={(v) => canEdit && patch(text.id, { bold: v } as Partial<LabelEl>)} title="Bold"><b>B</b></Toggle>
                         <Toggle on={text.italic} onChange={(v) => canEdit && patch(text.id, { italic: v } as Partial<LabelEl>)} title="Italic"><i>I</i></Toggle>
-                        <Toggle on={text.invert} onChange={(v) => canEdit && patch(text.id, { invert: v } as Partial<LabelEl>)} title="White letters on black">◼</Toggle>
+                        <Toggle on={!!text.underline} onChange={(v) => canEdit && patch(text.id, { underline: v || undefined } as Partial<LabelEl>)} title="Underline"><u>U</u></Toggle>
                       </span>
                     </Field>
+                    <Field label="Background">
+                      <Seg label="Background" value={text.invert ? "black" : "none"} onChange={(v) => canEdit && patch(text.id, { invert: v === "black" } as Partial<LabelEl>)} options={[{ v: "none", t: "None", title: "No background: black letters on the white label" }, { v: "black", t: "Black", title: "Black box with white letters" }]} />
+                    </Field>
+                    <Field label="Frame (mm)"><NumBox value={text.border ?? 0} min={0} max={1.5} step={0.1} onChange={(n) => canEdit && patch(text.id, { border: n || undefined } as Partial<LabelEl>)} /></Field>
                     <Field label="Across"><AlignSeg value={text.align} onChange={(v) => canEdit && patch(text.id, { align: v } as Partial<LabelEl>)} /></Field>
                     <Field label="Up / down"><VAlignSeg value={text.valign} onChange={(v) => canEdit && patch(text.id, { valign: v } as Partial<LabelEl>)} /></Field>
                   </div>
@@ -490,6 +496,11 @@ export default function LabelEditor({ doc, data, readOnly, onChange, onUndo, onR
               )}
               {one.type === "line" && <Field label="Thickness (mm)"><NumBox value={one.thick} min={0.1} max={5} step={0.1} onChange={(n) => canEdit && patch(one.id, { thick: n } as Partial<LabelEl>)} /></Field>}
 
+              {(one.type === "text" || one.type === "barcode" || one.type === "qr" || one.type === "image") && (
+                <Field label="Turn (degrees)" wide>
+                  <Seg label="Turn" value={String(one.rot ?? 0)} onChange={(v) => canEdit && patch(one.id, { rot: (Number(v) || undefined) as Rot | undefined } as Partial<LabelEl>)} options={[{ v: "0", t: "0°", title: "Upright" }, { v: "90", t: "90°", title: "Turn a quarter clockwise" }, { v: "180", t: "180°", title: "Upside down" }, { v: "270", t: "270°", title: "Turn a quarter anticlockwise" }]} />
+                </Field>
+              )}
               <h4>Position and size (mm)</h4>
               <div className="dz-grid4">
                 <Field label="Left"><NumBox value={one.x} min={0} max={Math.max(0, W - one.w)} onChange={(n) => canEdit && patch(one.id, { x: n })} /></Field>

@@ -238,7 +238,7 @@ function BlockForm({ b, canEdit, patch, chooseLogo, bw, setBw }: { b: SlipBlock;
           <div className="dz-grp">
             <Toggle on={b.bold} onChange={(v) => set({ bold: v })}><b>B</b></Toggle>
             <Toggle on={b.italic} onChange={(v) => set({ italic: v })}><i>I</i></Toggle>
-            <Toggle on={b.invert} onChange={(v) => set({ invert: v })} title="White letters on black">◼ Black bar</Toggle>
+            <Toggle on={b.invert} onChange={(v) => set({ invert: v })} title="Black box with white letters. Switch off for black letters on the white paper.">◼ Black background</Toggle>
             <Toggle on={b.hideEmpty} onChange={(v) => set({ hideEmpty: v })} title="Leave this line out when every field in it is empty">Hide when empty</Toggle>
           </div>
         </>

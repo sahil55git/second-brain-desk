@@ -33,12 +33,15 @@ export const LIMITS = {
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+export type Rot = 0 | 90 | 180 | 270;
 interface ElBase {
   id: string;
   x: number;
   y: number;
   w: number;
   h: number;
+  /** turn what is inside the box (text, barcode, QR, picture); the box itself stays upright. Missing = 0. */
+  rot?: Rot;
 }
 export interface TextEl extends ElBase {
   type: "text";
@@ -54,6 +57,9 @@ export interface TextEl extends ElBase {
   invert: boolean;
   /** shrink the letters so the text fits the box on one line */
   fit: boolean;
+  /** frame around the text box in mm. Missing or 0 = none */
+  border?: number;
+  underline?: boolean;
 }
 export interface BarcodeEl extends ElBase {
   type: "barcode";
@@ -335,11 +341,15 @@ function sanitizeLabel(raw: Record<string, unknown>): Checked<LabelDoc> {
   let imageChars = 0;
   for (const r of list) {
     if (!isObj(r)) continue;
+    const rot = r.rot === 90 || r.rot === 180 || r.rot === 270 ? r.rot : 0;
     const base = { id: cleanId(r.id, taken), x: num(r.x, -W, W * 2, 0), y: num(r.y, -H, H * 2, 0), w: num(r.w, 0.5, W * 2, 10), h: num(r.h, 0.5, H * 2, 5) };
+    const turned = rot ? { rot: rot as Rot } : {};
     switch (r.type) {
-      case "text":
+      case "text": {
+        const border = num(r.border, 0, 1.5, 0, r2);
         els.push({
           ...base,
+          ...turned,
           type: "text",
           text: str(r.text, LIMITS.maxText),
           font: isFontId(r.font) ? r.font : "sans",
@@ -350,20 +360,23 @@ function sanitizeLabel(raw: Record<string, unknown>): Checked<LabelDoc> {
           valign: pick(r.valign, VALIGNS, "middle"),
           invert: bool(r.invert, false),
           fit: bool(r.fit, false),
+          ...(border > 0 ? { border } : {}),
+          ...(bool(r.underline, false) ? { underline: true } : {}),
         });
         break;
+      }
       case "barcode":
-        els.push({ ...base, type: "barcode", value: str(r.value, 120, "{code}"), human: bool(r.human, false) });
+        els.push({ ...base, ...turned, type: "barcode", value: str(r.value, 120, "{code}"), human: bool(r.human, false) });
         break;
       case "qr":
-        els.push({ ...base, type: "qr", value: str(r.value, 300, "{link}") });
+        els.push({ ...base, ...turned, type: "qr", value: str(r.value, 300, "{link}") });
         break;
       case "image": {
         const src = cleanImage(r.src);
         if (!src) return { ok: false, error: "A picture on the label is not a PNG / JPEG / WebP, or is too big. Use a smaller logo." };
         imageChars += src.length;
         if (imageChars > LIMITS.maxImagesTotal) return { ok: false, error: "The pictures on this layout are too big in total. Use smaller logos." };
-        els.push({ ...base, type: "image", src, fit: pick(r.fit, ["contain", "cover"] as const, "contain") });
+        els.push({ ...base, ...turned, type: "image", src, fit: pick(r.fit, ["contain", "cover"] as const, "contain") });
         break;
       }
       case "rect":
@@ -565,7 +578,7 @@ export function starterLabel(w: number, h: number): LabelDoc {
   const m = r1(Math.max(1, Math.min(3, W * 0.025)));
   const iw = r1(W - 2 * m);
   const s = clamp(Math.min(W / 50, H / 30), 0.6, 3);
-  const compact = H < 38;
+  const compact = H < 60;
   const els: LabelEl[] = [];
   const add = (e: DistOmit<LabelEl, "id">) => els.push({ ...e, id: String(els.length + 1) } as LabelEl);
   const text = (x: number, y: number, bw: number, bh: number, t: string, size: number, o: Partial<TextEl> = {}) =>
@@ -643,6 +656,75 @@ export function starterSlip(w: number): SlipDoc {
   add({ type: "text", text: "Printed {printedAt}", font: "sans", size: 7, bold: false, italic: false, align: "right", invert: false, hideEmpty: false });
   doc.blocks = blocks;
   return doc;
+}
+
+export type LabelStartId = "blank" | "standard" | "bigcode" | "weight";
+export const LABEL_STARTS: { id: LabelStartId; name: string; note: string }[] = [
+  { id: "blank", name: "Blank, from scratch", note: "An empty label. Add text, barcodes and pictures yourself." },
+  { id: "standard", name: "Standard barrel label", note: "Company, empty weight, date, barcode, code, QR." },
+  { id: "bigcode", name: "Big barrel code", note: "The barrel code in large letters, easy to read from far." },
+  { id: "weight", name: "Big weight", note: "The empty weight in large letters, with its date." },
+];
+
+/** A starting point for a new label of this size. */
+export function startLabel(id: LabelStartId, w: number, h: number): LabelDoc {
+  if (id === "blank") return blankLabel(w, h);
+  if (id === "standard") return starterLabel(w, h);
+  const doc = blankLabel(w, h);
+  const W = doc.widthMm;
+  const H = doc.heightMm;
+  const m = r1(Math.max(1, Math.min(3, W * 0.025)));
+  const iw = r1(W - 2 * m);
+  const s = clamp(Math.min(W / 50, H / 30), 0.6, 3);
+  const short = H < 60; // a short sticker: the QR code sits beside the big text instead of under everything
+  const els: LabelEl[] = [];
+  const add = (e: DistOmit<LabelEl, "id">) => els.push({ ...e, id: String(els.length + 1) } as LabelEl);
+  const text = (x: number, y: number, bw: number, bh: number, t: string, size: number, o: Partial<TextEl> = {}) =>
+    add({ type: "text", x: r1(x), y: r1(y), w: r1(bw), h: r1(bh), text: t, font: "sans", size: r1(size), bold: false, italic: false, align: "center", valign: "middle", invert: false, fit: true, ...o });
+  const weight = id === "weight";
+  const bigText = weight ? "{tare|________} kg" : "{code}";
+  if (short) {
+    const q = r1(Math.max(12, Math.min(H * 0.42, 40)));
+    const lw = r1(iw - q - 1);
+    const dh = weight ? r1(Math.max(2.6, q * 0.2)) : 0;
+    const bigH = r1(q - dh);
+    text(m, m, lw, bigH, bigText, 30 * s, { bold: true });
+    if (weight) text(m, m + bigH, lw, dh, "TARE (EMPTY)  {tareDate}", 5.5 * s, { align: "right" });
+    add({ type: "qr", x: r1(W - m - q), y: m, w: q, h: q, value: "{link}" });
+    const y2 = r1(m + q + 1);
+    add({ type: "barcode", x: m, y: y2, w: iw, h: r1(Math.max(4, H - m - y2)), value: "{code}", human: true });
+  } else {
+    let y = m;
+    const hh = r1(4 * Math.min(s, 1.6));
+    text(m, y, iw, hh, "{company}", 8 * s, { bold: true });
+    y += hh + 0.5;
+    if (weight) {
+      const lh = r1(3.2 * Math.min(s, 1.5));
+      text(m, y, iw, lh, "TARE (EMPTY)", 6.5 * s);
+      y += lh;
+    }
+    const bh = r1(H * 0.2);
+    text(m, y, iw, bh, bigText, 30 * s, { bold: true });
+    y += bh + 0.5;
+    if (weight) {
+      const dh = r1(3.2 * Math.min(s, 1.5));
+      text(m, y, iw, dh, "{tareDate}", 6 * s, { align: "right" });
+      y += dh + 0.5;
+    }
+    const barH = r1(Math.min(H * 0.15, 30));
+    add({ type: "barcode", x: m, y: r1(y), w: iw, h: barH, value: "{code}", human: false });
+    y += barH + 1;
+    const rest = r1(H - m - y);
+    const q = r1(Math.max(8, Math.min(rest, iw * 0.4, 40)));
+    add({ type: "qr", x: r1(W - m - q), y: r1(y + (rest - q) / 2), w: q, h: q, value: "{link}" });
+    const tw = r1(iw - q - 1);
+    const lines = weight ? ["{code}", "{mark}"] : ["{mark}", "Max {capacity} kg oil"];
+    const lh = r1(Math.min(rest / lines.length, 7));
+    const top = r1(y + (rest - lh * lines.length) / 2);
+    lines.forEach((t, i) => text(m, top + i * lh, tw, lh, t, (i === 0 && weight ? 9 : 6.5) * s, { align: "left", bold: i === 0 && weight }));
+  }
+  doc.els = els;
+  return fitLabelToCanvas(doc);
 }
 
 export const starterFor = (kind: TemplateKind, widthMm: number, heightMm: number | null): TemplateDoc => (kind === "label" ? starterLabel(widthMm, heightMm ?? 30) : starterSlip(widthMm));
@@ -777,6 +859,18 @@ export function alignEls(els: LabelEl[], ids: string[], mode: AlignMode, W: numb
       case "bottom": return { ...e, y: r1(area.b - e.h) };
       case "vcenter": return { ...e, y: r1((area.t + area.b) / 2 - e.h / 2) };
     }
+  });
+}
+
+/** Gives every chosen item the width and/or height of the first one chosen (kept inside the canvas). */
+export function matchSize(els: LabelEl[], ids: string[], what: "w" | "h" | "both", W: number, H: number): LabelEl[] {
+  const first = ids.map((id) => els.find((e) => e.id === id)).find(Boolean);
+  if (!first || ids.length < 2) return els;
+  return els.map((e) => {
+    if (!ids.includes(e.id) || e.id === first.id) return e;
+    const w = what === "h" ? e.w : r1(Math.min(first.w, W - e.x));
+    const h = what === "w" ? e.h : r1(Math.min(first.h, H - e.y));
+    return { ...e, w, h };
   });
 }
 

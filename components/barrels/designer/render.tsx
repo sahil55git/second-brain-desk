@@ -93,8 +93,8 @@ function FitText({ text, el, tick }: { text: string; el: TextEl; tick: number })
   const justify = el.align === "left" ? "flex-start" : el.align === "right" ? "flex-end" : "center";
   const items = el.valign === "top" ? "flex-start" : el.valign === "bottom" ? "flex-end" : "center";
   return (
-    <div ref={box} style={{ position: "absolute", inset: 0, display: "flex", justifyContent: justify, alignItems: items, overflow: "hidden", padding: el.invert ? "0 0.6mm" : 0, boxSizing: "border-box" }}>
-      <span ref={span} style={{ fontSize: `${el.size}pt`, whiteSpace: el.fit ? "nowrap" : "pre-wrap", wordBreak: "break-word", textAlign: el.align, maxWidth: "100%", lineHeight: 1.15 }}>
+    <div ref={box} style={{ position: "absolute", inset: 0, display: "flex", justifyContent: justify, alignItems: items, overflow: "hidden", padding: el.invert || el.border ? "0 0.6mm" : 0, boxSizing: "border-box" }}>
+      <span ref={span} style={{ fontSize: `${el.size}pt`, textDecoration: el.underline ? "underline" : "none", whiteSpace: el.fit ? "nowrap" : "pre-wrap", wordBreak: "break-word", textAlign: el.align, maxWidth: "100%", lineHeight: 1.15 }}>
         {text}
       </span>
     </div>
@@ -112,7 +112,7 @@ export function LabelView({ doc, data, extraClass = "", tick: tickIn }: { doc: L
     <div className={`bd-label bd-tpl ${extraClass}`} data-fonts={spec} style={{ width: `${doc.widthMm}mm`, height: `${doc.heightMm}mm`, position: "relative", display: "block", padding: 0, overflow: "hidden", background: "#fff", color: "#000", fontFamily: fontStack("sans") }}>
       {doc.els.map((e) => (
         <div key={e.id} data-el={e.id} style={elBox(e)}>
-          <LabelElView el={e} data={data} tick={tick} />
+          <Turned el={e}>{(inner) => <LabelElView el={inner} data={data} tick={tick} />}</Turned>
         </div>
       ))}
     </div>
@@ -121,12 +121,24 @@ export function LabelView({ doc, data, extraClass = "", tick: tickIn }: { doc: L
 
 const elBox = (e: LabelEl): React.CSSProperties => ({ position: "absolute", left: `${e.x}mm`, top: `${e.y}mm`, width: `${e.w}mm`, height: `${e.h}mm`, boxSizing: "border-box", ...INK });
 
+/** Turns the inside of an element's box by 90 / 180 / 270 degrees. The box keeps its place; the content is laid out in the turned shape. */
+function Turned({ el, children }: { el: LabelEl; children: (inner: LabelEl) => React.ReactNode }) {
+  const rot = el.rot ?? 0;
+  if (!rot || el.type === "line" || el.type === "rect") return <>{children(el)}</>;
+  const swap = rot === 90 || rot === 270;
+  const inner = swap ? { ...el, w: el.h, h: el.w } : el;
+  const style: React.CSSProperties = swap
+    ? { position: "absolute", width: `${el.h}mm`, height: `${el.w}mm`, left: `${(el.w - el.h) / 2}mm`, top: `${(el.h - el.w) / 2}mm`, transform: `rotate(${rot}deg)`, transformOrigin: "center", ...INK }
+    : { position: "absolute", inset: 0, transform: "rotate(180deg)", transformOrigin: "center", ...INK };
+  return <div style={style}>{children(inner)}</div>;
+}
+
 function LabelElView({ el, data, tick }: { el: LabelEl; data: TokenData; tick: number }) {
   switch (el.type) {
     case "text": {
       const text = fillTokens(el.text, data).text;
       return (
-        <div style={{ position: "absolute", inset: 0, background: el.invert ? "#000" : "transparent", color: el.invert ? "#fff" : "#000", fontFamily: fontStack(el.font), fontWeight: el.bold ? 700 : 400, fontStyle: el.italic ? "italic" : "normal", ...INK }}>
+        <div style={{ position: "absolute", inset: 0, boxSizing: "border-box", border: el.border ? `${el.border}mm solid #000` : "none", background: el.invert ? "#000" : "transparent", color: el.invert ? "#fff" : "#000", fontFamily: fontStack(el.font), fontWeight: el.bold ? 700 : 400, fontStyle: el.italic ? "italic" : "normal", ...INK }}>
           <FitText text={text} el={el} tick={tick} />
         </div>
       );
