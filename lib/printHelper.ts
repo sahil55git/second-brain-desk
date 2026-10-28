@@ -5,14 +5,16 @@ export const HELPER_PORT = 9101;
 export const HELPER_DPI = 203; // the Helett H30C and most label / receipt printers are 203 dpi
 export const MAX_COPIES = 50;
 
-export type PrintMode = "window" | "share" | "oneclick" | "helper";
+export type PrintMode = "window" | "direct" | "queue" | "share" | "oneclick" | "helper";
 export const PRINT_MODES: { id: PrintMode; name: string; note: string }[] = [
-  { id: "window", name: "Print window", note: "Chrome's usual print window. Works on any device." },
-  { id: "share", name: "Phone / tablet", note: "Makes a picture at the exact label size and sends it to your printer's app (Bluetooth printers)." },
+  { id: "window", name: "Print window", note: "Chrome's usual print window. Works when the printer is installed on this device." },
+  { id: "direct", name: "Bluetooth / USB", note: "Straight from this phone, tablet or PC to the printer. No shop PC, no printer app." },
+  { id: "queue", name: "Shop printer", note: "Works from any phone, tablet or PC. The shop PC prints it on its USB printer. No Bluetooth." },
+  { id: "share", name: "Share to app", note: "Makes a picture at the exact label size and sends it to a printer app on this phone or tablet." },
   { id: "oneclick", name: "One-click", note: "No window. Needs the special Chrome shortcut on the shop PC." },
-  { id: "helper", name: "Print helper", note: "Exact paper size, straight to the chosen printer. Needs the helper program on the shop PC." },
+  { id: "helper", name: "This PC's helper", note: "Exact paper size, straight to the printer, from the PC the helper runs on." },
 ];
-export const printMode = (v: string | null | undefined): PrintMode => (v === "share" || v === "oneclick" || v === "helper" ? v : "window");
+export const printMode = (v: string | null | undefined): PrintMode => (v === "direct" || v === "queue" || v === "share" || v === "oneclick" || v === "helper" ? v : "window");
 /** A phone or tablet (Android / iPad / iPhone): the first time, start in the Phone / tablet mode. */
 export const isTouchDeviceUA = (ua: string) => /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
 
@@ -127,4 +129,67 @@ export function kioskBat(origin: string, target: KioskTarget): string {
     "endlocal",
     "",
   ].join("\r\n");
+}
+
+// ---------------------------------------------------------------------------
+// Shop printer queue (phone / tablet / any PC -> app -> print helper on the shop PC)
+// ---------------------------------------------------------------------------
+export interface QueueJobRow {
+  id: string;
+  createdAt: string;
+  createdBy: string;
+  kind: "label" | "slip";
+  title: string;
+  copies: number;
+  status: "QUEUED" | "PRINTING" | "DONE" | "FAILED" | "CANCELLED";
+  error: string | null;
+  doneAt: string | null;
+}
+export interface QueueAgent {
+  online: boolean;
+  lastSeen: string | null;
+  version: string;
+  dryRun: boolean;
+  labelPrinter: string;
+  slipPrinter: string;
+}
+export interface QueueState {
+  jobs: QueueJobRow[];
+  agent: QueueAgent;
+}
+export const QUEUE_CHUNK = 20; // pictures per queued job; the server accepts 40 but a phone's upload is kinder in smaller parts
+
+async function appCall<T>(url: string, init?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(url, { cache: "no-store", ...init });
+  } catch {
+    throw new Error("No internet connection to the app. Check the Wi-Fi or mobile data and try again.");
+  }
+  const j = (await res.json().catch(() => ({}))) as { error?: string } & T;
+  if (!res.ok) throw new Error(j.error || `The app answered ${res.status}.`);
+  return j;
+}
+export const fetchQueue = (limit = 6) => appCall<QueueState>(`/api/print-jobs?limit=${limit}`);
+export const queueJob = (job: { kind: "label" | "slip"; title: string; copies: number; items: HelperItem[] }) =>
+  appCall<{ id: string }>("/api/print-jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(job) });
+export const jobAction = (id: string, action: "cancel" | "reprint") =>
+  appCall<{ id: string }>(`/api/print-jobs/${encodeURIComponent(id)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+
+/** Split a long list of pictures into jobs the server and a phone connection can handle. */
+export function chunkItems<T>(items: T[], size: number = QUEUE_CHUNK): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/** "3 min ago" for the job list; takes a time and "now" so it can be tested. */
+export function ago(iso: string | null | undefined, now = Date.now()): string {
+  if (!iso) return "";
+  const s = Math.max(0, Math.round((now - +new Date(iso)) / 1000));
+  if (s < 10) return "just now";
+  if (s < 60) return `${s} s ago`;
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} d ago`;
 }
