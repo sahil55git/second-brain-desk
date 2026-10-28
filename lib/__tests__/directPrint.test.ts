@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PRINTER_SERVICES, directConfig, directDefaults, explainError, pickWriteChar, sendBytes, shortId, unsupportedReason, type CharInfo, type Sink } from "../directPrint";
+import { PRINTER_SERVICES, directConfig, directDefaults, explainError, isDroppedLink, pickWriteChar, retryDropped, sendBytes, shortId, unsupportedReason, type CharInfo, type Sink } from "../directPrint";
 
 const ch = (uuid: string, write: boolean, writeNoResponse: boolean, service = "svc"): CharInfo => ({ service, uuid, write, writeNoResponse });
 const sink = (log: number[], failWhen?: (n: number, call: number) => boolean): Sink => {
@@ -109,5 +109,40 @@ describe("error wording", () => {
     expect(explainError(new Error("claimInterface: Access denied"))).toMatch(/holding the USB printer/);
     expect(explainError(new Error("Something odd"))).toBe("Something odd");
     expect(explainError(undefined)).toBe("Printing did not work.");
+  });
+});
+
+describe("a printer that hangs up while connecting", () => {
+  const drop = () => Object.assign(new Error("GATT Server is disconnected. Cannot retrieve services."), { name: "NetworkError" });
+  it("knows a dropped link from other errors", () => {
+    expect(isDroppedLink(drop())).toBe(true);
+    expect(isDroppedLink(new Error("GATT operation failed"))).toBe(true);
+    expect(isDroppedLink(Object.assign(new Error("x"), { name: "NotAllowedError" }))).toBe(false);
+    expect(isDroppedLink(undefined)).toBe(false);
+  });
+  it("tries again after a hang-up, with a longer pause each time, and returns the result", async () => {
+    const waits: number[] = [];
+    const seen: number[] = [];
+    const r = await retryDropped(
+      async (n) => {
+        seen.push(n);
+        if (n < 3) throw drop();
+        return "ok";
+      },
+      { tries: 3, waitMs: 100, sleep: async (ms) => void waits.push(ms) }
+    );
+    expect(r).toBe("ok");
+    expect(seen).toEqual([1, 2, 3]);
+    expect(waits).toEqual([100, 200]);
+  });
+  it("gives up with the last error after the last try", async () => {
+    let calls = 0;
+    await expect(retryDropped(async () => { calls++; throw drop(); }, { tries: 3, sleep: async () => {} })).rejects.toThrow(/disconnected/);
+    expect(calls).toBe(3);
+  });
+  it("does not retry an error that retrying cannot fix", async () => {
+    let calls = 0;
+    await expect(retryDropped(async () => { calls++; throw Object.assign(new Error("denied"), { name: "NotAllowedError" }); }, { sleep: async () => {} })).rejects.toThrow("denied");
+    expect(calls).toBe(1);
   });
 });
