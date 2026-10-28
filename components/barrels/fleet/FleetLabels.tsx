@@ -12,6 +12,7 @@ import QrCode from "@/components/barrels/QrCode";
 import { findFleetCode, fleetLink } from "@/lib/barrelFleet";
 import { LABEL_SIZES, labelLayout, labelSize, pageCss, type PaperSize } from "@/lib/printSizes";
 import { PrinterPanel, SizePicker, useSavedPrint } from "@/components/barrels/PrintKit";
+import PrintCenter from "@/components/barrels/PrintCenter";
 import { api, kg } from "@/components/barrels/shared";
 import type { FBarrel } from "@/components/barrels/fleet/types";
 
@@ -78,8 +79,8 @@ export default function FleetLabels() {
           <button className={`bd-chip${kind === "id" ? " on" : ""}`} onClick={() => setKind("id")}>Code only</button>
         </div>
         <SizePicker options={LABEL_SIZES} value={size} onPick={setSize} />
+        <PrintCenter kind="label" size={size} selector=".bd-label" count={list.length} label={`Print ${list.length} label(s)`} disabled={!list.length} name={list.length === 1 ? list[0].code : "barrel-labels"} saved={saved} onSave={save} />
         <div className="bd-row">
-          <button className="bd-btn primary" onClick={() => window.print()} disabled={!list.length}>🖨️ Print {list.length} label(s)</button>
           {only && <button className="bd-btn" onClick={() => setOnly(null)}>Show all</button>}
           {test && <button className="bd-btn" onClick={() => setTest(false)}>Back to the real labels</button>}
         </div>

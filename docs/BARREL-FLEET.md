@@ -34,6 +34,8 @@ Weights come from the platform scale through the scale bridge (same single-use, 
 
 ## Prints
 
+How to print (print window, phone / tablet with a Bluetooth printer, one-click, print helper on the shop PC): see `docs/PRINTING.md`.
+
 - `/barrels/fleet/labels?codes=all` (or `codes=BRL-07`): permanent labels. Sizes include 50 × 30 mm for the Helett Neo H30C. "With tare" or "code only". If the owner changes a barrel's tare, reprint that label.
 - `/barrels/fleet/print?slip=EVENTID`: slip for one weighing or trip (barcode, QR, gross, tare, net, party, vehicle, bill no., signature lines). 80 mm roll (POSIFLOW 80B) or A4. Linked from the Ledger tab and after each save.
 - `/barrels/fleet/print?register=1`: A4 fleet report: where every barrel is, what is in it, total oil.

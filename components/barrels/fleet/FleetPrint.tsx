@@ -11,6 +11,7 @@ import QrCode from "@/components/barrels/QrCode";
 import { ACTION_LABEL, LOCATION_LABEL, PURPOSE_LABEL, fleetLink, type FleetAction, type Location, type Purpose } from "@/lib/barrelFleet";
 import { SLIP_SIZES, pageCss, slipLayout, slipSize, type PaperSize } from "@/lib/printSizes";
 import { PrinterPanel, SizePicker, useSavedPrint } from "@/components/barrels/PrintKit";
+import PrintCenter from "@/components/barrels/PrintCenter";
 import { api, kg1, whenFull } from "@/components/barrels/shared";
 import type { FBarrel, FEvent, FleetList } from "@/components/barrels/fleet/types";
 
@@ -71,9 +72,13 @@ export default function FleetPrint() {
       <div className="bd-noprint bd-labelbar">
         <b>{isReport ? "📄 Barrel fleet report" : "🧾 Barrel slip"}</b>
         {!isReport && <SizePicker options={SLIP_SIZES} value={size} onPick={setSize} roll />}
-        <div className="bd-row">
-          <button className="bd-btn primary" onClick={() => window.print()}>🖨️ Print</button>
-        </div>
+        {isReport ? (
+          <div className="bd-row">
+            <button className="bd-btn primary" onClick={() => window.print()}>🖨️ Print</button>
+          </div>
+        ) : (
+          <PrintCenter kind="slip" size={size} selector=".bd-slip" marginMm={lay.margin} count={1} label="Print slip" name="barrel-slip" saved={saved} onSave={save} />
+        )}
         {!isReport && <PrinterPanel size={size} kind="slip" saved={saved} onSave={save} onSize={setSize} />}
         <div className="bd-m small">
           {isReport ? "Print on A4. It shows where every barrel is right now and how much oil is in it." : "Give one copy to the driver or customer with the barrel; keep one in the file."}

@@ -19,6 +19,7 @@
     "@prisma/client": "^5.22.0",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",
+    "html-to-image": "^1.11.13",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "next": "14.2.35",
