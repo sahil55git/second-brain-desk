@@ -12,6 +12,13 @@ export interface SavedPrint {
   model?: string;
   label?: string;
   slip?: string;
+  /** how this device prints: print window / phone-tablet share / one-click / print helper */
+  mode?: string;
+  /** pairing code of the print helper on the shop PC (this device only) */
+  hcode?: string;
+  /** printer chosen in the print helper, for labels and for slips */
+  hlabel?: string;
+  hslip?: string;
 }
 
 /** Remembered on this device only (printer name, type, last sizes). Works without storage. */
@@ -38,13 +45,19 @@ export function SizePicker({ options, value, onPick, roll }: { options: PaperSiz
   const [w, setW] = useState(value.custom ? String(value.w) : "");
   const [h, setH] = useState(value.custom && value.h ? String(value.h) : "");
   const [err, setErr] = useState(false);
+  // on a phone the long list of sizes would push the Print button off the screen: start folded there
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth <= 760) setOpen(false);
+  }, []);
   const apply = () => {
     const c = customSize(w, h, roll);
     setErr(!c);
     if (c) onPick(c);
   };
   return (
-    <>
+    <details className="bd-sizepick" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary>📐 Paper size: <b>{value.name}</b> <span className="bd-m">· tap to change</span></summary>
       <div className="bd-sizes">
         {options.map((x) => (
           <button key={x.id} className={`bd-chip${value.id === x.id ? " on" : ""}`} onClick={() => onPick(x)} title={x.note}>
@@ -61,7 +74,7 @@ export function SizePicker({ options, value, onPick, roll }: { options: PaperSiz
         <button className={`bd-chip${value.custom ? " on" : ""}`} onClick={apply}>Use this size</button>
         {err && <span style={{ color: "#b00" }}>Width and height must be 10 to 300 mm.</span>}
       </div>
-    </>
+    </details>
   );
 }
 

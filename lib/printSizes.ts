@@ -93,8 +93,8 @@ export function labelLayout(s: PaperSize) {
     compact,
     roomy: h >= 90,
     sc: r1(sc * 100) / 100,
-    barH: r1(compact ? h * 0.36 : Math.min(h * 0.26, 52)),
-    qr: r1(compact ? h * 0.5 : Math.min(s.w * 0.3, 42)),
+    barH: r1(compact ? h * 0.36 : Math.min(h * 0.3, 52)),
+    qr: r1(compact ? h * 0.5 : Math.min(s.w * 0.38, 42)),
   };
 }
 
@@ -102,6 +102,7 @@ export function labelLayout(s: PaperSize) {
 export function slipLayout(s: PaperSize) {
   const margin = s.w <= 60 ? 2 : 3;
   return {
+    margin,
     inner: r1(s.w - margin * 2),
     /** Height of the printable area (page height minus the @page margins); null on a roll. A fixed-height slip must be shorter than this or it spills onto a second page. */
     innerH: s.h == null ? null : r1(s.h - margin * 2),

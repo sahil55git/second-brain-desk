@@ -7,6 +7,7 @@ import QrCode from "@/components/barrels/QrCode";
 import { barrelLink, type Phase } from "@/lib/barrels";
 import { LABEL_SIZES, labelLayout, labelSize, pageCss, type PaperSize } from "@/lib/printSizes";
 import { PrinterPanel, SizePicker, useSavedPrint } from "@/components/barrels/PrintKit";
+import PrintCenter from "@/components/barrels/PrintCenter";
 
 type Kind = "id" | "full" | "empty" | "both" | "sum";
 const KIND_LABEL: Record<Kind, string> = { id: "Barrel ID label", full: "FULL-weight label", empty: "EMPTY-weight label", both: "FULL + EMPTY (2 labels)", sum: "FULL + EMPTY + NET (1 label)" };
@@ -66,8 +67,7 @@ export default function LabelSheet() {
     return () => style.remove();
   }, [size]);
 
-  const print = () => {
-    window.print();
+  const markPrinted = () => {
     if (lot) void fetch(`/api/barrels/${lot.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "labelsPrinted" }) });
   };
 
@@ -89,8 +89,8 @@ export default function LabelSheet() {
           ))}
         </div>
         <SizePicker options={LABEL_SIZES} value={size} onPick={setSize} />
+        <PrintCenter kind="label" size={size} selector=".bd-label" count={sheet.length} label={`Print ${sheet.length} label(s)`} disabled={!sheet.length} name={`lot-${lot.lotNo}-labels`} saved={saved} onSave={save} onDone={markPrinted} />
         <div className="bd-row">
-          <button className="bd-btn primary" onClick={print}>🖨️ Print {sheet.length} label(s)</button>
           {only && <button className="bd-btn" onClick={() => setOnly(null)}>Show all</button>}
           {test && <button className="bd-btn" onClick={() => setTest(false)}>Back to the real labels</button>}
         </div>

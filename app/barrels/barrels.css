@@ -356,3 +356,33 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
 .bd-portal { max-width: none; margin: 0; padding: 0; height: 0; }
 .bd-cellprint { display: inline-flex; gap: 4px; }
 .bd-cellprint .bd-dots { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; font-size: 15px; }
+
+/* Readable text on tall labels (50 x 75, 4 x 6): the date under TARE was 5 pt and the code 7.5 pt, which smudge on a 203 dpi thermal printer */
+.bd-labels.gen:not(.compact) .bd-label.wt .bd-lband small { font-size: calc(var(--sc) * 9pt); font-weight: 700; letter-spacing: .2px; margin-top: calc(var(--sc) * .8mm); }
+.bd-labels.gen:not(.compact) .bd-lcode { font-size: calc(var(--sc) * 13pt); }
+.bd-labels.gen:not(.compact) .bd-lline.small { font-size: calc(var(--sc) * 7pt); }
+
+/* Print centre: how to print (window / phone-tablet / one-click / helper) */
+.bd-pc { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--bd-line, #cfd6d2); border-radius: 10px; background: #f7f9f7; color: #222; }
+.bd-pc-title { display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; }
+.bd-pc-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; }
+.bd-pc-mode { text-align: left; display: grid; gap: 2px; padding: 8px 10px; border: 1.5px solid #c9cfcc; border-radius: 8px; background: #fff; color: #222; cursor: pointer; font: inherit; }
+.bd-pc-mode small { color: #5f6b66; font-size: 11px; line-height: 1.3; }
+.bd-pc-mode.on { border-color: #1d5fa8; background: #eaf2fb; box-shadow: 0 0 0 1px #1d5fa8 inset; }
+.bd-pc ol { margin: 6px 0 6px 18px; padding: 0; display: grid; gap: 3px; }
+.bd-pc code { background: #eceeec; padding: 1px 5px; border-radius: 4px; }
+.bd-pc-helper { display: grid; gap: 6px; }
+.bd-pc-helper label, .bd-pc-go label { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.bd-dot { width: 10px; height: 10px; border-radius: 50%; background: #aaa; display: inline-block; }
+.bd-dot.ok { background: #1e8a4c; } .bd-dot.off { background: #c8352e; } .bd-dot.wait { background: #c9731e; }
+.bd-pc-go { align-items: center; }
+.bd-pc-go .bd-btn { min-height: 44px; }
+.bd-pc-ok { color: #1e6b3c; background: #e6f4ea; border: 1px solid #b7dcc3; border-radius: 8px; padding: 6px 10px; }
+.bd-pc-pics { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+.bd-pc-pics img { height: 110px; width: auto; border: 1px solid #bbb; background: #fff; }
+.bd-labelpage select, .bd-printpage select { border: 1px solid #c9cfcc; border-radius: 6px; padding: 4px 6px; background: #fff; color: #111; max-width: 100%; }
+@media (max-width: 560px) { .bd-pc-modes { grid-template-columns: 1fr 1fr; } .bd-pc-go .bd-btn { flex: 1 1 100%; } }
+@media print { .bd-pc { display: none !important; } }
+.bd-sizepick > summary { cursor: pointer; padding: 6px 2px; list-style: none; }
+.bd-sizepick > summary::-webkit-details-marker { display: none; }
+.bd-sizepick[open] > summary { margin-bottom: 4px; }
