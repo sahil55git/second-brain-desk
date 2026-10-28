@@ -149,15 +149,16 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
   };
   const connect = async (via: "bluetooth" | "usb") => {
     setMsg(null);
+    setDlog([]);
     setBusy(true);
     try {
-      const c = via === "bluetooth" ? await connectBluetooth(cfg.service, lost) : await connectUsb(undefined, lost);
+      const c = via === "bluetooth" ? await connectBluetooth(cfg.service, lost, setDlog) : await connectUsb(undefined, lost);
       setConn(c);
       setDlog(c.log);
       setMsg({ ok: true, text: `Connected to ${c.name}. Press Test label to check it prints right.` });
     } catch (e) {
       setConn(null);
-      setDlog([`${e instanceof Error ? e.name : "Error"}: ${e instanceof Error ? e.message : String(e)}`]);
+      setDlog((d) => [...d, `${e instanceof Error ? e.name : "Error"}: ${e instanceof Error ? e.message : String(e)}`]);
       setMsg({ ok: false, text: explainError(e, via) });
     } finally {
       setBusy(false);
@@ -426,6 +427,7 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
                 <summary>Printer not in the list? Checklist</summary>
                 <ol className="bd-m small">
                   <li>Switch the printer on and put it near the tablet. Close the printer&apos;s own app (WePrint) and switch Bluetooth off on any other phone or PC it was used with. A printer can talk to one device at a time.</li>
+                  <li>If the printer was paired in Android Settings → Bluetooth before, tap <b>Forget</b> on it there. A printer that Android already holds hangs up on the browser.</li>
                   <li>Do <b>not</b> pair it in Android Settings first. Tap <b>Connect Bluetooth</b> here: Chrome scans for the printer itself and shows a list.</li>
                   <li>Android needs <b>Bluetooth</b> and <b>Location</b> switched on, and Chrome allowed under Settings → Apps → Chrome → Permissions → <b>Nearby devices</b>.</li>
                   <li>Some printers only show up while their Bluetooth light is blinking: hold the power button a few seconds, or press the feed button to wake it.</li>

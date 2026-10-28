@@ -193,6 +193,37 @@ export async function sendBytes(sink: Sink, bytes: Uint8Array, o: SendOpts): Pro
 }
 
 // ---------------------------------------------------------------------------
+// Retrying a Bluetooth link that drops while it is being set up
+// ---------------------------------------------------------------------------
+/** True for the errors a printer causes by hanging up mid-setup ("GATT Server is disconnected", NetworkError). */
+export const isDroppedLink = (e: unknown) => {
+  const name = e instanceof Error ? e.name : "";
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  return name === "NetworkError" || /disconnected|GATT/i.test(msg);
+};
+
+/**
+ * Runs `attempt` up to `tries` times, pausing `waitMs * try` between, but only when the failure is a dropped link.
+ * Any other error (not allowed, not found, cancelled) is thrown at once.
+ */
+export async function retryDropped<T>(
+  attempt: (n: number) => Promise<T>,
+  o: { tries?: number; waitMs?: number; sleep?: (ms: number) => Promise<void>; onRetry?: (n: number, e: unknown) => void } = {}
+): Promise<T> {
+  const tries = Math.max(1, o.tries ?? 3);
+  const wait = o.sleep ?? realSleep;
+  for (let n = 1; ; n++) {
+    try {
+      return await attempt(n);
+    } catch (e) {
+      if (n >= tries || !isDroppedLink(e)) throw e;
+      o.onRetry?.(n, e);
+      await wait((o.waitMs ?? 700) * n);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Errors in plain words
 // ---------------------------------------------------------------------------
 export function explainError(e: unknown, via: "bluetooth" | "usb" | "print" = "print"): string {
@@ -202,7 +233,7 @@ export function explainError(e: unknown, via: "bluetooth" | "usb" | "print" = "p
   if (name === "NotFoundError" && via === "usb") return "No USB printer was found. Plug the printer in with an OTG cable, switch it on and try again.";
   if (name === "NotFoundError" && via === "bluetooth") return "No printer was found. Switch the printer on, close the printer's own app, make sure no other phone or PC is connected to it, and try again.";
   if (name === "SecurityError" || name === "NotAllowedError") return via === "usb" ? "The browser did not allow USB. Tap Connect again and choose the printer." : "The browser did not allow Bluetooth. Turn on Bluetooth and Location (Android needs both), allow 'Nearby devices' for Chrome, and tap Connect again.";
-  if (name === "NetworkError") return "Could not connect. The printer may be off, out of range, or already connected to another phone, tablet or PC (switch that one off or disconnect it).";
+  if (name === "NetworkError") return "The printer connected and then hung up. It is probably still held by another phone, tablet or PC (close WePrint and switch Bluetooth off on the others), or by this tablet's own Bluetooth settings (tap Forget on it there). Then switch the printer off and on, and try again.";
   if (name === "InvalidStateError") return "The printer connection was lost. Tap Connect again.";
   if (name === "NotSupportedError") return "The printer did not accept that. Try another printer language.";
   if (/disconnected|GATT/i.test(msg)) return "The printer disconnected. Tap Connect again.";
@@ -241,6 +272,7 @@ interface BtService {
 interface BtServer {
   connected: boolean;
   getPrimaryServices(): Promise<BtService[]>;
+  getPrimaryService(uuid: string): Promise<BtService>;
   disconnect(): void;
 }
 interface BtDevice {
@@ -289,7 +321,7 @@ export async function disconnectPrinter() {
 }
 
 /** Open the Bluetooth chooser (must be called from a tap) and connect to the printer that is picked. */
-export async function connectBluetooth(extraService = "", onLost?: () => void): Promise<DirectConnection> {
+export async function connectBluetooth(extraService = "", onLost?: () => void, onLog?: (lines: string[]) => void): Promise<DirectConnection> {
   const bt = (navigator as unknown as { bluetooth?: { requestDevice(o: unknown): Promise<BtDevice> } }).bluetooth;
   if (!bt) throw new Error("This browser has no Bluetooth printing. Use Chrome on Android or PC.");
   await disconnectPrinter();
@@ -297,45 +329,91 @@ export async function connectBluetooth(extraService = "", onLost?: () => void): 
   const extra = extraService.trim().toLowerCase();
   if (/^[0-9a-f]{4}$/.test(extra)) services.push(base(parseInt(extra, 16)));
   else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(extra)) services.push(extra);
+  const log: string[] = [];
+  const say = (m: string) => {
+    log.push(m);
+    onLog?.([...log]);
+  };
   const dev = await bt.requestDevice({ acceptAllDevices: true, optionalServices: services });
-  const log: string[] = [`Chosen: ${dev.name || "(no name)"} [${dev.id.slice(0, 8)}…]`];
+  say(`Chosen: ${dev.name || "(no name)"} [${dev.id.slice(0, 8)}…]`);
   if (!dev.gatt) throw new Error("This printer cannot be used over Bluetooth Low Energy.");
-  const server = await dev.gatt.connect();
-  log.push("Connected. Looking for the print channel…");
-  const found = await server.getPrimaryServices();
-  if (!found.length) {
-    log.push("The printer showed no services we know. It may use a different service id, or it is a classic-Bluetooth-only printer.");
-  }
+  const gatt = dev.gatt;
   const chars: CharInfo[] = [];
   const byKey = new Map<string, BtCharacteristic>();
-  for (const s of found) {
-    log.push(`Service ${shortId(s.uuid)}`);
-    let list: BtCharacteristic[] = [];
-    try {
-      list = await s.getCharacteristics();
-    } catch {
-      log.push("  (could not list its characteristics)");
+  let found = 0;
+
+  // Connect, give the printer a moment, then list its services. Some printers (and Android) drop the
+  // link if it is asked too soon or the printer is busy; a dropped link is retried from the start.
+  await retryDropped(
+    async (n) => {
+      chars.length = 0;
+      byKey.clear();
+      say(n === 1 ? "Connecting…" : `Connecting again (try ${n})…`);
+      const server = await gatt.connect();
+      say("Connected. Waiting a moment…");
+      await realSleep(n === 1 ? 600 : 1200);
+      if (!server.connected) throw Object.assign(new Error("GATT Server is disconnected."), { name: "NetworkError" });
+      say("Looking for the print channel…");
+      let list: BtService[] = [];
+      try {
+        list = await server.getPrimaryServices();
+      } catch (e) {
+        if (isDroppedLink(e)) throw e;
+        say(`Service list not available (${e instanceof Error ? e.name : "error"}), asking for each known service…`);
+      }
+      if (!list.length) {
+        // some printers only answer when asked for a service by id
+        for (const id of services) {
+          try {
+            list.push(await server.getPrimaryService(id));
+          } catch (e) {
+            if (isDroppedLink(e)) throw e;
+          }
+        }
+      }
+      found = list.length;
+      for (const sv of list) {
+        say(`Service ${shortId(sv.uuid)}`);
+        let cs: BtCharacteristic[] = [];
+        try {
+          cs = await sv.getCharacteristics();
+        } catch (e) {
+          if (isDroppedLink(e)) throw e;
+          say("  (could not list its characteristics)");
+        }
+        for (const c of cs) {
+          const info: CharInfo = { service: sv.uuid, uuid: c.uuid, write: c.properties.write, writeNoResponse: c.properties.writeWithoutResponse };
+          say(`  ${shortId(c.uuid)}${info.write ? " write" : ""}${info.writeNoResponse ? " write-no-response" : ""}`);
+          chars.push(info);
+          byKey.set(`${sv.uuid}|${c.uuid}`, c);
+        }
+      }
+    },
+    {
+      tries: 3,
+      waitMs: 800,
+      onRetry: (n, e) => {
+        say(`The printer hung up (${e instanceof Error ? e.message : "disconnected"}).`);
+        try {
+          gatt.disconnect();
+        } catch {}
+      },
     }
-    for (const c of list) {
-      const info: CharInfo = { service: s.uuid, uuid: c.uuid, write: c.properties.write, writeNoResponse: c.properties.writeWithoutResponse };
-      log.push(`  ${shortId(c.uuid)}${info.write ? " write" : ""}${info.writeNoResponse ? " write-no-response" : ""}`);
-      chars.push(info);
-      byKey.set(`${s.uuid}|${c.uuid}`, c);
-    }
-  }
+  );
+  if (!found) say("The printer showed no services we know. It may use a different service id, or it is a classic-Bluetooth-only printer.");
   const pick = pickWriteChar(chars);
   if (!pick) {
     try {
-      dev.gatt.disconnect();
+      gatt.disconnect();
     } catch {}
     throw new Error(
-      found.length
+      found
         ? "Connected, but the printer has no channel to write to. Open the diagnostics and send them to the developer."
         : "Connected, but this printer does not show a print channel over Bluetooth Low Energy. Try the USB cable, or enter its service id under Advanced."
     );
   }
   const ch = byKey.get(`${pick.service}|${pick.uuid}`)!;
-  log.push(`Using ${shortId(pick.uuid)} (${pick.writeNoResponse ? "write without response" : "write"})`);
+  say(`Using ${shortId(pick.uuid)} (${pick.writeNoResponse ? "write without response" : "write"})`);
   const fast = pick.writeNoResponse && typeof ch.writeValueWithoutResponse === "function";
   const sink: Sink = {
     write: async (chunk) => {

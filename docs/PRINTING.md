@@ -35,6 +35,10 @@ The browser opens the printer itself (Web Bluetooth / WebUSB) and sends the prin
    - Label feeds the wrong length: set **Gap between labels** (0 for a continuous roll).
 4. Print a real label. The settings are remembered on that device, separately for labels and for slips.
 
+### If it connects and then says "GATT Server is disconnected" / the printer hung up
+
+A printer only talks to **one device at a time**. If your phone (or the WePrint app, or another PC) is still connected to it, it accepts the tablet for a second and then hangs up. Switch Bluetooth off on the phone (or close WePrint), tap **Forget** on the printer in the tablet's own Bluetooth settings if it is listed there, switch the printer off and on, and tap Connect again. The app retries three times by itself and shows each step under **What the app found on the printer**. (Confirmed on the Helett H30C: it printed as soon as the phone was disconnected. TSPL with Invert ticked is the right setting for it.)
+
 ### If the tablet cannot find the printer
 
 - Android needs **Bluetooth** and **Location** on, and Chrome allowed under Settings → Apps → Chrome → Permissions → **Nearby devices**.
