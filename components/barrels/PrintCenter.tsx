@@ -10,9 +10,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PaperSize } from "@/lib/printSizes";
 import type { SavedPrint } from "@/components/barrels/PrintKit";
 import {
-  KIOSK_TARGETS, PRINT_MODES, buildHelperJob, cleanPairingCode, clampCopies, helperPrinters, isTouchDeviceUA, kioskBat, pairingCodeOk,
-  pictureName, pingHelper, printMode, sendToHelper, type HelperPing, type KioskTarget, type PrintMode,
+  KIOSK_TARGETS, PRINT_MODES, ago, buildHelperJob, chunkItems, cleanPairingCode, clampCopies, fetchQueue, helperPrinters, isTouchDeviceUA, jobAction, kioskBat, pairingCodeOk,
+  pictureName, pingHelper, printMode, queueJob, sendToHelper, stripDataUrl, type HelperPing, type KioskTarget, type PrintMode, type QueueState,
 } from "@/lib/printHelper";
+import { canCancel, canReprint, statusText } from "@/lib/printQueue";
+import {
+  connectBluetooth, connectUsb, currentConnection, directConfig, directSupport, disconnectPrinter, dotsAcross, explainError, knownUsbPrinters, monoFromDataUrl, sendBytes, unsupportedReason,
+  type DirectCfg, type DirectConnection,
+} from "@/lib/directPrint";
+import { PRINTER_LANGS, buildJob, mmToDots, testPattern } from "@/lib/printerLang";
 import { rasterize } from "@/lib/rasterize";
 
 interface Props {
@@ -44,13 +50,27 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
   const [msg, setMsg] = useState<Msg>(null);
   const [ping, setPing] = useState<HelperPing | null | undefined>(undefined); // undefined = checking, null = not running
   const [printers, setPrinters] = useState<string[]>([]);
+  const [q, setQ] = useState<QueueState | null>(null); // shop printer queue
+  const [qErr, setQErr] = useState("");
   const [pics, setPics] = useState<string[] | null>(null); // phone / tablet: pictures ready to share
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const firstRun = useRef(true);
+  // Bluetooth / USB direct printing
+  const [conn, setConn] = useState<DirectConnection | null>(null);
+  const [dlog, setDlog] = useState<string[]>([]);
+  const [prog, setProg] = useState("");
+  const [usbKnown, setUsbKnown] = useState(0);
+  const cfg = directConfig(kind, size.w, kind === "label" ? saved.dlabel : saved.dslip);
+  const setCfg = (p: Partial<DirectCfg>) => onSave(kind === "label" ? { dlabel: { ...saved.dlabel, ...p } } : { dslip: { ...saved.dslip, ...p } });
+  const support = typeof window === "undefined" ? { bluetooth: false, usb: false, secure: true } : directSupport();
+  const whyNot = typeof navigator === "undefined" ? "" : unsupportedReason(support, navigator.userAgent);
 
-  // first visit on a phone or tablet: start in the phone / tablet mode
+  // first visit on a phone or tablet: print straight to the printer when the browser can, else share a picture
   useEffect(() => {
-    if (!saved.mode && firstRun.current && typeof navigator !== "undefined" && isTouchDeviceUA(navigator.userAgent)) setMode("share");
+    if (!saved.mode && firstRun.current && typeof navigator !== "undefined" && isTouchDeviceUA(navigator.userAgent)) {
+      const s = directSupport();
+      setMode(s.bluetooth || s.usb ? "direct" : "share");
+    }
     firstRun.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -100,6 +120,112 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
     if (mode === "helper" && ping) void loadPrinters();
   }, [mode, ping, loadPrinters]);
 
+  // --- shop printer queue: is the helper online, and how are the recent jobs
+  const loadQueue = useCallback(async () => {
+    try {
+      setQ(await fetchQueue(6));
+      setQErr("");
+    } catch (e) {
+      setQErr(e instanceof Error ? e.message : "Could not reach the app.");
+    }
+  }, []);
+  useEffect(() => {
+    if (mode !== "queue") return;
+    void loadQueue();
+    const t = setInterval(() => void loadQueue(), 3000);
+    return () => clearInterval(t);
+  }, [mode, loadQueue]);
+
+  // --- direct: remember an open connection while the page stays open; see if a USB printer was allowed before
+  useEffect(() => {
+    if (mode !== "direct") return;
+    setConn(currentConnection());
+    void knownUsbPrinters().then((l) => setUsbKnown(l.length));
+  }, [mode]);
+
+  const lost = () => {
+    setConn(null);
+    setMsg({ ok: false, text: "The printer disconnected. Tap Connect to use it again." });
+  };
+  const connect = async (via: "bluetooth" | "usb") => {
+    setMsg(null);
+    setBusy(true);
+    try {
+      const c = via === "bluetooth" ? await connectBluetooth(cfg.service, lost) : await connectUsb(undefined, lost);
+      setConn(c);
+      setDlog(c.log);
+      setMsg({ ok: true, text: `Connected to ${c.name}. Press Test label to check it prints right.` });
+    } catch (e) {
+      setConn(null);
+      setDlog([`${e instanceof Error ? e.name : "Error"}: ${e instanceof Error ? e.message : String(e)}`]);
+      setMsg({ ok: false, text: explainError(e, via) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const reuseUsb = async () => {
+    setMsg(null);
+    setBusy(true);
+    try {
+      const list = await knownUsbPrinters();
+      if (!list.length) throw new Error("No USB printer has been allowed yet. Tap Connect USB.");
+      const c = await connectUsb(list[0], lost);
+      setConn(c);
+      setDlog(c.log);
+      setMsg({ ok: true, text: `Connected to ${c.name}.` });
+    } catch (e) {
+      setMsg({ ok: false, text: explainError(e, "usb") });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const hangUp = async () => {
+    await disconnectPrinter();
+    setConn(null);
+    setMsg(null);
+  };
+  // send one 1-bit picture (or several) to the connected printer in the chosen language
+  const sendMono = async (monos: Awaited<ReturnType<typeof monoFromDataUrl>>[], n: number) => {
+    if (!conn || !conn.isOpen()) throw new Error("The printer is not connected. Tap Connect.");
+    let total = 0;
+    for (let i = 0; i < monos.length; i++) {
+      const m = monos[i];
+      const bytes = buildJob(m, {
+        lang: cfg.lang,
+        widthMm: size.w,
+        heightMm: size.h ?? undefined,
+        copies: n,
+        gapMm: cfg.gapMm,
+        density: cfg.lang === "escpos" ? Math.round((cfg.density / 15) * 8) : cfg.density,
+        invert: cfg.invert,
+        feedLines: 4,
+        cut: false,
+      });
+      await sendBytes(conn.sink, bytes, {
+        chunk: Math.min(cfg.chunk, conn.kind === "usb" ? 16384 : cfg.chunk),
+        delayMs: conn.kind === "usb" ? 0 : cfg.delay,
+        onProgress: (sent, all) => setProg(`Sending ${i + 1} of ${monos.length} · ${Math.round((sent / all) * 100)}%`),
+      });
+      total++;
+    }
+    setProg("");
+    return total;
+  };
+  const testLabel = async () => {
+    setMsg(null);
+    setBusy(true);
+    try {
+      const m = testPattern(dotsAcross(cfg.widthMm), mmToDots(Math.min(size.h ?? 40, 40)));
+      await sendMono([m], 1);
+      setMsg({ ok: true, text: "Test label sent. Solid square top-left and a frame = right. Hollow square or all black = tick/untick Invert. Nothing = try another language." });
+    } catch (e) {
+      setProg("");
+      setMsg({ ok: false, text: explainError(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const raster = () => rasterize({ selector, paperWidthMm: size.w, paperHeightMm: size.h, marginMm });
 
   const run = async () => {
@@ -117,6 +243,21 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
         }
         setMsg({ ok: true, text: n > 1 ? `Sent ${n} copies.` : "Sent to the printer." });
         onDone?.();
+      } else if (mode === "queue") {
+        const pngs = await raster();
+        const items = pngs.map((u) => ({ png: stripDataUrl(u), widthMm: size.w, heightMm: size.h }));
+        for (const part of chunkItems(items)) await queueJob({ kind, title: name, copies: clampCopies(copies), items: part });
+        onDone?.();
+        setMsg({ ok: true, text: `Sent ${items.length} ${kind}${items.length > 1 ? "s" : ""} to the shop printer.${q?.agent.online ? "" : " The print helper on the shop PC is not running yet: it will print as soon as it starts."}` });
+        void loadQueue();
+      } else if (mode === "direct") {
+        if (!conn || !conn.isOpen()) throw new Error("Connect the printer first (Connect Bluetooth or Connect USB).");
+        const pngs = await raster();
+        const w = dotsAcross(cfg.widthMm);
+        const monos = await Promise.all(pngs.map((u) => monoFromDataUrl(u, w, cfg.threshold)));
+        const sent = await sendMono(monos, clampCopies(copies));
+        onDone?.();
+        setMsg({ ok: true, text: `Sent ${sent} ${kind}${sent > 1 ? "s" : ""} to ${conn.name}${copies > 1 ? ` × ${clampCopies(copies)}` : ""}.` });
       } else if (mode === "helper") {
         if (!pairingCodeOk(code)) throw new Error("Paste the pairing code from the helper window first.");
         if (!hprinter) throw new Error("Choose the printer first.");
@@ -131,7 +272,8 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
         setMsg({ ok: true, text: `${made.length} picture(s) ready at ${dimText}. Now tap Share.` });
       }
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : "Printing did not work." });
+      setProg("");
+      setMsg({ ok: false, text: mode === "direct" ? explainError(e) : e instanceof Error ? e.message : "Printing did not work." });
     } finally {
       setBusy(false);
     }
@@ -183,8 +325,8 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
   };
 
   const dimText = size.id === "a4" ? "A4" : size.h == null ? `${size.w} mm roll` : `${size.w} × ${size.h} mm`;
-  const showCopies = mode === "oneclick" || mode === "helper";
-  const helperReady = mode !== "helper" || (!!ping && pairingCodeOk(code) && !!hprinter);
+  const showCopies = mode === "oneclick" || mode === "helper" || mode === "queue" || mode === "direct";
+  const helperReady = (mode !== "helper" || (!!ping && pairingCodeOk(code) && !!hprinter)) && (mode !== "direct" || !!conn);
 
   return (
     <div className="bd-pc bd-noprint">
@@ -206,7 +348,129 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
 
       {mode === "share" && (
         <div className="bd-m small">
-          For a phone or tablet (for example the Redmi Pad) with a Bluetooth printer. Tap <b>Make pictures</b>, then <b>Share</b> and choose your printer&apos;s own app (the one you used to pair the printer). In that app pick the same label size, <b>{dimText}</b>, and print. If the share list does not show the app, tap <b>Save pictures</b> and open them from inside the printer&apos;s app.
+          For a phone or tablet that has a printer app of its own. Tap <b>Make pictures</b>, then <b>Share</b> and choose your printer&apos;s own app (the one you used to pair the printer). In that app pick the same label size, <b>{dimText}</b>, and print. If the share list does not show the app, tap <b>Save pictures</b> and open them from inside the printer&apos;s app.
+        </div>
+      )}
+
+      {mode === "direct" && (
+        <div className="bd-pc-helper">
+          {whyNot ? (
+            <div className="bd-err">{whyNot}</div>
+          ) : (
+            <>
+              <div className="bd-row">
+                <span className={`bd-dot ${conn ? "ok" : "off"}`} aria-hidden />
+                <span>{conn ? <>Connected to <b>{conn.name}</b> ({conn.kind === "usb" ? "USB" : "Bluetooth"})</> : "No printer connected on this device"}</span>
+                {conn && <button className="bd-linkbtn" onClick={() => void hangUp()}>Disconnect</button>}
+              </div>
+              <div className="bd-row">
+                {support.bluetooth && <button className="bd-btn" disabled={busy} onClick={() => void connect("bluetooth")}>🔵 Connect Bluetooth</button>}
+                {support.usb && <button className="bd-btn" disabled={busy} onClick={() => void connect("usb")}>🔌 Connect USB</button>}
+                {support.usb && usbKnown > 0 && !conn && <button className="bd-btn" disabled={busy} onClick={() => void reuseUsb()}>🔌 Use the USB printer from before</button>}
+                <button className="bd-btn" disabled={busy || !conn} onClick={() => void testLabel()}>🧪 Test label</button>
+              </div>
+              <div className="bd-pc-set">
+                <label>
+                  Printer language{" "}
+                  <select value={cfg.lang} onChange={(e) => setCfg({ lang: e.target.value as DirectCfg["lang"] })}>
+                    {PRINTER_LANGS.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  </select>
+                </label>
+                <label>
+                  Darkness <b>{cfg.density}</b>{" "}
+                  <input type="range" min={1} max={15} value={cfg.density} onChange={(e) => setCfg({ density: Number(e.target.value) })} />
+                </label>
+                <label>
+                  Gap between labels (mm){" "}
+                  <input type="number" min={0} max={20} value={cfg.gapMm} onChange={(e) => setCfg({ gapMm: Number(e.target.value) })} style={{ width: 64 }} />
+                </label>
+                <label>
+                  <input type="checkbox" checked={cfg.invert} onChange={(e) => setCfg({ invert: e.target.checked })} /> Invert (TSPL)
+                </label>
+              </div>
+              <div className="bd-m small">{PRINTER_LANGS.find((l) => l.id === cfg.lang)?.note}</div>
+              <details className="bd-pc-adv">
+                <summary>Advanced</summary>
+                <div className="bd-pc-set">
+                  <label>
+                    Print width (mm){" "}
+                    <input type="number" min={20} max={220} value={cfg.widthMm} onChange={(e) => setCfg({ widthMm: Number(e.target.value) })} style={{ width: 70 }} />
+                  </label>
+                  <label>
+                    Black level <b>{cfg.threshold}</b>{" "}
+                    <input type="range" min={60} max={220} value={cfg.threshold} onChange={(e) => setCfg({ threshold: Number(e.target.value) })} />
+                  </label>
+                  <label>
+                    Bluetooth piece size{" "}
+                    <input type="number" min={20} max={512} value={cfg.chunk} onChange={(e) => setCfg({ chunk: Number(e.target.value) })} style={{ width: 70 }} />
+                  </label>
+                  <label>
+                    Pause (ms){" "}
+                    <input type="number" min={0} max={500} value={cfg.delay} onChange={(e) => setCfg({ delay: Number(e.target.value) })} style={{ width: 64 }} />
+                  </label>
+                  <label>
+                    Printer service id{" "}
+                    <input value={cfg.service} placeholder="e.g. ffe0" maxLength={40} spellCheck={false} onChange={(e) => setCfg({ service: e.target.value })} style={{ width: 150 }} />
+                  </label>
+                </div>
+                <div className="bd-m small">If the label prints in pieces or stops half way, make the piece size smaller (20-60) and the pause longer (40). The service id is only needed when Connect says it found no print channel.</div>
+              </details>
+              {dlog.length > 0 && (
+                <details className="bd-pc-adv" open={!conn}>
+                  <summary>What the app found on the printer</summary>
+                  <pre className="bd-pc-log">{dlog.join("\n")}</pre>
+                  <button className="bd-linkbtn" onClick={() => void navigator.clipboard?.writeText(dlog.join("\n"))}>Copy</button>
+                </details>
+              )}
+              <details className="bd-pc-adv">
+                <summary>Printer not in the list? Checklist</summary>
+                <ol className="bd-m small">
+                  <li>Switch the printer on and put it near the tablet. Close the printer&apos;s own app (WePrint) and switch Bluetooth off on any other phone or PC it was used with. A printer can talk to one device at a time.</li>
+                  <li>Do <b>not</b> pair it in Android Settings first. Tap <b>Connect Bluetooth</b> here: Chrome scans for the printer itself and shows a list.</li>
+                  <li>Android needs <b>Bluetooth</b> and <b>Location</b> switched on, and Chrome allowed under Settings → Apps → Chrome → Permissions → <b>Nearby devices</b>.</li>
+                  <li>Some printers only show up while their Bluetooth light is blinking: hold the power button a few seconds, or press the feed button to wake it.</li>
+                  <li>Still nothing? Plug the printer into the tablet with a USB-C OTG cable, switch it on and tap <b>Connect USB</b>. This works without Bluetooth.</li>
+                  <li>Open <b>What the app found on the printer</b> above and tap Copy if you need to send it to the developer.</li>
+                </ol>
+              </details>
+            </>
+          )}
+        </div>
+      )}
+
+      {mode === "queue" && (
+        <div className="bd-pc-helper">
+          <div className="bd-row">
+            <span className={`bd-dot ${!q ? "wait" : q.agent.online ? "ok" : "off"}`} aria-hidden />
+            <span>
+              {!q ? (qErr ? "Cannot reach the app" : "Checking the shop printer…") : q.agent.online
+                ? `Shop printer is on${q.agent.dryRun ? " · TEST MODE, nothing is printed" : ""}`
+                : q.agent.lastSeen ? `Shop printer is off (last seen ${ago(q.agent.lastSeen)})` : "Shop printer has never been switched on"}
+            </span>
+          </div>
+          {q?.agent.online && (
+            <div className="bd-m small">
+              Labels print on <b>{q.agent.labelPrinter || "the shop PC's printer"}</b>, slips on <b>{q.agent.slipPrinter || "the shop PC's printer"}</b>.
+            </div>
+          )}
+          {q && !q.agent.online && (
+            <div className="bd-m small">
+              Switch on the shop PC and start the print helper there (<code>py tools/print_helper.py --queue-url …</code>, see the printing guide). Jobs you send now wait and print by themselves when it starts.
+            </div>
+          )}
+          {qErr && <div className="bd-err">{qErr}</div>}
+          {q && q.jobs.length > 0 && (
+            <ul className="bd-pc-jobs">
+              {q.jobs.map((j) => (
+                <li key={j.id} className={`st-${j.status.toLowerCase()}`}>
+                  <span className="bd-pc-jt"><b>{j.title || (j.kind === "label" ? "Label" : "Slip")}</b> × {j.copies} <small>{ago(j.createdAt)} · {j.createdBy}</small></span>
+                  <span className="bd-pc-js">{statusText(j.status, j.error)}</span>
+                  {canCancel(j.status) && <button className="bd-linkbtn" onClick={() => jobAction(j.id, "cancel").then(loadQueue).catch((e) => setQErr(e.message))}>Cancel</button>}
+                  {canReprint(j.status) && <button className="bd-linkbtn" onClick={() => jobAction(j.id, "reprint").then(loadQueue).catch((e) => setQErr(e.message))}>Print again</button>}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -261,7 +525,7 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
           </label>
         )}
         <button className="bd-btn primary" onClick={() => void run()} disabled={disabled || busy || !helperReady}>
-          {busy ? "Working…" : mode === "share" ? `📷 Make pictures (${count})` : `🖨️ ${label}`}
+          {busy ? "Working…" : mode === "queue" ? `📤 Send ${count} to shop printer` : mode === "share" ? `📷 Make pictures (${count})` : `🖨️ ${label}`}
         </button>
         {mode === "share" && pics && (
           <>
@@ -270,6 +534,7 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
           </>
         )}
       </div>
+      {prog && <div className="bd-m small">{prog}</div>}
       {msg && <div className={msg.ok ? "bd-pc-ok" : "bd-err"} role="status">{msg.text}</div>}
       {pics && mode === "share" && (
         <div className="bd-pc-pics">

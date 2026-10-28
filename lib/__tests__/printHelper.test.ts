@@ -71,3 +71,25 @@ describe("one-click Chrome shortcut", () => {
     expect(KIOSK_TARGETS.labels.file).toMatch(/\.bat$/);
   });
 });
+
+import { PRINT_MODES, QUEUE_CHUNK, ago, chunkItems } from "../printHelper";
+describe("shop printer queue helpers", () => {
+  it("splits many pictures into smaller jobs", () => {
+    expect(chunkItems([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+    expect(chunkItems([], 2)).toEqual([]);
+    expect(chunkItems(Array.from({ length: 45 }, (_, i) => i)).map((c) => c.length)).toEqual([QUEUE_CHUNK, QUEUE_CHUNK, 5]);
+  });
+  it("says how long ago", () => {
+    const now = Date.parse("2026-10-28T12:00:00Z");
+    expect(ago("2026-10-28T11:59:58Z", now)).toBe("just now");
+    expect(ago("2026-10-28T11:59:15Z", now)).toBe("45 s ago");
+    expect(ago("2026-10-28T11:55:00Z", now)).toBe("5 min ago");
+    expect(ago("2026-10-28T09:00:00Z", now)).toBe("3 h ago");
+    expect(ago("2026-10-26T12:00:00Z", now)).toBe("2 d ago");
+    expect(ago(null, now)).toBe("");
+  });
+  it("has the shop printer mode and keeps its saved value", () => {
+    expect(PRINT_MODES.map((m) => m.id)).toContain("queue");
+    expect(printMode("queue")).toBe("queue");
+  });
+});

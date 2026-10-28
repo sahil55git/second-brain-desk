@@ -932,3 +932,37 @@ model CashTallyLog {
 
   @@index([date, createdAt])
 }
+
+// ---------------------------------------------------------------------------
+// Print queue — lets a phone or tablet print on the shop's own printers. The
+// device makes a picture of each label / slip at the exact paper size and
+// queues it here; tools/print_helper.py on the shop PC (USB printers attached)
+// fetches the job and prints it. No Bluetooth needed.
+// ---------------------------------------------------------------------------
+model PrintJob {
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  createdBy String
+  kind      String // "label" | "slip"
+  title     String    @default("")
+  widthMm   Float
+  heightMm  Float?
+  copies    Int       @default(1)
+  items     Json // [{ png: base64, widthMm, heightMm }]
+  status    String    @default("QUEUED") // QUEUED | PRINTING | DONE | FAILED | CANCELLED
+  error     String?
+  claimedAt DateTime?
+  doneAt    DateTime?
+  agent     String?
+
+  @@index([status, createdAt])
+}
+
+// One row per print helper that has called in: shows "shop printer online" in the app.
+model PrintAgent {
+  id       String   @id // "shop"
+  lastSeen DateTime
+  version  String   @default("")
+  dryRun   Boolean  @default(false)
+  info     Json? // { labelPrinter, slipPrinter }
+}

@@ -157,7 +157,7 @@ export function pagesForPath(pathname: string): PageKey[] | null {
   if (under("/api/job-work")) return ["jobwork", "register"];
   if (under("/api/purchases")) return ["register", "stock", "mfg"];
   if (under("/reports") || under("/api/reports") || under("/records")) return ["reports"];
-  if (under("/mfg") || under("/api/manufacturing") || under("/barrels") || under("/api/barrels") || under("/api/barrel-fleet") || under("/labels")) return ["mfg", "stock"];
+  if (under("/mfg") || under("/api/manufacturing") || under("/barrels") || under("/api/barrels") || under("/api/barrel-fleet") || under("/api/print-jobs") || under("/labels")) return ["mfg", "stock"];
   if (under("/settings") || under("/api/settings") || under("/api/import") || under("/api/users") || under("/api/access/profiles")) return ["settings"];
   return null;
 }
