@@ -125,9 +125,12 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
 .bd-labels.thermal .bd-lcode { font-size: 8.5pt; }
 @media print {
   .bd-noprint { display: none !important; }
-  .bd-labelpage { padding: 0; }
+  .bd-labelpage { padding: 0; min-height: 0; }
   .bd-label { border: none; }
   body { background: #fff !important; }
+  /* A narrow page (a 4x6 label is 384 px wide) matches the phone rules in home.css, which add 76 px under the body for the tab bar. Without this a label page is taller than the sheet and the printer feeds a blank second one. The last label must not end with a page break either. */
+  html, html.has-pnav body, body { padding: 0 !important; margin: 0 !important; min-height: 0 !important; zoom: 1 !important; height: auto !important; }
+  .bd-labels > .bd-label:last-child, .bd-slips > .bd-slip:last-child { break-after: auto !important; page-break-after: auto !important; }
 }
 @media (max-width: 520px) {
   .bd-big { font-size: 44px; }
