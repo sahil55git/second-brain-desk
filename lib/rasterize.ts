@@ -2,6 +2,8 @@
 // laid out on a canvas that is exactly the paper size. Used by the print helper path only
 // (browser printing uses the page itself). Browser-only.
 import { HELPER_DPI, pixelRatioFor } from "@/lib/printHelper";
+import { fontEmbedCss, loadFonts } from "@/lib/fontLoad";
+import { parseSpec } from "@/lib/fonts";
 
 export interface RasterOpts {
   /** CSS selector of the things to print, one picture each (".bd-label" / ".bd-slip") */
@@ -32,21 +34,29 @@ export async function rasterize(opts: RasterOpts): Promise<string[]> {
   if (!els.length) throw new Error("There is nothing on the page to print.");
   const { toPng } = await import("html-to-image");
   const margin = opts.marginMm ?? 0;
+  // designer layouts name the fonts they draw (data-fonts="sans:400,kannada:700"): load them, wait for the
+  // text to refit, and embed them in the picture (a picture made through SVG cannot see the page's fonts)
+  const spec = Array.from(new Set(els.flatMap((e) => Array.from(e.querySelectorAll<HTMLElement>("[data-fonts]")).concat(e.matches("[data-fonts]") ? [e] : []).map((n) => n.dataset.fonts ?? "")))).join(",");
+  const fontCss = spec ? await fontEmbedCss(spec).catch(() => "") : "";
+  if (spec) {
+    await loadFonts(parseSpec(spec));
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  }
   const out: string[] = [];
   // the preview may be zoomed on screen; the picture is always made at real size
   const staged = Array.from(document.querySelectorAll<HTMLElement>(".bd-stage > *")).map((e) => [e, e.style.zoom] as const);
   staged.forEach(([e]) => (e.style.zoom = "1"));
   try {
-    await rasterAll(els, opts, dpi, margin, toPng, out);
+    await rasterAll(els, opts, dpi, margin, toPng, out, fontCss);
   } finally {
     staged.forEach(([e, z]) => (e.style.zoom = z));
   }
   return out;
 }
 
-async function rasterAll(els: HTMLElement[], opts: RasterOpts, dpi: number, margin: number, toPng: typeof import("html-to-image").toPng, out: string[]) {
+async function rasterAll(els: HTMLElement[], opts: RasterOpts, dpi: number, margin: number, toPng: typeof import("html-to-image").toPng, out: string[], fontCss: string) {
   for (const el of els) {
-    const shot = await toPng(el, { pixelRatio: pixelRatioFor(dpi), backgroundColor: "#ffffff", skipFonts: true, style: { border: "none", margin: "0" } });
+    const shot = await toPng(el, { pixelRatio: pixelRatioFor(dpi), backgroundColor: "#ffffff", ...(fontCss ? { fontEmbedCSS: fontCss } : { skipFonts: true }), style: { border: "none", margin: "0" } });
     const img = await loadImage(shot);
     const cw = mmToPx(opts.paperWidthMm, dpi);
     const ox = mmToPx(margin, dpi);

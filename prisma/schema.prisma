@@ -966,3 +966,19 @@ model PrintAgent {
   dryRun   Boolean  @default(false)
   info     Json? // { labelPrinter, slipPrinter }
 }
+
+// Label and receipt layouts made in the designer (shared by every device). One default per kind.
+model LabelTemplate {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  name      String
+  kind      String // "label" | "slip"
+  widthMm   Float
+  heightMm  Float? // null = roll slip, as long as its content
+  doc       Json // see lib/labelTemplate.ts
+  isDefault Boolean  @default(false)
+  updatedBy String   @default("")
+
+  @@index([kind, updatedAt])
+}

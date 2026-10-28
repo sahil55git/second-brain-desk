@@ -37,6 +37,8 @@ describe("access", () => {
     expect(pagesForPath("/api/sales/abc/refund")).toEqual(["sales", "register"]);
     expect(pagesForPath("/api/register/stock")).toEqual(["register", "stock"]);
     expect(pagesForPath("/api/register")).toEqual(["register"]);
+    expect(pagesForPath("/api/label-templates")).toEqual(["mfg", "stock"]);
+    expect(pagesForPath("/barrels/fleet/designer")).toEqual(["mfg", "stock"]);
     expect(pagesForPath("/api/appearance")).toBeNull();
     expect(pagesForPath("/")).toBeNull();
     expect(pathAllowed(by("counter"), "/api/parties")).toBe(true);

@@ -1,0 +1,8 @@
+Fonts used by the label and receipt designer (served from this folder so every device prints the same).
+All are licensed under the SIL Open Font License 1.1 (https://openfontlicense.org), packaged by Fontsource (https://fontsource.org):
+  Inter                       (c) The Inter Project Authors
+  Roboto Mono                 (c) The Roboto Mono Project Authors
+  Merriweather                (c) The Merriweather Project Authors
+  Oswald                      (c) The Oswald Project Authors
+  Noto Sans Kannada           (c) Google LLC
+  Noto Sans Devanagari        (c) Google LLC
