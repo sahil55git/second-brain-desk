@@ -6,7 +6,7 @@
 // Second Brain Desk.
 
 import UdhaarHint from "./UdhaarHint";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useAccess } from "@/components/AccessProvider";
 import { kindToFn, MASK, type FnKey } from "@/lib/access";
@@ -83,6 +83,8 @@ import { useCustomize } from "@/lib/customize";
 import { BrandMark, Icon, type IconName } from "@/components/ui/Icons";
 import { BUILTIN_SIMPLE, assignedMode, type SimpleMode } from "@/lib/simpleMode";
 import { G, useSkinned } from "@/components/register/Glyph";
+import ReceiptSheet from "@/components/print/ReceiptSheet";
+import { entryReceipt, receiptTime, type ReceiptDoc } from "@/lib/receipt";
 
 // Pre-fill for an entry form: from a voice command, or from a scanned slip
 // (linkProofId attaches that scan to the entry once it is saved).
@@ -786,6 +788,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     setPrefsState((p) => ({ ...p, layout: c.defaultLayout, favs: c.defaultFavs, work: work || "calc" }));
   }, [hasLocalPrefs, day]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [rcpt, setRcpt] = useState<ReceiptDoc | null>(null);
   const [lang, setLangState] = useState<LangMode>("both");
   const [now, setNow] = useState(Date.now());
 
@@ -932,9 +935,9 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     ]
       .filter(Boolean)
       .join(" · ");
-    return (
+    const printable = e.kind === "SALE" || e.kind === "UDHAAR_IN" || e.kind === "FRESH_CRUSH" || e.kind === "PAYMENT" || e.kind === "PURCHASE" || e.kind === "EXPENSE";
+    const card = (
       <button
-        key={e.id}
         className={`qr-ent ${KIND_SIDE[e.kind]}${e.paymentMode === "CREDIT" ? " udhaar" : KIND_SIDE[e.kind] === "in" ? " paid" : ""}`}
         onClick={() => remove(e)}
         title={word("deleteQ", lang)}
@@ -955,6 +958,35 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
           )}
         </span>
       </button>
+    );
+    if (!printable) return <Fragment key={e.id}>{card}</Fragment>;
+    return (
+      <div key={e.id} className="qr-entw">
+        {card}
+        <button
+          type="button"
+          className="qr-entp"
+          title="Print a receipt for this entry"
+          aria-label="Print a receipt for this entry"
+          onClick={() =>
+            setRcpt(
+              entryReceipt({
+                title: e.kind === "UDHAAR_IN" ? "PAYMENT RECEIVED" : e.kind === "SALE" || e.kind === "FRESH_CRUSH" ? "RECEIPT" : "PAYMENT VOUCHER",
+                id: e.id,
+                when: receiptTime(e.createdAt),
+                party: e.partyName,
+                what: [word(e.kind as WordKey, "en"), itemText(e)].filter(Boolean).join(" · "),
+                detail: [e.qty ? `${e.qty} ${unitText(e.unit)}` : "", e.rateInr ? `@ ₹${e.rateInr}` : ""].filter(Boolean).join(" ") || undefined,
+                amountInr: e.amountInr,
+                mode: payLabel(e, "en"),
+                notes: e.notes,
+              })
+            )
+          }
+        >
+          🖨️
+        </button>
+      </div>
     );
   };
 
@@ -2243,6 +2275,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
           </span>
         </div>
       )}
+      {rcpt && <ReceiptSheet doc={rcpt} onClose={() => setRcpt(null)} />}
       {toastMsg && (
         <div className="qr-toast" role="status">
           {toastMsg}
@@ -3897,6 +3930,7 @@ function EstimateSheet({
   const first = items[0]?.key || null;
   const mk = (id: number, it: string | null = first): EstRow => ({ id, item: it, otherName: "", qty: "", unit: "kg", rate: saved(it) });
   const [mode, setMode] = useState<"qty" | "cash">("qty");
+  const [rcpt, setRcpt] = useState<ReceiptDoc | null>(null);
   const [rows, setRows] = useState<EstRow[]>(() => [mk(1)]);
   const [cash, setCash] = useState("");
   const nextId = useRef(2);
@@ -4100,6 +4134,23 @@ function EstimateSheet({
         <button type="button" className="qr-chip" onClick={share} disabled={!has}>
           <G e="💬" /> <Txt k="estShare" lang={lang} />
         </button>
+        <button
+          type="button"
+          className="qr-chip"
+          disabled={!has}
+          onClick={() =>
+            setRcpt({
+              title: "ESTIMATE",
+              when: receiptTime(),
+              rows: lines.map((l) => ({ name: l })),
+              totals: mode === "qty" ? [{ label: "TOTAL", value: rs(total), strong: true }] : [],
+              notes: ["Estimate only, not a bill"],
+            })
+          }
+        >
+          <G e="🖨️" /> {lang === "kn" ? "ಮುದ್ರಿಸಿ" : "Print"}
+        </button>
+        {rcpt && <ReceiptSheet doc={rcpt} onClose={() => setRcpt(null)} />}
         {single && (
           <button type="button" className="qr-save" onClick={makeSale}>
             ✓ <Txt k="estMakeSale" lang={lang} />
@@ -4235,6 +4286,7 @@ function ReportSheet({
     return it ? it.en : e.itemLabel || e.item || "";
   };
 
+  const [rcpt, setRcpt] = useState<ReceiptDoc | null>(null);
   const text = () => {
     const bl = (k: WordKey) => (lang === "both" ? `${words(k, "en").main}/${words(k, "kn").main}` : word(k, lang));
     let s = `MAHADEV TRADERS — ${day.date}\n${bl("opening")}: ${rs(day.opening.value)}\n\n`;
@@ -4345,6 +4397,10 @@ function ReportSheet({
         <button className="qr-btn2" onClick={() => window.print()}>
           <G e="🖨️" /> {word("print", lang)}
         </button>
+        <button className="qr-btn2" onClick={() => setRcpt({ title: "DAY SUMMARY", when: day.date, rows: [], pre: text().replace(/^MAHADEV TRADERS — [^\n]*\n/, "") })} title="Print on the receipt printer">
+          <G e="🧾" /> {lang === "kn" ? "ರಸೀದಿ ಪ್ರಿಂಟರ್" : "Slip printer"}
+        </button>
+        {rcpt && <ReceiptSheet doc={rcpt} onClose={() => setRcpt(null)} />}
         <button
           className="qr-btn2"
           onClick={() => {

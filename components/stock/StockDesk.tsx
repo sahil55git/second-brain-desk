@@ -6,6 +6,7 @@
 // Register use) and flags gaps with the same 0.5 kg rule. Saves through
 // /api/register/stock, which stores on the day's DailyClosing row, so the
 // Daily Closing desk and Reports see exactly the same record.
+import PrintButton from "@/components/print/PrintButton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STOCK_PRODUCTS, computeProductTally, type StockProductComputed } from "@/lib/calculations";
 import { businessDate } from "@/lib/register";
@@ -277,6 +278,7 @@ export default function StockDesk({ initialDate, initialSession }: { initialDate
           <div className="hub-m">Daily physical count of oil stock — compared with the system and the scale report.</div>
         </div>
         <nav className="hub-links">
+          <PrintButton area=".hub" />
           <a className="hub-btn" href="/register">📒 Quick Register</a>
           <a className="hub-btn" href="/reports?tab=stock">📊 Stock reports</a>
           <a className="hub-btn" href="/tallies">🧮 All tallies</a>

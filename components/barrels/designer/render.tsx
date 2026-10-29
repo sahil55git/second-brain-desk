@@ -7,7 +7,7 @@ import { code128Ok, code128Svg } from "@/lib/code128";
 import { qrSvg } from "@/lib/qr";
 import { fontStack, parseSpec } from "@/lib/fonts";
 import { injectFontFaces, loadFonts } from "@/lib/fontLoad";
-import { barcodeDots, docFontSpec, fillTokens, qrFit, type BarcodeEl, type BarcodeBlock, type ColsBlock, type KvBlock, type LabelDoc, type LabelEl, type QrBlock, type QrEl, type SlipBlock, type SlipDoc, type TemplateDoc, type TextBlock, type TextEl, type TokenData } from "@/lib/labelTemplate";
+import { barcodeDots, docFontSpec, fillTokens, qrFit, type BarcodeEl, type BarcodeBlock, type ColsBlock, type KvBlock, type LabelDoc, type LabelEl, type QrBlock, type QrEl, type SlipBlock, type SlipDoc, type TemplateDoc, type TextBlock, type TextEl, type TokenData, withFields } from "@/lib/labelTemplate";
 import { customSize, type PaperSize } from "@/lib/printSizes";
 
 const INK = { WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" } as React.CSSProperties;
@@ -104,7 +104,8 @@ function FitText({ text, el, tick }: { text: string; el: TextEl; tick: number })
 // ---------------------------------------------------------------------------
 // Label
 // ---------------------------------------------------------------------------
-export function LabelView({ doc, data, extraClass = "", tick: tickIn }: { doc: LabelDoc; data: TokenData; extraClass?: string; tick?: number }) {
+export function LabelView({ doc, data: raw, extraClass = "", tick: tickIn }: { doc: LabelDoc; data: TokenData; extraClass?: string; tick?: number }) {
+  const data = withFields(doc, raw);
   const spec = docFontSpec(doc, data);
   const own = useTemplateFonts(spec);
   const tick = (tickIn ?? 0) + own;
@@ -184,7 +185,8 @@ function QrElView({ el, data }: { el: QrEl; data: TokenData }) {
 // ---------------------------------------------------------------------------
 const justifyOf = (a: "left" | "center" | "right") => (a === "left" ? "flex-start" : a === "right" ? "flex-end" : "center");
 
-export function SlipView({ doc, data, extraClass = "", selectedId }: { doc: SlipDoc; data: TokenData; extraClass?: string; selectedId?: string | null }) {
+export function SlipView({ doc, data: raw, extraClass = "", selectedId }: { doc: SlipDoc; data: TokenData; extraClass?: string; selectedId?: string | null }) {
+  const data = withFields(doc, raw);
   const spec = docFontSpec(doc, data);
   useTemplateFonts(spec);
   const inner = doc.widthMm - 2 * doc.marginMm;

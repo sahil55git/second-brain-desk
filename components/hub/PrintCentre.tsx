@@ -38,6 +38,10 @@ const GROUPS: { title: string; tiles: Tile[] }[] = [
     tiles: [
       { icon: "⚖️", title: "Barrel weighing slip", desc: "Open a barrel → Weigh → print its slip", href: "/barrels/fleet", need: ["mfg", "stock"] },
       { icon: "🧾", title: "Receiving weighment slip", desc: "Slip for a receiving lot", href: "/barrels", need: ["mfg", "stock"] },
+      { icon: "📃", title: "Customer bill", desc: "Quick Register → Bill → 🖨️ Save & print", href: "/register", need: ["register"] },
+      { icon: "🙌", title: "Entry receipt", desc: "Quick Register → 🖨️ on any sale, udhar or payment entry", href: "/register", need: ["register"] },
+      { icon: "🌾", title: "Job-work challan", desc: "Full desk → Job-work → customer name → 🧾 Receipt", href: "/", need: ["jobwork", "register"] },
+      { icon: "💰", title: "Sales invoice (roll or A4)", desc: "Sales → Print → 🧾 Roll receipt or A4", href: "/sales", need: ["sales"] },
     ],
   },
   {
@@ -46,6 +50,9 @@ const GROUPS: { title: string; tiles: Tile[] }[] = [
       { icon: "📒", title: "Today's register", desc: "Quick Register → summary → Print", href: "/register", need: ["register"] },
       { icon: "💵", title: "Cash tally", desc: "Count and closing, print or save PDF", href: "/cash", need: ["register"] },
       { icon: "💰", title: "Sales", desc: "Sales list and bills", href: "/sales", need: ["sales"] },
+      { icon: "📦", title: "Stock tally", desc: "Print the day's stock count", href: "/stock", need: ["stock"] },
+      { icon: "🧮", title: "Tallies", desc: "Seed, cake, packing, udhar, tank counts", href: "/tallies", need: ["stock"] },
+      { icon: "🏭", title: "Manufacturing", desc: "Barrels and yields", href: "/mfg", need: ["mfg"] },
       { icon: "📊", title: "Reports", desc: "Sales, stock, udhar, cash reports", href: "/reports", ownerOnly: true },
     ],
   },

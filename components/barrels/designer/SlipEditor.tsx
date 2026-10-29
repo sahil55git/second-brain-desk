@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LIMITS, checkDoc, duplicateItems, moveBlock, newBlock, type SlipBlock, type SlipBlockType, type SlipDoc, type TokenData } from "@/lib/labelTemplate";
 import { SlipView } from "@/components/barrels/designer/render";
-import { AlignSeg, Field, FontSelect, NumBox, Seg, Toggle, TokenText } from "@/components/barrels/designer/fields";
+import { AlignSeg, Field, FieldsCtx, FieldsPanel, FontSelect, NumBox, Seg, Toggle, TokenText } from "@/components/barrels/designer/fields";
 import { fileToLogo } from "@/components/barrels/designer/logo";
 
 const PX = 96 / 25.4;
@@ -46,9 +46,11 @@ export interface SlipEditorProps {
   canUndo: boolean;
   canRedo: boolean;
   onResetStandard: () => void;
+  /** open the ready-made designs / auto design */
+  onDesigns?: () => void;
 }
 
-export default function SlipEditor({ doc, data, readOnly, onChange, onUndo, onRedo, canUndo, canRedo, onResetStandard }: SlipEditorProps) {
+export default function SlipEditor({ doc, data, readOnly, onChange, onUndo, onRedo, canUndo, canRedo, onResetStandard, onDesigns }: SlipEditorProps) {
   const [selId, setSelId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [zoomIn, setZoomIn] = useState<number | null>(null);
@@ -122,8 +124,14 @@ export default function SlipEditor({ doc, data, readOnly, onChange, onUndo, onRe
   const zoom = zoomIn ?? Math.max(1, Math.min(4, (prevW - 26) / (doc.widthMm * PX)));
 
   return (
+    <FieldsCtx.Provider value={doc.fields ?? []}>
     <div className="dz-editor">
       <div className="dz-toolbar" role="toolbar" aria-label="Receipt tools">
+        {canEdit && onDesigns && (
+          <span className="dz-grp">
+            <button type="button" className="dz-tb accent" onClick={onDesigns} title="Ready-made receipts and the auto design maker"><b>🎨</b> Designs</button>
+          </span>
+        )}
         <span className="dz-grp">
           <button type="button" className="dz-tb" disabled={!canUndo || !canEdit} onClick={onUndo}>↶ Undo</button>
           <button type="button" className="dz-tb" disabled={!canRedo || !canEdit} onClick={onRedo}>↷ Redo</button>
@@ -201,6 +209,20 @@ export default function SlipEditor({ doc, data, readOnly, onChange, onUndo, onRe
             {!doc.blocks.length && <li className="bd-m small">Nothing yet. Add a block above.</li>}
           </ol>
           {canEdit && <button type="button" className="bd-btn" onClick={onResetStandard}>↺ Start again from the standard slip</button>}
+          <FieldsPanel
+            fields={doc.fields ?? []}
+            kind="slip"
+            canEdit={canEdit}
+            onChange={(f) => onChange({ ...doc, fields: f.length ? f : undefined }, "fields")}
+            onPlace={(f) => {
+              if (doc.blocks.length >= LIMITS.maxBlocks) return setMsg(`A slip can hold at most ${LIMITS.maxBlocks} blocks.`);
+              const b = { ...newBlock("kv", doc), label: f.label, value: `{${f.key}}` } as SlipBlock;
+              const fields = (doc.fields ?? []).some((x) => x.key === f.key) ? doc.fields : [...(doc.fields ?? []), f];
+              const at = selId ? doc.blocks.findIndex((x) => x.id === selId) + 1 : doc.blocks.length;
+              onChange({ ...doc, fields, blocks: [...doc.blocks.slice(0, at), b, ...doc.blocks.slice(at)] });
+              setSelId(b.id);
+            }}
+          />
         </div>
 
         <div className="dz-preview" ref={prev}>
@@ -219,6 +241,7 @@ export default function SlipEditor({ doc, data, readOnly, onChange, onUndo, onRe
         </div>
       </div>
     </div>
+    </FieldsCtx.Provider>
   );
 }
 

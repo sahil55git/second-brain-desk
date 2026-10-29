@@ -92,12 +92,21 @@ export type LabelEl = TextEl | BarcodeEl | QrEl | ImageEl | RectEl | LineEl;
 export type LabelElType = LabelEl["type"];
 type DistOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
+/** A field the person made up for this layout ("Batch", "Oil type"): used as {key} like the built-in ones. */
+export interface CustomField {
+  key: string;
+  label: string;
+  /** what it prints (the print page may change it before printing) */
+  value: string;
+}
+
 export interface LabelDoc {
   v: 1;
   kind: "label";
   widthMm: number;
   heightMm: number;
   els: LabelEl[];
+  fields?: CustomField[];
 }
 
 interface BlockBase {
@@ -177,6 +186,7 @@ export interface SlipDoc {
   /** white border around the content (the page margin) */
   marginMm: number;
   blocks: SlipBlock[];
+  fields?: CustomField[];
 }
 export type TemplateDoc = LabelDoc | SlipDoc;
 
@@ -209,6 +219,12 @@ export const LABEL_TOKENS: TokenInfo[] = [
   { name: "capacity", label: "Most oil it takes (kg)", sample: "180" },
   { name: "tare", label: "Empty weight / tare (kg)", sample: "18.4" },
   { name: "tareDate", label: "Date the tare was taken", sample: "12 Oct 26" },
+  { name: "gross", label: "Full weight / gross (kg), last weighing", sample: "198.6" },
+  { name: "grossDate", label: "Date of the full weighing", sample: "27 Oct 26" },
+  { name: "net", label: "Net oil (kg) = gross − tare", sample: "180.2" },
+  { name: "product", label: "Oil in the barrel", sample: "Sunflower" },
+  { name: "status", label: "Full / empty", sample: "FULL" },
+  { name: "location", label: "Where the barrel is", sample: "Shop" },
   { name: "link", label: "Link that opens the barrel's record", sample: "https://app.example/barrels/fleet?code=BRL-01" },
   { name: "today", label: "Today's date", sample: "28 Oct 26" },
 ];
@@ -241,6 +257,39 @@ export const sampleData = (kind: TemplateKind): TokenData => Object.fromEntries(
 
 export type TokenData = Record<string, string>;
 
+// ---------------------------------------------------------------------------
+// Fields the person adds to a layout
+// ---------------------------------------------------------------------------
+export const MAX_FIELDS = 12;
+/** "Oil type" -> "oilType"; never the name of a built-in field or one already taken. */
+export function fieldKey(label: string, kind: TemplateKind, taken: string[] = []): string {
+  const words = label.normalize("NFKD").replace(/[^A-Za-z0-9 ]+/g, " ").trim().split(/\s+/).filter(Boolean);
+  let base = words.map((w, i) => (i ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w.toLowerCase())).join("").replace(/^[^a-z]+/, "").slice(0, 20) || "field";
+  const builtin = new Set(tokensFor(kind).map((t) => t.name));
+  const used = new Set([...Array.from(builtin), ...taken]);
+  if (builtin.has(base)) base = `my${base[0].toUpperCase()}${base.slice(1)}`.slice(0, 22);
+  let k = base;
+  for (let i = 2; used.has(k); i++) k = `${base}${i}`;
+  return k;
+}
+/** The made-up fields' values, laid under the real data (a value from the print page wins when it is filled in). */
+export function withFields(doc: { fields?: CustomField[] }, data: TokenData): TokenData {
+  if (!doc.fields?.length) return data;
+  const out: TokenData = { ...data };
+  for (const f of doc.fields) if (!out[f.key]) out[f.key] = f.value;
+  return out;
+}
+function cleanFields(v: unknown, kind: TemplateKind): CustomField[] {
+  if (!Array.isArray(v)) return [];
+  const out: CustomField[] = [];
+  const builtin = new Set(tokensFor(kind).map((t) => t.name));
+  for (const r of v.slice(0, MAX_FIELDS)) {
+    if (!isObj(r) || typeof r.key !== "string" || !/^[a-z][A-Za-z0-9]{0,23}$/.test(r.key) || builtin.has(r.key) || out.some((f) => f.key === r.key)) continue;
+    out.push({ key: r.key, label: str(r.label, 40) || r.key, value: str(r.value, 120) });
+  }
+  return out;
+}
+
 const TOKEN_RE = /\{([A-Za-z][A-Za-z0-9]*)(?:\|([^{}]*))?\}/g;
 
 export interface Filled {
@@ -271,8 +320,8 @@ export function fillTokens(text: string, data: TokenData): Filled {
 }
 
 /** Token names used in a text that this kind of template does not know. */
-export function unknownTokens(text: string, kind: TemplateKind): string[] {
-  const known = new Set(tokensFor(kind).map((t) => t.name));
+export function unknownTokens(text: string, kind: TemplateKind, extra: string[] = []): string[] {
+  const known = new Set([...tokensFor(kind).map((t) => t.name), ...extra]);
   const bad = new Set<string>();
   const re = new RegExp(TOKEN_RE.source, "g");
   let m: RegExpExecArray | null;
@@ -389,7 +438,8 @@ function sanitizeLabel(raw: Record<string, unknown>): Checked<LabelDoc> {
         break;
     }
   }
-  return { ok: true, doc: { v: 1, kind: "label", widthMm: W, heightMm: H, els } };
+  const fields = cleanFields(raw.fields, "label");
+  return { ok: true, doc: { v: 1, kind: "label", widthMm: W, heightMm: H, els, ...(fields.length ? { fields } : {}) } };
 }
 
 function sanitizeSlip(raw: Record<string, unknown>): Checked<SlipDoc> {
@@ -457,7 +507,8 @@ function sanitizeSlip(raw: Record<string, unknown>): Checked<SlipDoc> {
         break;
     }
   }
-  return { ok: true, doc: { v: 1, kind: "slip", widthMm: W, marginMm: margin, blocks } };
+  const fields = cleanFields(raw.fields, "slip");
+  return { ok: true, doc: { v: 1, kind: "slip", widthMm: W, marginMm: margin, blocks, ...(fields.length ? { fields } : {}) } };
 }
 
 export function cleanName(v: unknown): string {
@@ -1059,7 +1110,7 @@ export function checkDoc(doc: TemplateDoc, data: TokenData): string[] {
       : doc.blocks.map((b) => ({ type: b.type, value: b.type === "barcode" || b.type === "qr" ? b.value : undefined, text: b.type === "text" ? b.text : undefined, wMm: b.type === "barcode" ? ((doc.widthMm - 2 * doc.marginMm) * b.widthPct) / 100 : undefined }));
   const seenBad = new Set<string>();
   for (const it of items) {
-    for (const t of [it.text, it.value]) if (t) for (const n of unknownTokens(t, kind)) if (!seenBad.has(n)) { seenBad.add(n); out.push(`{${n}} is not a known field, so it prints as typed.`); }
+    for (const t of [it.text, it.value]) if (t) for (const n of unknownTokens(t, kind, (doc.fields ?? []).map((f) => f.key))) if (!seenBad.has(n)) { seenBad.add(n); out.push(`{${n}} is not a known field, so it prints as typed.`); }
     if (it.type === "barcode" && it.value) {
       const text = fillTokens(it.value, data).text;
       if (!code128Ok(text)) out.push(`The barcode "${text.slice(0, 20)}" cannot be drawn (1–40 plain letters / digits).`);

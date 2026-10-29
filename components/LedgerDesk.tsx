@@ -4,6 +4,7 @@
 // expenses, job-work, refunds and manufacturing batches, in one list.
 // Data comes from the Owner-only reports hub, so Staff never see it.
 
+import PrintButton from "@/components/print/PrintButton";
 import { useEffect, useMemo, useState } from "react";
 import { unifiedLedger, type LedgerRow } from "@/lib/ledger";
 import { businessDate } from "@/lib/register";
@@ -78,7 +79,8 @@ export default function LedgerDesk() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-black/10 dark:border-white/10">
+      <div className="flex justify-end -mb-2"><PrintButton area="#pa-ledger" label="🖨️ Print ledger" className="rounded border border-black/20 dark:border-white/20 px-3 py-1 text-sm" /></div>
+      <div id="pa-ledger" className="overflow-x-auto rounded-xl border border-black/10 dark:border-white/10">
         <table className="w-full text-sm">
           <thead className="text-left opacity-70">
             <tr>

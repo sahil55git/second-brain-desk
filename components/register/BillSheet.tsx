@@ -11,7 +11,9 @@ import { blankLine, type DraftLine } from "@/lib/smartLines";
 import { clampDiscount, type HeldDraft, type HeldLine } from "@/lib/billDraft";
 import { formatInr } from "@/lib/globalSearch";
 import { businessDate } from "@/lib/register";
-import type { ItemDTO, PartyDTO } from "@/lib/types";
+import type { ItemDTO, PartyDTO, SalesInvoiceDTO } from "@/lib/types";
+import ReceiptSheet from "@/components/print/ReceiptSheet";
+import { billReceipt, type ReceiptDoc } from "@/lib/receipt";
 
 type Lang = "both" | "en" | "kn";
 type PayMode = "CASH" | "UPI" | "BANK" | "CREDIT";
@@ -53,6 +55,7 @@ export default function BillSheet({
   const [lines, setLines] = useState<DraftLine[]>([blankLine()]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [receipt, setReceipt] = useState<ReceiptDoc | null>(null);
   const billDate = date || businessDate(Date.now());
   // Which field the keypad types into (line index + field name).
   const [focus, setFocus] = useState<{ idx: number; field: "qty" | "rateInr" | "discountPct" } | null>(null);
@@ -134,7 +137,7 @@ export default function BillSheet({
     setLines([blankLine()]);
   };
 
-  async function save() {
+  async function save(print = false) {
     setError(null);
     if (!partyId) return setError(T("Choose a customer.", "ಗ್ರಾಹಕರನ್ನು ಆಯ್ಕೆ ಮಾಡಿ."));
     if (clean.length === 0) return setError(T("Add at least one line with a name and quantity.", "ಹೆಸರು ಮತ್ತು ಪ್ರಮಾಣದೊಂದಿಗೆ ಕನಿಷ್ಠ ಒಂದು ಸಾಲು ಸೇರಿಸಿ."));
@@ -162,8 +165,27 @@ export default function BillSheet({
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || T("Could not save the bill.", "ಬಿಲ್ ಉಳಿಸಲಾಗಲಿಲ್ಲ."));
+      const inv = j.data as SalesInvoiceDTO | undefined;
+      if (print && inv) {
+        setReceipt(
+          billReceipt({
+            no: inv.invoiceNo,
+            date: inv.date,
+            party: party?.name,
+            lines: (inv.lineItems ?? []).map((l) => ({ name: l.name, qty: l.qty, unit: l.unit, rateInr: l.rateInr, discountPct: l.discountPct, totalInr: l.lineTotalInr })),
+            subtotalInr: inv.subtotalInr,
+            cgstInr: inv.cgstInr,
+            sgstInr: inv.sgstInr,
+            igstInr: inv.igstInr,
+            totalInr: inv.totalInr,
+            paymentMode: inv.paymentMode,
+            notes: inv.notes,
+          })
+        );
+      }
       clearForm();
-      onSaved(T("Bill saved", "ಬಿಲ್ ಉಳಿಸಲಾಯಿತು"));
+      // with a receipt to print, the sheet stays open until the receipt is closed
+      if (!(print && inv)) onSaved(T("Bill saved", "ಬಿಲ್ ಉಳಿಸಲಾಯಿತು"));
     } catch (e) {
       setError(e instanceof Error ? e.message : T("Could not save the bill.", "ಬಿಲ್ ಉಳಿಸಲಾಗಲಿಲ್ಲ."));
     } finally {
@@ -232,6 +254,15 @@ export default function BillSheet({
 
   return (
     <div className="space-y-4 text-sm">
+      {receipt && (
+        <ReceiptSheet
+          doc={receipt}
+          onClose={() => {
+            setReceipt(null);
+            onSaved(T("Bill saved", "ಬಿಲ್ ಉಳಿಸಲಾಯಿತು"));
+          }}
+        />
+      )}
       {error && <p className="text-red-600">{error}</p>}
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -342,8 +373,11 @@ export default function BillSheet({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={busy} onClick={save} className="rounded bg-[var(--accent)] px-4 py-2 font-semibold text-[var(--accent-contrast)] disabled:opacity-50">
+        <button type="button" disabled={busy} onClick={() => void save()} className="rounded bg-[var(--accent)] px-4 py-2 font-semibold text-[var(--accent-contrast)] disabled:opacity-50">
           {T("Save bill", "ಬಿಲ್ ಉಳಿಸಿ")}
+        </button>
+        <button type="button" disabled={busy} onClick={() => void save(true)} className="rounded bg-[var(--accent)] px-4 py-2 font-semibold text-[var(--accent-contrast)] disabled:opacity-50">
+          🖨️ {T("Save & print", "ಉಳಿಸಿ ಮತ್ತು ಮುದ್ರಿಸಿ")}
         </button>
         <button type="button" disabled={busy} onClick={hold} className="rounded border px-4 py-2 disabled:opacity-50">
           {T("Hold bill", "ಬಿಲ್ ಹಿಡಿದಿಡಿ")}

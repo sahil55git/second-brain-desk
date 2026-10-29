@@ -16,6 +16,12 @@ export function labelData(b: FBarrel, origin: string): TokenData {
     capacity: kg(b.capacityKg),
     tare: b.tareKg != null ? kg(b.tareKg) : "",
     tareDate: b.tareAt ? stamp(b.tareAt) : "",
+    gross: b.grossKg != null ? kg(b.grossKg) : "",
+    grossDate: b.grossAt ? stamp(b.grossAt) : "",
+    net: b.netKg != null ? kg(b.netKg) : "",
+    product: b.product ?? "",
+    status: b.status === "FULL" ? "FULL" : b.status === "EMPTY" ? "EMPTY" : "",
+    location: place(b.location),
     link: fleetLink(origin, b.code),
     today: stamp(new Date().toISOString()),
   };

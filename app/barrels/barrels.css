@@ -588,3 +588,41 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
 .bd-lp-b.on { border-color: #1d5fa8; background: #eaf2fb; }
 @media (max-width: 560px) { .bd-lp-links { margin-left: 0; } }
 .bd-printlinks { gap: 6px 16px; }
+
+/* designer: weight menu, highlight, my fields, designs window */
+.dz-tb.accent { border-color: var(--bd-acc); color: var(--bd-acc); }
+.dz-tb.on { border-color: var(--bd-acc); }
+.dz-seg { flex-wrap: wrap; }
+.dz-pop { position: relative; display: inline-flex; }
+.dz-popbox { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: min(360px, 86vw); display: grid; gap: 10px; padding: 12px; background: var(--bd-card); color: inherit; border: 1px solid var(--bd-line); border-radius: 12px; box-shadow: 0 14px 34px rgba(0, 0, 0, .3); }
+.dz-popgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.dz-wbtn { display: grid; gap: 2px; text-align: left; padding: 8px 10px; border: 1px solid var(--bd-line); border-radius: 10px; background: var(--bd-base); color: inherit; font: inherit; cursor: pointer; }
+.dz-wbtn:hover { border-color: var(--bd-acc); }
+.dz-wbtn small { font-size: 11px; color: var(--bd-soft); }
+.dz-linkish { background: none; border: none; color: var(--bd-soft); text-decoration: underline; font: inherit; font-size: 12px; cursor: pointer; justify-self: start; padding: 0; }
+.dz-fields { display: grid; gap: 6px; border-top: 1px dashed var(--bd-line); padding-top: 8px; margin-top: 4px; }
+.dz-fields h4 { margin: 4px 0 0; }
+.dz-frow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; align-items: center; }
+.dz-frow input { min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--bd-line); background: var(--bd-base); color: inherit; font: inherit; font-size: 13px; }
+.dz-frow code { font-size: 12px; color: var(--bd-soft); }
+.dz-frow.add .bd-btn { grid-column: 1 / -1; justify-content: center; }
+.dz-gal-back { position: fixed; inset: 0; z-index: 900; background: rgba(8, 10, 9, .6); display: flex; justify-content: center; align-items: flex-start; overflow: auto; padding: 16px max(10px, env(safe-area-inset-right, 0px)) 40px max(10px, env(safe-area-inset-left, 0px)); }
+.dz-gal { width: min(1120px, 100%); background: var(--ui-card, #fff); color: var(--foreground, #111); border: 1px solid var(--bd-line, #ddd); border-radius: 16px; padding: 14px; display: grid; gap: 10px; box-shadow: 0 20px 60px rgba(0, 0, 0, .4); }
+.dz-gal-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 18px; }
+.dz-gal-size { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.dz-gal-size select, .dz-gal-size input { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--bd-line); background: var(--bd-base); color: inherit; font: inherit; }
+.dz-tabs.small { margin: 0; }
+.dz-tabs.small button { font-size: 15px; padding: 8px 12px; }
+.dz-auto { display: grid; gap: 8px; }
+.dz-autoparts { display: flex; flex-wrap: wrap; gap: 6px; }
+.dz-pchip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--bd-line); border-radius: 999px; font-size: 13px; font-weight: 700; cursor: pointer; background: var(--bd-base); }
+.dz-pchip.on { border-color: var(--bd-acc); background: color-mix(in srgb, var(--bd-acc) 14%, var(--bd-base)); }
+.dz-autorow { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.dz-gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.dz-gcard { display: grid; gap: 4px; align-content: start; justify-items: center; text-align: center; padding: 10px; border: 1px solid var(--bd-line); border-radius: 12px; background: var(--bd-base); }
+.dz-gcard b { font-size: 14px; }
+.dz-gcard small { font-size: 12px; color: var(--bd-soft); min-height: 2.4em; }
+.dz-gcard .bd-btn { width: 100%; justify-content: center; }
+.dz-thumb { background: #fff; box-shadow: 0 1px 6px rgba(0, 0, 0, .25); overflow: hidden; margin-bottom: 4px; }
+.dz-thumb.roll { overflow: hidden; }
+@media (max-width: 560px) { .dz-gal-grid { grid-template-columns: 1fr 1fr; } .dz-popgrid { grid-template-columns: 1fr; } }

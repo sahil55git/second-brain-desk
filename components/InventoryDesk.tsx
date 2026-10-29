@@ -1,6 +1,7 @@
 "use client";
 
 // Inventory / SKU master (erp-architecture-plan.md, Phase 1).
+import PrintButton from "@/components/print/PrintButton";
 import { useMemo, useState } from "react";
 import type { ItemDTO } from "@/lib/types";
 import { useScale } from "./ScaleProvider";
@@ -285,7 +286,8 @@ export default function InventoryDesk({
         </form>
       )}
 
-      <div className="rounded-xl border border-black/10 dark:border-white/10 overflow-x-auto">
+      <div className="flex justify-end -mb-2"><PrintButton area="#pa-items" label="🖨️ Print item list" className="rounded border border-black/20 dark:border-white/20 px-3 py-1 text-sm" /></div>
+      <div id="pa-items" className="rounded-xl border border-black/10 dark:border-white/10 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-left opacity-60 border-b border-black/10 dark:border-white/10">
             <tr>

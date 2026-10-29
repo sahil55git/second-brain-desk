@@ -15,6 +15,7 @@ import PrintCenter from "@/components/barrels/PrintCenter";
 import { api, kg1, whenFull } from "@/components/barrels/shared";
 import type { FBarrel, FEvent, FleetList } from "@/components/barrels/fleet/types";
 import { SlipView, templatePageCss, templatePaper } from "@/components/barrels/designer/render";
+import { FieldFill } from "@/components/barrels/designer/fields";
 import LayoutPicker from "@/components/barrels/designer/LayoutPicker";
 import { slipData } from "@/components/barrels/designer/data";
 import { useLayoutChoice, useTemplates } from "@/components/barrels/designer/useTemplates";
@@ -44,6 +45,7 @@ export default function FleetPrint() {
   const lay = slipLayout(size);
   const vars = { "--sw": lay.inner, "--ss": lay.ss, "--sh": lay.innerH ?? 0 } as React.CSSProperties;
 
+  const [fv, setFv] = useState<Record<string, string>>({});
   const [event, setEvent] = useState<{ e: FEvent; b: FBarrel | null } | null>(null);
   const [fleet, setFleet] = useState<FleetList | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -89,6 +91,7 @@ export default function FleetPrint() {
         ) : (
           <PrintCenter kind="slip" size={pageSize} selector=".bd-slip" marginMm={tdoc ? tdoc.marginMm : lay.margin} count={1} label="Print slip" name="barrel-slip" saved={saved} onSave={save} />
         )}
+        {!isReport && <FieldFill fields={tdoc?.fields} values={fv} onChange={setFv} />}
         {!isReport && <PrintLinks kind="slip" />}
         <div className="bd-m small">
           {isReport ? "Print on A4. It shows where every barrel is right now and how much oil is in it." : "Give one copy to the driver or customer with the barrel; keep one in the file."}
@@ -99,7 +102,7 @@ export default function FleetPrint() {
         <Report fleet={fleet} origin={origin} printedAt={printedAt} />
       ) : event && tdoc ? (
         <div className="bd-slips tpl">
-          <SlipView doc={tdoc} data={slipData(event.e, event.b, origin, printedAt)} />
+          <SlipView doc={tdoc} data={{ ...slipData(event.e, event.b, origin, printedAt), ...fv }} />
         </div>
       ) : event ? (
         <div className={`bd-slips ${size.cls}${size.cls === "gen" ? `${lay.short ? " short" : ""}${lay.fixed ? " fixed" : ""}` : ""}`} style={vars}>
