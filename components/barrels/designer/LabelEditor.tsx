@@ -9,7 +9,8 @@ import {
 } from "@/lib/labelTemplate";
 import { LABEL_SIZES } from "@/lib/printSizes";
 import { LabelView } from "@/components/barrels/designer/render";
-import { AlignSeg, Field, FontSelect, NumBox, Seg, Toggle, TokenText, VAlignSeg } from "@/components/barrels/designer/fields";
+import { AlignSeg, Field, FieldsCtx, FieldsPanel, FontSelect, NumBox, Seg, Toggle, TokenText, VAlignSeg } from "@/components/barrels/designer/fields";
+import { HIGHLIGHTS, WEIGHTS, highlightOf, highlightPatch, newFieldItem, newWeightField, type Highlight, type WeightKey } from "@/lib/labelDesigns";
 import { fileToLogo } from "@/components/barrels/designer/logo";
 
 const PX = 96 / 25.4; // CSS pixels per mm
@@ -55,9 +56,14 @@ export interface LabelEditorProps {
   canUndo: boolean;
   canRedo: boolean;
   onResetStandard: () => void;
+  /** open the ready-made designs / auto design */
+  onDesigns?: () => void;
 }
 
-export default function LabelEditor({ doc, data, readOnly, onChange, onUndo, onRedo, canUndo, canRedo, onResetStandard }: LabelEditorProps) {
+export default function LabelEditor({ doc, data, readOnly, onChange, onUndo, onRedo, canUndo, canRedo, onResetStandard, onDesigns }: LabelEditorProps) {
+  const [wMenu, setWMenu] = useState(false);
+  const [wStyle, setWStyle] = useState<Highlight>("band");
+  const [wDate, setWDate] = useState(true);
   const [sel, setSel] = useState<string[]>([]);
   const [draft, setDraft] = useState<LabelDoc | null>(null);
   const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
@@ -124,6 +130,19 @@ export default function LabelEditor({ doc, data, readOnly, onChange, onUndo, onR
     commit([...doc.els, ...two]);
     setSel(two.map((e) => e.id));
     setMsg(null);
+  };
+  const addWeight = (k: WeightKey) => {
+    const els = newWeightField(doc, k, wStyle, wDate);
+    if (doc.els.length + els.length > LIMITS.maxEls) return setMsg(`A label can hold at most ${LIMITS.maxEls} items.`);
+    commit([...doc.els, ...els]);
+    setSel(els.map((e) => e.id));
+    setWMenu(false);
+    setMsg(null);
+  };
+  const placeField = (key: string, label: string) => {
+    if (doc.els.length >= LIMITS.maxEls) return setMsg(`A label can hold at most ${LIMITS.maxEls} items.`);
+    const e = newFieldItem(doc, key, label);
+    return e;
   };
   const addDateCorner = () => {
     if (doc.els.length >= LIMITS.maxEls) return setMsg(`A label can hold at most ${LIMITS.maxEls} items.`);
@@ -315,6 +334,7 @@ export default function LabelEditor({ doc, data, readOnly, onChange, onUndo, onR
   const setSize = (w: number, h: number) => onChange(resizeLabel(doc, w, h), "paper");
 
   return (
+    <FieldsCtx.Provider value={doc.fields ?? []}>
     <div className="dz-editor">
       <div className="dz-toolbar" role="toolbar" aria-label="Label tools">
         {canEdit && (
@@ -325,9 +345,28 @@ export default function LabelEditor({ doc, data, readOnly, onChange, onUndo, onR
                   <b>{a.icon}</b> {a.name}
                 </button>
               ))}
-              <button type="button" className="dz-tb" onClick={addWeightDate} title="Add the empty weight on top and its date just below, as two separate items">
-                <b>⚖</b> Weight + date
-              </button>
+              <span className="dz-pop">
+                <button type="button" className={`dz-tb${wMenu ? " on" : ""}`} aria-expanded={wMenu} onClick={() => setWMenu((v) => !v)} title="Add a weight (tare, gross, net, capacity) as its own item">
+                  <b>⚖</b> Weight ▾
+                </button>
+                {wMenu && (
+                  <div className="dz-popbox" role="dialog" aria-label="Add a weight">
+                    <div className="dz-popgrid">
+                      {WEIGHTS.map((w) => (
+                        <button key={w.key} type="button" className="dz-wbtn" onClick={() => addWeight(w.key)}>
+                          <b>{w.name}</b>
+                          <small>{w.note}</small>
+                        </button>
+                      ))}
+                    </div>
+                    <Field label="Highlight" wide>
+                      <Seg label="Highlight" value={wStyle} onChange={setWStyle} options={HIGHLIGHTS.map((h) => ({ v: h.id, t: h.name, title: h.note }))} />
+                    </Field>
+                    <label className="dz-inl"><input type="checkbox" checked={wDate} onChange={(e) => setWDate(e.target.checked)} /> Add its date under it (a separate item)</label>
+                    <button type="button" className="dz-linkish" onClick={() => { addWeightDate(); setWMenu(false); }}>Old style: tare band + date</button>
+                  </div>
+                )}
+              </span>
               <button type="button" className="dz-tb" onClick={addDateCorner} title="Add just the date, small, in the top right corner">
                 <b>📅</b> Date
               </button>
@@ -335,6 +374,11 @@ export default function LabelEditor({ doc, data, readOnly, onChange, onUndo, onR
                 <b>🖼</b> Logo
               </button>
               <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={(e) => { void pickLogo(e.target.files?.[0]); e.target.value = ""; }} />
+              {onDesigns && (
+                <button type="button" className="dz-tb accent" onClick={onDesigns} title="Ready-made designs and the auto design maker">
+                  <b>🎨</b> Designs
+                </button>
+              )}
             </span>
             <span className="dz-grp">
               <button type="button" className="dz-tb" disabled={!canUndo} onClick={onUndo} title="Undo (Ctrl+Z)">↶ Undo</button>
@@ -413,7 +457,21 @@ export default function LabelEditor({ doc, data, readOnly, onChange, onUndo, onR
                 </Field>
               )}
               <p className="bd-m small">Changing the size scales everything with it. Select an item to change it; drag on an empty spot to select several.</p>
+              {canEdit && onDesigns && <button type="button" className="bd-btn primary" onClick={onDesigns}>🎨 Ready designs and auto design…</button>}
               {canEdit && <button type="button" className="bd-btn" onClick={onResetStandard}>↺ Start again from the standard layout</button>}
+              <FieldsPanel
+                fields={doc.fields ?? []}
+                kind="label"
+                canEdit={canEdit}
+                onChange={(f) => onChange({ ...doc, fields: f.length ? f : undefined }, "fields")}
+                onPlace={(f) => {
+                  const e = placeField(f.key, f.label);
+                  if (!e) return;
+                  const fields = (doc.fields ?? []).some((x) => x.key === f.key) ? doc.fields : [...(doc.fields ?? []), f];
+                  onChange({ ...doc, fields, els: [...doc.els, e] });
+                  setSel([e.id]);
+                }}
+              />
             </>
           )}
 
@@ -447,6 +505,9 @@ export default function LabelEditor({ doc, data, readOnly, onChange, onUndo, onR
                 <>
                   <Field label="Text (use fields like {code})" wide>
                     <TokenText kind="label" multiline rows={2} areaRef={textRef} value={text.text} onChange={(v) => canEdit && patch(text.id, { text: v } as Partial<LabelEl>, `t:${text.id}`)} />
+                  </Field>
+                  <Field label="Highlight" wide>
+                    <Seg label="Highlight" value={highlightOf(text)} onChange={(v) => canEdit && patch(text.id, highlightPatch(v, text) as Partial<LabelEl>, `hl:${text.id}`)} options={HIGHLIGHTS.map((h) => ({ v: h.id, t: h.name, title: h.note }))} />
                   </Field>
                   <Field label="Font" wide><FontSelect value={text.font} onChange={(v) => canEdit && patch(text.id, { font: v } as Partial<LabelEl>)} /></Field>
                   <div className="dz-grid2">
@@ -540,5 +601,6 @@ export default function LabelEditor({ doc, data, readOnly, onChange, onUndo, onR
         </aside>
       </div>
     </div>
+    </FieldsCtx.Provider>
   );
 }

@@ -1,9 +1,12 @@
 "use client";
 
 // Small form controls shared by the label and receipt editors.
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { FONTS } from "@/lib/fonts";
-import { tokensFor, type Align, type TemplateKind, type VAlign } from "@/lib/labelTemplate";
+import { MAX_FIELDS, fieldKey, tokensFor, type Align, type CustomField, type TemplateKind, type VAlign } from "@/lib/labelTemplate";
+
+/** The layout's own fields, so every "Insert field" menu in the editor lists them too. */
+export const FieldsCtx = createContext<CustomField[]>([]);
 
 export function Field({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
   return (
@@ -100,6 +103,7 @@ const asFont = (v: string) => (FONTS.find((f) => f.id === v)?.id ?? "sans");
 /** A text box (single line or several) with an "insert field" menu that puts {tokens} where the cursor is. */
 export function TokenText({ value, onChange, kind, multiline, placeholder, rows = 3, areaRef }: { value: string; onChange: (v: string) => void; kind: TemplateKind; multiline?: boolean; placeholder?: string; rows?: number; areaRef?: React.RefObject<HTMLTextAreaElement> }) {
   const own = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  const mine = useContext(FieldsCtx);
   const ref = (areaRef ?? own) as React.RefObject<HTMLInputElement & HTMLTextAreaElement>;
   const insert = (name: string) => {
     const el = ref.current;
@@ -129,12 +133,84 @@ export function TokenText({ value, onChange, kind, multiline, placeholder, rows 
         }}
       >
         <option value="">＋ Insert field…</option>
-        {tokensFor(kind).map((t) => (
-          <option key={t.name} value={t.name}>
-            {`{${t.name}}  ${t.label}`}
-          </option>
-        ))}
+        {mine.length > 0 && (
+          <optgroup label="My fields">
+            {mine.map((f) => (
+              <option key={f.key} value={f.key}>
+                {`{${f.key}}  ${f.label}`}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        <optgroup label="Built-in fields">
+          {tokensFor(kind).map((t) => (
+            <option key={t.name} value={t.name}>
+              {`{${t.name}}  ${t.label}`}
+            </option>
+          ))}
+        </optgroup>
       </select>
     </span>
+  );
+}
+
+/**
+ * "My fields": fields the person makes up for this layout (Batch, Oil type, Lot no.). Each one has a name
+ * and what it prints; it is used as {key} anywhere, and "Put on" adds it to the label / receipt.
+ */
+export function FieldsPanel({ fields, kind, canEdit, onChange, onPlace }: { fields: CustomField[]; kind: TemplateKind; canEdit: boolean; onChange: (f: CustomField[]) => void; onPlace: (f: CustomField) => void }) {
+  const [label, setLabel] = useState("");
+  const [value, setValue] = useState("");
+  const add = () => {
+    const l = label.replace(/\s+/g, " ").trim().slice(0, 40);
+    if (!l || fields.length >= MAX_FIELDS) return;
+    const f = { key: fieldKey(l, kind, fields.map((x) => x.key)), label: l, value: value.trim().slice(0, 120) };
+    onChange([...fields, f]);
+    onPlace(f);
+    setLabel("");
+    setValue("");
+  };
+  const set = (key: string, p: Partial<CustomField>) => onChange(fields.map((f) => (f.key === key ? { ...f, ...p } : f)));
+  return (
+    <div className="dz-fields">
+      <h4>My fields</h4>
+      <p className="bd-m small">Your own items, like <b>Batch</b>, <b>Oil type</b> or <b>Lot no.</b>: give a name and what it prints. It goes on the {kind === "label" ? "label" : "receipt"} as <code>{"{name}"}</code> and can be changed on the print page before printing.</p>
+      {fields.map((f) => (
+        <div key={f.key} className="dz-frow">
+          <input aria-label="Field name" value={f.label} disabled={!canEdit} maxLength={40} onChange={(e) => set(f.key, { label: e.target.value })} />
+          <input aria-label={`${f.label}: what it prints`} value={f.value} disabled={!canEdit} maxLength={120} placeholder="what it prints" onChange={(e) => set(f.key, { value: e.target.value })} />
+          <code title="Type this in any text to use it">{`{${f.key}}`}</code>
+          {canEdit && (
+            <span className="dz-grp">
+              <button type="button" className="dz-tb" onClick={() => onPlace(f)} title="Put it on again">＋ Put on</button>
+              <button type="button" className="dz-tb danger" onClick={() => onChange(fields.filter((x) => x.key !== f.key))} aria-label={`Remove ${f.label}`}>🗑</button>
+            </span>
+          )}
+        </div>
+      ))}
+      {canEdit && fields.length < MAX_FIELDS && (
+        <div className="dz-frow add">
+          <input aria-label="New field name" value={label} maxLength={40} placeholder="Name, e.g. Batch" onChange={(e) => setLabel(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+          <input aria-label="What it prints" value={value} maxLength={120} placeholder="What it prints, e.g. B-12" onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+          <button type="button" className="bd-btn primary" disabled={!label.trim()} onClick={add}>＋ Add field</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** On a print page: the layout's own fields, to fill in or change just for this print. */
+export function FieldFill({ fields, values, onChange }: { fields: CustomField[] | undefined; values: Record<string, string>; onChange: (v: Record<string, string>) => void }) {
+  if (!fields?.length) return null;
+  return (
+    <div className="bd-row bd-fieldfill">
+      <span className="bd-m small">✏️ For this print:</span>
+      {fields.map((f) => (
+        <label key={f.key} className="dz-inl">
+          {f.label}{" "}
+          <input value={values[f.key] ?? ""} placeholder={f.value || "—"} maxLength={120} onChange={(e) => onChange({ ...values, [f.key]: e.target.value })} style={{ width: 140 }} />
+        </label>
+      ))}
+    </div>
   );
 }

@@ -29,7 +29,7 @@ describe("fillTokens", () => {
     expect(fillTokens("{constructor} {toString}", data).text).toBe("{constructor} {toString}");
   });
   it("lists tokens the kind does not know", () => {
-    expect(unknownTokens("{code} {tareee} {gross}", "label")).toEqual(["tareee", "gross"]);
+    expect(unknownTokens("{code} {tareee} {gross} {vehicle}", "label")).toEqual(["tareee", "vehicle"]);
     expect(unknownTokens("{code} {gross}", "slip")).toEqual([]);
   });
 });

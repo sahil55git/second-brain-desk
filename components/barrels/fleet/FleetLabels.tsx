@@ -17,6 +17,7 @@ import { api, kg } from "@/components/barrels/shared";
 import type { FBarrel } from "@/components/barrels/fleet/types";
 import { LabelView, templatePageCss, templatePaper } from "@/components/barrels/designer/render";
 import LayoutPicker from "@/components/barrels/designer/LayoutPicker";
+import { FieldFill } from "@/components/barrels/designer/fields";
 import { labelData } from "@/components/barrels/designer/data";
 import { useLayoutChoice, useTemplates } from "@/components/barrels/designer/useTemplates";
 
@@ -32,6 +33,7 @@ export default function FleetLabels() {
   const [barrels, setBarrels] = useState<FBarrel[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pickOpen, setPickOpen] = useState(false);
+  const [fv, setFv] = useState<Record<string, string>>({});
   // which barrels to print: null = what the link asked for (all, or the codes in it)
   const [sel, setSel] = useState<string[] | null>(null);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -99,6 +101,7 @@ export default function FleetLabels() {
         <div className="bd-lp-card">
           <div className="bd-lp-step"><span className="bd-lp-n">1</span> What to print</div>
           <LayoutPicker kind="label" rows={layouts} choiceId={choiceId} onChoose={choose} fixedByLink={!!layoutLink} />
+          <FieldFill fields={tdoc?.fields} values={fv} onChange={setFv} />
           {!tdoc && (
             <>
               <div className="bd-row">
@@ -143,9 +146,9 @@ export default function FleetLabels() {
       {tdoc ? (
         <div className="bd-labels tpl">
           {test ? (
-            <LabelView doc={tdoc} data={labelData({ ...(list[0] ?? barrels[0]), code: "BRL-00", mark: "TEST" }, origin)} />
+            <LabelView doc={tdoc} data={{ ...labelData({ ...(list[0] ?? barrels[0]), code: "BRL-00", mark: "TEST" }, origin), ...fv }} />
           ) : (
-            list.map((b) => <LabelView key={b.id} doc={tdoc} data={labelData(b, origin)} />)
+            list.map((b) => <LabelView key={b.id} doc={tdoc} data={{ ...labelData(b, origin), ...fv }} />)
           )}
         </div>
       ) : (

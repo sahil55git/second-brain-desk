@@ -6,15 +6,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  LABEL_STARTS, blankSlip, canRedo, canUndo, cleanName, histNew, histPush, histRedo, histUndo, sampleData, startLabel, starterFor, type History, type LabelStartId, type TemplateDoc, type TemplateKind, type TemplateRow,
+  canRedo, canUndo, cleanName, histNew, histPush, histRedo, histUndo, sampleData, starterFor, type History, type TemplateDoc, type TemplateKind, type TemplateRow,
 } from "@/lib/labelTemplate";
-import { LABEL_SIZES } from "@/lib/printSizes";
 import { api } from "@/components/barrels/shared";
 import type { FleetList } from "@/components/barrels/fleet/types";
 import LabelEditor from "@/components/barrels/designer/LabelEditor";
 import SlipEditor from "@/components/barrels/designer/SlipEditor";
 import { STANDARD, useLayoutChoice, useTemplates } from "@/components/barrels/designer/useTemplates";
 import { labelData } from "@/components/barrels/designer/data";
+import DesignGallery from "@/components/barrels/designer/DesignGallery";
 
 interface Cur {
   id: string | null;
@@ -22,8 +22,6 @@ interface Cur {
   savedName: string;
   savedJson: string;
 }
-
-const SLIP_WIDTHS = [80, 58, 50];
 
 export default function DesignerApp() {
   const sp = useSearchParams();
@@ -36,11 +34,8 @@ export default function DesignerApp() {
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
-  const [newOpen, setNewOpen] = useState(false);
-  const [newSize, setNewSize] = useState("50x75");
-  const [newWidth, setNewWidth] = useState(80);
-  const [newBlank, setNewBlank] = useState(false);
-  const [newStart, setNewStart] = useState<LabelStartId>("standard");
+  /** the designs window: for a new layout, or to replace what is open */
+  const [gallery, setGallery] = useState<"new" | "replace" | null>(null);
   const [barrelCode, setBarrelCode] = useState("");
 
   useEffect(() => {
@@ -94,7 +89,7 @@ export default function DesignerApp() {
     setCur(null);
     setHist(null);
     setMsg(null);
-    setNewOpen(false);
+    setGallery(null);
   };
 
   const pick = (r: TemplateRow) => {
@@ -102,20 +97,18 @@ export default function DesignerApp() {
     open(r);
   };
 
-  const createNew = () => {
+  const createFrom = (d: TemplateDoc, name: string) => {
     if (!leaveOk()) return;
-    let d: TemplateDoc;
-    if (kind === "label") {
-      const z = LABEL_SIZES.find((s) => s.id === newSize) ?? LABEL_SIZES[5];
-      d = startLabel(newStart, z.w, z.h ?? 30);
-    } else {
-      d = newBlank ? blankSlip(newWidth) : starterFor("slip", newWidth, null);
-    }
-    const name = kind === "label" ? `Label ${d.kind === "label" ? `${d.widthMm} × ${d.heightMm}` : ""}` : `Receipt ${newWidth} mm`;
-    setCur({ id: null, name, savedName: "", savedJson: "" });
+    setCur({ id: null, name: name.slice(0, 60), savedName: "", savedJson: "" });
     setHist(histNew(d));
-    setNewOpen(false);
-    setMsg(null);
+    setGallery(null);
+    setMsg({ ok: true, t: "New layout, not saved yet: change anything, then press Save." });
+  };
+  const replaceWith = (d: TemplateDoc) => {
+    if (!doc) return;
+    change({ ...d, ...(doc.fields?.length ? { fields: doc.fields } : {}) } as TemplateDoc);
+    setGallery(null);
+    setMsg({ ok: true, t: "Design applied. ↶ Undo brings the old one back." });
   };
 
   const change = (next: TemplateDoc, key?: string | null) => setHist((h) => (h ? histPush(h, next, key ?? null) : h));
@@ -230,45 +223,14 @@ export default function DesignerApp() {
 
           {isOwner && (
             <>
-              <button type="button" className="bd-btn primary" onClick={() => setNewOpen((v) => !v)}>＋ New layout</button>
-              {newOpen && (
-                <div className="dz-new">
-                  {kind === "label" ? (
-                    <label>Label size
-                      <select value={newSize} onChange={(e) => setNewSize(e.target.value)}>
-                        {LABEL_SIZES.filter((z) => z.h && z.cls !== "a4").map((z) => <option key={z.id} value={z.id}>{z.name}{z.note ? ` · ${z.note}` : ""}</option>)}
-                      </select>
-                    </label>
-                  ) : (
-                    <label>Paper width
-                      <select value={newWidth} onChange={(e) => setNewWidth(Number(e.target.value))}>
-                        {SLIP_WIDTHS.map((w) => <option key={w} value={w}>{w} mm roll</option>)}
-                      </select>
-                    </label>
-                  )}
-                  {kind === "label" ? (
-                    <fieldset className="dz-starts">
-                      <legend>Start from</legend>
-                      {LABEL_STARTS.map((st) => (
-                        <label key={st.id} className={`dz-start${newStart === st.id ? " on" : ""}`}>
-                          <input type="radio" name="dz-start" checked={newStart === st.id} onChange={() => setNewStart(st.id)} />
-                          <b>{st.name}</b>
-                          <small>{st.note}</small>
-                        </label>
-                      ))}
-                    </fieldset>
-                  ) : (
-                    <label className="dz-inl"><input type="checkbox" checked={newBlank} onChange={(e) => setNewBlank(e.target.checked)} /> Start empty (not from the standard layout)</label>
-                  )}
-                  <button type="button" className="bd-btn primary" onClick={createNew}>Create</button>
-                </div>
-              )}
+              <button type="button" className="bd-btn primary" onClick={() => setGallery("new")}>＋ New layout</button>
+              <p className="bd-m small">Start from a ready design, the auto design maker, or a blank {kind === "label" ? "label" : "receipt"} of any size.</p>
             </>
           )}
         </aside>
 
         <section className="dz-work">
-          {!cur && rows && <div className="bd-card bd-empty">{rows.length ? "Choose a layout on the left." : isOwner ? "Press “New layout” to design your first one. It starts from the standard layout, so you only change what you want." : "No layouts have been saved yet."}</div>}
+          {!cur && rows && <div className="bd-card bd-empty">{rows.length ? "Choose a layout on the left." : isOwner ? "Press “New layout” to pick a ready design, make one with Auto design, or start blank." : "No layouts have been saved yet."}</div>}
           {cur && doc && hist && (
             <>
               <div className="dz-head bd-card">
@@ -303,14 +265,24 @@ export default function DesignerApp() {
               </div>
 
               {doc.kind === "label" ? (
-                <LabelEditor doc={doc} data={data} readOnly={!isOwner} onChange={change} onUndo={() => setHist((h) => (h ? histUndo(h) : h))} onRedo={() => setHist((h) => (h ? histRedo(h) : h))} canUndo={canUndo(hist)} canRedo={canRedo(hist)} onResetStandard={resetStandard} />
+                <LabelEditor doc={doc} data={data} readOnly={!isOwner} onDesigns={isOwner ? () => setGallery("replace") : undefined} onChange={change} onUndo={() => setHist((h) => (h ? histUndo(h) : h))} onRedo={() => setHist((h) => (h ? histRedo(h) : h))} canUndo={canUndo(hist)} canRedo={canRedo(hist)} onResetStandard={resetStandard} />
               ) : (
-                <SlipEditor doc={doc} data={data} readOnly={!isOwner} onChange={change} onUndo={() => setHist((h) => (h ? histUndo(h) : h))} onRedo={() => setHist((h) => (h ? histRedo(h) : h))} canUndo={canUndo(hist)} canRedo={canRedo(hist)} onResetStandard={resetStandard} />
+                <SlipEditor doc={doc} data={data} readOnly={!isOwner} onDesigns={isOwner ? () => setGallery("replace") : undefined} onChange={change} onUndo={() => setHist((h) => (h ? histUndo(h) : h))} onRedo={() => setHist((h) => (h ? histRedo(h) : h))} canUndo={canUndo(hist)} canRedo={canRedo(hist)} onResetStandard={resetStandard} />
               )}
             </>
           )}
         </section>
       </div>
+      {gallery && (
+        <DesignGallery
+          kind={kind}
+          data={data}
+          mode={gallery}
+          start={gallery === "replace" && doc ? (doc.kind === "label" ? { w: doc.widthMm, h: doc.heightMm } : { w: doc.widthMm, h: null }) : kind === "label" ? { w: 50, h: 75 } : { w: 80, h: null }}
+          onPick={(d, name) => (gallery === "new" ? createFrom(d, name) : replaceWith(d))}
+          onClose={() => setGallery(null)}
+        />
+      )}
     </div>
   );
 }
