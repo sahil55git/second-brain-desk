@@ -303,7 +303,7 @@ interface UsbInterface {
   interfaceNumber: number;
   alternates: UsbAlternate[];
 }
-interface UsbDevice {
+export interface UsbDevice {
   productName?: string;
   manufacturerName?: string;
   vendorId: number;
@@ -498,13 +498,31 @@ export async function knownUsbPrinters(): Promise<UsbDevice[]> {
   }
 }
 
+/** A readable name for a USB printer: "Helett H30C", else its ids. */
+export const usbLabel = (d: { manufacturerName?: string; productName?: string; vendorId: number; productId: number }) =>
+  [d.manufacturerName, d.productName].filter(Boolean).join(" ") || `USB ${d.vendorId.toString(16)}:${d.productId.toString(16)}`;
+/** USB devices that can be printers: printer class (7) or vendor-specific (255); unknown layouts are kept. */
+export const usbLooksLikePrinter = (d: { configuration: { interfaces: { alternates: { interfaceClass: number }[] }[] } | null }) =>
+  !d.configuration || d.configuration.interfaces.some((i) => i.alternates.some((a) => a.interfaceClass === 7 || a.interfaceClass === 255));
+
+/** Bluetooth printers this site was allowed before (only where Chrome can list them; else an empty list). */
+export async function knownBluetoothPrinters(): Promise<{ id: string; name: string }[]> {
+  const bt = typeof navigator === "undefined" ? undefined : btNav();
+  if (!bt || typeof bt.getDevices !== "function") return [];
+  try {
+    return (await bt.getDevices()).map((d) => ({ id: d.id, name: d.name || "Bluetooth printer" }));
+  } catch {
+    return [];
+  }
+}
+
 /** Open the USB chooser (from a tap) or reuse a printer already allowed, then claim its bulk-out channel. */
 export async function connectUsb(device?: UsbDevice, onLost?: () => void): Promise<DirectConnection> {
   const usb = (navigator as unknown as { usb?: { requestDevice(o: unknown): Promise<UsbDevice>; addEventListener(t: string, f: (e: { device: UsbDevice }) => void): void } }).usb;
   if (!usb) throw new Error("This browser has no USB printing. Use Chrome on Android or PC.");
   await disconnectPrinter();
   const dev = device ?? (await usb.requestDevice({ filters: [{ classCode: 7 }, { classCode: 255 }] }));
-  const label = [dev.manufacturerName, dev.productName].filter(Boolean).join(" ") || `USB ${dev.vendorId.toString(16)}:${dev.productId.toString(16)}`;
+  const label = usbLabel(dev);
   const log: string[] = [`Chosen: ${label}`];
   await dev.open();
   if (!dev.configuration) await dev.selectConfiguration(1);

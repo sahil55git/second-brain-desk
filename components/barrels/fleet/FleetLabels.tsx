@@ -11,7 +11,7 @@ import Barcode from "@/components/barrels/Barcode";
 import QrCode from "@/components/barrels/QrCode";
 import { findFleetCode, fleetLink } from "@/lib/barrelFleet";
 import { LABEL_SIZES, labelLayout, labelSize, pageCss, type PaperSize } from "@/lib/printSizes";
-import { PrinterPanel, SizePicker, useSavedPrint } from "@/components/barrels/PrintKit";
+import { SizePicker, useSavedPrint } from "@/components/barrels/PrintKit";
 import PrintCenter from "@/components/barrels/PrintCenter";
 import { api, kg } from "@/components/barrels/shared";
 import type { FBarrel } from "@/components/barrels/fleet/types";
@@ -31,7 +31,9 @@ export default function FleetLabels() {
   const [kind, setKind] = useState<Kind>(sp.get("type") === "id" ? "id" : "tare");
   const [barrels, setBarrels] = useState<FBarrel[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [only, setOnly] = useState<string[] | null>(null);
+  const [pickOpen, setPickOpen] = useState(false);
+  // which barrels to print: null = what the link asked for (all, or the codes in it)
+  const [sel, setSel] = useState<string[] | null>(null);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const { rows: layouts } = useTemplates("label");
   const layoutLink = sp.get("layout");
@@ -73,43 +75,68 @@ export default function FleetLabels() {
   if (err) return <div className="bd-wrap"><div className="bd-err">{err}</div></div>;
   if (!barrels || !layouts) return <div className="bd-wrap"><div className="bd-m">Loading…</div></div>;
 
-  const pick = only ?? wanted;
-  const list = barrels.filter((b) => b.condition !== "RETIRED" && (!pick || pick.includes(b.code)));
+  const usable = barrels.filter((b) => b.condition !== "RETIRED");
+  const chosenCodes = sel ?? wanted ?? usable.map((b) => b.code);
+  const list = usable.filter((b) => chosenCodes.includes(b.code));
   const showTare = kind === "tare";
-  const missingTare = showTare ? list.filter((b) => b.tareKg == null).length : 0;
+  const missingTare = showTare || tdoc ? list.filter((b) => b.tareKg == null).length : 0;
+  const toggle = (code: string) => setSel(chosenCodes.includes(code) ? chosenCodes.filter((c) => c !== code) : [...chosenCodes, code]);
+  const pickText = list.length === usable.length ? `All ${usable.length}` : list.length === 0 ? "None" : list.length <= 4 ? list.map((b) => b.code).join(", ") : `${list.length} of ${usable.length}`;
 
   return (
     <div className="bd-labelpage">
-      <div className="bd-noprint bd-labelbar">
-        <b>🏷️ Barrel labels (permanent)</b>
-        <span className="bd-m"> · {list.length} label(s)</span>
-        <LayoutPicker kind="label" rows={layouts} choiceId={choiceId} onChoose={choose} fixedByLink={!!layoutLink} />
-        {tdoc ? (
-          <div className="bd-m small">Paper size comes from the layout: {tdoc.widthMm} × {tdoc.heightMm} mm. Change it in the designer.</div>
-        ) : (
-          <>
-            <div className="bd-row">
-              <button className={`bd-chip${kind === "tare" ? " on" : ""}`} onClick={() => setKind("tare")}>With tare weight</button>
-              <button className={`bd-chip${kind === "id" ? " on" : ""}`} onClick={() => setKind("id")}>Code only</button>
-            </div>
-            <SizePicker options={LABEL_SIZES} value={size} onPick={setSize} />
-          </>
-        )}
-        <PrintCenter kind="label" size={pageSize} selector=".bd-label" count={list.length} label={`Print ${list.length} label(s)`} disabled={!list.length} name={list.length === 1 ? list[0].code : "barrel-labels"} saved={saved} onSave={save} />
-        <div className="bd-row">
-          {only && <button className="bd-btn" onClick={() => setOnly(null)}>Show all</button>}
-          {test && <button className="bd-btn" onClick={() => setTest(false)}>Back to the real labels</button>}
+      <div className="bd-noprint bd-labelbar bd-lp">
+        <div className="bd-lp-head">
+          <b className="bd-lp-title">🏷️ Barrel labels</b>
+          <span className="bd-m"> · {list.length} to print{tdoc ? ` · ${tdoc.widthMm} × ${tdoc.heightMm} mm` : ` · ${size.name}`}</span>
+          <span className="bd-lp-links">
+            <a className="bd-linkbtn" href="/barrels/fleet/designer?kind=label">🎨 Label designer</a>
+            <a className="bd-linkbtn" href="/barrels/fleet/printers?kind=label">⚙️ Printer setup</a>
+            <a className="bd-linkbtn" href="/print">🖨️ Print centre</a>
+          </span>
         </div>
-        <PrinterPanel size={pageSize} kind="label" saved={saved} onSave={save} onSize={setSize} onTest={() => { setTest(true); window.scrollTo({ top: 0 }); }} />
-        {!tdoc && missingTare > 0 && (
+
+        <div className="bd-lp-card">
+          <div className="bd-lp-step"><span className="bd-lp-n">1</span> What to print</div>
+          <LayoutPicker kind="label" rows={layouts} choiceId={choiceId} onChoose={choose} fixedByLink={!!layoutLink} />
+          {!tdoc && (
+            <>
+              <div className="bd-row">
+                <button className={`bd-chip${kind === "tare" ? " on" : ""}`} onClick={() => setKind("tare")}>With tare weight</button>
+                <button className={`bd-chip${kind === "id" ? " on" : ""}`} onClick={() => setKind("id")}>Code only</button>
+              </div>
+              <SizePicker options={LABEL_SIZES} value={size} onPick={setSize} startOpen={false} />
+            </>
+          )}
+          <details className="bd-lp-pick" open={pickOpen} onToggle={(e) => setPickOpen((e.target as HTMLDetailsElement).open)}>
+            <summary>🛢️ Barrels: <b>{pickText}</b> <span className="bd-m">· tap to choose</span></summary>
+            <div className="bd-row" style={{ marginTop: 6 }}>
+              <button className="bd-btn" onClick={() => setSel(usable.map((b) => b.code))}>All</button>
+              <button className="bd-btn" onClick={() => setSel([])}>None</button>
+              <button className="bd-btn" onClick={() => setSel(usable.filter((b) => b.tareKg != null).map((b) => b.code))}>Only with a tare</button>
+              <button className="bd-btn" onClick={() => setTest(!test)}>{test ? "Back to the real labels" : "🧪 One test label"}</button>
+            </div>
+            <div className="bd-lp-grid" role="group" aria-label="Barrels to print">
+              {usable.map((b) => (
+                <label key={b.code} className={`bd-lp-b${chosenCodes.includes(b.code) ? " on" : ""}`}>
+                  <input type="checkbox" checked={chosenCodes.includes(b.code)} onChange={() => toggle(b.code)} />
+                  <b>{b.code.replace("BRL-", "")}</b>
+                  <small>{b.mark || (b.tareKg != null ? `${kg(b.tareKg)} kg` : "no tare")}</small>
+                </label>
+              ))}
+            </div>
+          </details>
+        </div>
+
+        <div className="bd-lp-card">
+          <div className="bd-lp-step"><span className="bd-lp-n">2</span> Print</div>
+          <PrintCenter kind="label" size={pageSize} selector=".bd-label" count={test ? 1 : list.length} label={test ? "Print the test label" : `Print ${list.length} label${list.length === 1 ? "" : "s"}`} disabled={!test && !list.length} name={list.length === 1 ? list[0].code : "barrel-labels"} saved={saved} onSave={save} />
+        </div>
+        {missingTare > 0 && (
           <div className="bd-err">{missingTare} barrel(s) have no tare yet, so their label shows a blank line. Weigh each one empty first, then print the labels (or write the tare with a marker).</div>
         )}
         <div className="bd-m small">
-          Barcode for a scanner gun, QR for any phone camera (it opens the barrel&apos;s record). Stick one label on the side of each barrel (not the lid) and cover it with clear tape; oil and handling wear paper labels. These labels are permanent: the same barrel keeps its code for life.
-          {!tdoc && showTare && " The tare is printed on the label. If the owner changes a barrel's tare, reprint that label."} To reprint one barrel, tap it:{" "}
-          {barrels.filter((b) => b.condition !== "RETIRED").map((b) => (
-            <button key={b.code} className="bd-linkbtn" onClick={() => setOnly([b.code])}>{b.code.replace("BRL-", "")}</button>
-          ))}
+          Barcode for a scanner gun, QR for any phone camera (it opens the barrel&apos;s record). Stick one label on the side of each barrel (not the lid) and cover it with clear tape. The same barrel keeps its code for life{!tdoc && showTare ? "; if a barrel's tare changes, reprint its label" : ""}.
         </div>
       </div>
 

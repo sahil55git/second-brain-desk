@@ -74,6 +74,7 @@ export default function FleetPrinters() {
           label={kind === "label" ? "Print a sample label" : "Print a sample slip"}
           name="printer-test"
           setupLink={false}
+          moreOpen
           saved={saved}
           onSave={save}
         />

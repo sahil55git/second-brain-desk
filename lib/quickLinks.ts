@@ -2,7 +2,7 @@
 // can be a tile on the Quick links page (/go) or pinned to a phone home screen
 // ("Add to Home screen" works on any of these addresses). Register links use
 // ?open=<key>, which Quick Register turns into the right form on arrival.
-export type LinkGroup = "entry" | "jobwork" | "tally" | "mfg" | "office";
+export type LinkGroup = "entry" | "jobwork" | "tally" | "mfg" | "print" | "office";
 
 export interface QuickLink {
   id: string;
@@ -20,6 +20,7 @@ export const GROUP_META: Record<LinkGroup, { icon: string; title: string; kn: st
   jobwork: { icon: "🌾", title: "Job-work", kn: "ಜಾಬ್-ವರ್ಕ್" },
   tally: { icon: "🧮", title: "Tally & counts", kn: "ಎಣಿಕೆ" },
   mfg: { icon: "🏭", title: "Manufacturing", kn: "ತಯಾರಿಕೆ" },
+  print: { icon: "🖨️", title: "Printing", kn: "ಮುದ್ರಣ" },
   office: { icon: "🗂️", title: "Office & reports", kn: "ಕಚೇರಿ / ವರದಿ" },
 };
 
@@ -54,6 +55,13 @@ export const QUICK_LINKS: QuickLink[] = [
   // Manufacturing
   { id: "mfg", icon: "🏭", title: "Manufacturing", kn: "ತಯಾರಿಕೆ", desc: "Barrels, steps, yield", href: "/mfg", group: "mfg" },
   { id: "mfgnew", icon: "➕", title: "New barrel", kn: "ಹೊಸ ಬ್ಯಾರಲ್", desc: "Start a batch", href: "/mfg?new=1", group: "mfg" },
+  // Printing
+  { id: "print", icon: "🖨️", title: "Print centre", kn: "ಮುದ್ರಣ ಕೇಂದ್ರ", desc: "Your printers and everything to print", href: "/print", group: "print" },
+  { id: "designer", icon: "🎨", title: "Label designer", kn: "ಲೇಬಲ್ ವಿನ್ಯಾಸ", desc: "Design barrel labels", href: "/barrels/fleet/designer?kind=label", group: "print" },
+  { id: "slipdesigner", icon: "🧾", title: "Receipt designer", kn: "ರಸೀದಿ ವಿನ್ಯಾಸ", desc: "Design weighing slips / receipts", href: "/barrels/fleet/designer?kind=slip", group: "print" },
+  { id: "printers", icon: "⚙️", title: "Printer setup", kn: "ಪ್ರಿಂಟರ್ ಸೆಟಪ್", desc: "Connect, save and test printers", href: "/barrels/fleet/printers", group: "print" },
+  { id: "barrellabels", icon: "🏷️", title: "Barrel labels", kn: "ಬ್ಯಾರಲ್ ಲೇಬಲ್", desc: "Print our barrels' labels", href: "/barrels/fleet/labels?codes=all", group: "print" },
+  { id: "itemlabels", icon: "🏷️", title: "Item labels", kn: "ಐಟಂ ಲೇಬಲ್", desc: "Barcode stickers for items", href: "/labels", group: "print" },
   // Office
   { id: "records", icon: "🗂️", title: "Proofs & scans", kn: "ಪುರಾವೆ ಮತ್ತು ಸ್ಕ್ಯಾನ್", desc: "Signatures, slips, bills; cash paid without proof", href: "/records", group: "office", ownerOnly: true },
   { id: "reports", icon: "📊", title: "Reports", kn: "ವರದಿ", desc: "Sales, stock, udhar, cash", href: "/reports", group: "office", ownerOnly: true },
@@ -61,7 +69,7 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "desk", icon: "🗂️", title: "Full desk", kn: "ಪೂರ್ಣ ಡೆಸ್ಕ್", desc: "Job-work, closing, manufacturing", href: "/", group: "office" },
 ];
 
-export const GROUP_ORDER: LinkGroup[] = ["entry", "jobwork", "tally", "mfg", "office"];
+export const GROUP_ORDER: LinkGroup[] = ["entry", "jobwork", "tally", "mfg", "print", "office"];
 
 /** Sheets Quick Register can open from ?open=<key>. */
 export const REGISTER_OPEN_KEYS = ["sale", "crush", "udhaar", "purchase", "expense", "payment", "pigmee", "draw", "jobwork", "jwsettle", "cash", "stock", "calc", "scan", "smart"] as const;

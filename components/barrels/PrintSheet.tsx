@@ -3,7 +3,7 @@
 // Printable weighment slip (per barrel) and lot weighment report.
 // Every slip carries a Code 128 barcode (scanner guns) and a QR code (any phone camera).
 import { SLIP_SIZES, pageCss, slipLayout, slipSize, type PaperSize } from "@/lib/printSizes";
-import { PrinterPanel, SizePicker, useSavedPrint } from "@/components/barrels/PrintKit";
+import { PrintLinks, SizePicker, useSavedPrint } from "@/components/barrels/PrintKit";
 import PrintCenter from "@/components/barrels/PrintCenter";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -85,7 +85,7 @@ export default function PrintSheet() {
         ) : (
           <PrintCenter kind="slip" size={size} selector=".bd-slip" marginMm={lay.margin} count={1} label="Print slip" name="weighment-slip" saved={saved} onSave={save} />
         )}
-        {!isReport && <PrinterPanel size={size} kind="slip" saved={saved} onSave={save} onSize={setSize} />}
+        {!isReport && <PrintLinks kind="slip" />}
         <div className="bd-m small">
           {isReport ? "Print on A4. Keep with the supplier's challan." : "Print after the full weighing and again after the empty weighing — the second slip shows gross − tare = net."}
         </div>

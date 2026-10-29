@@ -41,7 +41,7 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: "rates", label: "₹ Saved rates" },
   { key: "library", label: "⭐ Item library" },
   { key: "device", label: "📱 This device" },
-  { key: "printers", label: "🖨️ Printers" },
+  { key: "printers", label: "🖨️ Printers & labels" },
   { key: "dashboard", label: "📈 Dashboard & reports" },
   { key: "appearance", label: "🎨 Appearance" },
   { key: "integrations", label: "🔗 Share & integrations" },
@@ -361,7 +361,17 @@ export default function SettingsHub() {
           )}
 
           {section === "device" && <DeviceCard flash={flash} />}
-          {section === "printers" && <PrintersCard flash={flash} />}
+          {section === "printers" && (
+            <>
+              <div className="hub-links" style={{ marginBottom: 10 }}>
+                <a className="hub-btn primary" href="/print">🖨️ Print centre</a>
+                <a className="hub-btn" href="/barrels/fleet/designer?kind=label">🎨 Label designer</a>
+                <a className="hub-btn" href="/barrels/fleet/designer?kind=slip">🧾 Receipt designer</a>
+                <a className="hub-btn" href="/barrels/fleet/printers">⚙️ Printer setup</a>
+              </div>
+              <PrintersCard flash={flash} />
+            </>
+          )}
 
           {section === "dashboard" && (
             <section className="hub-card">

@@ -230,7 +230,7 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
   .bd-onlymobile { display: block; }
 }
 
-.bd-labelpage input { border: 1px solid #c9cfcc; border-radius: 6px; padding: 4px 6px; background: #fff; color: #111; }
+.bd-labelpage input, .bd-printpage input { border: 1px solid #c9cfcc; border-radius: 6px; padding: 4px 6px; background: #fff; color: #111; }
 
 /* typed weight — numbered steps, big weight box */
 .bd-mbox { margin-top: 10px; border: 2px solid var(--bd-acc); border-radius: 14px; padding: 12px; display: grid; gap: 12px; }
@@ -540,3 +540,51 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
 .dz-new .dz-start input { grid-row: 1 / 3; margin: 0; }
 .dz-new .dz-start b { font-size: 13px; }
 .dz-new .dz-start small { grid-column: 2; font-size: 11.5px; opacity: .75; }
+
+/* "Print to [printer ▾]  − 1 +  [Print]" — the one-tap print bar on top of every print panel */
+.bd-qp { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; position: relative; }
+.bd-qp-to { display: flex; align-items: center; gap: 8px; flex: 1 1 320px; min-width: 0; position: relative; }
+.bd-qp-lbl { font-weight: 700; font-size: 13px; color: #45514c; white-space: nowrap; }
+.bd-qp-pick { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; text-align: left; min-height: 48px; padding: 6px 12px; border: 1.5px solid #9fb0a8; border-radius: 10px; background: #fff; color: #1d2422; font: inherit; cursor: pointer; }
+.bd-qp-pick:hover, .bd-qp-pick[aria-expanded="true"] { border-color: #1d5fa8; }
+.bd-qp-nm { display: grid; min-width: 0; flex: 1 1 auto; line-height: 1.2; }
+.bd-qp-nm b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bd-qp-nm small { color: #5f6b66; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bd-qp-menu { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; right: 0; min-width: 260px; max-height: min(70vh, 460px); overflow: auto; display: grid; gap: 2px; padding: 6px; background: #fff; color: #1d2422; border: 1px solid #c9d2ce; border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); }
+.bd-qp-opt { display: flex; align-items: center; gap: 10px; text-align: left; padding: 8px 10px; border: 1px solid transparent; border-radius: 8px; background: none; color: inherit; font: inherit; cursor: pointer; min-height: 44px; }
+.bd-qp-opt:hover { background: #f1f5f3; }
+.bd-qp-opt.on { border-color: #1d5fa8; background: #eaf2fb; }
+.bd-qp-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 4px 2px; border-top: 1px solid #e3e8e5; margin-top: 4px; }
+.bd-qp-copies { display: flex; align-items: center; gap: 4px; }
+.bd-qp-copies .bd-btn { min-width: 40px; min-height: 48px; justify-content: center; padding: 4px 8px; font-size: 18px; }
+.bd-qp-copies input { width: 52px; min-height: 48px; text-align: center; font-size: 16px; font-weight: 700; border: 1px solid #c9d2ce; border-radius: 8px; }
+.bd-qp-go { min-height: 48px; font-size: 16px !important; padding: 8px 20px !important; flex: 0 1 auto; justify-content: center; }
+.bd-pc-more { border-top: 1px solid #dfe4e1; padding-top: 6px; }
+.bd-pc-more > summary { cursor: pointer; font-weight: 600; font-size: 13px; color: #45514c; padding: 4px 0; }
+.bd-pc-moreb { display: grid; gap: 8px; margin-top: 6px; }
+@media (max-width: 560px) {
+  .bd-qp-to { flex-basis: 100%; }
+  .bd-qp-lbl { display: none; }
+  .bd-qp-go { flex: 1 1 auto; }
+}
+.bd-qp .bd-dot { flex: 0 0 auto; }
+
+/* barrel labels page: 1 What to print · 2 Print */
+.bd-lp { gap: 10px; max-width: 1100px; }
+.bd-lp-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.bd-lp-title { font-size: 18px; }
+.bd-lp-links { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-left: auto; }
+.bd-lp-card { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid #d5dbd8; border-radius: 12px; background: #fbfcfb; }
+.bd-lp-step { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; color: #2b3532; }
+.bd-lp-n { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #2b3532; color: #fff; font-size: 12px; }
+.bd-lp-card .bd-pc { border: none; padding: 0; background: none; }
+.bd-lp-pick > summary { cursor: pointer; padding: 6px 2px; list-style: none; }
+.bd-lp-pick > summary::-webkit-details-marker { display: none; }
+.bd-lp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; margin-top: 8px; }
+.bd-lp-b { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 6px; align-items: center; padding: 6px 8px; border: 1.5px solid #d0d7d3; border-radius: 8px; background: #fff; cursor: pointer; }
+.bd-lp-b input { grid-row: span 2; width: 18px; height: 18px; margin: 0; }
+.bd-lp-b b { font-size: 15px; }
+.bd-lp-b small { color: #5f6b66; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bd-lp-b.on { border-color: #1d5fa8; background: #eaf2fb; }
+@media (max-width: 560px) { .bd-lp-links { margin-left: 0; } }
+.bd-printlinks { gap: 6px 16px; }
