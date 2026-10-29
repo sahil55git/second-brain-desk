@@ -26,6 +26,8 @@ export interface SavedPrint {
   dslip?: Partial<DirectCfg>;
   /** printers saved on this device, with the default for labels and for slips */
   book?: PrinterBook;
+  /** the "Print to" choice used last on this device, for labels and for slips (option key) */
+  qlast?: { label?: string; slip?: string };
 }
 
 /** Remembered on this device only (printer name, type, last sizes). Works without storage. */
@@ -48,12 +50,12 @@ export function useSavedPrint(): [SavedPrint, (p: Partial<SavedPrint>) => void] 
   return [s, update];
 }
 
-export function SizePicker({ options, value, onPick, roll }: { options: PaperSize[]; value: PaperSize; onPick: (s: PaperSize) => void; roll?: boolean }) {
+export function SizePicker({ options, value, onPick, roll, startOpen = true }: { options: PaperSize[]; value: PaperSize; onPick: (s: PaperSize) => void; roll?: boolean; startOpen?: boolean }) {
   const [w, setW] = useState(value.custom ? String(value.w) : "");
   const [h, setH] = useState(value.custom && value.h ? String(value.h) : "");
   const [err, setErr] = useState(false);
   // on a phone the long list of sizes would push the Print button off the screen: start folded there
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(startOpen);
   useEffect(() => {
     if (typeof window !== "undefined" && window.innerWidth <= 760) setOpen(false);
   }, []);
@@ -82,6 +84,18 @@ export function SizePicker({ options, value, onPick, roll }: { options: PaperSiz
         {err && <span style={{ color: "#b00" }}>Width and height must be 10 to 300 mm.</span>}
       </div>
     </details>
+  );
+}
+
+/** "🎨 Designer · ⚙️ Printer setup · 🖨️ Print centre" under a print panel (the long printer help lives on the setup page). */
+export function PrintLinks({ kind, onTest }: { kind: "label" | "slip"; onTest?: () => void }) {
+  return (
+    <div className="bd-row bd-printlinks">
+      {onTest && <button className="bd-linkbtn" onClick={onTest}>🧪 Print a test {kind}</button>}
+      <a className="bd-linkbtn" href={`/barrels/fleet/designer?kind=${kind}`}>{kind === "label" ? "🎨 Label designer" : "🎨 Receipt designer"}</a>
+      <a className="bd-linkbtn" href={`/barrels/fleet/printers?kind=${kind}`}>⚙️ Printer setup and help</a>
+      <a className="bd-linkbtn" href="/print">🖨️ Print centre</a>
+    </div>
   );
 }
 

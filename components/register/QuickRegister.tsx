@@ -1394,6 +1394,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
           {toolLink("/mfg", "🏭", "mfgDesk")}
           {toolLink("/tallies", "🧮", "allTallies")}
           {toolLink("/go", "🔗", "quickLinks")}
+          {toolLink("/print", "🖨️", "printCentre")}
         </div>
       </section>
     </div>

@@ -10,7 +10,7 @@ import Barcode from "@/components/barrels/Barcode";
 import QrCode from "@/components/barrels/QrCode";
 import { ACTION_LABEL, LOCATION_LABEL, PURPOSE_LABEL, fleetLink, type FleetAction, type Location, type Purpose } from "@/lib/barrelFleet";
 import { SLIP_SIZES, pageCss, slipLayout, slipSize, type PaperSize } from "@/lib/printSizes";
-import { PrinterPanel, SizePicker, useSavedPrint } from "@/components/barrels/PrintKit";
+import { PrintLinks, SizePicker, useSavedPrint } from "@/components/barrels/PrintKit";
 import PrintCenter from "@/components/barrels/PrintCenter";
 import { api, kg1, whenFull } from "@/components/barrels/shared";
 import type { FBarrel, FEvent, FleetList } from "@/components/barrels/fleet/types";
@@ -89,7 +89,7 @@ export default function FleetPrint() {
         ) : (
           <PrintCenter kind="slip" size={pageSize} selector=".bd-slip" marginMm={tdoc ? tdoc.marginMm : lay.margin} count={1} label="Print slip" name="barrel-slip" saved={saved} onSave={save} />
         )}
-        {!isReport && <PrinterPanel size={pageSize} kind="slip" saved={saved} onSave={save} onSize={setSize} />}
+        {!isReport && <PrintLinks kind="slip" />}
         <div className="bd-m small">
           {isReport ? "Print on A4. It shows where every barrel is right now and how much oil is in it." : "Give one copy to the driver or customer with the barrel; keep one in the file."}
         </div>

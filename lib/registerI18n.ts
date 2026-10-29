@@ -208,6 +208,7 @@ export const W = {
   barrelSteps: ["Barrel steps", "ಬ್ಯಾರೆಲ್ ಹಂತ"],
   openBarrels: ["open", "ಬಾಕಿ"],
   quickLinks: ["Quick links", "ಶೀಘ್ರ ಲಿಂಕ್‌ಗಳು"],
+  printCentre: ["Print centre", "ಮುದ್ರಣ ಕೇಂದ್ರ"],
   allTallies: ["All tallies", "ಎಲ್ಲಾ ಎಣಿಕೆ"],
   stHint: [
     "Weigh / count each product. Sale = yesterday − today; Gap = sale − scale report. Gaps of 0.5 kg or more turn red.",
