@@ -28,6 +28,8 @@ export interface SavedPrint {
   book?: PrinterBook;
   /** the "Print to" choice used last on this device, for labels and for slips (option key) */
   qlast?: { label?: string; slip?: string };
+  /** USB printers this browser cannot open because the computer's own driver holds them (they print through the print window) */
+  usbHeld?: string[];
 }
 
 /** Remembered on this device only (printer name, type, last sizes). Works without storage. */

@@ -226,12 +226,25 @@ export async function retryDropped<T>(
 // ---------------------------------------------------------------------------
 // Errors in plain words
 // ---------------------------------------------------------------------------
+/**
+ * True when a USB printer cannot be opened because the computer's own printer driver holds it
+ * (Windows does this for a printer installed with its driver): Chrome then can only print to it
+ * through the print window or the print helper.
+ */
+export function isUsbHeld(e: unknown): boolean {
+  const name = e instanceof Error ? e.name : "";
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  return /claimInterface|Access denied|LIBUSB|Unable to claim|failed to open|Unable to open/i.test(msg) || (name === "SecurityError" && /usb|device|access/i.test(msg)) || (name === "NetworkError" && /usb|open|claim/i.test(msg));
+}
+
 export function explainError(e: unknown, via: "bluetooth" | "usb" | "print" = "print"): string {
   const name = e instanceof Error ? e.name : "";
   const msg = e instanceof Error ? e.message : String(e ?? "");
+  if (isUsbHeld(e)) return "Another program is holding the USB printer (on Windows its normal driver does). Print through the Print window or the PC helper instead.";
   if (name === "NotFoundError" && /cancel|chosen|selected|user/i.test(msg)) return "No printer was chosen.";
   if (name === "NotFoundError" && via === "usb") return "No USB printer was found. Plug the printer in with an OTG cable, switch it on and try again.";
   if (name === "NotFoundError" && via === "bluetooth") return "No printer was found. Switch the printer on, close the printer's own app, make sure no other phone or PC is connected to it, and try again.";
+  if ((name === "SecurityError" || name === "NotAllowedError") && via === "print") return "The browser did not allow the printer. Open More ways to print and tap Connect USB or Connect Bluetooth once, then Print again.";
   if (name === "SecurityError" || name === "NotAllowedError") return via === "usb" ? "The browser did not allow USB. Tap Connect again and choose the printer." : "The browser did not allow Bluetooth. Turn on Bluetooth and Location (Android needs both), allow 'Nearby devices' for Chrome, and tap Connect again.";
   if (name === "NetworkError") return "The printer connected and then hung up. It is probably still held by another phone, tablet or PC (close WePrint and switch Bluetooth off on the others), or by this tablet's own Bluetooth settings (tap Forget on it there). Then switch the printer off and on, and try again.";
   if (name === "InvalidStateError") return "The printer connection was lost. Tap Connect again.";

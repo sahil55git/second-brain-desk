@@ -16,7 +16,7 @@ import {
 } from "@/lib/printHelper";
 import { canCancel, canReprint, statusText } from "@/lib/printQueue";
 import {
-  connectBluetooth, connectUsb, currentConnection, directConfig, directSupport, disconnectPrinter, dotsAcross, explainError, knownUsbPrinters, monoFromDataUrl, reconnectBluetooth, sendBytes, unsupportedReason, usbMatches,
+  connectBluetooth, connectUsb, currentConnection, directConfig, directSupport, disconnectPrinter, dotsAcross, explainError, isUsbHeld, knownUsbPrinters, monoFromDataUrl, reconnectBluetooth, sendBytes, unsupportedReason, usbMatches,
   type DirectCfg, type DirectConnection,
 } from "@/lib/directPrint";
 import SavedPrinterBar from "@/components/barrels/SavedPrinterBar";
@@ -152,7 +152,10 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, [menu]);
-  const options = useMemo(() => buildOptions(book, kind, found, { share: touch || saved.mode === "share" }), [saved.book, kind, found, touch, saved.mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a USB printer held by the computer's own driver cannot be used straight: do not offer it as "found"
+  const held = saved.usbHeld ?? [];
+  const usable = useMemo(() => ({ ...found, usb: found.usb.filter((u) => !held.includes(u.deviceId)) }), [found, held.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  const options = useMemo(() => buildOptions(book, kind, usable, { share: touch || saved.mode === "share" }), [saved.book, kind, usable, touch, saved.mode]); // eslint-disable-line react-hooks/exhaustive-deps
   const chosen: PrinterOption | null = options.find((o) => o.key === picked) ?? pickInitial(options, kind, saved.qlast?.[kind]);
   // keep the settings below in step with the printer chosen above
   useEffect(() => {
@@ -550,7 +553,22 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
       if (c || o?.source === "usb" || o?.source === "bluetooth") void look();
     } catch (e) {
       setProg("");
-      setMsg({ ok: false, text: t.mode === "direct" ? explainError(e) : e instanceof Error ? e.message : "Printing did not work." });
+      if (t.mode === "direct" && t.printer?.via === "usb" && isUsbHeld(e)) {
+        // Windows' own driver holds this printer: print through the print window now, and from now on
+        const devId = t.printer.deviceId;
+        const b = readBook(savedRef.current.book);
+        onSave({
+          usbHeld: devId ? Array.from(new Set([...(savedRef.current.usbHeld ?? []), devId])) : savedRef.current.usbHeld,
+          ...(o?.saved ? { book: patchPrinter(b, o.saved.id, { mode: "window" }) } : {}),
+        });
+        if (!o?.saved) setPicked("window");
+        setMode("window");
+        setMsg({ ok: true, text: `This computer's own printer driver is using ${o?.name ?? "the USB printer"}, so the browser cannot reach it over USB. It is printing through the print window instead: choose ${o?.name ?? "the printer"} there once and Chrome remembers it. From now on Print opens the print window for this printer. (To print with no window at all, use the PC helper.)` });
+        window.print();
+        onDone?.();
+      } else {
+        setMsg({ ok: false, text: t.mode === "direct" ? explainError(e, t.printer?.via ?? "print") : e instanceof Error ? e.message : "Printing did not work." });
+      }
     } finally {
       setBusy(false);
     }
