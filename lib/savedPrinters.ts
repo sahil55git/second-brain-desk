@@ -108,3 +108,13 @@ export function patchPrinter(b: PrinterBook, id: string, patch: Partial<Omit<Sav
 
 /** A new connection to the same physical printer (the browser may give a new id), keeping the name and settings. */
 export const withDevice = (p: SavedPrinter, via: "bluetooth" | "usb", deviceId: string): SavedPrinter => ({ ...p, via, deviceId });
+
+/** Give a saved printer a new name (the same name may not be used twice for the same kind). */
+export function renamePrinter(b: PrinterBook, id: string, name: string): PrinterBook {
+  const clean = cleanName(name);
+  if (!clean) throw new Error("Give the printer a name.");
+  const target = b.printers.find((p) => p.id === id);
+  if (!target) return b;
+  if (b.printers.some((p) => p.id !== id && p.for === target.for && p.name.toLowerCase() === clean.toLowerCase())) throw new Error(`A ${target.for} printer is already called "${clean}".`);
+  return { ...b, printers: b.printers.map((p) => (p.id === id ? { ...p, name: clean } : p)) };
+}

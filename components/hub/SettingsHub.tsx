@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import SettingsDesk from "@/components/SettingsDesk";
 import AppearancePanel from "@/components/AppearancePanel";
 import ImportExportCard from "@/components/hub/ImportExportCard";
+import PrintersCard from "@/components/hub/PrintersCard";
 import PlacesCard from "@/components/hub/PlacesCard";
 import AccessAdmin from "@/components/hub/AccessAdmin";
 import SimpleModeAdmin from "@/components/hub/SimpleModeAdmin";
@@ -31,7 +32,7 @@ import { DEFAULT_HUB_PREFS, WIDGETS, loadHubPrefs, saveHubPrefs, type HubPrefs, 
 import { registerItemName } from "@/lib/bizReports";
 import { DeviceCopySettings } from "@/components/register/ProofParts";
 
-type Section = "users" | "simple" | "integrations" | "appearance" | "register" | "rates" | "library" | "device" | "dashboard" | "business" | "rules" | "data" | "io" | "proofs";
+type Section = "users" | "simple" | "integrations" | "appearance" | "register" | "rates" | "library" | "device" | "printers" | "dashboard" | "business" | "rules" | "data" | "io" | "proofs";
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "users", label: "👥 Users & profiles" },
   { key: "simple", label: "🧸 Simple mode" },
@@ -40,6 +41,7 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: "rates", label: "₹ Saved rates" },
   { key: "library", label: "⭐ Item library" },
   { key: "device", label: "📱 This device" },
+  { key: "printers", label: "🖨️ Printers" },
   { key: "dashboard", label: "📈 Dashboard & reports" },
   { key: "appearance", label: "🎨 Appearance" },
   { key: "integrations", label: "🔗 Share & integrations" },
@@ -359,6 +361,7 @@ export default function SettingsHub() {
           )}
 
           {section === "device" && <DeviceCard flash={flash} />}
+          {section === "printers" && <PrintersCard flash={flash} />}
 
           {section === "dashboard" && (
             <section className="hub-card">
