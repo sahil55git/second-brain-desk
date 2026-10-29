@@ -71,3 +71,21 @@ describe("finding the same device again", () => {
     expect(usbMatches({ vendorId: 1, productId: 2 }, "usb:483:5740")).toBe(false);
   });
 });
+
+describe("renamePrinter", () => {
+  it("renames one printer and refuses a clash or an empty name", async () => {
+    const { renamePrinter, savePrinter, emptyBook } = await import("@/lib/savedPrinters");
+    let b = emptyBook();
+    b = savePrinter(b, { name: "Helett H30C", for: "label", mode: "direct" }).book;
+    b = savePrinter(b, { name: "Posiflow", for: "slip", mode: "direct" }).book;
+    const id = b.printers[0].id;
+    const r = renamePrinter(b, id, "  Helett   label  ");
+    expect(r.printers[0].name).toBe("Helett label");
+    expect(r.printers[1].name).toBe("Posiflow");
+    expect(() => renamePrinter(b, id, "   ")).toThrow();
+    b = savePrinter(b, { name: "Other", for: "label", mode: "direct" }).book;
+    expect(() => renamePrinter(b, b.printers[2].id, "helett h30c")).toThrow(/already/);
+    // same name on a different kind is fine
+    expect(renamePrinter(b, b.printers[1].id, "Helett label").printers[1].name).toBe("Helett label");
+  });
+});
