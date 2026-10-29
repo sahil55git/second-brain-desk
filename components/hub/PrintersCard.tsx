@@ -10,8 +10,8 @@ import { defaultPrinter, makeDefault, readBook, removePrinter, renamePrinter, ty
 
 const KEY = "bd-print-v1";
 const KINDS: { kind: PrintKind; title: string; page: string }[] = [
-  { kind: "label", title: "🏷️ Label printers", page: "/barrels/fleet/labels" },
-  { kind: "slip", title: "🧾 Slip / receipt printers", page: "/barrels/fleet/print" },
+  { kind: "label", title: "🏷️ Label printers", page: "/barrels/fleet/printers?kind=label" },
+  { kind: "slip", title: "🧾 Slip / receipt printers", page: "/barrels/fleet/printers?kind=slip" },
 ];
 
 const modeName = (p: SavedPrinter) => (p.mode === "direct" && p.via ? (p.via === "bluetooth" ? "Bluetooth" : "USB") : PRINT_MODES.find((m) => m.id === p.mode)?.name ?? p.mode);
@@ -59,7 +59,7 @@ export default function PrintersCard({ flash }: { flash: (m: string) => void }) 
     <section className="hub-card">
       <h3>🖨️ Printers</h3>
       <div className="hub-m small" style={{ marginBottom: 8 }}>
-        Printers saved in this browser ({total} of 12). They work only on this device. To add one, open a label or slip page, choose how it prints, and press <b>Save this printer</b>.
+        Printers saved in this browser ({total} of 12). They work only on this device. To add or connect one, open <a href="/barrels/fleet/printers"><b>Printer setup</b></a>, choose how it prints, and press <b>Save this printer</b>.
       </div>
       {err && <div className="hub-banner">{err}</div>}
       {KINDS.map(({ kind, title, page }) => {
@@ -67,7 +67,7 @@ export default function PrintersCard({ flash }: { flash: (m: string) => void }) 
         const def = defaultPrinter(book, kind);
         return (
           <div key={kind} style={{ marginTop: 12 }}>
-            <div className="set-row"><span className="lab"><b>{title}</b></span><a href={page} className="hub-m small">Open the page →</a></div>
+            <div className="set-row"><span className="lab"><b>{title}</b></span><a href={page} className="hub-m small">Set up →</a></div>
             {!list.length && <div className="hub-empty">None saved yet.</div>}
             {list.map((p) => (
               <div key={p.id} className="set-row" style={{ flexWrap: "wrap", gap: 6 }}>
