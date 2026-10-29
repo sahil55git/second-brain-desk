@@ -266,7 +266,7 @@ export function fieldKey(label: string, kind: TemplateKind, taken: string[] = []
   const words = label.normalize("NFKD").replace(/[^A-Za-z0-9 ]+/g, " ").trim().split(/\s+/).filter(Boolean);
   let base = words.map((w, i) => (i ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w.toLowerCase())).join("").replace(/^[^a-z]+/, "").slice(0, 20) || "field";
   const builtin = new Set(tokensFor(kind).map((t) => t.name));
-  const used = new Set([...builtin, ...taken]);
+  const used = new Set([...Array.from(builtin), ...taken]);
   if (builtin.has(base)) base = `my${base[0].toUpperCase()}${base.slice(1)}`.slice(0, 22);
   let k = base;
   for (let i = 2; used.has(k); i++) k = `${base}${i}`;
