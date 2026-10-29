@@ -395,3 +395,96 @@ html[data-skin="ink"] :is(main .bg-\[var\(--accent\)\], .hub-btn.primary, .bd-bt
   color: #1a1204 !important; text-shadow: none;
 }
 html[data-skin="ink"] .sb-head h1 { background: linear-gradient(90deg, #ffffff, #f6d98c 60%, #35d6c2); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+
+/* ===========================================================================
+   Matte grey looks (Oct 2026): graphite (dark), stone (light), smoke (see-through)
+   and the matte finish (html.matte), which any look can use: no shine, no glow,
+   flat colour on buttons and tiles.
+   =========================================================================== */
+html[data-skin="graphite"] {
+  --sk-bg: #18191b;
+  --sk-glass: #232528; --sk-glass-solid: #232528; --sk-glass-2: #2b2e32;
+  --sk-edge: rgba(255, 255, 255, 0.07); --sk-edge-strong: rgba(255, 255, 255, 0.15);
+  --sk-hi: transparent;
+  --sk-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), 0 8px 20px rgba(0, 0, 0, 0.28);
+  --sk-glow: 0 0 0 transparent; --sk-input: #1c1e21; --sk-soft: #a3a7ad;
+  --sk-r: 14px; --sk-blur: 0px; --sk-num-weight: 600;
+  --sk-in: #5fc48d; --sk-out: #ee7b7b; --sk-oth: #e3a857; --sk-jw: #79aee6; --sk-tool: #a3a7ad;
+  --sk-in-d: #3d9a68; --sk-out-d: #c45656; --sk-oth-d: #bd8233; --sk-jw-d: #4c82bd; --sk-tool-d: #5a5f66;
+}
+html[data-skin="stone"] {
+  --sk-bg: #e4e5e6;
+  --sk-glass: #f1f2f3; --sk-glass-solid: #f1f2f3; --sk-glass-2: #fafafa;
+  --sk-edge: rgba(20, 22, 26, 0.09); --sk-edge-strong: rgba(20, 22, 26, 0.18);
+  --sk-hi: transparent;
+  --sk-shadow: 0 1px 0 rgba(20, 22, 26, 0.05), 0 6px 16px rgba(20, 22, 26, 0.06);
+  --sk-glow: 0 0 0 transparent; --sk-input: #ffffff; --sk-soft: #5c6168;
+  --sk-r: 14px; --sk-blur: 0px; --sk-num-weight: 600;
+  --sk-in: #2f7d4f; --sk-out: #b83a3a; --sk-oth: #a1620f; --sk-jw: #2f6f8f; --sk-tool: #4b5158;
+  --sk-in-d: #3a8a5a; --sk-out-d: #c24848; --sk-oth-d: #b9771e; --sk-jw-d: #3a7ca0; --sk-tool-d: #5c6168;
+}
+html[data-skin="smoke"] {
+  --sk-bg: #111214;
+  --sk-glass: rgba(58, 61, 66, 0.42); --sk-glass-solid: rgba(32, 34, 38, 0.96); --sk-glass-2: rgba(255, 255, 255, 0.05);
+  --sk-edge: rgba(255, 255, 255, 0.09); --sk-edge-strong: rgba(255, 255, 255, 0.18);
+  --sk-hi: transparent;
+  --sk-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --sk-glow: 0 0 0 transparent; --sk-input: rgba(10, 11, 13, 0.5); --sk-soft: #a9adb3;
+  --sk-r: 18px; --sk-blur: 22px; --sk-num-weight: 500;
+  --sk-in: #6fcf97; --sk-out: #f08080; --sk-oth: #e9b065; --sk-jw: #9cc3e6; --sk-tool: #a9adb3;
+  --sk-in-d: #3f9a68; --sk-out-d: #c45656; --sk-oth-d: #bd8233; --sk-jw-d: #4f86b8; --sk-tool-d: #5a5f66;
+}
+html:is([data-skin="graphite"], [data-skin="smoke"]) { --ui-soft: var(--sk-soft) !important; }
+
+/* backgrounds: flat matte grey with a faint grain; smoke has soft grey light behind the glass */
+html[data-skin="graphite"] body {
+  background-image:
+    radial-gradient(1000px 600px at 15% -10%, rgba(255, 255, 255, 0.035), transparent 65%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 3px);
+}
+html[data-skin="stone"] body {
+  background-image:
+    radial-gradient(1000px 600px at 15% -10%, rgba(255, 255, 255, 0.55), transparent 65%),
+    repeating-linear-gradient(0deg, rgba(20, 22, 26, 0.012) 0 1px, transparent 1px 3px);
+}
+html[data-skin="smoke"] body {
+  background-image:
+    radial-gradient(800px 560px at 10% -6%, rgba(150, 156, 166, 0.28), transparent 62%),
+    radial-gradient(760px 560px at 100% 30%, rgba(110, 130, 150, 0.22), transparent 60%),
+    radial-gradient(800px 600px at 45% 110%, rgba(90, 95, 104, 0.3), transparent 62%),
+    linear-gradient(170deg, #1d1f22 0%, #111214 60%, #0b0c0d 100%);
+}
+/* light stone: the soft-look rules for secondary buttons, tabs and inputs */
+html[data-skin="stone"] :is(main button.border, main a.border, .hub-btn:not(.primary), .bd-btn:not(.primary), .hub-range > button:not(.on)) { background: #fafafa !important; }
+html[data-skin="stone"] :is(.sb-tabs, .hub-tabs) { background: #f1f2f3; }
+
+/* ---------- matte finish: flat colour, no shine, no glow ---------- */
+html.matte[data-skin] :is(main .rounded-xl.border, .hub-card, .hub-kpi, .bd-card, .stk-card, .tly-card, .csh-card, .sb-head) {
+  box-shadow: var(--sk-shadow) !important;
+}
+html.matte[data-skin] :is(main .bg-\[var\(--accent\)\], .hub-btn.primary, .bd-btn.primary, .hub-range > button.on, .bd-chip.on, .sb-cta) {
+  background: var(--lq) !important;
+  border: 1px solid color-mix(in srgb, var(--lq) 80%, #000000) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+html.matte[data-skin] :is(main .bg-\[var\(--accent\)\], .hub-btn.primary, .bd-btn.primary, .sb-cta):hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow: none !important;
+}
+html.matte[data-skin] main .bg-\[var\(--accent\)\], html.matte[data-skin] .hub-btn.primary, html.matte[data-skin] .bd-btn.primary, html.matte[data-skin] .sb-cta { border-radius: calc(10px * var(--ui-r, 1)); }
+html.matte[data-skin] :is(main button.border, main a.border, .hub-btn:not(.primary), .bd-btn:not(.primary)) { border-radius: calc(10px * var(--ui-r, 1)); box-shadow: none !important; }
+html.matte[data-skin] :is(main button.border, main a.border, .hub-btn:not(.primary), .bd-btn:not(.primary)):hover { box-shadow: none !important; }
+html.matte[data-skin] :is(.sb-tabs > button.on, .hub-tabs button.on) { background: var(--accent) !important; box-shadow: none !important; }
+html.matte[data-skin] :is(.sb-tabs, .hub-tabs, .hub-range > button) { box-shadow: none; }
+html.matte[data-skin] .hub-kpi::before { display: none; }
+html.matte[data-skin] .hub-kpi { border-top: 3px solid var(--k-c, var(--sk-edge-strong)) !important; }
+html.matte[data-skin] .hub-chart .bar { filter: none; }
+html.matte[data-skin] .sb-head h1 { background: none !important; color: inherit !important; -webkit-background-clip: border-box; background-clip: border-box; }
+html.matte[data-skin] .go-tile { background: var(--go-c) !important; border: 1px solid color-mix(in srgb, var(--go-c) 80%, #000) !important; box-shadow: none !important; text-shadow: none !important; }
+html.matte[data-skin] :is(input, select, textarea):focus-visible { box-shadow: none; }
+/* smoke: see-through but matte — keep the frost, drop the saturation boost */
+html.matte[data-skin="smoke"] :is(main .rounded-xl.border, .hub-card, .hub-kpi, .bd-card, .stk-card, .tly-card, .csh-card, .sb-head) {
+  -webkit-backdrop-filter: blur(var(--sk-blur)) saturate(100%); backdrop-filter: blur(var(--sk-blur)) saturate(100%);
+}
