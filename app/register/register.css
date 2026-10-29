@@ -390,3 +390,9 @@ html.hc .qr .qr-tile { box-shadow: inset 0 0 0 2px #ffffff; }
 .qr .qr-simple.sz-L .qr-tile.qr-simple-tile .ic { width: 64px !important; height: 64px !important; }
 .qr .qr-simple.sz-L .qr-tile.qr-simple-tile .ic svg { width: 34px !important; height: 34px !important; }
 .qr-simple-hint { text-align: center; font-size: 12px; opacity: .6; }
+/* entry card with a 🖨️ receipt button in its top-right corner */
+.qr-entw { position: relative; }
+.qr-entw .qr-ent { padding-right: 40px; }
+.qr-entp { position: absolute; top: 10px; right: 4px; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--qr-line, #ddd); background: var(--qr-card, #fff); cursor: pointer; font-size: 15px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; opacity: .8; }
+.qr-entp:hover { opacity: 1; }
+@media print { .qr-entp { display: none !important; } }

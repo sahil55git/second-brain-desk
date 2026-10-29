@@ -1,5 +1,6 @@
 "use client";
 
+import PrintButton from "@/components/print/PrintButton";
 import React, { useEffect, useMemo, useState } from "react";
 import type { MfgBatchDTO, BatchSupplierDTO } from "@/lib/types";
 import {
@@ -589,7 +590,8 @@ export default function ManufacturingDesk({
           </div>
         )}
 
-        <div className="overflow-x-auto rounded-xl border border-black/10 dark:border-white/10">
+        <div className="flex justify-end -mb-2"><PrintButton area="#pa-mfg" label="🖨️ Print batches" className="rounded border border-black/20 dark:border-white/20 px-3 py-1 text-sm" /></div>
+        <div id="pa-mfg" className="overflow-x-auto rounded-xl border border-black/10 dark:border-white/10">
           <table className="w-full text-sm">
             <thead className="bg-black/5 dark:bg-white/5 text-left">
               <tr>

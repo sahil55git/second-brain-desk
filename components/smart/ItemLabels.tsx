@@ -8,6 +8,9 @@ import Barcode from "@/components/barrels/Barcode";
 import QrCode from "@/components/barrels/QrCode";
 import { code128Ok } from "@/lib/code128";
 import type { ItemDTO } from "@/lib/types";
+import PrintCenter from "@/components/barrels/PrintCenter";
+import { PrintLinks, useSavedPrint } from "@/components/barrels/PrintKit";
+import { labelSize } from "@/lib/printSizes";
 
 export default function ItemLabels() {
   const sp = useSearchParams();
@@ -17,6 +20,7 @@ export default function ItemLabels() {
   const [size, setSize] = useState<"a4" | "thermal">(sp.get("size") === "thermal" ? "thermal" : "a4");
   const [copies, setCopies] = useState(1);
   const [company, setCompany] = useState("MAHADEV TRADERS");
+  const [saved, save] = useSavedPrint();
 
   useEffect(() => {
     fetch("/api/items", { cache: "no-store" })
@@ -52,8 +56,14 @@ export default function ItemLabels() {
           <label className="bd-m">
             Name on label <input value={company} onChange={(e) => setCompany(e.target.value.slice(0, 30))} style={{ width: 170 }} />
           </label>
-          <button className="bd-btn primary" onClick={() => window.print()} disabled={!chosen.length}>🖨️ Print</button>
+          {size === "a4" && <button className="bd-btn primary" onClick={() => window.print()} disabled={!chosen.length}>🖨️ Print A4 sheet</button>}
         </div>
+        {size === "thermal" && (
+          <>
+            <PrintCenter kind="label" size={labelSize("50x30")} selector=".bd-labels .bd-label" count={chosen.length * copies} label={`Print ${chosen.length * copies} label${chosen.length * copies === 1 ? "" : "s"}`} disabled={!chosen.length} name="item-labels" saved={saved} onSave={save} />
+            <PrintLinks kind="label" />
+          </>
+        )}
         {noCode.length > 0 && <div className="bd-m small">{noCode.length} item(s) have no code yet ({noCode.slice(0, 5).map((i) => i.name).join(", ")}{noCode.length > 5 ? "…" : ""}) — give them one in Inventory with “+ code”.</div>}
         {!chosen.length && <div className="bd-err">No items with a code to print.</div>}
       </div>

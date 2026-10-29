@@ -3,6 +3,7 @@
 // Purchase bills (erp-architecture-plan.md, Phase 2). Records supplier bills
 // with GST for input-credit tracking. Same line-item builder as Sales, minus
 // invoice numbering (the supplier's bill number is entered directly).
+import PrintButton from "@/components/print/PrintButton";
 import { useMemo, useState } from "react";
 import type {
   PurchaseBillDTO,
@@ -496,7 +497,8 @@ export default function PurchaseDesk({
         </form>
       )}
 
-      <div className="rounded-xl border border-black/10 dark:border-white/10 overflow-x-auto">
+      <div className="flex justify-end -mb-2"><PrintButton area="#pa-purchases" label="🖨️ Print purchases" className="rounded border border-black/20 dark:border-white/20 px-3 py-1 text-sm" /></div>
+      <div id="pa-purchases" className="rounded-xl border border-black/10 dark:border-white/10 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-left opacity-60 border-b border-black/10 dark:border-white/10">
             <tr>

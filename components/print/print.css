@@ -1,0 +1,53 @@
+/* Receipt sheet (components/print/ReceiptSheet.tsx) and the A4 print button */
+.rc-portal { position: fixed; inset: 0; z-index: 1000; background: rgba(10, 14, 12, .55); display: flex; align-items: flex-start; justify-content: center; overflow: auto; padding: 16px max(12px, env(safe-area-inset-right, 0px)) 40px max(12px, env(safe-area-inset-left, 0px)); }
+.rc-panel.bd-printpage { min-height: 0; font-family: inherit; }
+.rc-panel { align-content: start; background: #fff; color: #1d2422; border-radius: 14px; width: min(760px, 100%); display: grid; gap: 12px; padding: 14px; box-shadow: 0 18px 50px rgba(0, 0, 0, .3); }
+.rc-ctl { display: grid; gap: 8px; }
+.rc-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 17px; }
+.rc-head .bd-btn { min-width: 40px; justify-content: center; }
+.rc-panel .bd-pc { padding: 0; border: none; background: none; }
+.rc-preview { display: flex; justify-content: center; align-items: flex-start; background: #e9edeb; padding: 16px 8px; border-radius: 10px; overflow-x: auto; }
+
+/* the slip itself: black on white, sized in mm so the picture and the print window match the roll */
+.rc-slip { box-sizing: border-box; background: #fff; color: #000; font: 10pt/1.3 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Kannada", sans-serif; padding: 1mm 0 3mm; }
+.rc-slip.small { font-size: 8.5pt; }
+.rc-preview .rc-slip { box-shadow: 0 1px 6px rgba(0, 0, 0, .25); outline: 2mm solid #fff; }
+.rc-shop { text-align: center; display: grid; gap: .3mm; }
+.rc-shop b { font-size: 1.35em; letter-spacing: .02em; }
+.rc-shop span { font-size: .85em; }
+.rc-title { text-align: center; font-weight: 800; letter-spacing: .12em; margin: 2mm 0 1mm; padding: .8mm 0; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; }
+.rc-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0 3mm; font-size: .9em; }
+.rc-party { font-weight: 700; margin-top: 1mm; }
+.rc-rows { margin-top: 1.5mm; border-top: 1px dashed #000; padding-top: 1mm; display: grid; gap: 1mm; }
+.rc-row { display: flex; justify-content: space-between; gap: 2mm; align-items: flex-start; }
+.rc-l { display: grid; min-width: 0; }
+.rc-l span { word-break: break-word; }
+.rc-l small { font-size: .85em; }
+.rc-a { white-space: nowrap; }
+.rc-pre { margin: 1.5mm 0 0; padding-top: 1mm; border-top: 1px dashed #000; font: .9em/1.35 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+.rc-totals { margin-top: 1.5mm; border-top: 1px dashed #000; padding-top: 1mm; display: grid; gap: .5mm; }
+.rc-tot { display: flex; justify-content: space-between; gap: 2mm; }
+.rc-tot.big { font-size: 1.3em; border-top: 1.5px solid #000; padding-top: .8mm; margin-top: .5mm; }
+.rc-notes { margin-top: 1.5mm; font-size: .85em; display: grid; gap: .3mm; }
+.rc-qr { display: flex; justify-content: center; margin-top: 2mm; }
+.rc-qr svg { width: 22mm; height: 22mm; }
+.rc-end { text-align: center; margin-top: 2mm; font-size: .85em; }
+
+/* A4 print button: prints only the chosen part of the page */
+.pa-btn { display: inline-flex; align-items: center; gap: 6px; }
+
+@media print {
+  html.rc-open body > *:not(.rc-portal) { display: none !important; }
+  html.rc-open body * { visibility: visible !important; }
+  html.rc-open body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+  html.rc-open .rc-portal { position: static; background: none; padding: 0; display: block; overflow: visible; }
+  html.rc-open .rc-panel { box-shadow: none; padding: 0; width: auto; display: block; border-radius: 0; }
+  html.rc-open .rc-ctl { display: none !important; }
+  html.rc-open .rc-preview { background: none; padding: 0; display: block; border-radius: 0; }
+  html.rc-open .rc-preview .rc-slip { box-shadow: none; outline: none; }
+
+  html.pa-scope body * { visibility: hidden !important; }
+  html.pa-scope [data-print-area], html.pa-scope [data-print-area] * { visibility: visible !important; }
+  html.pa-scope [data-print-area] { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; margin: 0 !important; box-shadow: none !important; }
+  html.pa-scope .pa-hide, html.pa-scope .pa-btn { display: none !important; }
+}
