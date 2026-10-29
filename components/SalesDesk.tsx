@@ -4,6 +4,7 @@
 // from Item masters (or free-text lines), see the CGST/SGST vs IGST split
 // update live as you type, save it (server allocates the invoice number and
 // re-computes GST authoritatively), and print a clean invoice.
+import PrintButton from "@/components/print/PrintButton";
 import { useEffect, useMemo, useState } from "react";
 import type {
   PurchaseBillDTO,
@@ -572,7 +573,8 @@ export default function SalesDesk({
       )}
 
       {/* Ledger */}
-      <div className="rounded-xl border border-black/10 dark:border-white/10 overflow-x-auto">
+      <div className="flex justify-end -mb-2"><PrintButton area="#pa-sales" label="🖨️ Print sales list" className="rounded border border-black/20 dark:border-white/20 px-3 py-1 text-sm" /></div>
+      <div id="pa-sales" className="rounded-xl border border-black/10 dark:border-white/10 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-left opacity-60 border-b border-black/10 dark:border-white/10">
             <tr>

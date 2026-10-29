@@ -7,7 +7,9 @@
 // set to that paper size). A dedicated thermal ESC/POS driver and saved
 // printer settings are a later step (see roadmap); this covers the common
 // "print / save PDF" need now.
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import ReceiptSheet from "@/components/print/ReceiptSheet";
+import { billReceipt } from "@/lib/receipt";
 import type { SalesInvoiceDTO, BusinessSettingsDTO, PartyDTO } from "@/lib/types";
 
 export default function InvoicePrint({
@@ -21,13 +23,14 @@ export default function InvoicePrint({
   party: PartyDTO | null;
   onClose: () => void;
 }) {
+  const [roll, setRoll] = useState(false);
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !roll) onClose();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, roll]);
 
   const tax = invoice.interState ? invoice.igstInr : invoice.cgstInr + invoice.sgstInr;
 
@@ -48,7 +51,10 @@ export default function InvoicePrint({
               onClick={() => window.print()}
               className="rounded bg-gray-900 text-white px-3 py-1.5 text-sm font-medium"
             >
-              Print / Save PDF
+              Print A4 / Save PDF
+            </button>
+            <button onClick={() => setRoll(true)} className="rounded border px-3 py-1.5 text-sm font-medium" title="Print on the receipt printer (58 / 80 mm roll)">
+              🧾 Roll receipt
             </button>
             <button onClick={onClose} className="rounded border px-3 py-1.5 text-sm">
               Close
@@ -133,6 +139,26 @@ export default function InvoicePrint({
           </p>
         </div>
       </div>
+
+      {roll && (
+        <ReceiptSheet
+          onClose={() => setRoll(false)}
+          doc={billReceipt({
+            title: "TAX INVOICE",
+            no: invoice.invoiceNo,
+            date: invoice.date,
+            party: party?.name || invoice.party?.name || undefined,
+            lines: invoice.lineItems.map((l) => ({ name: l.name, qty: l.qty, unit: l.unit, rateInr: l.rateInr, discountPct: l.discountPct, totalInr: l.lineTotalInr })),
+            subtotalInr: invoice.subtotalInr,
+            cgstInr: invoice.cgstInr,
+            sgstInr: invoice.sgstInr,
+            igstInr: invoice.igstInr,
+            totalInr: invoice.totalInr,
+            paymentMode: invoice.paymentMode,
+            notes: invoice.notes,
+          })}
+        />
+      )}
 
       {/* Print-only: hide everything except the invoice area. */}
       <style>{`

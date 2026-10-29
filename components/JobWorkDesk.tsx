@@ -1,5 +1,8 @@
 "use client";
 
+import PrintButton from "@/components/print/PrintButton";
+import ReceiptSheet from "@/components/print/ReceiptSheet";
+import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
 import React, { useMemo, useState } from "react";
 import type { JobWorkIntakeDTO } from "@/lib/types";
 import {
@@ -54,6 +57,7 @@ export default function JobWorkDesk({
 }) {
   const [entries, setEntries] = useState<JobWorkIntakeDTO[]>(initialEntries);
   const [loading, setLoading] = useState(false);
+  const [rcpt, setRcpt] = useState<ReceiptDoc | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { prefs } = useCustomize();
   const visibleWidgetIds = visibleOrderedIds(JOBWORK_WIDGET_IDS, prefs.widgets.jobwork);
@@ -253,6 +257,7 @@ export default function JobWorkDesk({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
+      {rcpt && <ReceiptSheet doc={rcpt} onClose={() => setRcpt(null)} />}
       {/* Form panel */}
       <div className="rounded-xl border border-black/10 dark:border-white/10 p-4">
         <h2 className="font-semibold mb-3">New intake</h2>
@@ -410,7 +415,8 @@ export default function JobWorkDesk({
           })()}
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-black/10 dark:border-white/10">
+        <div className="flex justify-end -mb-2"><PrintButton area="#pa-jobwork" label="🖨️ Print job-work list" className="rounded border border-black/20 dark:border-white/20 px-3 py-1 text-sm" /></div>
+        <div id="pa-jobwork" className="overflow-x-auto rounded-xl border border-black/10 dark:border-white/10">
           <table className="w-full text-sm">
             <thead className="bg-black/5 dark:bg-white/5 text-left">
               <tr>
@@ -454,6 +460,27 @@ export default function JobWorkDesk({
                             <button type="button" onClick={() => openPayRow(entry)} className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[var(--accent-contrast)]">Pay</button>
                           )}
                           <button type="button" onClick={() => openEditRow(entry)} className="rounded-lg border border-black/15 dark:border-white/20 px-3 py-1.5 text-xs">Edit</button>
+                          <button
+                            type="button"
+                            className="rounded-lg border border-black/15 dark:border-white/20 px-3 py-1.5 text-xs"
+                            onClick={() =>
+                              setRcpt({
+                                title: entry.settled ? "JOB-WORK SETTLED" : "JOB-WORK CHALLAN",
+                                no: entry.id.slice(-6).toUpperCase(),
+                                when: receiptTime(entry.createdAt),
+                                party: entry.customer,
+                                rows: [
+                                  { name: "Seed received for crushing", detail: `Cake: ${entry.cakeOwnership === "SHOP" ? "shop keeps" : "customer takes"}${entry.vehicleNo ? ` · Vehicle ${entry.vehicleNo}` : ""}`, amount: `${entry.seedKg} kg` },
+                                  ...(entry.advanceCustomerInr > 0 ? [{ name: "Advance paid by customer", amount: rupees(entry.advanceCustomerInr) }] : []),
+                                  ...(cansCharge > 0 ? [{ name: "Cans", amount: rupees(cansCharge) }] : []),
+                                ],
+                                totals: entry.settled ? [{ label: "SETTLED", value: rupees(entry.settlementAmountInr ?? 0), strong: true }] : [{ label: "DUE (estimate)", value: rupees(due), strong: true }],
+                                notes: [entry.notes ?? "", "Job work under GST Section 143"].filter(Boolean),
+                              })
+                            }
+                          >
+                            🧾 Receipt
+                          </button>
                         </div>
                       </HoverCard>
                       {entry.advanceCustomerInr > 0 && (

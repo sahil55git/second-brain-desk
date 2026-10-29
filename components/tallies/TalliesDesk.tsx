@@ -4,6 +4,7 @@
 // lib/tallyDesks.ts (the same functions the API uses to store the result);
 // expected figures are fetched from /api/tallies, computed on the server from
 // the books. Saving again for the same desk + day replaces that day's count.
+import PrintButton from "@/components/print/PrintButton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { businessDate } from "@/lib/register";
 import { download, excelBlob, type ExportTable } from "@/lib/exporters";
@@ -207,6 +208,7 @@ export default function TalliesDesk({ initialDate, initialDesk }: { initialDate?
           <div className="hub-m">Count it, compare it with the books, see the gap — for customer stock, seed, cake, packaging, balances and tanks.</div>
         </div>
         <nav className="hub-links">
+          <PrintButton area=".hub" />
           <a className="hub-btn" href="/register">📒 Quick Register</a>
           <a className="hub-btn" href={`/stock?date=${date}`}>📦 Oil stock</a>
           <a className="hub-btn" href={`/cash?date=${date}`}>💵 Cash</a>

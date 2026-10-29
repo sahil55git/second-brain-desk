@@ -5,6 +5,7 @@
 // yield maths is NOT re-implemented: it is computeBarrelYield() from
 // lib/mfgCalculations.ts, the same function the full Manufacturing desk uses,
 // and everything saves through /api/manufacturing so both screens agree.
+import PrintButton from "@/components/print/PrintButton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { businessDate } from "@/lib/register";
 import { OIL_TYPES, YIELD_BAND_LABELS, computeBarrelYield } from "@/lib/mfgCalculations";
@@ -198,6 +199,7 @@ export default function MfgQuick({ startNew = false }: { startNew?: boolean } = 
           <div className="hub-m">Karadi / safflower barrels — start a barrel, enter each step, see the yield.</div>
         </div>
         <nav className="hub-links">
+          <PrintButton area=".hub" />
           <a className="hub-btn" href="/register"><G e="📒" /> Quick Register</a>
           <a className="hub-btn" href="/go"><G e="🔗" /> Quick links</a>
           <a className="hub-btn" href="/tallies"><G e="🧮" /> Tallies</a>

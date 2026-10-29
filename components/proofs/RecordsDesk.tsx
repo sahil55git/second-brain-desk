@@ -5,6 +5,7 @@
 // the register entry it proves. A second tab lists cash that left the
 // counter WITHOUT any proof, which is the check that matters for misuse.
 
+import PrintButton from "@/components/print/PrintButton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PROOF_META, SCAN_FIELDS, isScanKind, type ProofKind } from "@/lib/proofs";
 import { businessDate } from "@/lib/register";
@@ -176,6 +177,7 @@ export default function RecordsDesk() {
           </div>
         </div>
         <nav className="hub-links">
+          <PrintButton area=".hub" />
           <a className="hub-btn" href="/register?open=scan">📸 Scan a slip</a>
           <a className="hub-btn" href="/register">📒 Quick Register</a>
           <a className="hub-btn" href="/reports">📊 Reports</a>
