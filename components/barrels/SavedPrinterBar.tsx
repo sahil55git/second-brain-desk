@@ -19,9 +19,11 @@ interface Props {
   onSave: (name: string) => void;
   onDefault: (id: string) => void;
   onDelete: (id: string) => void;
+  /** link to the printer setup page (left out on that page itself) */
+  setupHref?: string;
 }
 
-export default function SavedPrinterBar({ kind, printers, activeId, defaultId, suggestedName, error, onPick, onSave, onDefault, onDelete }: Props) {
+export default function SavedPrinterBar({ kind, printers, activeId, defaultId, suggestedName, error, onPick, onSave, onDefault, onDelete, setupHref }: Props) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
   const active = printers.find((p) => p.id === activeId);
@@ -58,6 +60,7 @@ export default function SavedPrinterBar({ kind, printers, activeId, defaultId, s
           <button className="bd-linkbtn" onClick={() => setNaming(false)}>Cancel</button>
         </span>
       )}
+      {setupHref && <a className="bd-linkbtn" href={setupHref}>⚙️ Printer setup</a>}
       {error && <span className="bd-err">{error}</span>}
     </div>
   );

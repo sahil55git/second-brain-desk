@@ -40,12 +40,14 @@ interface Props {
   onSave: (p: Partial<SavedPrint>) => void;
   /** called after something was printed or shared (the receiving page uses it to mark labels printed) */
   onDone?: () => void;
+  /** show the link to the printer setup page (off on that page itself) */
+  setupLink?: boolean;
 }
 
 type Msg = { ok: boolean; text: string } | null;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export default function PrintCenter({ kind, size, selector, marginMm = 0, count, label, disabled, name = "print", saved, onSave, onDone }: Props) {
+export default function PrintCenter({ kind, size, selector, marginMm = 0, count, label, disabled, name = "print", saved, onSave, onDone, setupLink = true }: Props) {
   const [mode, setMode] = useState<PrintMode>(printMode(saved.mode));
   const [copies, setCopies] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -464,6 +466,7 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
         onSave={saveCurrent}
         onDefault={(id) => onSave({ book: makeDefault(book, id) })}
         onDelete={deleteSaved}
+        setupHref={setupLink ? `/barrels/fleet/printers?kind=${kind}` : undefined}
       />
       <div className="bd-pc-modes" role="tablist">
         {PRINT_MODES.map((m) => (
