@@ -982,3 +982,61 @@ model LabelTemplate {
 
   @@index([kind, updatedAt])
 }
+
+// ---------------------------------------------------------------------------
+// Employee ledger: one account per person. Credit = what they earned (salary,
+// bonus), debit = what they were paid or had deducted (advance, salary paid,
+// fine). Balance = credit − debit; positive means the shop owes them, negative
+// means they hold an advance. Entries are never hard-deleted: delete = void,
+// with a reason, and every change is kept in EmployeeEvent. Owner-only.
+// ---------------------------------------------------------------------------
+model Employee {
+  id               String   @id @default(cuid())
+  name             String
+  role             String   @default("Staff")
+  phone            String?
+  monthlySalaryInr Float
+  joinDate         String // "YYYY-MM-DD"
+  active           Boolean  @default(true)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  entries EmployeeEntry[]
+  events  EmployeeEvent[]
+}
+
+model EmployeeEntry {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date       String // "YYYY-MM-DD"
+  month      String // "YYYY-MM" the entry belongs to
+  type       String // EARN | BONUS | ADV | PAY | CUT | OPEN
+  creditInr  Float    @default(0)
+  debitInr   Float    @default(0)
+  mode       String? // CASH | UPI | BANK (only for money that really moved)
+  note       String?
+  editNote   String? // "edited: reason"
+  enteredBy  String?
+  voidedAt   DateTime?
+  voidedBy   String?
+  voidReason String?
+  createdAt  DateTime @default(now())
+
+  @@index([employeeId, month])
+  @@index([employeeId, voidedAt])
+}
+
+model EmployeeEvent {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  entryId    String?
+  action     String // CREATE | EDIT_EMPLOYEE | ADD | EDIT | VOID | PAYROLL
+  by         String
+  detail     Json?
+  at         DateTime @default(now())
+
+  @@index([employeeId, at])
+}
