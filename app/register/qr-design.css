@@ -548,3 +548,36 @@ html[data-skin="earth"] .qr .qr-ent.udhaar::before { background: #b5643c; }
 
 html[data-skin] .qr .qr-wbar button { border-color: var(--q-line); background: var(--q-surface-2); color: var(--q-ink); }
 html[data-skin] .qr .qr-win.min { border-color: var(--q-line); }
+
+/* ---------- matte grey looks: graphite / stone / smoke, and the matte finish ---------- */
+html:is([data-skin="graphite"], [data-skin="smoke"]) .qr {
+  --q-surface: #232528; --q-surface-solid: #232528; --q-surface-2: #2b2e32; --q-surface-3: #33363b;
+  --q-line: rgba(255, 255, 255, 0.08); --q-line-2: rgba(255, 255, 255, 0.16);
+  --q-ink: #e8e9eb; --q-soft: #a3a7ad;
+  --q-accent: #d9a441; --q-accent-ink: #1b1406;
+  --q-in: #5fc48d; --q-out: #ee7b7b; --q-jw: #79aee6; --q-oth: #e3a857; --q-tool: #a3a7ad; --q-mfg: #b39ddb; --q-gold: #d9a441;
+  --q-on-tone: #121314;
+  --q-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), 0 8px 18px rgba(0, 0, 0, 0.25);
+  --q-r: 12px;
+}
+html[data-skin="smoke"] .qr {
+  --q-surface: rgba(58, 61, 66, 0.42); --q-surface-solid: #202226; --q-surface-2: rgba(255, 255, 255, 0.05); --q-surface-3: rgba(255, 255, 255, 0.09);
+  --q-accent: #9cc3e6; --q-accent-ink: #0d1620; --q-jw: #9cc3e6;
+  --q-blur: 20px; --q-r: 16px;
+}
+html[data-skin="stone"] .qr {
+  --q-surface: #f1f2f3; --q-surface-solid: #f1f2f3; --q-surface-2: #fafafa; --q-surface-3: #e8e9ea;
+  --q-line: #d9dbdd; --q-line-2: #c8cbce;
+  --q-ink: #1d1f22; --q-soft: #5c6168;
+  --q-accent: #2f6f8f; --q-accent-ink: #ffffff;
+  --q-in: #2f7d4f; --q-out: #b83a3a; --q-jw: #2f6f8f; --q-oth: #a1620f; --q-tool: #4b5158; --q-mfg: #6d4fa8; --q-gold: #a1700f;
+  --q-shadow: 0 1px 0 rgba(20, 22, 26, 0.05), 0 6px 14px rgba(20, 22, 26, 0.06);
+  --q-r: 12px;
+}
+html.matte[data-skin] .qr .qr-tile { box-shadow: none !important; }
+html.matte[data-skin] .qr .qr-tile:hover:not(:disabled) { transform: none; }
+html.matte[data-skin] .qr .qr-tile .ic { background: color-mix(in srgb, var(--t) 16%, transparent) !important; color: var(--t) !important; box-shadow: none !important; }
+html.matte[data-skin] .qr .qr-save { background: var(--t) !important; box-shadow: none !important; }
+html.matte[data-skin] .qr :is(.qr-top, .qr-hero) { box-shadow: var(--q-shadow); }
+html.matte[data-skin] .qr .qr-hero { background: var(--q-surface) !important; }
+html.matte[data-skin] .qr-logo { box-shadow: none !important; }

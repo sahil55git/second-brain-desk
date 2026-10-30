@@ -22,10 +22,18 @@ export type TileStyle = "solid" | "soft" | "outline";
  *   earth — linen paper, flat cream cards, clay and sage, serif numbers (Earth & Clay design)
  *   pastel — lavender colour glass, white pills, tinted cards (Pastel Liquid design)
  *   ink   — dark ink, see-through glass, oil-gold and teal light (Neon Glow / "Mahadev Glass" design)
- * Every skin gives buttons the "liquid glass" finish (shine on top, coloured glow under).
+ *   graphite — dark charcoal grey, solid matte cards, no shine
+ *   stone    — light warm grey, solid matte cards, no shine (daylight)
+ *   smoke    — see-through smoked grey glass, frosted but matte (no shine, no glow)
+ * Skins give buttons the "liquid glass" finish (shine on top, coloured glow under) unless the
+ * finish is matte.
  */
-export type Skin = "none" | "neon" | "frost" | "soft" | "earth" | "pastel" | "ink";
-export const SKINS: readonly Skin[] = ["none", "neon", "frost", "soft", "earth", "pastel", "ink"];
+export type Skin = "none" | "neon" | "frost" | "soft" | "earth" | "pastel" | "ink" | "graphite" | "stone" | "smoke";
+export const SKINS: readonly Skin[] = ["none", "neon", "frost", "soft", "earth", "pastel", "ink", "graphite", "stone", "smoke"];
+/** Glossy = shine and glow on buttons and tiles; matte = flat, no shine, no glow. */
+export type Finish = "gloss" | "matte";
+/** Skins that are light (the rest are dark). */
+export const LIGHT_SKINS: readonly Skin[] = ["soft", "earth", "pastel", "stone"];
 
 export interface CustomTheme {
   bg: string;
@@ -48,6 +56,7 @@ export interface Look {
   motion: "full" | "reduced";
   tileStyle: TileStyle;
   skin: Skin;
+  finish: Finish;
 }
 
 /** The original flat look (kept so the old themes stay exactly as they were). */
@@ -65,6 +74,7 @@ export const CLASSIC_LOOK: Look = {
   motion: "full",
   tileStyle: "solid",
   skin: "none",
+  finish: "gloss",
 };
 
 export const NEON_COLORS: CustomTheme = { bg: "#0a0e24", fg: "#e9edff", card: "#161c42", accent: "#6d8bff" };
@@ -127,6 +137,10 @@ export const THEME_PRESETS: ThemePreset[] = [
   // (E2 Earth & Clay, D2 Pastel Liquid, A "Mahadev Glass" neon glow); the look lives in app/skins.css.
   { key: "earth-clay", label: "Earth & Clay (linen, clay, sage)", mode: "light", accent: "#b5643c", colors: { bg: "#efe7d8", fg: "#2e2a24", card: "#f7f2e7", accent: "#b5643c" }, look: { skin: "earth", font: "earth", radius: 1, panelOpacity: 1, pattern: "none" } },
   { key: "pastel-liquid", label: "Pastel Liquid (colour glass)", mode: "light", accent: "#6d4ae0", colors: { bg: "#f3eefb", fg: "#2a2140", card: "#ffffff", accent: "#6d4ae0" }, look: { skin: "pastel", font: "rounded", radius: 1, panelOpacity: 0.72, pattern: "none" } },
+  // Matte looks: grey, no shine, no glow (Oct 2026).
+  { key: "graphite-matte", label: "Graphite (dark grey, matte)", mode: "dark", accent: "#d9a441", colors: { bg: "#18191b", fg: "#e8e9eb", card: "#232528", accent: "#d9a441" }, look: { skin: "graphite", finish: "matte", font: "inter", radius: 0.9, panelOpacity: 1, pattern: "none" } },
+  { key: "stone-matte", label: "Stone (light grey, matte)", mode: "light", accent: "#2f6f8f", colors: { bg: "#e4e5e6", fg: "#1d1f22", card: "#f1f2f3", accent: "#2f6f8f" }, look: { skin: "stone", finish: "matte", font: "inter", radius: 0.9, panelOpacity: 1, pattern: "none" } },
+  { key: "smoke-glass", label: "Smoke glass (see-through, matte)", mode: "dark", accent: "#9cc3e6", colors: { bg: "#111214", fg: "#ececee", card: "#2a2c30", accent: "#9cc3e6" }, look: { skin: "smoke", finish: "matte", font: "inter", radius: 1.1, panelOpacity: 0.6, pattern: "none" } },
   { key: "neon-glow", label: "Neon Glow (dark ink, oil gold)", mode: "dark", accent: "#f6b73c", colors: { bg: "#070b18", fg: "#eef1fa", card: "#121a33", accent: "#f6b73c" }, look: { skin: "ink", font: "ink", radius: 1, panelOpacity: 0.7, pattern: "none" } },
   { key: "high-contrast", label: "High contrast", mode: "dark", accent: "#ffd400", colors: { bg: "#000000", fg: "#ffffff", card: "#0b0b0b", accent: "#ffd400" }, look: { contrast: "high", tileStyle: "solid" } },
 ];
@@ -226,6 +240,7 @@ export function clampLook(raw: unknown): Look {
     motion: one(r.motion, ["full", "reduced"] as const, "full"),
     tileStyle: one(r.tileStyle, ["solid", "soft", "outline"] as const, "solid"),
     skin: one(r.skin, SKINS, "none"),
+    finish: one(r.finish, ["gloss", "matte"] as const, "gloss"),
   };
 }
 

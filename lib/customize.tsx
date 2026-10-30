@@ -277,6 +277,7 @@ export function CustomizeProvider({ children }: { children: React.ReactNode }) {
       root.classList.toggle("hc", hc);
       root.classList.toggle("reduce-motion", look.motion === "reduced");
       root.classList.toggle("glass", look.panelOpacity < 0.999);
+      root.classList.toggle("matte", look.finish === "matte");
       root.dataset.density = look.density;
       root.dataset.tiles = look.tileStyle;
       root.dataset.pattern = look.pattern;

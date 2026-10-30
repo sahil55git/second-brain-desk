@@ -53,3 +53,18 @@ describe("appearance", () => {
     expect(fontHref("kannada")).toContain("Noto+Sans+Kannada");
   });
 });
+
+describe("matte grey looks", () => {
+  it("graphite, stone and smoke are matte presets with their skin, and finish is checked", async () => {
+    const { THEME_PRESETS, clampLook, SKINS } = await import("../appearance");
+    for (const [k, skin] of [["graphite-matte", "graphite"], ["stone-matte", "stone"], ["smoke-glass", "smoke"]] as const) {
+      const p = THEME_PRESETS.find((x) => x.key === k)!;
+      expect(p.look?.skin).toBe(skin);
+      expect(p.look?.finish).toBe("matte");
+      expect(SKINS).toContain(skin);
+    }
+    expect(clampLook({ finish: "matte" }).finish).toBe("matte");
+    expect(clampLook({ finish: "shiny" }).finish).toBe("gloss");
+    expect(clampLook({}).finish).toBe("gloss");
+  });
+});

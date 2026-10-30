@@ -71,6 +71,7 @@ export default function AppearancePanel() {
     setLook({
       ...(leavingGlass ? { font: CLASSIC_LOOK.font, radius: CLASSIC_LOOK.radius, panelOpacity: CLASSIC_LOOK.panelOpacity } : {}),
       skin: "none",
+      finish: "gloss",
       ...(p.look || {}),
       preset: p.key,
       custom: p.colors || null,
@@ -262,6 +263,16 @@ export default function AppearancePanel() {
         </Row>
         <Row label="Corner roundness">
           <Slider value={look.radius} min={0} max={1.6} step={0.1} onChange={(v) => setLook({ radius: v })} fmt={(v) => (v === 0 ? "Square" : `${Math.round(v * 100)}%`)} />
+        </Row>
+        <Row label="Finish" hint="Glossy: shine and glow on buttons. Matte: flat, calm, no shine (used by the glass looks).">
+          <Seg
+            value={look.finish}
+            options={[
+              { key: "gloss", label: "Glossy" },
+              { key: "matte", label: "Matte" },
+            ]}
+            onChange={(v) => setLook({ finish: v })}
+          />
         </Row>
         <Row label="Register button style">
           <Seg
