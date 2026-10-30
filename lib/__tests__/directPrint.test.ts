@@ -146,3 +146,16 @@ describe("a printer that hangs up while connecting", () => {
     expect(calls).toBe(1);
   });
 });
+
+describe("a USB printer held by the computer's own driver", () => {
+  const err = (name: string, message: string) => Object.assign(new Error(message), { name });
+  it("is recognised, and explained as such instead of as a Bluetooth problem", async () => {
+    const { isUsbHeld, explainError } = await import("../directPrint");
+    const e = err("SecurityError", "Failed to execute 'open' on 'USBDevice': Access denied.");
+    expect(isUsbHeld(e)).toBe(true);
+    expect(isUsbHeld(err("NetworkError", "Unable to claim interface."))).toBe(true);
+    expect(isUsbHeld(err("NotFoundError", "No device selected."))).toBe(false);
+    expect(explainError(e)).toMatch(/holding the USB printer/);
+    expect(explainError(err("NotAllowedError", "Permission denied"), "print")).not.toMatch(/Bluetooth and Location/);
+  });
+});
