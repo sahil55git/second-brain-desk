@@ -32,6 +32,7 @@ export function unifiedLedger(d: BizData, s: DateSpan) {
     out: r.out,
   }));
   const production: LedgerRow[] = (d.mfg || [])
+    .filter((m) => typeof m.date === "string")
     .map((m) => ({ m, day: m.date.slice(0, 10) }))
     .filter(({ day }) => inSpan(day, s))
     .map(({ m, day }) => ({

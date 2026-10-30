@@ -31,9 +31,9 @@ export default function LedgerDesk() {
     setError(null);
     fetch(`/api/reports/hub?from=${from}&to=${to}`)
       .then(async (r) => {
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error || "Could not load the ledger.");
-        return j as BizData;
+        const j = (await r.json().catch(() => ({}))) as { data?: BizData; error?: string };
+        if (!r.ok || !j.data) throw new Error(j.error || "Could not load the ledger.");
+        return j.data;
       })
       .then((j) => live && setData(j))
       .catch((e: Error) => live && setError(e.message));

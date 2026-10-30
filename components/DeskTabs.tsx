@@ -29,6 +29,7 @@ import ExpensesDesk from "./ExpensesDesk";
 import VyaparDesk from "./VyaparDesk";
 import ScaleDashboard from "./ScaleDashboard";
 import LedgerDesk from "./LedgerDesk";
+import ErrorBox from "@/components/ui/ErrorBox";
 import HomeDesk from "./home/HomeDesk";
 import GlobalSearch from "./GlobalSearch";
 import Peekable from "./launcher/Peekable";
@@ -253,7 +254,11 @@ export default function DeskTabs({
           onNavigate={(desk) => open(desk === "mfg" ? "manufacturing" : desk)}
         />
       )}
-      {active === "ledger" && isOwner && <LedgerDesk />}
+      {active === "ledger" && isOwner && (
+        <ErrorBox key="ledger">
+          <LedgerDesk />
+        </ErrorBox>
+      )}
       {active === "vyapar" && isOwner && (
         <VyaparDesk initialSnapshot={initialVyapar} dbConnected={dbConnected} />
       )}
