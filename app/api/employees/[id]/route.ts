@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
-import { balanceOf, isMonth, round2, withRunning } from "@/lib/employeeLedger";
+import { balanceOf, isMonth, MAX_DAILY_WAGE_INR, payTypeOf, round2, withRunning } from "@/lib/employeeLedger";
 import { ENTRY_SELECT, currentMonth, ownerGate, shapeEmployee } from "@/lib/employeeServer";
 
 export const dynamic = "force-dynamic";
@@ -50,10 +50,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (typeof body.name === "string" && body.name.trim()) data.name = body.name.trim().slice(0, 80);
   if (typeof body.role === "string" && body.role.trim()) data.role = body.role.trim().slice(0, 60);
   if ("phone" in body) data.phone = typeof body.phone === "string" && body.phone.trim() ? body.phone.trim().slice(0, 20) : null;
+  if ("payType" in body) data.payType = payTypeOf(body.payType);
   if ("monthlySalaryInr" in body) {
     const s = Number(body.monthlySalaryInr);
-    if (!Number.isFinite(s) || s <= 0 || s > 1_000_000) return NextResponse.json({ error: "Type the monthly salary in rupees." }, { status: 400 });
+    const zeroOk = data.payType === "DAILY" && s === 0;
+    if (!zeroOk && (!Number.isFinite(s) || s <= 0 || s > 1_000_000)) return NextResponse.json({ error: "Type the monthly salary in rupees." }, { status: 400 });
     data.monthlySalaryInr = round2(s);
+  }
+  if ("dailyWageInr" in body) {
+    const d = body.dailyWageInr == null || body.dailyWageInr === "" ? null : Number(body.dailyWageInr);
+    if (d != null && (!Number.isFinite(d) || d <= 0 || d > MAX_DAILY_WAGE_INR)) return NextResponse.json({ error: "Type the daily wage in rupees." }, { status: 400 });
+    data.dailyWageInr = d == null ? null : round2(d);
   }
   if (typeof body.active === "boolean") data.active = body.active;
   if (!Object.keys(data).length) return NextResponse.json({ error: "Nothing to change." }, { status: 400 });
@@ -63,7 +70,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       const old = await tx.employee.findUnique({ where: { id: params.id } });
       if (!old) return null;
       await tx.employee.update({ where: { id: params.id }, data });
-      await tx.employeeEvent.create({ data: { employeeId: params.id, action: "EDIT_EMPLOYEE", by, detail: { from: { name: old.name, role: old.role, monthlySalaryInr: old.monthlySalaryInr, active: old.active }, to: data } as never } });
+      await tx.employeeEvent.create({ data: { employeeId: params.id, action: "EDIT_EMPLOYEE", by, detail: { from: { name: old.name, role: old.role, payType: old.payType, monthlySalaryInr: old.monthlySalaryInr, dailyWageInr: old.dailyWageInr, active: old.active }, to: data } as never } });
       return true;
     })
   );

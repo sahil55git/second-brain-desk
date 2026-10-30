@@ -35,7 +35,7 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "pigmee", icon: "🏦", title: "Pigmee / bank", kn: "ಪಿಗ್ಮಿ", desc: "Cash to bank, not an expense", href: "/register?open=pigmee", group: "entry" },
   { id: "draw", icon: "🧔", title: "Owner draw", kn: "ಮಾಲೀಕ ತೆಗೆದದ್ದು", desc: "Cash taken by owner", href: "/register?open=draw", group: "entry" },
   { id: "barrels", icon: "🛢️", title: "Barrel receiving", kn: "ಬ್ಯಾರಲ್ ಸ್ವೀಕಾರ", desc: "Label, weigh full & empty, check the oil", href: "/barrels", group: "entry" },
-  { id: "employees", icon: "👷", title: "Employee ledger", kn: "ನೌಕರರ ಖಾತೆ", desc: "Salary, advances, payments, balance of each person", href: "/employees", group: "entry", ownerOnly: true },
+  { id: "employees", icon: "👷", title: "Employee ledger", kn: "ನೌಕರರ ಖಾತೆ", desc: "Salary, daily wages, advances, payments, balance of each person", href: "/employees", group: "entry", ownerOnly: true },
   { id: "fleet", icon: "🛢️", title: "Our barrels", kn: "ನಮ್ಮ ಬ್ಯಾರಲ್‌ಗಳು", desc: "Our own barrels: tare, weigh, where each one is", href: "/barrels/fleet", group: "entry" },
   { id: "smart", icon: "✨", title: "Smart entry (register)", kn: "ಸ್ಮಾರ್ಟ್ ದಾಖಲೆ", desc: "Say / photo → register form filled", href: "/register?open=smart", group: "entry" },
   { id: "scan", icon: "📸", title: "Scan slip / bill", kn: "ಚೀಟಿ / ಬಿಲ್ ಸ್ಕ್ಯಾನ್", desc: "Weighbridge, weighing slip, bill, receipt", href: "/register?open=scan", group: "entry" },

@@ -4,7 +4,7 @@
 // Chrome's own print window. The list is built by a pure function so it can be tested; detect() does
 // the looking in the browser and never opens a chooser or a permission prompt.
 import type { PrintMode } from "@/lib/printHelper";
-import { defaultPrinter, printersFor, type PrintKind, type PrinterBook, type SavedPrinter } from "@/lib/savedPrinters";
+import { defaultPrinter, makeDefault, printersFor, savePrinter, type PrintKind, type PrinterBook, type SavedPrinter } from "@/lib/savedPrinters";
 
 export type OptionSource = "saved" | "usb" | "bluetooth" | "helper" | "queue" | "share" | "window";
 
@@ -160,4 +160,35 @@ export async function detect(opts: { helperCode?: string; askQueue?: boolean }):
   // the same USB printer can show up twice (two interfaces): keep one
   const seen = new Set<string>();
   return { usb: usb.filter((u) => (seen.has(u.deviceId) ? false : (seen.add(u.deviceId), true))), bluetooth, helper, queue };
+}
+
+// ---------------------------------------------------------------------------
+// One-click set-up finished: save the helper's printers as this device's defaults
+// ---------------------------------------------------------------------------
+const NOT_A_SHOP_PRINTER = /pdf|xps|onenote|fax|send to|document writer/i;
+
+/**
+ * The print helper has just started with the printers installed on this PC. Save the label printer and
+ * the receipt printer it found as "PC helper" printers and make them the defaults, so Print on the
+ * label pages and on the slip pages goes straight to them with no window. Returns the book and the
+ * saved printer per kind (none when no printer suits that kind).
+ */
+export function bookWithHelper(book: PrinterBook, printers: string[]): { book: PrinterBook; picks: Partial<Record<PrintKind, SavedPrinter>> } {
+  const real = printers.filter((p) => p && !NOT_A_SHOP_PRINTER.test(p));
+  const picks: Partial<Record<PrintKind, SavedPrinter>> = {};
+  let b = book;
+  const label = real.find((p) => suitsKind(p, "label"));
+  const slip = real.find((p) => p !== label && suitsKind(p, "slip")) ?? real.find((p) => p !== label && !suitsKind(p, "label"));
+  const want: [PrintKind, string | undefined][] = [["label", label ?? (real.length === 1 ? real[0] : undefined)], ["slip", slip]];
+  for (const [k, pn] of want) {
+    if (!pn) continue;
+    try {
+      const r = savePrinter(b, { name: pn.slice(0, 34), for: k, mode: "helper", helper: pn });
+      b = makeDefault(r.book, r.saved.id);
+      picks[k] = r.saved;
+    } catch {
+      /* the device has 12 printers saved already */
+    }
+  }
+  return { book: b, picks };
 }

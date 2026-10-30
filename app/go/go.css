@@ -14,3 +14,75 @@
 .go-copy { position: absolute; bottom: 4px; right: 6px; font-size: 11px; font-weight: 700; background: rgba(0,0,0,.28); border: none; color: #fff; border-radius: 999px; padding: 2px 8px; cursor: pointer; }
 .go-help { font-size: 14px; line-height: 1.45; }
 .go-help li { margin: 4px 0; }
+.go-cell { position: relative; }
+.go-paint { position: absolute; top: 4px; left: 6px; font-size: 15px; background: rgba(0,0,0,.28); border: none; color: #fff; border-radius: 999px; width: 30px; height: 30px; cursor: pointer; }
+.go-tile .ic-img { width: 46px; height: 46px; object-fit: contain; border-radius: 10px; display: block; }
+
+/* ---- size ---- */
+.go-grid[data-size="s"] { grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 8px; }
+.go-grid[data-size="s"] .go-tile { min-height: 80px; padding: 10px 6px; }
+.go-grid[data-size="s"] .go-tile .ic { font-size: 26px; }
+.go-grid[data-size="s"] .go-tile .ic-img { width: 34px; height: 34px; }
+.go-grid[data-size="s"] .go-tile .t { font-size: 14px; }
+.go-grid[data-size="l"] { grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 14px; }
+.go-grid[data-size="l"] .go-tile { min-height: 140px; padding: 18px 12px; }
+.go-grid[data-size="l"] .go-tile .ic { font-size: 46px; }
+.go-grid[data-size="l"] .go-tile .ic-img { width: 60px; height: 60px; }
+.go-grid[data-size="l"] .go-tile .t { font-size: 19px; }
+
+/* ---- shape (beats the theme's own rounding) ---- */
+html .go-grid[data-shape="square"] .go-tile { border-radius: 4px; }
+html .go-grid[data-shape="pill"] .go-tile { border-radius: 999px; padding-left: 18px; padding-right: 18px; }
+html .go-grid[data-shape="leaf"] .go-tile { border-radius: 30px 6px 30px 6px; }
+html .go-grid[data-shape="circle"] .go-tile { border-radius: 50%; aspect-ratio: 1; padding: 12%; min-height: 0; }
+.go-grid[data-shape="circle"] .go-tile .d { display: none; }
+.go-grid[data-shape="circle"] .go-cell .go-copy { bottom: -4px; }
+
+/* ---- style: chosen styles replace the theme's tile look (beats the glossy and matte theme rules) ---- */
+html .go-grid[data-look][data-style] .go-tile { text-shadow: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html .go-grid[data-look][data-style="solid"] .go-tile {
+  background: color-mix(in srgb, var(--go-c) calc(var(--go-a, 1) * 100%), transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--go-c) 80%, #000) !important; box-shadow: none !important; color: var(--go-t, #fff) !important;
+}
+html .go-grid[data-look][data-style="glass"] .go-tile {
+  background: linear-gradient(180deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,.04) 55%), color-mix(in srgb, var(--go-c) calc(var(--go-a, 1) * 100%), transparent) !important;
+  border: 1px solid rgba(255,255,255,.35) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 10px 24px -14px var(--go-c) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3); color: #fff !important; text-shadow: 0 1px 2px rgba(0,0,0,.35) !important;
+}
+html .go-grid[data-look][data-style="soft"] .go-tile {
+  background: color-mix(in srgb, var(--go-c) calc(var(--go-a, 1) * 22%), var(--background, #fff)) !important;
+  border: 1px solid color-mix(in srgb, var(--go-c) 40%, transparent) !important; box-shadow: none !important;
+  color: color-mix(in srgb, var(--go-c) 70%, var(--foreground, #111)) !important;
+}
+html .go-grid[data-look][data-style="outline"] .go-tile {
+  background: color-mix(in srgb, var(--go-c) calc(var(--go-a, 1) * 10%), transparent) !important;
+  border: 2px solid var(--go-c) !important; box-shadow: none !important; color: var(--foreground, inherit) !important;
+}
+
+/* ---- the Tile look panel and the one-tile editor ---- */
+.go-panel { display: grid; gap: 10px; }
+.go-panel-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.go-panel-h h3 { margin: 0; font-size: 17px; }
+.go-prow { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px; align-items: start; }
+.go-prow > b { padding-top: 6px; font-size: 14px; }
+@media (max-width: 560px) { .go-prow { grid-template-columns: 1fr; } .go-prow > b { padding-top: 0; } }
+.go-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.go-chip { border: 1px solid var(--h-line); background: var(--h-card); color: inherit; border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; min-height: 36px; }
+.go-chip.on { background: var(--h-acc); border-color: var(--h-acc); color: #fff; }
+.go-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.go-range { display: flex; align-items: center; gap: 10px; }
+.go-range input { flex: 1 1 auto; max-width: 320px; }
+.go-swatches { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.go-sw { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--h-line); cursor: pointer; padding: 0; position: relative; }
+.go-sw.on { outline: 3px solid var(--h-acc); outline-offset: 2px; }
+.go-sw.none { width: auto; border-radius: 999px; padding: 0 12px; background: var(--h-card); color: inherit; font-size: 13px; font-weight: 600; }
+.go-sw.pick { display: inline-flex; align-items: center; justify-content: center; background: var(--h-card); overflow: hidden; }
+.go-sw.pick input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.go-groups { display: grid; gap: 4px; margin-top: 6px; }
+.go-group > summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 4px 0; }
+.go-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: -2px; }
+.go-modalback { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.45); display: grid; place-items: center; padding: 16px; }
+.go-modal { width: min(460px, 100%); max-height: calc(100vh - 32px); overflow: auto; display: grid; gap: 12px; margin: 0; }
+.go-field { display: grid; gap: 4px; font-size: 14px; font-weight: 600; }
+.go-field input:not([type]) , .go-field input[type="text"] { font-weight: 400; }
+.go-logo-prev { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; background: rgba(127,127,127,.15); }

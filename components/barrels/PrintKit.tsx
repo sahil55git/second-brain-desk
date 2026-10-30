@@ -30,6 +30,8 @@ export interface SavedPrint {
   qlast?: { label?: string; slip?: string };
   /** USB printers this browser cannot open because the computer's own driver holds them (they print through the print window) */
   usbHeld?: string[];
+  /** when one-click printing was set up from this device (the page waits for the helper to start) */
+  hsetup?: number;
 }
 
 /** Remembered on this device only (printer name, type, last sizes). Works without storage. */

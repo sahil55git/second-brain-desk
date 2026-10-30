@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PaperSize } from "@/lib/printSizes";
 import type { SavedPrint } from "@/components/barrels/PrintKit";
 import {
-  KIOSK_TARGETS, PRINT_MODES, ago, buildHelperJob, chunkItems, cleanPairingCode, clampCopies, fetchQueue, helperPrinters, isTouchDeviceUA, jobAction, kioskBat, pairingCodeOk,
+  HELPER_SETUP_FILE, KIOSK_TARGETS, PRINT_MODES, ago, buildHelperJob, chunkItems, cleanPairingCode, clampCopies, fetchQueue, helperPrinters, helperSetupBat, isTouchDeviceUA, jobAction, kioskBat, newPairingCode, pairingCodeOk,
   pictureName, pingHelper, printMode, queueJob, sendToHelper, stripDataUrl, type HelperPing, type KioskTarget, type PrintMode, type QueueState,
 } from "@/lib/printHelper";
 import { canCancel, canReprint, statusText } from "@/lib/printQueue";
@@ -21,7 +21,7 @@ import {
 } from "@/lib/directPrint";
 import SavedPrinterBar from "@/components/barrels/SavedPrinterBar";
 import { makeDefault, patchPrinter, printersFor, readBook, removePrinter, savePrinter, type SavedPrinter } from "@/lib/savedPrinters";
-import { buildOptions, detect, nameForNew, nothingDetected, pickInitial, type Detected, type PrinterOption } from "@/lib/printerDetect";
+import { bookWithHelper, buildOptions, detect, nameForNew, nothingDetected, pickInitial, type Detected, type PrinterOption } from "@/lib/printerDetect";
 import { PRINTER_LANGS, buildJob, mmToDots, testPattern } from "@/lib/printerLang";
 import { rasterize } from "@/lib/rasterize";
 
@@ -146,6 +146,55 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
       document.removeEventListener("visibilitychange", vis);
     };
   }, [look]);
+  // one-click printing is being set up on this PC: look for the helper every few seconds (for 10 minutes)
+  const setupOn = !!saved.hsetup && Date.now() - saved.hsetup < 10 * 60_000;
+  useEffect(() => {
+    if (!setupOn) return;
+    const t = setInterval(() => void look(), 3000);
+    return () => clearInterval(t);
+  }, [setupOn, look]);
+  // the helper answered with this PC's printers: save the label and receipt printers as the defaults
+  useEffect(() => {
+    if (!setupOn || !found.helper?.running || !found.helper.printers.length) return;
+    const s = savedRef.current;
+    const { book: b, picks } = bookWithHelper(readBook(s.book), found.helper.printers);
+    const mineNow = picks[kind];
+    onSave({
+      hsetup: undefined,
+      book: b,
+      mode: mineNow ? "helper" : s.mode,
+      qlast: { ...s.qlast, ...(picks.label ? { label: `saved:${picks.label.id}` } : {}), ...(picks.slip ? { slip: `saved:${picks.slip.id}` } : {}) },
+      ...(picks.label ? { hlabel: picks.label.helper } : {}),
+      ...(picks.slip ? { hslip: picks.slip.helper } : {}),
+    });
+    if (mineNow) setPicked(`saved:${mineNow.id}`);
+    const names = [picks.label && `labels → ${picks.label.name}`, picks.slip && `slips → ${picks.slip.name}`].filter(Boolean).join(", ");
+    setMsg(
+      mineNow
+        ? { ok: true, text: `⚡ One-click printing is ready (${names}). Print now prints at the exact paper size, straight to the printer, with no print window. The helper also starts by itself with Windows.` }
+        : { ok: false, text: `The helper is running, but none of this PC's printers (${found.helper.printers.join(", ")}) looks like a ${kind === "label" ? "label" : "receipt"} printer. Choose it in Print to: the printers marked "via PC helper".` },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [found, setupOn]);
+  const setupOneClick = () => {
+    const code = newPairingCode();
+    let bat = "";
+    try {
+      bat = helperSetupBat(origin, code);
+    } catch {
+      setMsg({ ok: false, text: "This page's address cannot be used for the set-up file." });
+      return;
+    }
+    onSave({ hcode: code, hsetup: Date.now() });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([bat], { type: "application/octet-stream" }));
+    a.download = HELPER_SETUP_FILE;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    setMsg({ ok: true, text: `Downloaded ${HELPER_SETUP_FILE}. Open it from Downloads (if Windows says it protected your PC: More info → Run anyway). Keep this page open: it finds the printer by itself and switches Print to one-click.` });
+  };
   useEffect(() => {
     if (!menu) return;
     const close = (e: MouseEvent) => menuRef.current && !menuRef.current.contains(e.target as Node) && setMenu(false);
@@ -619,6 +668,7 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   };
 
+  const paperName = size.h == null ? `${size.w}mm` : `${size.w}x${size.h}`;
   const dimText = size.id === "a4" ? "A4" : size.h == null ? `${size.w} mm roll` : `${size.w} × ${size.h} mm`;
   const tNow = targetFor(chosen);
   const showCopies = tNow.mode !== "window" && tNow.mode !== "share";
@@ -679,11 +729,37 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
             <button type="button" className="bd-btn" onClick={() => setCopies((c) => clampCopies(c + 1))} aria-label="One copy more">＋</button>
           </div>
         )}
+        <span className="bd-qp-size" title="Paper size">📐 {dimText}</span>
         <button type="button" className="bd-btn primary bd-qp-go" onClick={() => void quickPrint()} disabled={disabled || busy}>{goText}</button>
       </div>
-      {tNow.mode === "window" && (
+      {tNow.mode === "window" && touch && (
         <div className="bd-m small">
           Chrome&apos;s window opens: choose the printer and paper <b>{dimText}</b>, Margins <b>None</b>, Scale <b>100%</b>. To print with no window, pick a printer marked <b>found</b> above, or add one with <b>＋ USB / Bluetooth printer</b>.
+        </div>
+      )}
+      {tNow.mode === "window" && !touch && (
+        <div className="bd-oc">
+          <div className="bd-oc-t">
+            <b>⚡ One-click printing for staff</b>
+            <span>Press Print and the {kind} comes out at exactly {dimText}. No print window, no paper size to choose. Set it up once on the PC the printer is plugged into.</span>
+          </div>
+          <div className="bd-row">
+            <button type="button" className="bd-btn primary" onClick={setupOneClick} disabled={busy}>{setupOn ? "⬇️ Download the set-up file again" : "⚡ Set up one-click printing on this PC"}</button>
+            {setupOn && <span className="bd-m small"><span className="bd-dot" aria-hidden /> Waiting for the helper to start… open <b>{HELPER_SETUP_FILE}</b> from Downloads.</span>}
+            {setupOn && <button type="button" className="bd-linkbtn" onClick={() => onSave({ hsetup: undefined })}>Stop waiting</button>}
+          </div>
+          <details className="bd-oc-why">
+            <summary>Using Chrome&apos;s print window? How to get {kind === "label" ? "1 label on 1 sheet" : "the right size"} at {dimText}</summary>
+            <p>
+              Chrome can only use the paper sizes the printer&apos;s driver lists. If <b>{dimText}</b> is not in <b>More settings → Paper size</b>, Chrome picks a smaller paper and the printer cuts each {kind} into pieces: one {kind} comes out on 2 or 3 sheets, mostly blank. Add the size to the printer once:
+            </p>
+            <ol>
+              <li>Windows <b>Settings → Bluetooth &amp; devices → Printers &amp; scanners</b> → your printer (e.g. H30C Thermal Printer) → <b>Printing preferences</b>.</li>
+              <li>Open <b>Page Setup</b> (or <b>Paper / Stock</b>) → <b>New…</b> (or <b>User defined</b>). Name <b>{paperName}</b>, width <b>{size.w} mm</b>{size.h != null && <>, height <b>{size.h} mm</b></>}, gap as on your roll. <b>OK</b>, select it, <b>Apply</b>.</li>
+              <li>Press Print here. In Chrome: Destination your printer, <b>More settings → Paper size {paperName}</b>, Margins <b>None</b>, Scale <b>Default</b>, Headers and footers <b>off</b>. Chrome remembers these next time.</li>
+            </ol>
+            <p className="bd-m small">One-click printing above needs none of this: the helper sets the paper size on the printer itself for every {kind}.</p>
+          </details>
         </div>
       )}
       {prog && <div className="bd-m small">{prog}</div>}
