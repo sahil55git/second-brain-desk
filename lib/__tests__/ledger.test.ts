@@ -35,3 +35,11 @@ describe("unified ledger", () => {
     expect(l.totalIn).toBe(0);
   });
 });
+
+describe("ledger with a batch that has no date", () => {
+  it("skips it instead of crashing", () => {
+    const d = { sales: [], purchases: [], expenses: [], register: [], jobWork: [], closings: [], items: [], mfg: [{ id: "x", date: null, barrel: "1", productItem: "Karadi", mill: null }] };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(unifiedLedger(d as any, { from: "2026-10-01", to: "2026-10-30" }).rows).toEqual([]);
+  });
+});
