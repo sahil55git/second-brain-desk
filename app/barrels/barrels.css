@@ -636,3 +636,18 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
 .dz-thumb { background: #fff; box-shadow: 0 1px 6px rgba(0, 0, 0, .25); overflow: hidden; margin-bottom: 4px; }
 .dz-thumb.roll { overflow: hidden; }
 @media (max-width: 560px) { .dz-gal-grid { grid-template-columns: 1fr 1fr; } .dz-popgrid { grid-template-columns: 1fr; } }
+
+/* employee ledger: daily wages */
+.emp-wages { display: grid; gap: 6px; margin-top: 8px; }
+.emp-wrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 10px; border: 1px solid var(--sk-line, rgba(127, 127, 127, .28)); border-radius: calc(12px * var(--ui-r, 1)); background: var(--sk-card2, rgba(127, 127, 127, .06)); }
+.emp-wrow.on { border-color: var(--accent, #1d5fa8); }
+.emp-wrow.done { opacity: .75; }
+.emp-wwho { display: grid; min-width: 130px; flex: 1 1 140px; line-height: 1.2; }
+.emp-wwho small { opacity: .7; font-size: 12px; }
+.emp-wdays { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.emp-wdays .bd-chip { cursor: pointer; min-height: 36px; padding: 4px 12px; }
+.emp-wrate { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.emp-wamt { min-width: 80px; text-align: right; font-weight: 800; font-size: 17px; font-variant-numeric: tabular-nums; }
+.emp-wdone { font-weight: 600; opacity: .85; }
+.emp-wfoot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--sk-line, rgba(127, 127, 127, .28)); }
+.emp-wtot { margin-left: auto; font-size: 15px; }

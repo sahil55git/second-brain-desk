@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
 import { businessDate } from "@/lib/register";
-import { balanceOf, earnedForDays, isMonth, MONTH_DAYS, monthLabel, payrollNet } from "@/lib/employeeLedger";
+import { balanceOf, dailyMonth, earnedForDays, isMonth, MONTH_DAYS, monthLabel, payrollNet, payTypeOf } from "@/lib/employeeLedger";
 import { currentMonth, ownerGate } from "@/lib/employeeServer";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,10 @@ async function load(month: string) {
     const posted = e.entries.some((l) => l.month === month && l.type === "EARN");
     // Carried = everything except this month's own salary line (an advance is negative).
     const carried = balanceOf(e.entries.filter((l) => !(l.month === month && l.type === "EARN")));
-    return { id: e.id, name: e.name, role: e.role, monthlySalaryInr: e.monthlySalaryInr, posted, carriedInr: carried };
+    const payType = payTypeOf(e.payType);
+    const dm = dailyMonth(e.entries, month);
+    // a daily-wage person earns day by day: month-end only pays what is still owed
+    return { id: e.id, name: e.name, role: e.role, monthlySalaryInr: e.monthlySalaryInr, payType, dailyWageInr: e.dailyWageInr ?? null, wageDays: dm.days, wageEarnedInr: dm.earnedInr, balanceInr: balanceOf(e.entries), posted, carriedInr: carried };
   });
 }
 
@@ -55,6 +58,7 @@ export async function POST(req: NextRequest) {
     for (const row of rows) {
       const e = info.get(row.employeeId);
       if (!e) { skipped.push({ employeeId: row.employeeId, reason: "not found or not active" }); continue; }
+      if (e.payType === "DAILY") { skipped.push({ employeeId: e.id, reason: "paid by the day: use Pay what is owed" }); continue; }
       if (e.posted) { skipped.push({ employeeId: e.id, reason: `${monthLabel(month)} salary is already posted` }); continue; }
       const days = Number(row.days);
       if (!Number.isFinite(days) || days < 0 || days > 31) { skipped.push({ employeeId: e.id, reason: "days present must be 0 to 31" }); continue; }

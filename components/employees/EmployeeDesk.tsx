@@ -3,6 +3,7 @@
 // Employee ledger (/employees): one account per person.
 //   Staff        — a card per person with the balance (who owes whom)
 //   Ledger       — one person, one month: credit (earned), debit (paid), running balance
+//   Daily wages  — people paid by the day: mark who worked today (full / half day), paid now or later
 //   Month-end    — days present → earned, advance taken off, net payable, post and pay
 //   Report       — every balance, print and Excel
 // Credit = earned, debit = paid or deducted. Positive balance: the shop owes the person.
@@ -12,24 +13,29 @@ import { api, L, rs } from "@/components/barrels/shared";
 import { Dropdown, MenuBtn, MenuHead } from "@/components/barrels/Menus";
 import { printArea } from "@/components/print/PrintButton";
 import { downloadText } from "@/components/barrels/fleet/types";
-import { ENTRY_TYPES, earnedForDays, ledgerCsv, monthLabel, payrollNet, TYPE_LABEL, type EntryType } from "@/lib/employeeLedger";
+import { ENTRY_TYPES, daysText, earnedForDays, ledgerCsv, monthLabel, payrollNet, TYPE_LABEL, wageAmount, type EntryType, type PayType } from "@/lib/employeeLedger";
 
 interface Emp {
   id: string; name: string; role: string; phone: string | null; monthlySalaryInr: number; joinDate: string; active: boolean;
+  payType: PayType; dailyWageInr: number | null; wageDaysThisMonth: number;
   balanceInr: number; creditInr: number; debitInr: number; earnedThisMonthInr: number; earnPostedThisMonth: boolean;
   last: { date: string; type: string; amountInr: number } | null;
 }
 interface Row { id: string; date: string; month: string; type: EntryType; creditInr: number; debitInr: number; mode: string | null; note: string | null; editNote: string | null; enteredBy: string | null; balanceInr: number }
 interface Ev { id: string; action: string; by: string; at: string; entryId: string | null; detail: Record<string, unknown> | null }
 interface LedgerData { month: string; employee: Emp; openingInr: number; creditInr: number; debitInr: number; closingInr: number; rows: Row[]; months: string[]; events: Ev[] }
-interface PayRow { id: string; name: string; role: string; monthlySalaryInr: number; posted: boolean; carriedInr: number }
+interface PayRow { id: string; name: string; role: string; monthlySalaryInr: number; payType: PayType; dailyWageInr: number | null; wageDays: number; wageEarnedInr: number; balanceInr: number; posted: boolean; carriedInr: number }
 
-type Tab = "staff" | "ledger" | "pay" | "report";
+type Tab = "staff" | "ledger" | "wages" | "pay" | "report";
 const abs = (n: number) => rs(Math.abs(n));
 const balText = (n: number) => (n === 0 ? "₹0" : abs(n));
 const balLabel = (n: number) => (n > 0 ? "We owe" : n < 0 ? "Advance with him" : "Settled");
 const balCls = (n: number) => (n > 0 ? "o" : n < 0 ? "g" : "");
 const dmy = (d: string) => d.split("-").reverse().join("-");
+/** About one month of pay (a daily-wage person: 26 working days), for the "advance too big" flag. */
+const monthPay = (e: { payType: PayType; monthlySalaryInr: number; dailyWageInr: number | null }) => (e.payType === "DAILY" ? (e.dailyWageInr ?? 0) * 26 : e.monthlySalaryInr);
+/** "₹15,000 a month" or "₹600 a day" */
+const payText = (e: { payType: PayType; monthlySalaryInr: number; dailyWageInr: number | null }) => (e.payType === "DAILY" ? `${rs(e.dailyWageInr ?? 0)} a day` : `${rs(e.monthlySalaryInr)} a month`);
 
 export default function EmployeeDesk() {
   const [tab, setTab] = useState<Tab>("staff");
@@ -40,6 +46,7 @@ export default function EmployeeDesk() {
   const [who, setWho] = useState<string | null>(null);
   const [adding, setAdding] = useState<{ emp: string; type?: string } | null>(null);
   const [newEmp, setNewEmp] = useState(false);
+  const [editEmp, setEditEmp] = useState<Emp | null>(null);
 
   const loadList = useCallback(async () => {
     try {
@@ -61,7 +68,7 @@ export default function EmployeeDesk() {
   const cost = active.reduce((a, e) => a + e.earnedThisMonthInr, 0);
   const forbidden = err?.includes("owner only");
 
-  const tabs: [Tab, string, string, string][] = [["staff", "👥", "Staff", "ಸಿಬ್ಬಂದಿ"], ["ledger", "📒", "Ledger", "ಖಾತೆ"], ["pay", "🗓️", "Month-end salary", "ಸಂಬಳ"], ["report", "📊", "Report", "ವರದಿ"]];
+  const tabs: [Tab, string, string, string][] = [["staff", "👥", "Staff", "ಸಿಬ್ಬಂದಿ"], ["ledger", "📒", "Ledger", "ಖಾತೆ"], ["wages", "🧑‍🏭", "Daily wages", "ದಿನಗೂಲಿ"], ["pay", "🗓️", "Month-end salary", "ಸಂಬಳ"], ["report", "📊", "Report", "ವರದಿ"]];
 
   return (
     <div className="bd-wrap" style={{ maxWidth: 1100 }}>
@@ -104,17 +111,23 @@ export default function EmployeeDesk() {
                     <div className="bd-row bd-gap">
                       <b style={{ fontSize: 17 }}>{e.name}</b>
                       <span className="bd-m small">{e.role}</span>
+                      {e.payType === "DAILY" && <span className="bd-chip">Daily wage</span>}
                       {!e.active && <span className="bd-chip">Left</span>}
                       <span className={`bd-chip ${balCls(e.balanceInr)}`} style={{ marginLeft: "auto" }}>{balLabel(e.balanceInr)}</span>
                     </div>
                     <div className="bd-kpis">
-                      <div className="bd-kpi"><div className="l">Monthly salary</div><div className="v">{rs(e.monthlySalaryInr)}</div></div>
+                      {e.payType === "DAILY" ? (
+                        <div className="bd-kpi"><div className="l">Daily wage · {daysText(e.wageDaysThisMonth || 0).replace(/^0 days?$/, "0 days")} this month</div><div className="v">{rs(e.dailyWageInr ?? 0)}</div></div>
+                      ) : (
+                        <div className="bd-kpi"><div className="l">Monthly salary</div><div className="v">{rs(e.monthlySalaryInr)}</div></div>
+                      )}
                       <div className={`bd-kpi ${balCls(e.balanceInr)}`}><div className="l">{balLabel(e.balanceInr)}</div><div className="v">{balText(e.balanceInr)}</div></div>
                     </div>
                     <div className="bd-m small">{e.last ? `Last: ${dmy(e.last.date)} · ${TYPE_LABEL[e.last.type as EntryType] ?? e.last.type} ${rs(e.last.amountInr)}` : "No entries yet"}</div>
                     <div className="bd-row">
                       <button className="bd-btn" onClick={() => { setWho(e.id); setTab("ledger"); }}>📒 Open ledger</button>
                       <button className="bd-btn primary" disabled={!e.active} onClick={() => { setWho(e.id); setAdding({ emp: e.id }); }}>＋ Entry</button>
+                      <button className="bd-btn" onClick={() => setEditEmp(e)} aria-label={`Edit ${e.name}`}>✎</button>
                     </div>
                   </div>
                 ))}
@@ -125,6 +138,7 @@ export default function EmployeeDesk() {
           {tab === "ledger" && emps && (
             <LedgerView emps={emps} who={who ?? emps[0]?.id ?? null} setWho={setWho} month={month} setMonth={setMonth} onAdd={(emp, type) => setAdding({ emp, type })} onChanged={() => loadList()} flash={flash} />
           )}
+          {tab === "wages" && emps && <WagesView onDone={(t) => { loadList(); flash(t); }} onNew={() => setNewEmp(true)} />}
           {tab === "pay" && emps && <PayView month={month ?? ""} setMonth={setMonth} onDone={(t) => { loadList(); flash(t); }} />}
           {tab === "report" && emps && <ReportView emps={emps} />}
         </>
@@ -134,6 +148,7 @@ export default function EmployeeDesk() {
         <EntryModal emps={emps} init={adding} onClose={() => setAdding(null)} onSaved={(emp) => { setAdding(null); setWho(emp); setTab("ledger"); loadList(); flash("Saved ✓"); }} />
       )}
       {newEmp && <NewEmpModal onClose={() => setNewEmp(false)} onSaved={() => { setNewEmp(false); loadList(); flash("Employee added ✓"); }} />}
+      {editEmp && <NewEmpModal edit={editEmp} onClose={() => setEditEmp(null)} onSaved={() => { setEditEmp(null); loadList(); flash("Saved ✓"); }} />}
     </div>
   );
 }
@@ -184,7 +199,7 @@ function LedgerView({ emps, who, setWho, month, setMonth, onAdd, onChanged, flas
       {err && <div className="bd-err">{err}</div>}
       {e && d && (
         <>
-          <h2 style={{ margin: "4px 0" }}>{e.name} <span className="bd-m small">· {e.role} · {rs(e.monthlySalaryInr)} a month · joined {dmy(e.joinDate)}</span></h2>
+          <h2 style={{ margin: "4px 0" }}>{e.name} <span className="bd-m small">· {e.role} · {payText(e)} · joined {dmy(e.joinDate)}</span></h2>
           <div className="bd-m small">Statement for {monthLabel(d.month)}</div>
           <div className="bd-kpis">
             <div className="bd-kpi"><div className="l">Opening balance</div><div className="v">{d.openingInr < 0 ? "−" : ""}{balText(d.openingInr)}</div></div>
@@ -274,6 +289,18 @@ function PayView({ month, setMonth, onDone }: { month: string; setMonth: (m: str
       setBusy(null);
     }
   };
+  const payOwed = async (r: PayRow) => {
+    setBusy(r.id);
+    try {
+      await api(`/api/employees/${r.id}/entries`, { method: "POST", json: { type: "PAY", amountInr: r.balanceInr, mode: mode[r.id] || "CASH", note: `Wages paid, ${mlabel}` } });
+      onDone(`${r.name}: ${rs(r.balanceInr)} wages paid ✓`);
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not save.");
+    } finally {
+      setBusy(null);
+    }
+  };
   const [y, m] = month ? month.split("-").map(Number) : [0, 0];
   const shift = (n: number) => { const dt = new Date(Date.UTC(y, m - 1 + n, 1)); setMonth(`${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}`); };
   return (
@@ -289,7 +316,7 @@ function PayView({ month, setMonth, onDone }: { month: string; setMonth: (m: str
         <table className="bd-table">
           <thead><tr><th>Person</th><th className="num">Salary</th><th>Days</th><th className="num">Earned</th><th className="num">Carried (− advance)</th><th className="num">Net payable</th><th>Paid by</th><th /></tr></thead>
           <tbody>
-            {(rows ?? []).map((r) => {
+            {(rows ?? []).filter((r) => r.payType !== "DAILY").map((r) => {
               const c = calc(r);
               return (
                 <tr key={r.id}>
@@ -311,6 +338,34 @@ function PayView({ month, setMonth, onDone }: { month: string; setMonth: (m: str
           </tbody>
         </table>
       </div>
+      {(rows ?? []).some((r) => r.payType === "DAILY") && (
+        <>
+          <h3 style={{ margin: "10px 0 4px" }}>🧑‍🏭 Paid by the day</h3>
+          <div className="bd-m small">Their wages go in day by day (Daily wages tab). Here you pay whatever is still owed.</div>
+          <div className="bd-tablewrap">
+            <table className="bd-table">
+              <thead><tr><th>Person</th><th className="num">Daily wage</th><th className="num">Days this month</th><th className="num">Earned this month</th><th className="num">Still owed</th><th>Paid by</th><th /></tr></thead>
+              <tbody>
+                {(rows ?? []).filter((r) => r.payType === "DAILY").map((r) => (
+                  <tr key={r.id}>
+                    <td><b>{r.name}</b><div className="bd-m tiny">{r.role}</div></td>
+                    <td className="num">{rs(r.dailyWageInr ?? 0)}</td>
+                    <td className="num">{r.wageDays}</td>
+                    <td className="num">{rs(r.wageEarnedInr)}</td>
+                    <td className="num"><b>{r.balanceInr > 0 ? rs(r.balanceInr) : "—"}</b>{r.balanceInr < 0 && <div className="bd-m tiny">advance {abs(r.balanceInr)}</div>}</td>
+                    <td>
+                      <select value={mode[r.id] ?? "CASH"} disabled={r.balanceInr <= 0} onChange={(e) => setMode({ ...mode, [r.id]: e.target.value })} aria-label="Paid by">
+                        <option value="CASH">Cash</option><option value="UPI">UPI</option><option value="BANK">Bank</option>
+                      </select>
+                    </td>
+                    <td>{r.balanceInr > 0 ? <button className="bd-btn primary" disabled={busy === r.id} onClick={() => payOwed(r)}>{busy === r.id ? "…" : `Pay ${rs(r.balanceInr)} ▸`}</button> : <span className="bd-chip g">Nothing owed</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
       <div className="bd-m small">“Post and pay” writes “salary earned” and, if something is payable, “salary paid” into that person&apos;s ledger. Once per person per month. This ledger is separate from the Cash tally: type cash salary in the Cash tally&apos;s Salary line too, as before.</div>
     </div>
   );
@@ -318,7 +373,7 @@ function PayView({ month, setMonth, onDone }: { month: string; setMonth: (m: str
 
 // ---------------------------------------------------------------------------
 function ReportView({ emps }: { emps: Emp[] }) {
-  const csv = () => downloadText("employee-balances.csv", "﻿" + ["Employee,Role,Monthly salary,Earned (total),Paid (total),Balance", ...emps.map((e) => [e.name, e.role, e.monthlySalaryInr, e.creditInr, e.debitInr, e.balanceInr].join(","))].join("\r\n"));
+  const csv = () => downloadText("employee-balances.csv", "﻿" + ["Employee,Role,Pay,Earned (total),Paid (total),Balance", ...emps.map((e) => [e.name, e.role, payText(e).replace(/,/g, ""), e.creditInr, e.debitInr, e.balanceInr].join(","))].join("\r\n"));
   return (
     <div className="bd-card" id="emp-report">
       <div className="bd-row bd-gap">
@@ -336,16 +391,16 @@ function ReportView({ emps }: { emps: Emp[] }) {
       </div>
       <div className="bd-tablewrap">
         <table className="bd-table">
-          <thead><tr><th>Person</th><th className="num">Salary</th><th className="num">Earned</th><th className="num">Paid</th><th className="num">Balance</th><th /></tr></thead>
+          <thead><tr><th>Person</th><th className="num">Pay</th><th className="num">Earned</th><th className="num">Paid</th><th className="num">Balance</th><th /></tr></thead>
           <tbody>
             {emps.map((e) => (
-              <tr key={e.id} className={e.balanceInr < 0 && -e.balanceInr > e.monthlySalaryInr ? "alert" : ""}>
+              <tr key={e.id} className={e.balanceInr < 0 && -e.balanceInr > monthPay(e) ? "alert" : ""}>
                 <td><b>{e.name}</b>{!e.active && <span className="bd-m tiny"> · left</span>}<div className="bd-m tiny">{e.role}</div></td>
-                <td className="num">{rs(e.monthlySalaryInr)}</td>
+                <td className="num">{payText(e)}</td>
                 <td className="num">{rs(e.creditInr)}</td>
                 <td className="num">{rs(e.debitInr)}</td>
                 <td className="num"><b>{e.balanceInr < 0 ? "−" : ""}{balText(e.balanceInr)}</b></td>
-                <td>{e.balanceInr > 0 ? "we owe" : e.balanceInr < 0 ? (-e.balanceInr > e.monthlySalaryInr ? "🚩 advance above one month's salary" : "advance") : "settled"}</td>
+                <td>{e.balanceInr > 0 ? "we owe" : e.balanceInr < 0 ? (-e.balanceInr > monthPay(e) ? "🚩 advance above one month's pay" : "advance") : "settled"}</td>
               </tr>
             ))}
           </tbody>
@@ -442,15 +497,27 @@ function FixModal({ empId, fix, onClose, onDone }: { empId: string; fix: { row: 
   );
 }
 
-function NewEmpModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [f, setF] = useState({ name: "", role: "", sal: "", open: "" });
+function NewEmpModal({ edit, onClose, onSaved }: { edit?: Emp; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState({
+    name: edit?.name ?? "",
+    role: edit?.role ?? "",
+    pay: (edit?.payType ?? "MONTHLY") as PayType,
+    sal: edit && edit.monthlySalaryInr ? String(edit.monthlySalaryInr) : "",
+    day: edit?.dailyWageInr ? String(edit.dailyWageInr) : "",
+    open: "",
+    active: edit?.active ?? true,
+  });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const daily = f.pay === "DAILY";
+  const okPay = daily ? Number(f.day) > 0 : Number(f.sal) > 0;
   const save = async () => {
     setBusy(true);
     setErr(null);
     try {
-      await api("/api/employees", { method: "POST", json: { name: f.name, role: f.role, monthlySalaryInr: Number(f.sal), openingBalanceInr: Number(f.open) || 0 } });
+      const pay = daily ? { payType: "DAILY", dailyWageInr: Number(f.day), ...(edit ? { monthlySalaryInr: 0 } : {}) } : { payType: "MONTHLY", monthlySalaryInr: Number(f.sal) };
+      if (edit) await api(`/api/employees/${edit.id}`, { method: "PATCH", json: { name: f.name, role: f.role, active: f.active, ...pay } });
+      else await api("/api/employees", { method: "POST", json: { name: f.name, role: f.role, ...pay, openingBalanceInr: Number(f.open) || 0 } });
       onSaved();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not save.");
@@ -459,13 +526,125 @@ function NewEmpModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
     }
   };
   return (
-    <Modal title="New employee" onClose={() => !busy && onClose()}>
+    <Modal title={edit ? `Edit ${edit.name}` : "New employee"} onClose={() => !busy && onClose()}>
       <label>Name<input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoFocus /></label>
-      <label>Work (counter, crushing, driver…)<input value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} /></label>
-      <label>Monthly salary (₹)<input inputMode="numeric" value={f.sal} onChange={(e) => setF({ ...f, sal: e.target.value })} /></label>
-      <label>Opening balance (₹, optional) — an advance already given is a minus number<input inputMode="numeric" value={f.open} onChange={(e) => setF({ ...f, open: e.target.value })} placeholder="0" /></label>
+      <label>Work (counter, crushing, hamali, driver…)<input value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} /></label>
+      <div className="bd-row" role="radiogroup" aria-label="How this person is paid">
+        <button type="button" role="radio" aria-checked={!daily} className={`bd-chip${!daily ? " on" : ""}`} style={{ cursor: "pointer" }} onClick={() => setF({ ...f, pay: "MONTHLY" })}>📅 Monthly salary</button>
+        <button type="button" role="radio" aria-checked={daily} className={`bd-chip${daily ? " on" : ""}`} style={{ cursor: "pointer" }} onClick={() => setF({ ...f, pay: "DAILY" })}>🧑‍🏭 Daily wage (ದಿನಗೂಲಿ)</button>
+      </div>
+      {daily ? (
+        <label>Wage for one full day (₹)<input inputMode="numeric" value={f.day} onChange={(e) => setF({ ...f, day: e.target.value })} placeholder="e.g. 600" /></label>
+      ) : (
+        <label>Monthly salary (₹)<input inputMode="numeric" value={f.sal} onChange={(e) => setF({ ...f, sal: e.target.value })} /></label>
+      )}
+      {!edit && <label>Opening balance (₹, optional) — an advance already given is a minus number<input inputMode="numeric" value={f.open} onChange={(e) => setF({ ...f, open: e.target.value })} placeholder="0" /></label>}
+      {edit && <label className="bd-row" style={{ gap: 8 }}><input type="checkbox" checked={!f.active} onChange={(e) => setF({ ...f, active: !e.target.checked })} style={{ width: "auto" }} /> Has left (keeps the ledger, hides from new entries)</label>}
       {err && <div className="bd-err">{err}</div>}
-      <div className="bd-row"><button className="bd-btn" disabled={busy} onClick={onClose}>Cancel</button><button className="bd-btn primary" disabled={busy || !f.name.trim() || !(Number(f.sal) > 0)} onClick={save}>{busy ? "…" : "Add employee"}</button></div>
+      <div className="bd-row"><button className="bd-btn" disabled={busy} onClick={onClose}>Cancel</button><button className="bd-btn primary" disabled={busy || !f.name.trim() || !okPay} onClick={save}>{busy ? "…" : edit ? "Save" : "Add employee"}</button></div>
     </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+interface WageRow { id: string; name: string; role: string; payType: PayType; dailyWageInr: number | null; balanceInr: number; entered: { days: number; amountInr: number } | null }
+const DAY_CHOICES: [number, string][] = [[1, "Full day"], [0.5, "Half day"], [0, "Absent"]];
+
+function WagesView({ onDone, onNew }: { onDone: (t: string) => void; onNew: () => void }) {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const [date, setDate] = useState(today);
+  const [rows, setRows] = useState<WageRow[] | null>(null);
+  const [days, setDays] = useState<Record<string, string>>({});
+  const [rate, setRate] = useState<Record<string, string>>({});
+  const [paid, setPaid] = useState(true);
+  const [mode, setMode] = useState("CASH");
+  const [also, setAlso] = useState<string[]>([]); // monthly staff who did a paid extra day
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    try {
+      const j = await api<{ date: string; data: WageRow[] }>(`/api/employees/wages?date=${date}`);
+      setRows(j.data);
+      setErr(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not load.");
+    }
+  }, [date]);
+  useEffect(() => { setDays({}); setRate({}); load(); }, [load]);
+  const daily = (rows ?? []).filter((r) => r.payType === "DAILY" || also.includes(r.id));
+  const others = (rows ?? []).filter((r) => r.payType !== "DAILY" && !also.includes(r.id));
+  const dOf = (r: WageRow) => (r.entered ? 0 : Number(days[r.id] ?? (r.payType === "DAILY" ? 1 : 0)));
+  const rOf = (r: WageRow) => Number(rate[r.id] ?? r.dailyWageInr ?? 0);
+  const todo = daily.filter((r) => !r.entered && dOf(r) > 0);
+  const total = todo.reduce((a, r) => a + wageAmount(dOf(r), rOf(r)), 0);
+  const missingRate = todo.some((r) => !(rOf(r) > 0));
+  const save = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const j = await api<{ done: { name: string }[]; skipped: { name?: string; reason: string }[] }>("/api/employees/wages", { method: "POST", json: { date, rows: todo.map((r) => ({ employeeId: r.id, days: dOf(r), rateInr: rOf(r), paidNow: paid, mode })) } });
+      onDone(`Wages for ${dmy(date)} saved for ${j.done.length} ${j.done.length === 1 ? "person" : "people"}${paid ? " and marked paid" : ""} ✓${j.skipped.length ? ` · skipped: ${j.skipped.map((x) => `${x.name ?? "?"} (${x.reason})`).join(", ")}` : ""}`);
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not save.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="bd-card">
+      <div className="bd-row bd-gap">
+        <h2 style={{ margin: 0 }}>🧑‍🏭 <L en="Daily wages" kn="ದಿನಗೂಲಿ" /></h2>
+        <label className="bd-row" style={{ gap: 6, marginLeft: "auto" }}>Day <input type="date" value={date} max={today} onChange={(e) => e.target.value && setDate(e.target.value)} /></label>
+      </div>
+      <div className="bd-m small">Tap who worked: full day, half day or absent. Wage = days × daily wage. Saving twice never doubles a day.</div>
+      {err && <div className="bd-err">{err}</div>}
+      {rows === null && <div className="bd-m">Loading…</div>}
+      {rows && daily.length === 0 && (
+        <div className="bd-m">No one is paid by the day yet. <button className="bd-linkbtn" onClick={onNew}>＋ Add a daily-wage worker</button> or edit a person (✎ on the Staff tab) and choose Daily wage.</div>
+      )}
+      <div className="emp-wages">
+        {daily.map((r) => {
+          const d = dOf(r);
+          return (
+            <div key={r.id} className={`emp-wrow${r.entered ? " done" : d > 0 ? " on" : ""}`}>
+              <div className="emp-wwho"><b>{r.name}</b><small>{r.role}{r.payType !== "DAILY" ? " · extra day" : ""}</small></div>
+              {r.entered ? (
+                <div className="emp-wdone">✓ Entered: {daysText(r.entered.days)} · {rs(r.entered.amountInr)}</div>
+              ) : (
+                <>
+                  <div className="emp-wdays" role="radiogroup" aria-label={`Days worked by ${r.name}`}>
+                    {DAY_CHOICES.map(([n, t]) => (
+                      <button key={n} type="button" role="radio" aria-checked={d === n} className={`bd-chip${d === n ? " on" : ""}`} onClick={() => setDays({ ...days, [r.id]: String(n) })}>{t}</button>
+                    ))}
+                    <input className="bd-n" inputMode="decimal" aria-label={`Days for ${r.name}`} value={days[r.id] ?? String(d)} onChange={(e) => setDays({ ...days, [r.id]: e.target.value })} style={{ width: 56 }} />
+                  </div>
+                  <label className="emp-wrate">₹/day<input inputMode="numeric" value={rate[r.id] ?? String(r.dailyWageInr ?? "")} onChange={(e) => setRate({ ...rate, [r.id]: e.target.value })} style={{ width: 80 }} /></label>
+                  <div className="emp-wamt">{d > 0 ? rs(wageAmount(d, rOf(r))) : "—"}</div>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {others.length > 0 && (
+        <details className="bd-m small" style={{ marginTop: 6 }}>
+          <summary>＋ A monthly-salary person also worked a paid extra day</summary>
+          <div className="bd-row" style={{ marginTop: 6 }}>
+            {others.map((r) => <button key={r.id} className="bd-btn" onClick={() => { setAlso([...also, r.id]); setDays({ ...days, [r.id]: "1" }); }}>{r.name}</button>)}
+          </div>
+        </details>
+      )}
+      {daily.length > 0 && (
+        <div className="emp-wfoot">
+          <label className="bd-row" style={{ gap: 6 }}><input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} style={{ width: "auto" }} /> Paid today</label>
+          {paid && <select value={mode} onChange={(e) => setMode(e.target.value)} aria-label="Paid by"><option value="CASH">Cash</option><option value="UPI">UPI</option><option value="BANK">Bank</option></select>}
+          <span className="emp-wtot">{todo.length} {todo.length === 1 ? "person" : "people"} · <b>{rs(total)}</b></span>
+          <button className="bd-btn primary" disabled={busy || !todo.length || missingRate} onClick={save}>{busy ? "…" : `Save wages for ${dmy(date)}`}</button>
+        </div>
+      )}
+      {missingRate && <div className="bd-err">Type the daily wage for everyone marked as worked.</div>}
+      <div className="bd-m small">{paid ? "Paid today: each wage is entered as earned and paid, so the balance does not change." : "Not paid yet: the wages add to what you owe; pay it later from Month-end salary or ＋ Entry."} Type cash wages in the Cash tally&apos;s Salary line too, as before.</div>
+    </div>
   );
 }
