@@ -568,6 +568,16 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
   .bd-qp-go { flex: 1 1 auto; }
 }
 .bd-qp .bd-dot { flex: 0 0 auto; }
+.bd-qp-size { display: inline-flex; align-items: center; padding: 0 12px; min-height: 48px; border-radius: 10px; background: #eef3f1; color: #1d2422; font-weight: 700; font-size: 14px; white-space: nowrap; }
+/* one-click printing for staff (shown when Print goes through Chrome's window) */
+.bd-oc { display: grid; gap: 8px; padding: 10px 12px; border: 1.5px solid #e2b23c; border-radius: 12px; background: #fff8e6; color: #2a2414; }
+.bd-oc-t { display: grid; gap: 2px; }
+.bd-oc-t b { font-size: 15px; }
+.bd-oc-t span { font-size: 13px; color: #5a4e2e; }
+.bd-oc .bd-row { align-items: center; }
+.bd-oc-why > summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.bd-oc-why p, .bd-oc-why ol { margin: 6px 0; font-size: 13px; line-height: 1.45; }
+.bd-oc-why ol { padding-left: 22px; display: grid; gap: 4px; list-style: decimal; }
 
 /* barrel labels page: 1 What to print · 2 Print */
 .bd-lp { gap: 10px; max-width: 1100px; }
