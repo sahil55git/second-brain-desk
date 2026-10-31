@@ -321,3 +321,16 @@ html[data-skin="earth"] .hm-stat.dark .hm-spark { --sp: #e9c79a; }
   html.has-pnav .qr .qr-toast { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
 }
 @media print { .pnav, .pnav-fab { display: none !important; } }
+
+/* Home: barrel receiving shortcut cards */
+.hm-actions { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+.hm-act { display: flex; align-items: center; gap: 12px; padding: 14px 16px; text-decoration: none; color: inherit; min-height: 72px; }
+.hm-act .ic { font-size: 30px; line-height: 1; }
+.hm-act .tx { display: grid; gap: 2px; min-width: 0; }
+.hm-act .tx b { font-size: 16px; }
+.hm-act .tx small { font-size: 12.5px; opacity: .75; }
+.hm-act.main { border: 1.5px solid var(--accent, #d97706) !important; }
+.hm-act.main .tx b { font-size: 18px; }
+.hm-act .go { margin-left: auto; font-size: 22px; font-weight: 800; color: var(--accent, #d97706); }
+.hm-act:hover { transform: translateY(-1px); }
+@media (max-width: 760px) { .hm-actions { grid-template-columns: 1fr 1fr; } .hm-act.main { grid-column: 1 / -1; } }

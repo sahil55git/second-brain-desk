@@ -106,7 +106,12 @@ export default function HomeDesk({ onNavigate }: { onNavigate: Go }) {
   if (error) return <div className="hm-note">{error}</div>;
   if (!s || !r || !sp) return <div className={`hm hm-loading hm-${skin === "earth" || skin === "pastel" ? skin : "glass"}`} aria-busy="true"><div className="hm-skel" /><div className="hm-skel" /><div className="hm-skel" /></div>;
 
-  const bar = <RangeBar r={r} s={s} range={range} onRange={pickRange} go={onNavigate} />;
+  const bar = (
+    <>
+      <RangeBar r={r} s={s} range={range} onRange={pickRange} go={onNavigate} />
+      <HomeActions />
+    </>
+  );
   if (skin === "earth") return <Earth s={s} r={r} sp={sp} bar={bar} go={onNavigate} />;
   if (skin === "pastel") return <Pastel s={s} r={r} sp={sp} bar={bar} go={onNavigate} name={name} nowMs={nowMs} />;
   return <Glass s={s} r={r} sp={sp} bar={bar} go={onNavigate} name={name} nowMs={nowMs} />;
@@ -139,6 +144,27 @@ function RangeBar({ r, s, range, onRange, go }: { r: RangeSummary; s: HomeSummar
         {r.creditGiven > 0 && <span className="g-chip ud">Udhaar given {inr(r.creditGiven)}</span>}
       </div>
     </div>
+  );
+}
+
+/** Big shortcut cards on the home page: barrel weighing, straight to the full-barrel weight. */
+function HomeActions() {
+  return (
+    <nav className="hm-actions hm-rise" aria-label="Barrel receiving">
+      <a className="hm-card hm-act main" href="/barrels?weigh=full">
+        <span className="ic" aria-hidden>🛢️</span>
+        <span className="tx"><b>Barrel receiving</b><small>Weigh a FULL barrel · ತುಂಬಿದ ಬ್ಯಾರಲ್ ತೂಕ</small></span>
+        <span className="go" aria-hidden>→</span>
+      </a>
+      <a className="hm-card hm-act" href="/barrels?weigh=empty">
+        <span className="ic" aria-hidden>⚖️</span>
+        <span className="tx"><b>Weigh EMPTY barrel</b><small>after pouring · ಖಾಲಿ ತೂಕ</small></span>
+      </a>
+      <a className="hm-card hm-act" href="/barrels?simple=1">
+        <span className="ic" aria-hidden>👷</span>
+        <span className="tx"><b>Simple mode for staff</b><small>only weighing, big buttons · ಸರಳ</small></span>
+      </a>
+    </nav>
   );
 }
 

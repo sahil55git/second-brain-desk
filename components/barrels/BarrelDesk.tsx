@@ -39,6 +39,26 @@ export default function BarrelDesk() {
   const [view, setView] = useState<View>({ t: "home" });
   const [showClosed, setShowClosed] = useState(false);
   const [preset, setPreset] = useState<string | null>(null);
+  // /barrels?weigh=empty opens on the empty weight (the home page card opens ?weigh=full)
+  const [startPhase] = useState<"GROSS" | "EMPTY">(() => (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("weigh") === "empty" ? "EMPTY" : "GROSS"));
+  // Simple mode: only what a manager or worker needs to weigh barrels. ?simple=1 / ?simple=0 in the
+  // link, else the choice made on this device, else simple for staff and full for the owner.
+  const [simplePick, setSimplePick] = useState<boolean | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("simple");
+    if (q === "1" || q === "0") return setSimplePick(q === "1");
+    try {
+      const v = localStorage.getItem(SIMPLE_KEY);
+      if (v === "1" || v === "0") setSimplePick(v === "1");
+    } catch { /* no storage: decided by role */ }
+  }, []);
+  const simple = simplePick ?? (!loading && !isOwner);
+  const setSimple = (v: boolean) => {
+    setSimplePick(v);
+    try { localStorage.setItem(SIMPLE_KEY, v ? "1" : "0"); } catch { /* still works this visit */ }
+    setView({ t: "home" });
+    window.scrollTo({ top: 0 });
+  };
 
   const load = useCallback(async () => {
     try {
@@ -80,6 +100,24 @@ export default function BarrelDesk() {
   const current = view.t === "lot" ? lots.find((l) => l.id === view.id) : undefined;
   const home = () => { setView({ t: "home" }); load(); };
   const entry = () => { setView({ t: "entry" }); load(); };
+  if (simple) {
+    return (
+      <SimpleDesk
+        lots={lots}
+        isOwner={isOwner}
+        err={err}
+        preset={preset}
+        startPhase={startPhase}
+        setPreset={setPreset}
+        view={view}
+        setView={setView}
+        replaceLot={replaceLot}
+        current={current}
+        loading={loading}
+        full={() => setSimple(false)}
+      />
+    );
+  }
   const tab = view.t === "register" ? "register" : view.t === "home" ? "home" : view.t === "dashboard" ? "dashboard" : view.t === "entry" || view.t === "new" || view.t === "lot" ? "entry" : null;
 
   return (
@@ -97,6 +135,9 @@ export default function BarrelDesk() {
             🛢️ <L en="Barrel receiving" kn="ಬ್ಯಾರಲ್ ಸ್ವೀಕಾರ" />
           </h1>
         </div>
+        <button className="bd-btn" onClick={() => setSimple(true)} title="Only weighing: fewer tabs and columns, for the manager and workers">
+          👷 <L en="Simple mode" kn="ಸರಳ" />
+        </button>
         {view.t === "entry" && (
           <button className="bd-btn primary big" onClick={() => setView({ t: "new" })}>
             ➕ <L en="New lot" kn="ಹೊಸ ಲೋಡ್" />
@@ -128,7 +169,7 @@ export default function BarrelDesk() {
       {view.t === "home" && (
         <>
           <FlowSteps lots={lots} goEntry={entry} />
-          <WeighPanel lots={lots} isOwner={isOwner} presetCode={preset} onSaved={replaceLot} />
+          <WeighPanel lots={lots} isOwner={isOwner} presetCode={preset} onSaved={replaceLot} startPhase={startPhase} />
           <Waiting
             lots={lots}
             weigh={(code) => {
@@ -187,6 +228,85 @@ export default function BarrelDesk() {
           That lot is not in the list (it may be closed). <button className="bd-linkbtn" onClick={entry}>Back</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Simple mode: weigh full, weigh empty, the barrels waiting. Nothing else.
+// ---------------------------------------------------------------------------
+const SIMPLE_KEY = "bd-barrels-simple";
+
+function SimpleDesk({ lots, isOwner, err, preset, startPhase, setPreset, view, setView, replaceLot, current, loading, full }: {
+  lots: Lot[]; isOwner: boolean; err: string | null; preset: string | null; startPhase: "GROSS" | "EMPTY";
+  setPreset: (c: string) => void; view: View; setView: (v: View) => void; replaceLot: (l: Lot) => void; current: Lot | undefined; loading: boolean; full: () => void;
+}) {
+  const open = lots.filter((l) => l.status === "OPEN");
+  const n = open.reduce((a, l) => a + l.barrels.length, 0);
+  const fullDone = open.reduce((a, l) => a + l.barrels.filter((b) => b.grossKg != null).length, 0);
+  const emptyDone = open.reduce((a, l) => a + l.barrels.filter((b) => b.emptyKg != null).length, 0);
+  const back = () => setView({ t: "home" });
+  return (
+    <div className="bd-wrap bd-simple">
+      <header className="bd-top bd-noprint">
+        <div>
+          <a href="/" className="bd-m small">← Home</a>
+          <h1>🛢️ <L en="Weigh barrels" kn="ಬ್ಯಾರಲ್ ತೂಕ" /></h1>
+        </div>
+        <button className="bd-btn" onClick={full} title="Every tab: lots, dashboard, report">
+          ☰ <L en="Full view" kn="ಪೂರ್ಣ" />
+        </button>
+      </header>
+      {err && <div className="bd-err">{err}</div>}
+
+      {view.t === "new" ? (
+        <NewLot onCancel={back} onCreated={(l) => { replaceLot(l); setView({ t: "lot", id: l.id }); }} />
+      ) : view.t === "lot" && current ? (
+        <>
+          <button className="bd-btn" onClick={back}>← <L en="Back to weighing" kn="ತೂಕಕ್ಕೆ ಹಿಂತಿರುಗಿ" /></button>
+          <LotView lot={current} lots={lots} isOwner={isOwner} onChange={replaceLot} onBack={back} openBarrel={(code) => { setPreset(code); back(); }} />
+        </>
+      ) : (
+        <>
+          <div className="bd-simple-stat" aria-live="polite">
+            <span>⚖️ <b>{fullDone}/{n}</b> <L en="weighed full" kn="ತುಂಬಿದ ತೂಕ" /></span>
+            <span>🛢️ <b>{emptyDone}/{n}</b> <L en="weighed empty" kn="ಖಾಲಿ ತೂಕ" /></span>
+            {loading && <span className="bd-m">Loading…</span>}
+          </div>
+          <WeighPanel lots={lots} isOwner={isOwner} presetCode={preset} onSaved={replaceLot} startPhase={startPhase} />
+          <SimpleWaiting lots={lots} weigh={(code) => { setPreset(code); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+          <div className="bd-row bd-noprint">
+            <button className="bd-btn big" onClick={() => setView({ t: "new" })}>🚚 <L en="New vehicle arrived" kn="ಹೊಸ ವಾಹನ ಬಂದಿದೆ" /></button>
+            {open.length > 0 && (
+              <Dropdown label={<>🏷️ <L en="Labels of a lot ▾" kn="ಲೇಬಲ್" /></>} className="bd-btn big" width={280}>
+                {(close) => open.map((l) => <MenuBtn key={l.id} onClick={() => { close(); setView({ t: "lot", id: l.id }); }}>{l.lotNo} · {l.supplierName}</MenuBtn>)}
+              </Dropdown>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Barrels weighed full and not yet emptied: big rows with one button each. */
+function SimpleWaiting({ lots, weigh }: { lots: Lot[]; weigh: (code: string) => void }) {
+  const rows = useMemo(() => registerRows(lots as unknown as ShapedReceipt[], Date.now()).filter((r) => r.state === "FULL" && r.lotStatus === "OPEN"), [lots]);
+  if (!rows.length) return null;
+  const sorted = [...rows].sort((a, b) => (b.waitingDays ?? 0) - (a.waitingDays ?? 0));
+  return (
+    <div className="bd-card">
+      <h3>⏳ {rows.length} <L en="waiting to be emptied" kn="ಖಾಲಿ ಮಾಡಲು ಬಾಕಿ" /></h3>
+      <div className="bd-simple-list">
+        {sorted.map((r) => (
+          <button key={r.code} className={`bd-simple-item${(r.waitingDays ?? 0) >= 30 ? " warn" : ""}`} onClick={() => weigh(r.code)}>
+            <b>{r.code}</b>
+            <span>{r.product}</span>
+            <small>{r.waitingDays} day(s)</small>
+            <span className="go">⚖️ <L en="Weigh empty" kn="ಖಾಲಿ ತೂಕ" /></span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
