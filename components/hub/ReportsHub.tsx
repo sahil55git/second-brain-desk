@@ -4,6 +4,7 @@
 // the pure functions in lib/bizReports.ts over data loaded from
 // /api/reports/hub, so tabs, ranges and CSV downloads need no extra calls.
 
+import ShareButton from "@/components/share/ShareButton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   attentionList,
@@ -683,6 +684,7 @@ export default function ReportsHub() {
           <a className="hub-btn" href="/appearance">🎨 Appearance</a>
           <button className="hub-btn" onClick={load}>⟳ Refresh</button>
           <button className="hub-btn" onClick={() => window.print()}>🖨️ Print</button>
+          <ShareButton area=".hub" title="Reports" />
         </nav>
       </header>
 

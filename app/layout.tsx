@@ -9,6 +9,7 @@ import { ScaleProvider } from "@/components/ScaleProvider";
 import AccessProvider from "@/components/AccessProvider";
 import PhoneNav from "@/components/PhoneNav";
 import LauncherProvider from "@/components/launcher/LauncherProvider";
+import NavDock from "@/components/nav/NavDock";
 
 export const metadata: Metadata = {
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
@@ -40,6 +41,7 @@ export default function RootLayout({
             <ScaleProvider>
               <CustomizeProvider>
                 <LauncherProvider>
+                  <NavDock />
                   {children}
                   <PhoneNav />
                 </LauncherProvider>

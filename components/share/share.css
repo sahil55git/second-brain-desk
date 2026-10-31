@@ -1,0 +1,13 @@
+/* Share menu (components/share/ShareButton.tsx): follows the app's light / dark colours */
+.sh-menu { position: fixed; z-index: 9500; width: 260px; max-height: min(420px, calc(100vh - 16px)); overflow: auto; display: grid; gap: 2px; padding: 8px; background: var(--ui-card, #fff); color: var(--foreground, #1d2422); border: 1px solid var(--ui-line, rgba(127,127,127,.3)); border-radius: 14px; box-shadow: 0 14px 40px rgba(0,0,0,.28); font-size: 14px; }
+.sh-h { font-weight: 800; font-size: 13px; opacity: .7; padding: 2px 6px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.sh-i { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 9px 8px; min-height: 42px; border: none; border-radius: 9px; background: none; color: inherit; font: inherit; text-decoration: none; cursor: pointer; }
+.sh-i:hover, .sh-i:focus-visible { background: color-mix(in srgb, var(--accent, #1d5fa8) 14%, transparent); outline: none; }
+.sh-i:disabled { opacity: .5; }
+.sh-i span { display: grid; line-height: 1.2; }
+.sh-i small { font-size: 11.5px; opacity: .65; }
+.sh-i.main { background: color-mix(in srgb, var(--accent, #1d5fa8) 16%, transparent); font-weight: 700; }
+.sh-sep { height: 1px; background: var(--ui-line, rgba(127,127,127,.3)); margin: 4px 2px; }
+.sh-toast { position: fixed; z-index: 9600; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: #1d2422; color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: calc(100vw - 32px); }
+@media print { .sh-btn, .sh-menu, .sh-toast { display: none !important; } }

@@ -4,6 +4,7 @@
 // selector), on A4 unless told otherwise, through the browser's print window (pick the printer there,
 // or "Save as PDF"). Buttons and anything marked .pa-hide inside the area are left out.
 import "./print.css";
+import ShareButton from "@/components/share/ShareButton";
 
 export function printArea(area?: string, paper: "a4" | "a4-landscape" | "auto" = "a4") {
   const el = area ? document.querySelector<HTMLElement>(area) : null;
@@ -37,6 +38,7 @@ export default function PrintButton({
   className = "hub-btn",
   title = "Print or save as PDF",
   disabled,
+  share = true,
 }: {
   area?: string;
   paper?: "a4" | "a4-landscape" | "auto";
@@ -44,10 +46,17 @@ export default function PrintButton({
   className?: string;
   title?: string;
   disabled?: boolean;
+  /** also show 📤 Share next to it (WhatsApp, email, picture, Excel...) */
+  share?: boolean;
 }) {
+  // "🖨️ Print sales list" → "Sales list"
+  const what = label.replace(/^[^A-Za-z0-9]*Print\s*/i, "").trim();
   return (
-    <button type="button" className={`${className} pa-btn`} title={title} disabled={disabled} onClick={() => printArea(area, paper)}>
-      {label}
-    </button>
+    <>
+      <button type="button" className={`${className} pa-btn`} title={title} disabled={disabled} onClick={() => printArea(area, paper)}>
+        {label}
+      </button>
+      {share && <ShareButton area={area} className={className} title={what ? what.charAt(0).toUpperCase() + what.slice(1) : undefined} />}
+    </>
   );
 }

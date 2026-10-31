@@ -1,5 +1,6 @@
 "use client";
 
+import ShareButton from "@/components/share/ShareButton";
 import React, { useMemo, useState } from "react";
 import type { JobWorkIntakeDTO, DailyClosingDTO, MfgBatchDTO } from "@/lib/types";
 import {
@@ -203,6 +204,7 @@ export default function ReportsDesk({
           <button onClick={() => window.print()} className="rounded border border-black/20 dark:border-white/20 px-3 py-1.5 text-sm font-medium">
             Print / Save PDF
           </button>
+          <ShareButton area="main" title="Report" className="rounded border border-black/20 dark:border-white/20 px-3 py-1.5 text-sm font-medium" />
         </div>
         <pre className="mt-4 whitespace-pre-wrap text-sm bg-black/5 dark:bg-white/5 rounded p-3 font-sans">
           {summary}

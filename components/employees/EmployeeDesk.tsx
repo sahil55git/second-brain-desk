@@ -8,6 +8,7 @@
 //   Report       — every balance, print and Excel
 // Credit = earned, debit = paid or deducted. Positive balance: the shop owes the person.
 // Negative: the person holds an advance. Edits and deletes need a reason and stay in the history.
+import ShareButton from "@/components/share/ShareButton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, L, rs } from "@/components/barrels/shared";
 import { Dropdown, MenuBtn, MenuHead } from "@/components/barrels/Menus";
@@ -185,6 +186,7 @@ function LedgerView({ emps, who, setWho, month, setMonth, onAdd, onChanged, flas
           {(close) => (d?.months ?? []).map((m) => <MenuBtn key={m} onClick={() => { setMonth(m); close(); }}>{monthLabel(m)}</MenuBtn>)}
         </Dropdown>
         <button className="bd-btn primary" style={{ marginLeft: "auto" }} onClick={() => onAdd(who)}>＋ New entry</button>
+        <ShareButton area="#emp-print" className="bd-btn" title={`Ledger ${e?.name ?? ""} ${d ? monthLabel(d.month) : ""}`.trim()} url={false} />
         <Dropdown label="🖨️ Print ▾" className="bd-btn" width={250}>
           {(close) => (
             <>
@@ -379,6 +381,7 @@ function ReportView({ emps }: { emps: Emp[] }) {
       <div className="bd-row bd-gap">
         <h2 style={{ margin: 0 }}>📊 Balance of every employee</h2>
         <span className="bd-noprint" style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
+          <ShareButton area="#emp-report" className="bd-btn" title="Employee balances" url={false} />
           <Dropdown label="🖨️ Print and export ▾" width={240}>
             {(close) => (
               <>

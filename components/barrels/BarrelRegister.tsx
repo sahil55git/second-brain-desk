@@ -4,6 +4,7 @@
 // barrel), tare (empty barrel), net oil, with date and time of each weighing.
 // Filter by what is waiting, by supplier / lot / vehicle / code, or by date; print it
 // or download it for Excel.
+import ShareButton from "@/components/share/ShareButton";
 import { useCallback, useEffect, useState } from "react";
 import { registerCsv, type RegisterRow, type RegisterTotals } from "@/lib/barrels";
 import { api, BARREL_CHIP, kg, kg1, L, when } from "@/components/barrels/shared";
@@ -110,6 +111,7 @@ export default function BarrelRegister({ initialStatus = "all", open }: { initia
         <div className="bd-row">
           <button className="bd-btn" onClick={() => window.print()} disabled={!rows.length}>🖨️ Print</button>
           <button className="bd-btn" onClick={download} disabled={!rows.length}>⬇️ Excel (CSV)</button>
+          <ShareButton area=".bd-wrap .bd-tablewrap" className="bd-btn" title="Barrel register" />
         </div>
       </div>
 

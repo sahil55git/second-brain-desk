@@ -5,6 +5,7 @@
 // holds, what the paper memo sheet says, and the figure the tally USES. A typed figure
 // replaces the app's figure for that line — never added on top — so nothing is counted twice.
 // The server works the same sheet out (lib/cashSheet.ts); saving a count stores that expected cash.
+import ShareButton from "@/components/share/ShareButton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DENOMINATIONS, businessDate, denominationTotal } from "@/lib/register";
 import { useLauncher } from "@/components/launcher/LauncherProvider";
@@ -550,10 +551,10 @@ export default function CashDesk({ initialDate, initialSession }: { initialDate?
       </section>
 
       {/* ---- 4. report (saved figures only; prints cleanly) ---- */}
-      <section className="hub-card csh-report" style={{ marginTop: 12 }}>
+      <section className="hub-card csh-report" id="csh-report" style={{ marginTop: 12 }}>
         <div className="hub-card-head">
           <h3>📄 Cash tally report — {date} · {LABEL[session]}</h3>
-          <div className="hr stk-row"><button className="hub-btn sm" onClick={() => window.print()}>🖨️ Print / save PDF</button></div>
+          <div className="hr stk-row"><button className="hub-btn sm" onClick={() => window.print()}>🖨️ Print / save PDF</button><ShareButton area="#csh-report" className="hub-btn sm" title={`Cash tally ${date}`} /></div>
         </div>
         {api && savedSheet ? (
           <>

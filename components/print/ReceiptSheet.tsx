@@ -4,6 +4,7 @@
 // the roll printer, with the same "Print to [printer ▾] · Copies · Print" bar as the label pages. It uses
 // this device's saved slip printer (or the one found / used last); the print window prints only the slip,
 // at the roll width. Any page opens it with <ReceiptSheet doc={...} onClose={...} />.
+import ShareButton from "@/components/share/ShareButton";
 import "@/app/barrels/barrels.css";
 import "./print.css";
 import { useEffect, useState } from "react";
@@ -134,6 +135,7 @@ export default function ReceiptSheet({ doc, onClose, onPrinted }: { doc: Receipt
             ))}
           </div>
           <PrintCenter kind="slip" size={size} selector=".rc-portal .rc-slip" marginMm={lay.margin} count={1} label="Print" name={receiptName(doc)} saved={saved} onSave={save} onDone={onPrinted} />
+          <div className="bd-row"><ShareButton area=".rc-portal .rc-slip" className="bd-btn" title={receiptName(doc)} url={false} label="📤 Share receipt (WhatsApp, picture…)" /></div>
         </div>
         <div className="rc-preview">
           <ReceiptView doc={doc} shop={shop} widthMm={lay.inner} />

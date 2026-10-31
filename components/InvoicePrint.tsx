@@ -7,6 +7,7 @@
 // set to that paper size). A dedicated thermal ESC/POS driver and saved
 // printer settings are a later step (see roadmap); this covers the common
 // "print / save PDF" need now.
+import ShareButton from "@/components/share/ShareButton";
 import { useEffect, useState } from "react";
 import ReceiptSheet from "@/components/print/ReceiptSheet";
 import { billReceipt } from "@/lib/receipt";
@@ -53,6 +54,7 @@ export default function InvoicePrint({
             >
               Print A4 / Save PDF
             </button>
+            <ShareButton area="#invoice-print-area" title="Invoice" url={false} className="rounded border border-black/20 px-3 py-1.5 text-sm font-medium" />
             <button onClick={() => setRoll(true)} className="rounded border px-3 py-1.5 text-sm font-medium" title="Print on the receipt printer (58 / 80 mm roll)">
               🧾 Roll receipt
             </button>

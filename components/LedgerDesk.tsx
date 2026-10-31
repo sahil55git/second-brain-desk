@@ -79,7 +79,7 @@ export default function LedgerDesk() {
         </div>
       )}
 
-      <div className="flex justify-end -mb-2"><PrintButton area="#pa-ledger" label="🖨️ Print ledger" className="rounded border border-black/20 dark:border-white/20 px-3 py-1 text-sm" /></div>
+      <div className="flex justify-end gap-2 -mb-2"><PrintButton area="#pa-ledger" label="🖨️ Print ledger" className="rounded border border-black/20 dark:border-white/20 px-3 py-1 text-sm" /></div>
       <div id="pa-ledger" className="overflow-x-auto rounded-xl border border-black/10 dark:border-white/10">
         <table className="w-full text-sm">
           <thead className="text-left opacity-70">
