@@ -568,6 +568,16 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
   .bd-qp-go { flex: 1 1 auto; }
 }
 .bd-qp .bd-dot { flex: 0 0 auto; }
+.bd-qp-size { display: inline-flex; align-items: center; padding: 0 12px; min-height: 48px; border-radius: 10px; background: #eef3f1; color: #1d2422; font-weight: 700; font-size: 14px; white-space: nowrap; }
+/* one-click printing for staff (shown when Print goes through Chrome's window) */
+.bd-oc { display: grid; gap: 8px; padding: 10px 12px; border: 1.5px solid #e2b23c; border-radius: 12px; background: #fff8e6; color: #2a2414; }
+.bd-oc-t { display: grid; gap: 2px; }
+.bd-oc-t b { font-size: 15px; }
+.bd-oc-t span { font-size: 13px; color: #5a4e2e; }
+.bd-oc .bd-row { align-items: center; }
+.bd-oc-why > summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.bd-oc-why p, .bd-oc-why ol { margin: 6px 0; font-size: 13px; line-height: 1.45; }
+.bd-oc-why ol { padding-left: 22px; display: grid; gap: 4px; list-style: decimal; }
 
 /* barrel labels page: 1 What to print · 2 Print */
 .bd-lp { gap: 10px; max-width: 1100px; }
@@ -626,3 +636,18 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
 .dz-thumb { background: #fff; box-shadow: 0 1px 6px rgba(0, 0, 0, .25); overflow: hidden; margin-bottom: 4px; }
 .dz-thumb.roll { overflow: hidden; }
 @media (max-width: 560px) { .dz-gal-grid { grid-template-columns: 1fr 1fr; } .dz-popgrid { grid-template-columns: 1fr; } }
+
+/* employee ledger: daily wages */
+.emp-wages { display: grid; gap: 6px; margin-top: 8px; }
+.emp-wrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 10px; border: 1px solid var(--sk-line, rgba(127, 127, 127, .28)); border-radius: calc(12px * var(--ui-r, 1)); background: var(--sk-card2, rgba(127, 127, 127, .06)); }
+.emp-wrow.on { border-color: var(--accent, #1d5fa8); }
+.emp-wrow.done { opacity: .75; }
+.emp-wwho { display: grid; min-width: 130px; flex: 1 1 140px; line-height: 1.2; }
+.emp-wwho small { opacity: .7; font-size: 12px; }
+.emp-wdays { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.emp-wdays .bd-chip { cursor: pointer; min-height: 36px; padding: 4px 12px; }
+.emp-wrate { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.emp-wamt { min-width: 80px; text-align: right; font-weight: 800; font-size: 17px; font-variant-numeric: tabular-nums; }
+.emp-wdone { font-weight: 600; opacity: .85; }
+.emp-wfoot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--sk-line, rgba(127, 127, 127, .28)); }
+.emp-wtot { margin-left: auto; font-size: 15px; }

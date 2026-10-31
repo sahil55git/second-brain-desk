@@ -996,6 +996,8 @@ model Employee {
   role             String   @default("Staff")
   phone            String?
   monthlySalaryInr Float
+  payType          String   @default("MONTHLY") // MONTHLY | DAILY (paid per day worked)
+  dailyWageInr     Float?
   joinDate         String // "YYYY-MM-DD"
   active           Boolean  @default(true)
   notes            String?
@@ -1012,7 +1014,8 @@ model EmployeeEntry {
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   date       String // "YYYY-MM-DD"
   month      String // "YYYY-MM" the entry belongs to
-  type       String // EARN | BONUS | ADV | PAY | CUT | OPEN
+  type       String // EARN | WAGE | BONUS | ADV | PAY | CUT | OPEN
+  days       Float? // days worked, on a WAGE line (0.5 = half day)
   creditInr  Float    @default(0)
   debitInr   Float    @default(0)
   mode       String? // CASH | UPI | BANK (only for money that really moved)

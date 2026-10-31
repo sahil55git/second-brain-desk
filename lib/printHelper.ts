@@ -132,6 +132,84 @@ export function kioskBat(origin: string, target: KioskTarget): string {
 }
 
 // ---------------------------------------------------------------------------
+// One-click printing with the print helper, set up from the app with one downloaded file.
+// The page makes the pairing code itself and writes it into the set-up file, so nobody has to copy a
+// code from a black window: the file fetches the helper from the app, saves the code where the helper
+// reads it, makes it start with Windows and starts it now. The helper prints each label at its exact
+// size (it sets the paper on the printer itself), so a size missing from the driver's list does not
+// matter and there is no print window.
+// ---------------------------------------------------------------------------
+export const HELPER_FILE_PATH = "/print-helper/print_helper.py";
+export const HELPER_SETUP_FILE = "Mahadev-one-click-printing-setup.bat";
+
+/** A new pairing code like 3FA9-0C1B-77DE-92A4. */
+export function newPairingCode(random: (n: number) => Uint8Array = (n) => crypto.getRandomValues(new Uint8Array(n))): string {
+  const b = random(8);
+  const hex = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("").toUpperCase();
+  return hex.replace(/(.{4})(?=.)/g, "$1-");
+}
+
+/** The Windows set-up file for one-click printing on this PC. */
+export function helperSetupBat(origin: string, code: string): string {
+  if (!pairingCodeOk(code)) throw new Error("Bad pairing code");
+  const url = `${origin.replace(/\/+$/, "")}${HELPER_FILE_PATH}`;
+  if (!/^https?:\/\/[A-Za-z0-9.:\-\[\]]+$/.test(origin.replace(/\/+$/, ""))) throw new Error("Bad app address");
+  return [
+    "@echo off",
+    "rem Mahadev one-click printing: puts the small print helper on this PC and starts it.",
+    "rem After this, the Print button in the app prints labels and slips at their exact size, with no print window.",
+    "setlocal",
+    "title Mahadev one-click printing set-up",
+    'set "HDIR=%LOCALAPPDATA%\\MahadevPrint\\helper"',
+    'set "CDIR=%USERPROFILE%\\.mahadev_print"',
+    'set "STARTUP=%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"',
+    'if not exist "%HDIR%" mkdir "%HDIR%"',
+    'if not exist "%CDIR%" mkdir "%CDIR%"',
+    "echo.",
+    "echo  1/4  Getting the print helper from the app...",
+    `powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; Invoke-WebRequest -UseBasicParsing -Uri '${url}' -OutFile '%HDIR%\\print_helper.py'"`,
+    'if not exist "%HDIR%\\print_helper.py" (',
+    "  echo  Could not download the helper. Check the internet and run this file again.",
+    "  pause",
+    "  exit /b 1",
+    ")",
+    "echo  2/4  Looking for Python...",
+    'set "PY="',
+    'py -c "import sys" >nul 2>nul && set "PY=py"',
+    'if not defined PY python -c "import sys" >nul 2>nul && set "PY=python"',
+    'if not defined PY if exist "%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" set "PY=%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe"',
+    "if not defined PY (",
+    "  echo       Python is needed once. Installing it, please wait...",
+    "  winget install -e --id Python.Python.3.12 --scope user --accept-package-agreements --accept-source-agreements",
+    ")",
+    'if not defined PY if exist "%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" set "PY=%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe"',
+    'if not defined PY if exist "%SystemRoot%\\py.exe" set "PY=%SystemRoot%\\py.exe"',
+    "if not defined PY (",
+    "  echo  Python could not be installed by itself. The download page opens now: install Python",
+    '  echo  ^(tick "Add python.exe to PATH"^), then run this file again.',
+    "  start https://www.python.org/downloads/windows/",
+    "  pause",
+    "  exit /b 1",
+    ")",
+    "echo  3/4  Pairing it with this browser...",
+    `powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*print_helper.py*' -and $_.ProcessId -ne $PID } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }" >nul 2>nul`,
+    `> "%CDIR%\\pairing_code.txt" echo ${code}`,
+    '> "%HDIR%\\start-helper.bat" echo @echo off',
+    '>> "%HDIR%\\start-helper.bat" echo cd /d "%HDIR%"',
+    '>> "%HDIR%\\start-helper.bat" echo start "Mahadev print helper - keep open" /min "%PY%" "%HDIR%\\print_helper.py"',
+    'copy /y "%HDIR%\\start-helper.bat" "%STARTUP%\\Mahadev print helper.bat" >nul',
+    "echo  4/4  Starting it (it also starts by itself when Windows starts)...",
+    'call "%HDIR%\\start-helper.bat"',
+    "echo.",
+    "echo  Done. Go back to the app: it finds the printers by itself in a few seconds.",
+    "echo  If Chrome asks to let the site reach devices on this computer or network, choose Allow.",
+    "timeout /t 15",
+    "endlocal",
+    "",
+  ].join("\r\n");
+}
+
+// ---------------------------------------------------------------------------
 // Shop printer queue (phone / tablet / any PC -> app -> print helper on the shop PC)
 // ---------------------------------------------------------------------------
 export interface QueueJobRow {

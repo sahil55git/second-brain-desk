@@ -1,11 +1,13 @@
 // Employee ledger rules — pure functions, no database. The same numbers are used by the API
 // (to write rows) and by the screen (to show them), so the two can never disagree.
 
-export type EntryType = "EARN" | "BONUS" | "ADV" | "PAY" | "CUT" | "OPEN";
+export type EntryType = "EARN" | "WAGE" | "BONUS" | "ADV" | "PAY" | "CUT" | "OPEN";
+export type PayType = "MONTHLY" | "DAILY";
 export type Mode = "CASH" | "UPI" | "BANK";
 
 export const ENTRY_TYPES: Record<Exclude<EntryType, "OPEN">, { label: string; side: "credit" | "debit"; moves: boolean; help: string }> = {
   EARN: { label: "Salary earned", side: "credit", moves: false, help: "Adds to what the shop owes the person. Month-end salary does this for you." },
+  WAGE: { label: "Daily wages", side: "credit", moves: false, help: "Days worked × the daily wage. The Daily wages tab enters many people for a day in one go." },
   BONUS: { label: "Bonus / overtime", side: "credit", moves: false, help: "Extra earned money: bonus, overtime, festival gift." },
   ADV: { label: "Advance given", side: "debit", moves: true, help: "Money given before it is earned. It comes off the next salary by itself." },
   PAY: { label: "Salary paid", side: "debit", moves: true, help: "Money paid out against what is owed." },
@@ -101,4 +103,60 @@ export function ledgerCsv(name: string, month: string, openingInr: number, rows:
   lines.push([name, month, "", "Opening balance", "", "", "", "", openingInr, ""].map(q).join(","));
   for (const r of rows) lines.push([name, month, r.date, TYPE_LABEL[r.type as EntryType] ?? r.type, r.mode ?? "", r.note ?? "", r.creditInr || "", r.debitInr || "", r.balanceInr, r.enteredBy ?? ""].map(q).join(","));
   return lines.join("\r\n");
+}
+
+// ---------------------------------------------------------------------------
+// Daily wages: people paid per day worked (hamali, loading, seasonal crushing help)
+// ---------------------------------------------------------------------------
+export const MAX_DAILY_WAGE_INR = 50_000;
+export const payTypeOf = (v: unknown): PayType => (v === "DAILY" ? "DAILY" : "MONTHLY");
+
+/** Days worked on one line: 0.5 steps (half day), 0.5 to 31. Null when not a sensible number. */
+export function cleanDays(v: unknown): number | null {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0 || n > 31) return null;
+  return Math.round(n * 2) / 2 || null;
+}
+
+/** "1 day × ₹600", "½ day × ₹600", "2½ days × ₹600" */
+export function daysText(days: number): string {
+  const whole = Math.floor(days);
+  const half = days - whole >= 0.5;
+  const n = whole === 0 ? "½" : `${whole}${half ? "½" : ""}`;
+  return `${n} day${days > 1 ? "s" : ""}`;
+}
+
+export const wageAmount = (days: number, rateInr: number) => round2(days * rateInr);
+
+export interface WageRowIn { employeeId?: unknown; days?: unknown; rateInr?: unknown; paidNow?: unknown; mode?: unknown; note?: unknown }
+export interface WageRowOk { employeeId: string; days: number; rateInr: number; amountInr: number; paidNow: boolean; mode: Mode; note: string }
+
+/** One day's wages for several people, checked. Rows with no days (absent) are left out. */
+export function validateWages(body: { date?: unknown; rows?: unknown }): { ok: true; date: string; rows: WageRowOk[] } | { ok: false; error: string } {
+  if (!isDate(body.date)) return { ok: false, error: "Choose the date." };
+  const raw = Array.isArray(body.rows) ? (body.rows as WageRowIn[]) : [];
+  const rows: WageRowOk[] = [];
+  const seen = new Set<string>();
+  for (const r of raw) {
+    const id = typeof r.employeeId === "string" ? r.employeeId : "";
+    if (!id || seen.has(id)) continue;
+    const days = r.days === 0 || r.days === "0" || r.days == null || r.days === "" ? null : cleanDays(r.days);
+    if (days == null) {
+      if (r.days === 0 || r.days === "0" || r.days == null || r.days === "") continue; // absent
+      return { ok: false, error: "Days worked must be ½ to 31." };
+    }
+    const rate = Number(r.rateInr);
+    if (!Number.isFinite(rate) || rate <= 0 || rate > MAX_DAILY_WAGE_INR) return { ok: false, error: "Type the daily wage in rupees for everyone who worked." };
+    seen.add(id);
+    const note = typeof r.note === "string" ? r.note.trim().slice(0, 120) : "";
+    rows.push({ employeeId: id, days, rateInr: round2(rate), amountInr: wageAmount(days, rate), paidNow: r.paidNow === true, mode: r.mode === "UPI" || r.mode === "BANK" ? r.mode : "CASH", note });
+  }
+  if (!rows.length) return { ok: false, error: "Mark at least one person as worked." };
+  return { ok: true, date: body.date, rows };
+}
+
+/** Month-end for a daily-wage person: what the wage days earned this month and what is still owed. */
+export function dailyMonth(lines: { type: string; month: string; days?: number | null; creditInr: number }[], month: string): { days: number; earnedInr: number } {
+  const w = lines.filter((l) => l.month === month && l.type === "WAGE");
+  return { days: Math.round(w.reduce((a, l) => a + (l.days || 0), 0) * 2) / 2, earnedInr: round2(w.reduce((a, l) => a + l.creditInr, 0)) };
 }
