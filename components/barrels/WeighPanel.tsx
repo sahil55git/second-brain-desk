@@ -42,6 +42,7 @@ export default function WeighPanel({
   presetCode,
   hintLot,
   onSaved,
+  startPhase = "GROSS",
 }: {
   lots: Lot[];
   isOwner: boolean;
@@ -50,8 +51,10 @@ export default function WeighPanel({
   /** When the panel sits inside one lot, offer that lot's next barrels. */
   hintLot?: Lot;
   onSaved: (lot: Lot) => void;
+  /** which weight the panel opens on (a deep link can ask for the empty weight) */
+  startPhase?: Phase;
 }) {
-  const [phase, setPhase] = useState<Phase>("GROSS");
+  const [phase, setPhase] = useState<Phase>(startPhase);
   const [codeText, setCodeText] = useState(presetCode ?? "");
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState(false);

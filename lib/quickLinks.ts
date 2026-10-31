@@ -34,6 +34,8 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "payment", icon: "🤝", title: "Payment", kn: "ಪಾವತಿ", desc: "Salary / supplier payment", href: "/register?open=payment", group: "entry" },
   { id: "pigmee", icon: "🏦", title: "Pigmee / bank", kn: "ಪಿಗ್ಮಿ", desc: "Cash to bank, not an expense", href: "/register?open=pigmee", group: "entry" },
   { id: "draw", icon: "🧔", title: "Owner draw", kn: "ಮಾಲೀಕ ತೆಗೆದದ್ದು", desc: "Cash taken by owner", href: "/register?open=draw", group: "entry" },
+  { id: "weighfull", icon: "⚖️", title: "Weigh full barrel", kn: "ತುಂಬಿದ ಬ್ಯಾರಲ್ ತೂಕ", desc: "Straight to the full-barrel weight", href: "/barrels?weigh=full", group: "entry" },
+  { id: "barrelsimple", icon: "👷", title: "Barrels: simple mode", kn: "ಬ್ಯಾರಲ್ ಸರಳ", desc: "Only weighing, for the manager and workers", href: "/barrels?simple=1", group: "entry" },
   { id: "barrels", icon: "🛢️", title: "Barrel receiving", kn: "ಬ್ಯಾರಲ್ ಸ್ವೀಕಾರ", desc: "Label, weigh full & empty, check the oil", href: "/barrels", group: "entry" },
   { id: "employees", icon: "👷", title: "Employee ledger", kn: "ನೌಕರರ ಖಾತೆ", desc: "Salary, daily wages, advances, payments, balance of each person", href: "/employees", group: "entry", ownerOnly: true },
   { id: "fleet", icon: "🛢️", title: "Our barrels", kn: "ನಮ್ಮ ಬ್ಯಾರಲ್‌ಗಳು", desc: "Our own barrels: tare, weigh, where each one is", href: "/barrels/fleet", group: "entry" },

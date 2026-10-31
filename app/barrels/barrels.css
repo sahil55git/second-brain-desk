@@ -651,3 +651,16 @@ button.bd-chip { cursor: pointer; padding: 6px 12px; font-size: 13px; }
 .emp-wdone { font-weight: 600; opacity: .85; }
 .emp-wfoot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--sk-line, rgba(127, 127, 127, .28)); }
 .emp-wtot { margin-left: auto; font-size: 15px; }
+
+/* barrel receiving: simple mode for the manager and workers */
+.bd-simple { max-width: 820px; }
+.bd-simple-stat { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 17px; margin: 4px 0 10px; }
+.bd-simple-stat b { font-size: 20px; }
+.bd-simple-list { display: grid; gap: 8px; margin-top: 8px; }
+.bd-simple-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "code go" "oil go" "days go"; align-items: center; gap: 0 12px; text-align: left; padding: 10px 14px; min-height: 64px; border: 1px solid var(--sk-line, rgba(127, 127, 127, .3)); border-radius: calc(12px * var(--ui-r, 1)); background: var(--sk-card2, rgba(127, 127, 127, .06)); color: inherit; font: inherit; cursor: pointer; }
+.bd-simple-item b { grid-area: code; font-size: 18px; letter-spacing: .3px; }
+.bd-simple-item > span:not(.go) { grid-area: oil; opacity: .8; }
+.bd-simple-item small { grid-area: days; opacity: .7; }
+.bd-simple-item .go { grid-area: go; font-weight: 800; padding: 10px 14px; border-radius: 999px; background: var(--accent, #1d5fa8); color: #fff; white-space: nowrap; }
+.bd-simple-item.warn small { color: #c8352e; opacity: 1; font-weight: 700; }
+.bd-simple .bd-btn.big { min-height: 52px; font-size: 16px; }
