@@ -8,10 +8,16 @@ import { useSession } from "next-auth/react";
 import {
   APK_PREVIEW_URL, APK_URL, LocalNotifications, MahadevNative, MahadevPrinter, REMINDERS, isNative, parseTime, reminderNotification, toBase64, type NativePrinter,
 } from "@/lib/native";
+import {
+  DEFAULT_ACTION_IDS, MAX_ACTIONS, NOTE_COLORS, NOTE_MAX, REFRESH_CHOICES, WIDGETS, actionChoices, actionsFor, cleanMinutes, cleanNote, type WidgetKind,
+} from "@/lib/widgetKinds";
 import "./android.css";
 
 type Info = Awaited<ReturnType<typeof MahadevNative.info>>;
 type Status = Awaited<ReturnType<typeof MahadevNative.deviceStatus>>;
+type WPrefs = Awaited<ReturnType<typeof MahadevNative.widgetPrefs>>;
+const OLD_APP = "This needs the newest app: tap ⬇️ Get the newest app above, install it over this one, then try again.";
+const isOld = (e: unknown) => /not implemented|unimplemented/i.test(e instanceof Error ? e.message : String(e));
 interface Key { id: string; name: string; username: string; role: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null }
 
 const PREFS = "sbd_android_v1";
@@ -86,12 +92,27 @@ function PhoneSettings() {
   const [printers, setPrinters] = useState<NativePrinter[] | null>(null);
   const [notify, setNotify] = useState<string>("");
   const [keys, setKeys] = useState<Key[] | null>(null);
+  const [wp, setWp] = useState<WPrefs | null>(null);
+  const [acts, setActs] = useState<string[]>(DEFAULT_ACTION_IDS);
+  const [note, setNote] = useState("");
+  const [noteColor, setNoteColor] = useState("yellow");
 
   const say = (ok: boolean, t: string) => setMsg({ ok, t });
   const load = useCallback(async () => {
     setInfo(await MahadevNative.info().catch(() => null));
     setSt(await MahadevNative.deviceStatus().catch(() => null));
     setNotify((await LocalNotifications.checkPermissions().catch(() => ({ display: "unknown" }))).display);
+    const w = await MahadevNative.widgetPrefs().catch(() => null);
+    setWp(w);
+    if (w) {
+      setNote(w.note);
+      setNoteColor(w.noteColor);
+      try {
+        const saved = JSON.parse(w.actions) as { path: string }[];
+        const ids = saved.map((a) => actionChoices(true).find((l) => l.href === a.path)?.id).filter((x): x is string => !!x);
+        if (ids.length) setActs(ids);
+      } catch {}
+    }
     fetch("/api/device/tokens").then((r) => r.json()).then((j) => setKeys(j.data ?? [])).catch(() => setKeys([]));
   }, []);
   useEffect(() => {
@@ -105,8 +126,47 @@ function PhoneSettings() {
   const run = async (f: () => Promise<void>) => {
     setBusy(true);
     setMsg(null);
-    try { await f(); } catch (e) { say(false, e instanceof Error ? e.message : "That did not work."); } finally { setBusy(false); }
+    try { await f(); } catch (e) { say(false, isOld(e) ? OLD_APP : e instanceof Error ? e.message : "That did not work."); } finally { setBusy(false); }
   };
+  // the sticky note widget opens /app#note
+  useEffect(() => {
+    if (window.location.hash === "#note") setTimeout(() => document.getElementById("note")?.scrollIntoView({ block: "start" }), 300);
+  }, []);
+
+  const pin = (k: WidgetKind) => run(async () => {
+    const r = await MahadevNative.pinWidget({ kind: k });
+    say(r.ok, r.ok ? "Android asks where to put it: tap Add (or drag it where you want)." : "This phone cannot add widgets from the app. Long-press the home screen → Widgets → Mahadev Desk.");
+    setTimeout(load, 5000);
+  });
+  const toggleAct = (id: string) => {
+    setActs((a) => (a.includes(id) ? a.filter((x) => x !== id) : a.length >= MAX_ACTIONS ? a : [...a, id]));
+  };
+  const saveActs = (ids: string[]) => run(async () => {
+    await MahadevNative.setActions({ actions: actionsFor(ids) });
+    setActs(ids);
+    say(true, "Quick buttons widget updated.");
+  });
+  const saveNote = () => run(async () => {
+    const t = cleanNote(note);
+    await MahadevNative.setNote({ text: t, color: noteColor });
+    setNote(t);
+    say(true, t ? "Sticky note updated on the home screen." : "Sticky note cleared.");
+  });
+  const setEvery = (m: number) => run(async () => {
+    await MahadevNative.setRefresh({ minutes: cleanMinutes(m) });
+    setWp((w) => (w ? { ...w, minutes: cleanMinutes(m) } : w));
+    say(true, `Widgets update every ${cleanMinutes(m)} minutes (and when you leave the app or tap ⟳).`);
+  });
+  const setLive = (on: boolean) => run(async () => {
+    if (on) {
+      const r = await LocalNotifications.requestPermissions();
+      setNotify(r.display);
+      if (r.display !== "granted") throw new Error("Allow notifications first, then switch this on.");
+    }
+    await MahadevNative.setLive({ on });
+    setWp((w) => (w ? { ...w, live: on } : w));
+    say(true, on ? "Today's figures now stay in the status bar. Pull down to see them; ⟳ updates." : "Live figures removed from the status bar.");
+  });
 
   const widgetsOn = () => run(async () => {
     const name = `${info?.model || "Android phone"}${session?.user?.name ? ` · ${session.user.name}` : ""}`;
@@ -196,17 +256,10 @@ function PhoneSettings() {
               <button className="hub-btn primary" disabled={busy} onClick={() => run(async () => { await MahadevNative.refresh(); say(true, "Updating the widgets…"); setTimeout(load, 4000); })}>⟳ Update now</button>
               <button className="hub-btn" disabled={busy} onClick={widgetsOff}>Switch off</button>
             </div>
-            <div className="and-row">
-              {(["summary", "actions", "barrels"] as const).map((k) => (
-                <button key={k} className="hub-btn" disabled={busy} onClick={() => run(async () => { const r = await MahadevNative.pinWidget({ kind: k }); say(r.ok, r.ok ? "Android asks where to put it: tap Add." : "This phone cannot add widgets from the app. Long-press the home screen → Widgets → Mahadev Desk."); })}>
-                  ＋ {k === "summary" ? (isOwner ? "Today's figures" : "Today") : k === "actions" ? "Quick buttons" : "Barrels"}
-                </button>
-              ))}
-            </div>
           </>
         ) : (
           <>
-            <p className="hub-m">Widgets show {isOwner ? "today's sales, cash, UPI, udhaar and " : ""}barrels waiting on the home screen, and quick buttons that open an entry form. They update about every 30 minutes and when you tap ⟳.</p>
+            <p className="hub-m">Widgets show {isOwner ? "today's sales, cash, UPI, udhaar and " : ""}barrels waiting on the home screen, and quick buttons that open an entry form. They update every 15–60 minutes, when you leave the app and when you tap ⟳.</p>
             <button className="hub-btn primary" disabled={busy} onClick={widgetsOn}>Turn on widgets on this phone</button>
           </>
         )}
@@ -217,6 +270,67 @@ function PhoneSettings() {
           <span className="and-range"><input type="range" min={20} max={100} step={5} value={p.opacity} onChange={(e) => style({ opacity: Number(e.target.value) })} /> {p.opacity}%</span>
           <span>Text</span>
           <span className="and-chips">{(["s", "m", "l"] as const).map((s) => <button key={s} className={p.textSize === s ? "on" : ""} onClick={() => style({ textSize: s })}>{s === "s" ? "Small" : s === "m" ? "Medium" : "Large"}</button>)}</span>
+          <span>Update</span>
+          <span className="and-chips">{REFRESH_CHOICES.map((m) => <button key={m} disabled={busy} className={(wp?.minutes ?? 30) === m ? "on" : ""} onClick={() => setEvery(m)}>every {m} min</button>)}</span>
+        </div>
+        <label className="and-chk"><input type="checkbox" checked={!!wp?.live} disabled={busy || !st?.on} onChange={(e) => setLive(e.target.checked)} /> 📌 Live figures in the status bar — a quiet notification that stays, with ⟳ Update, ➕ Sale and ⚖ Weigh buttons</label>
+      </section>
+
+      <section className="hub-card">
+        <h3>🧱 Widgets you can add</h3>
+        <p className="hub-m">Tap <b>＋ Add</b>, then Android shows where it goes. Long-press a widget on the home screen to make it bigger or smaller.{!st?.on && " Turn on widgets above first."}</p>
+        <div className="and-cat">
+          {WIDGETS.map((w) => {
+            const placed = wp?.placed?.includes(w.kind);
+            const lock = w.ownerOnly && !isOwner;
+            return (
+              <div key={w.kind} className={`and-w${placed ? " placed" : ""}${lock ? " lock" : ""}`}>
+                <div className={`and-wprev k-${w.kind}`} aria-hidden>
+                  <span className="ic">{w.icon}</span>
+                  <i /><i /><i />
+                </div>
+                <div className="and-wtx">
+                  <b>{w.name}</b> <small>{w.size}{w.interactive ? " · buttons" : ""}{lock ? " · owner figures" : ""}</small>
+                  <span>{w.what}</span>
+                </div>
+                <button className={`hub-btn sm${placed ? "" : " primary"}`} disabled={busy || !st?.on} onClick={() => pin(w.kind)}>{placed ? "✓ Add another" : "＋ Add"}</button>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="hub-card">
+        <h3>⚡ Quick buttons widget</h3>
+        <p className="hub-m">Pick up to {MAX_ACTIONS} in the order you want them ({acts.length}/{MAX_ACTIONS}).</p>
+        <div className="and-picked">
+          {acts.length === 0 && <span className="hub-m">None picked — the widget shows the usual six.</span>}
+          {acts.map((id, i) => {
+            const l = actionChoices(true).find((x) => x.id === id);
+            return l ? <button key={id} onClick={() => toggleAct(id)} title="Remove">{i + 1}. {l.icon} {l.title} ✕</button> : null;
+          })}
+        </div>
+        <div className="and-acts">
+          {actionChoices(isOwner).filter((l) => !acts.includes(l.id)).map((l) => (
+            <button key={l.id} disabled={acts.length >= MAX_ACTIONS} onClick={() => toggleAct(l.id)}>{l.icon} {l.title}</button>
+          ))}
+        </div>
+        <div className="and-row">
+          <button className="hub-btn primary" disabled={busy || !st?.on} onClick={() => saveActs(acts)}>Save buttons</button>
+          <button className="hub-btn" disabled={busy || !st?.on} onClick={() => saveActs(DEFAULT_ACTION_IDS)}>Back to the usual six</button>
+        </div>
+      </section>
+
+      <section className="hub-card" id="note">
+        <h3>📌 Sticky note widget</h3>
+        <textarea className="and-note" style={{ background: NOTE_COLORS.find((c) => c.id === noteColor)?.hex, color: noteColor === "dark" ? "#f5ead7" : "#2a2414" }} rows={4} maxLength={NOTE_MAX} placeholder="e.g. Ramesh — 2 barrels groundnut to collect Friday. Call Bidar transport." value={note} onChange={(e) => setNote(e.target.value)} />
+        <div className="and-row">
+          <span className="and-chips">{NOTE_COLORS.map((c) => <button key={c.id} className={noteColor === c.id ? "on" : ""} onClick={() => setNoteColor(c.id)}><span className="and-dot" style={{ background: c.hex }} /> {c.name}</button>)}</span>
+        </div>
+        <div className="and-row">
+          <button className="hub-btn primary" disabled={busy} onClick={saveNote}>Save note</button>
+          {!wp?.placed?.includes("note") && <button className="hub-btn" disabled={busy || !st?.on} onClick={() => pin("note")}>＋ Put it on the home screen</button>}
+          <span className="hub-m small">{note.length}/{NOTE_MAX}</span>
         </div>
       </section>
 

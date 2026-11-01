@@ -73,7 +73,7 @@ public final class WidgetData {
         return t != null && !t.isEmpty();
     }
 
-    private static int piFlags() {
+    static int piFlags() {
         return Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE : PendingIntent.FLAG_UPDATE_CURRENT;
     }
 
@@ -87,7 +87,7 @@ public final class WidgetData {
         return PendingIntent.getActivity(c, requestCode, i, piFlags());
     }
 
-    private static PendingIntent refresh(Context c, Class<?> provider) {
+    static PendingIntent refresh(Context c, Class<?> provider) {
         Intent i = new Intent(c, provider);
         i.setAction(ACTION_REFRESH);
         return PendingIntent.getBroadcast(c, 900 + provider.getSimpleName().length(), i, piFlags());
@@ -126,6 +126,7 @@ public final class WidgetData {
             JSONObject j = new JSONObject(sb.toString());
             p.edit().putString(K_JSON, j.toString()).putLong(K_LAST_OK, System.currentTimeMillis()).remove(K_LAST_ERR).apply();
             if (p.getBoolean(K_ALERTS, true)) postAlerts(c, j.optJSONArray("alerts"));
+            Widgets.postLive(c);
             return null;
         } catch (Exception e) {
             String msg = "No internet or the site did not answer";
@@ -181,11 +182,11 @@ public final class WidgetData {
     }
 
     // ------------------------------------------------------------------ drawing
-    private static final class Look {
+    static final class Look {
         int bg; int text; int soft; int alpha; float scale;
     }
 
-    private static Look look(Context c) {
+    static Look look(Context c) {
         SharedPreferences p = prefs(c);
         String style = p.getString(K_STYLE, "dark");
         Look l = new Look();
@@ -199,29 +200,29 @@ public final class WidgetData {
         return l;
     }
 
-    private static void paint(RemoteViews v, Look l) {
+    static void paint(RemoteViews v, Look l) {
         v.setImageViewResource(R.id.bg, l.bg);
         v.setInt(R.id.bg, "setImageAlpha", l.alpha);
     }
 
-    private static void text(RemoteViews v, int id, CharSequence s, int color, float sp, Look l) {
+    static void text(RemoteViews v, int id, CharSequence s, int color, float sp, Look l) {
         v.setTextViewText(id, s);
         v.setTextColor(id, color);
         v.setTextViewTextSize(id, TypedValue.COMPLEX_UNIT_SP, sp * l.scale);
     }
 
-    private static String rupees(double n) {
+    static String rupees(double n) {
         NumberFormat f = NumberFormat.getIntegerInstance(new Locale("en", "IN"));
         return "₹" + f.format(Math.round(n));
     }
 
-    private static String clock(long t) {
+    static String clock(long t) {
         SimpleDateFormat f = new SimpleDateFormat("h:mm a", Locale.ENGLISH);
         f.setTimeZone(TimeZone.getTimeZone("Asia/Kolkata"));
         return f.format(new Date(t));
     }
 
-    private static JSONObject summary(Context c) {
+    static JSONObject summary(Context c) {
         try { return new JSONObject(prefs(c).getString(K_JSON, "{}")); } catch (Exception e) { return new JSONObject(); }
     }
 
@@ -284,35 +285,12 @@ public final class WidgetData {
         return v;
     }
 
-    private static final int[] ACT_IDS = { R.id.a1, R.id.a2, R.id.a3, R.id.a4, R.id.a5, R.id.a6 };
-    private static final String[][] ACTS = {
-            { "💰\nSale", "/register?open=sale" },
-            { "🧾\nExpense", "/register?open=expense" },
-            { "🙌\nUdhaar in", "/register?open=udhaar" },
-            { "⚖\nWeigh full", "/barrels?weigh=full" },
-            { "💵\nCash", "/cash" },
-            { "📱\nQuick card", "/quick" },
-    };
-
     public static RemoteViews actionViews(Context c) {
-        Look l = look(c);
-        RemoteViews v = new RemoteViews(c.getPackageName(), R.layout.widget_actions);
-        paint(v, l);
-        for (int i = 0; i < ACT_IDS.length; i++) {
-            text(v, ACT_IDS[i], ACTS[i][0], l.text, 13, l);
-            v.setOnClickPendingIntent(ACT_IDS[i], open(c, ACTS[i][1], 31 + i));
-        }
-        return v;
+        return Widgets.actionViews(c);
     }
 
-    /** Redraw every widget of every kind. */
+    /** Redraw every widget of every kind (and the live notification). */
     public static void renderAll(Context c) {
-        AppWidgetManager m = AppWidgetManager.getInstance(c);
-        int[] s = m.getAppWidgetIds(new ComponentName(c, SummaryWidget.class));
-        if (s.length > 0) m.updateAppWidget(s, summaryViews(c));
-        int[] b = m.getAppWidgetIds(new ComponentName(c, BarrelsWidget.class));
-        if (b.length > 0) m.updateAppWidget(b, barrelViews(c));
-        int[] a = m.getAppWidgetIds(new ComponentName(c, ActionsWidget.class));
-        if (a.length > 0) m.updateAppWidget(a, actionViews(c));
+        Widgets.renderAll(c);
     }
 }

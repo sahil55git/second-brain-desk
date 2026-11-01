@@ -3,6 +3,7 @@
 // sharing files, notifications, keeping the screen on. On a normal browser every call here is a
 // harmless no-op, so pages can use them without asking where they run.
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import type { WidgetAction, WidgetKind } from "@/lib/widgetKinds";
 
 export interface NativePrinter {
   /** "nbt:<mac>" or "nusb:<device name>" */
@@ -21,7 +22,13 @@ interface MahadevNativePlugin {
   refresh(): Promise<void>;
   setWidgetStyle(o: { style: string; opacity: number; textSize: string }): Promise<void>;
   setAlerts(o: { on: boolean }): Promise<void>;
-  pinWidget(o: { kind: "summary" | "actions" | "barrels" }): Promise<{ ok: boolean }>;
+  pinWidget(o: { kind: WidgetKind }): Promise<{ ok: boolean }>;
+  /** app 1.1 and newer: older ones reject with "not implemented" */
+  setNote(o: { text: string; color: string }): Promise<void>;
+  setActions(o: { actions: WidgetAction[] }): Promise<void>;
+  setRefresh(o: { minutes: number }): Promise<void>;
+  setLive(o: { on: boolean }): Promise<void>;
+  widgetPrefs(): Promise<{ note: string; noteColor: string; live: boolean; minutes: number; actions: string; placed: WidgetKind[] }>;
   print(o: { name: string }): Promise<void>;
   saveFile(o: { name: string; base64: string; mime: string; share: boolean }): Promise<{ uri: string; where: string }>;
   shareText(o: { text: string; title?: string }): Promise<void>;
