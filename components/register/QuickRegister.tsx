@@ -5,6 +5,7 @@
 // routes, so every entry lands in the same Postgres database as the rest of
 // Second Brain Desk.
 
+import EditEntry from "@/components/register/EditEntry";
 import ShareButton from "@/components/share/ShareButton";
 import UdhaarHint from "./UdhaarHint";
 import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -701,6 +702,11 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   const [posKey, setPosKey] = useState(0);
 
   const [date, setDate] = useState(todayIST);
+  // /register?date=YYYY-MM-DD (e.g. "Open / edit" from the Purchase desk) opens that day
+  useEffect(() => {
+    const d = new URLSearchParams(window.location.search).get("date");
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= todayIST()) setDate(d);
+  }, []);
   const [day, setDay] = useState<DayBundle | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const acc = useAccess();
@@ -811,6 +817,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   }, [hasLocalPrefs, day]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [rcpt, setRcpt] = useState<ReceiptDoc | null>(null);
+  const [editing, setEditing] = useState<Entry | null>(null);
   const [lang, setLangState] = useState<LangMode>("both");
   const [now, setNow] = useState(Date.now());
 
@@ -902,11 +909,15 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   };
 
   // Clock + roll over to the new business day at midnight.
+  // after midnight, move on to the new day — but only if you were on "today" (not a past day you opened)
+  const lastToday = useRef(todayIST());
   useEffect(() => {
     const id = window.setInterval(() => {
       setNow(Date.now());
       const t = todayIST();
-      setDate((d) => (d !== t && !sheet ? t : d));
+      const was = lastToday.current;
+      lastToday.current = t;
+      if (t !== was && !sheet) setDate((d) => (d === was ? t : d));
     }, 30000);
     return () => window.clearInterval(id);
   }, [sheet]);
@@ -961,8 +972,8 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     const card = (
       <button
         className={`qr-ent ${KIND_SIDE[e.kind]}${e.paymentMode === "CREDIT" ? " udhaar" : KIND_SIDE[e.kind] === "in" ? " paid" : ""}`}
-        onClick={() => remove(e)}
-        title={word("deleteQ", lang)}
+        onClick={() => setEditing(e)}
+        title="Tap to edit or delete"
       >
         <G e={KIND_ICON[e.kind]} /> <span className="m">{hm(e.createdAt)}</span>
         {(day?.proofs?.[e.id] || []).length > 0 && (
@@ -2298,6 +2309,16 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
         </div>
       )}
       {rcpt && <ReceiptSheet doc={rcpt} onClose={() => setRcpt(null)} />}
+      {editing && (
+        <EditEntry
+          e={editing}
+          title={word(editing.kind as WordKey, lang)}
+          isOwner={isOwner}
+          onClose={() => setEditing(null)}
+          onSaved={(m) => { setEditing(null); toast(m); load(); }}
+          onDelete={() => { const x = editing; setEditing(null); void remove(x); }}
+        />
+      )}
       {toastMsg && (
         <div className="qr-toast" role="status">
           {toastMsg}

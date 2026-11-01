@@ -4,7 +4,7 @@
 // with GST for input-credit tracking. Same line-item builder as Sales, minus
 // invoice numbering (the supplier's bill number is entered directly).
 import PrintButton from "@/components/print/PrintButton";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   PurchaseBillDTO,
   PartyDTO,
@@ -43,6 +43,16 @@ export default function PurchaseDesk({
   dbConnected: boolean;
 }) {
   const [bills, setBills] = useState<PurchaseBillDTO[]>(initialBills);
+  // Purchases made in the Quick Register (seed, oil, tins…) — last 90 days
+  const [regBuys, setRegBuys] = useState<RegBuy[] | null>(null);
+  useEffect(() => {
+    const to = todayISO();
+    const from = new Date(Date.parse(`${to}T00:00:00Z`) - 89 * 86400000).toISOString().slice(0, 10);
+    fetch(`/api/register/range?from=${from}&to=${to}`)
+      .then((r) => r.json())
+      .then((j) => setRegBuys(((j.data || []) as RegBuy[]).filter((e) => e.kind === "PURCHASE").reverse()))
+      .catch(() => setRegBuys([]));
+  }, []);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -248,7 +258,7 @@ export default function PurchaseDesk({
       {savedNote && <div className="rounded border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-xs">{savedNote}</div>}
       <div className="flex items-center justify-between">
         <div className="text-sm opacity-70">
-          {bills.length} bill{bills.length === 1 ? "" : "s"}
+          {bills.length} bill{bills.length === 1 ? "" : "s"}{regBuys && regBuys.length ? ` · ${regBuys.length} from Quick Register` : ""}
         </div>
         <button
           onClick={() => setShowForm((v) => !v)}
@@ -542,9 +552,46 @@ export default function PurchaseDesk({
           </tbody>
         </table>
       </div>
+
+      <div className="rounded-xl border border-black/10 dark:border-white/10 overflow-x-auto mt-4" id="pa-reg-purchases">
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10">
+          <strong className="text-sm">🛒 Purchases from Quick Register <span className="opacity-60 font-normal">(last 90 days)</span></strong>
+          <span className="text-sm tabular-nums font-semibold">₹{(regBuys || []).reduce((a, e) => a + e.amountInr, 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="text-left opacity-60 border-b border-black/10 dark:border-white/10">
+            <tr>
+              <th className="px-3 py-2">Date</th>
+              <th className="px-3 py-2">Supplier</th>
+              <th className="px-3 py-2">Item</th>
+              <th className="px-3 py-2">Qty</th>
+              <th className="px-3 py-2">Paid</th>
+              <th className="px-3 py-2 text-right">Amount</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {regBuys === null && <tr><td colSpan={7} className="px-3 py-4 text-center opacity-50">Loading…</td></tr>}
+            {regBuys && regBuys.length === 0 && <tr><td colSpan={7} className="px-3 py-4 text-center opacity-50">No Quick Register purchases.</td></tr>}
+            {(regBuys || []).map((e) => (
+              <tr key={e.id} className="border-b border-black/5 dark:border-white/5">
+                <td className="px-3 py-2 whitespace-nowrap">{e.date.split("-").reverse().join("-")}</td>
+                <td className="px-3 py-2">{e.partyName ? <a href={`/?desk=ledger&party=${encodeURIComponent(e.partyName)}`} className="underline decoration-dotted" title="Ledger of this supplier">{e.partyName}</a> : "—"}</td>
+                <td className="px-3 py-2">{e.itemLabel || e.item || ""}{e.notes ? <div className="text-xs opacity-60">{e.notes}</div> : null}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{e.qty ? `${e.qty} ${e.unit || ""}` : ""}{e.rateInr ? <div className="text-xs opacity-60">@ ₹{e.rateInr}</div> : null}</td>
+                <td className="px-3 py-2">{e.paymentMode === "CREDIT" ? "Udhaar" : e.paymentMode === "CASH" ? "Cash" : "UPI/bank"}</td>
+                <td className="px-3 py-2 text-right tabular-nums font-medium">₹{e.amountInr.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                <td className="px-3 py-2 text-right"><a href={`/register?date=${e.date}`} className="text-xs opacity-60 hover:opacity-100">Open / edit</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
+
+interface RegBuy { id: string; date: string; kind: string; item: string | null; itemLabel: string | null; qty: number | null; unit: string | null; rateInr: number | null; amountInr: number; paymentMode: string; partyName: string | null; notes: string | null }
 
 function Row({ label, value, bold }: { label: string; value: number; bold?: boolean }) {
   return (
