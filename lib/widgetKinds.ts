@@ -4,7 +4,7 @@
 // components/android/AndroidPage.tsx.
 import { QUICK_LINKS, visibleLinks } from "@/lib/quickLinks";
 
-export type WidgetKind = "dashboard" | "summary" | "actions" | "barrels" | "cash" | "udhaar" | "jobwork" | "stock" | "alerts" | "note";
+export type WidgetKind = "dashboard" | "summary" | "actions" | "barrels" | "cash" | "udhaar" | "jobwork" | "stock" | "alerts" | "note" | "chat" | "tips" | "tasks";
 
 export interface WidgetInfo {
   kind: WidgetKind;
@@ -28,9 +28,12 @@ export const WIDGETS: WidgetInfo[] = [
   { kind: "cash", icon: "💵", name: "Cash", what: "Cash in − out today, UPI, whether the count matches", size: "3×1", ownerOnly: true },
   { kind: "udhaar", icon: "🙌", name: "Udhaar", what: "Total to collect and the five biggest customers", size: "3×2", ownerOnly: true },
   { kind: "jobwork", icon: "🌾", name: "Job-work", what: "Lots waiting, kg, overdue, the oldest five", size: "3×2", ownerOnly: true },
-  { kind: "stock", icon: "📦", name: "Stock", what: "Oil stock, low items marked ⚠", size: "3×2", ownerOnly: true },
+  { kind: "stock", icon: "📦", name: "Stock · days left", what: "Each oil's days left at the current pace (from the stock count)", size: "3×2", ownerOnly: true },
   { kind: "alerts", icon: "🔔", name: "Alerts", what: "What needs attention right now, or ✓ All good", size: "3×2" },
   { kind: "note", icon: "📌", name: "Sticky note", what: "Your own note for the shop, written below", size: "2×2" },
+  { kind: "chat", icon: "💬", name: "Chat", what: "Type or 🎤 speak; Today / Udhaar / Tasks chips — answers and entries open in a small window", size: "4×2", interactive: true },
+  { kind: "tips", icon: "✨", name: "Do next", what: "Smart tips: stock running out, old udhaar, barrels, cash count, tasks", size: "4×2" },
+  { kind: "tasks", icon: "📋", name: "Tasks", what: "Your reminders from the chat, late ones marked", size: "3×2" },
 ];
 
 export const NOTE_COLORS = [
