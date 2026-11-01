@@ -1075,7 +1075,24 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   useEffect(() => {
     if (deepRef.current || !day) return;
     deepRef.current = true;
-    const key = new URLSearchParams(window.location.search).get("open");
+    const sp = new URLSearchParams(window.location.search);
+    const key = sp.get("open");
+    // from the chat bot: ?say=<what was said> fills the right form; ?edit=last opens the last entry to fix
+    const say = sp.get("say");
+    const edit = sp.get("edit");
+    if (say && !dbOffline) {
+      window.history.replaceState(null, "", window.location.pathname);
+      setTimeout(() => runVoice(say), 50);
+      return;
+    }
+    if (edit === "last") {
+      window.history.replaceState(null, "", window.location.pathname);
+      const all = [...(day.entries || [])].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      const mine = all.find((x) => !x.createdByName || x.createdByName === session?.user?.name) || all[0];
+      if (mine) setEditing(mine);
+      else toast("No entries today yet");
+      return;
+    }
     if (!key) return;
     const by: Record<string, () => void> = {
       sale: () => setSheet({ t: "entry", kind: "SALE" }),

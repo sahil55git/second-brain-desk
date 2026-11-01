@@ -26,6 +26,7 @@ import { matchParty, normName, similarity, MATCH_MIN } from "@/lib/smartEntry";
 import { excelBlob, pdfBlob } from "@/lib/exporters";
 import { runAi } from "@/lib/aiProvider";
 import { HELP_TEXT, parseCommand, type Cmd, type EntryCmd } from "@/lib/bot/parse";
+import { parseVoice } from "@/lib/voice";
 import { dmy, kg, pct, rs, type BotButton, type BotReply } from "@/lib/bot/format";
 import { KIND_NAME, describeEntry } from "@/lib/bot/entryText";
 import { WHAT_NAME, reportFileName, reportTables, spanFor, spanName } from "@/lib/bot/reports";
@@ -416,6 +417,16 @@ async function askAi(text: string, who: BotWho, nowMs: number): Promise<BotReply
   return answer ? { text: `${answer.trim()}\n\n(AI answer from the shop figures — check before acting)` } : null;
 }
 
+// ------------------------------------------------------------------ open a form filled with what was said
+function fillForm(kind: RegisterKind, text: string, who: BotWho, why?: string): BotReply {
+  if (!who.isOwner && !canFn(who.perms, kindToFn(kind))) throw new BotRefusal(`Your login cannot add ${KIND_NAME[kind].toLowerCase()} entries.`);
+  const path = `/register?say=${encodeURIComponent(text.slice(0, 200))}`;
+  return {
+    text: [`📝 Opening the **${KIND_NAME[kind]}** form with what you said.`, why ? `Still needed: ${why.replace(/^How much\?.*$/, "the amount").replace(/^Who.*$/, "the name")}` : "Check it and tap Save."].join("\n"),
+    open: { path, label: `${KIND_NAME[kind]} form` },
+  };
+}
+
 // ------------------------------------------------------------------ the one entry point
 export async function runCommand(text: string, who: BotWho, ctx: BotCtx, nowMs = Date.now()): Promise<BotReply> {
   const cmd = parseCommand(text);
@@ -451,9 +462,17 @@ export async function runCommand(text: string, who: BotWho, ctx: BotCtx, nowMs =
       return report(cmd, who, nowMs);
     case "entry":
       return previewEntry(cmd, who, ctx, nowMs);
+    case "open":
+      return { text: `↗ Opening **${cmd.label}**`, open: { path: cmd.path, label: cmd.label } };
+    case "fill":
+      return fillForm(cmd.kind, cmd.text, who, cmd.why);
     case "bad":
       throw new BotRefusal(cmd.why);
     default: {
+      // said like a sentence ("purchased sunflower oil 180 kg from digwal"): the register's voice
+      // parser understands more ways of saying it — open that form filled in
+      const v = parseVoice(cmd.text);
+      if (v.type === "entry") return fillForm(v.kind, cmd.text, who);
       const ai = await askAi(cmd.text, who, nowMs).catch(() => null);
       if (ai) return ai;
       throw new BotRefusal(`I did not get "${cmd.text.slice(0, 60)}". Send **help** for the list.`);
@@ -474,6 +493,10 @@ export async function handle(input: { text?: string; button?: string }, who: Bot
     if (!(e instanceof BotRefusal)) console.error("bot", e);
   }
   await logBot(ctx, who.username, said, reply.text, ok);
+  if (reply.open && ctx.channel !== "app") {
+    const base = (process.env.NEXTAUTH_URL || "https://mahadev-second-brain.vercel.app").replace(/\/+$/, "");
+    reply = { ...reply, text: `${reply.text}\n\n🔗 ${base}${reply.open.path}` };
+  }
   return reply;
 }
 
