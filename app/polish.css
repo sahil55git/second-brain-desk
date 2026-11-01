@@ -1,0 +1,58 @@
+/* Cards & panels and "refined" type — Appearance → Cards and panels / Headings and tabs.
+   data-card / data-type are set on <html> by lib/customize.tsx. Loaded after the skins so
+   a choice here wins over the theme's own card look. */
+:root { --pc-r: calc(16px * var(--ui-r, 1)); }
+html[data-card="flat"] :is(.hub-card, .hub-kpi, .qr-card, .bd-card, .hm-card, .stk-card, .csh-card, .tly-card, .qr-win, .cb-box) {
+  background: var(--ui-card, var(--background)) !important;
+  border: 1px solid color-mix(in srgb, currentColor 10%, transparent) !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  border-radius: var(--pc-r) !important;
+}
+html[data-card="soft"] :is(.hub-card, .hub-kpi, .qr-card, .bd-card, .hm-card, .stk-card, .csh-card, .tly-card, .qr-win, .cb-box) {
+  background: var(--ui-card, var(--background)) !important;
+  border: 1px solid color-mix(in srgb, currentColor 6%, transparent) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .10), 0 8px 24px rgba(0, 0, 0, .14) !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  border-radius: var(--pc-r) !important;
+}
+html[data-card="glass"] :is(.hub-card, .hub-kpi, .qr-card, .bd-card, .hm-card, .stk-card, .csh-card, .tly-card, .qr-win, .cb-box) {
+  background: color-mix(in srgb, var(--ui-card, var(--background)) 62%, transparent) !important;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 10%, transparent), 0 10px 30px rgba(0, 0, 0, .18) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2);
+  border-radius: var(--pc-r) !important;
+}
+html[data-card="outline"] :is(.hub-card, .hub-kpi, .qr-card, .bd-card, .hm-card, .stk-card, .csh-card, .tly-card, .qr-win, .cb-box) {
+  background: transparent !important;
+  border: 1.5px solid color-mix(in srgb, currentColor 22%, transparent) !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  border-radius: var(--pc-r) !important;
+}
+/* phones: the glass blur is what made scrolling lag — keep it off on touch screens */
+@media (pointer: coarse) {
+  html[data-card="glass"] :is(.hub-card, .hub-kpi, .qr-card, .bd-card, .hm-card, .stk-card, .csh-card, .tly-card, .qr-win, .cb-box) {
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    background: color-mix(in srgb, var(--ui-card, var(--background)) 88%, transparent) !important;
+  }
+}
+
+/* Refined headings, tabs and numbers */
+html[data-type="refined"] :is(h1, h2, h3) { letter-spacing: -0.015em; text-wrap: balance; }
+html[data-type="refined"] :is(table, .qr-num, .hub-kpi .v, .bd-kpi .v, .qr-hero-v) { font-variant-numeric: tabular-nums; }
+html[data-type="refined"] :is(th) { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; opacity: .7; font-weight: 700; }
+html[data-type="refined"] :is(.hub-tabs, .sb-tabs) {
+  display: flex; gap: 4px; padding: 4px; border: 1px solid color-mix(in srgb, currentColor 12%, transparent) !important;
+  border-radius: 999px; background: color-mix(in srgb, currentColor 4%, transparent); width: fit-content; max-width: 100%;
+  overflow-x: auto; scrollbar-width: none;
+}
+html[data-type="refined"] :is(.hub-tabs, .sb-tabs) > :is(button, a) {
+  border: 0 !important; border-radius: 999px !important; padding: 7px 14px !important; white-space: nowrap;
+  transition: background .15s ease, color .15s ease;
+}
+html[data-type="refined"] :is(.hub-tabs button.on, .sb-tabs > .on, .sb-tabs > [aria-selected="true"], .sb-tabs > [aria-current="page"]) {
+  background: var(--accent, #d97706) !important; color: #fff !important; box-shadow: 0 2px 8px color-mix(in srgb, var(--accent, #d97706) 35%, transparent);
+}
+html[data-type="refined"] .qr-wbar .t { font-size: 11px; letter-spacing: .09em; }
+html[data-type="refined"] td, html[data-type="refined"] th { padding-top: 9px; padding-bottom: 9px; }
