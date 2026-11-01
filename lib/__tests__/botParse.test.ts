@@ -95,3 +95,12 @@ describe("talking like a person", () => {
     expect(parseCommand("got ramesh")).toMatchObject({ t: "fill", kind: "UDHAAR_IN" });
   });
 });
+
+describe("tasks in the chat", () => {
+  it("remind me / todo / tasks", () => {
+    expect(parseCommand("remind me friday to pay digwal")).toEqual({ t: "task", words: "friday to pay digwal" });
+    expect(parseCommand("todo order tins")).toEqual({ t: "task", words: "order tins" });
+    expect(parseCommand("my tasks")).toEqual({ t: "tasks" });
+    expect(parseCommand("remind ramesh").t).toBe("remind");
+  });
+});

@@ -254,11 +254,71 @@ const hm = (ts: string | number | Date) =>
   new Date(ts).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
 const todayIST = () => businessDate(Date.now());
 
+// Offline: a new entry that cannot reach the server is kept on this phone and sent when the
+// internet is back (each carries a clientId, so a retry never saves it twice).
+const QUEUE_KEY = "qr-offline-queue-v1";
+interface Queued { url: string; body: string; at: number }
+export function offlineQueue(): Queued[] {
+  try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]"); } catch { return []; }
+}
+function setQueue(q: Queued[]) {
+  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch {}
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("qr-queue", { detail: q.length }));
+}
+let flushing = false;
+/** Send what is waiting; returns how many went. */
+export async function flushQueue(): Promise<number> {
+  if (flushing || typeof navigator !== "undefined" && !navigator.onLine) return 0;
+  flushing = true;
+  let sent = 0;
+  try {
+    for (;;) {
+      const q = offlineQueue();
+      if (!q.length) break;
+      const it = q[0];
+      let res: Response;
+      try {
+        res = await fetch(it.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: it.body });
+      } catch {
+        break; // still offline
+      }
+      // sent (or refused for good, e.g. a mistake in it): either way it leaves the queue
+      setQueue(offlineQueue().slice(1));
+      if (res.ok) sent++;
+      else window.dispatchEvent(new CustomEvent("qr-queue-fail", { detail: (await res.json().catch(() => ({}))).error || `HTTP ${res.status}` }));
+    }
+  } finally {
+    flushing = false;
+  }
+  return sent;
+}
+
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
-  });
+  const isNew = url === "/api/register" && init?.method === "POST" && typeof init.body === "string";
+  let body = init?.body;
+  if (isNew) {
+    const b = JSON.parse(init!.body as string);
+    if (!b.clientId) b.clientId = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    body = JSON.stringify(b);
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setQueue([...offlineQueue(), { url, body: body as string, at: Date.now() }]);
+      return { data: { queued: true } } as T;
+    }
+  }
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...init,
+      body,
+      headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    });
+  } catch (e) {
+    if (isNew) {
+      setQueue([...offlineQueue(), { url, body: body as string, at: Date.now() }]);
+      return { data: { queued: true } } as T;
+    }
+    throw e;
+  }
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
   return json as T;
@@ -818,6 +878,24 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [rcpt, setRcpt] = useState<ReceiptDoc | null>(null);
   const [editing, setEditing] = useState<Entry | null>(null);
+  const [waiting, setWaiting] = useState(0);
+  useEffect(() => {
+    const upd = () => setWaiting(offlineQueue().length);
+    upd();
+    const onQ = (e: Event) => {
+      const n = (e as CustomEvent<number>).detail;
+      setWaiting(n);
+    };
+    const onFail = (e: Event) => toast(`An entry kept offline was refused: ${(e as CustomEvent<string>).detail}`);
+    const goOnline = () => void flushQueue().then((n) => { if (n) { toast(`${n} entr${n === 1 ? "y" : "ies"} sent ✓`); load(); } });
+    window.addEventListener("qr-queue", onQ);
+    window.addEventListener("qr-queue-fail", onFail);
+    window.addEventListener("online", goOnline);
+    const t = window.setInterval(() => { if (offlineQueue().length) goOnline(); }, 30000);
+    goOnline();
+    return () => { window.removeEventListener("qr-queue", onQ); window.removeEventListener("qr-queue-fail", onFail); window.removeEventListener("online", goOnline); window.clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [lang, setLangState] = useState<LangMode>("both");
   const [now, setNow] = useState(Date.now());
 
@@ -2326,6 +2404,11 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
         </div>
       )}
       {rcpt && <ReceiptSheet doc={rcpt} onClose={() => setRcpt(null)} />}
+      {waiting > 0 && (
+        <button type="button" className="qr-offline" onClick={() => void flushQueue().then((n) => { if (n) { toast(`${n} sent ✓`); load(); } else toast("Still offline — they will go when the internet is back."); })}>
+          ⏳ {waiting} entr{waiting === 1 ? "y" : "ies"} saved on this phone · will send when online
+        </button>
+      )}
       {editing && (
         <EditEntry
           e={editing}
