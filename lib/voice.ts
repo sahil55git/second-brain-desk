@@ -3,6 +3,7 @@
 // into "which form to open, pre-filled with what". Nothing is ever saved by
 // voice alone — the form opens filled in and the person taps Save.
 import type { Mode, RegisterKind } from "./register";
+import { needsEnglish, toEnglish } from "./lang";
 
 export type VoiceAction =
   | { type: "entry"; kind: RegisterKind; item?: string; qty?: number; unit?: string; rate?: number; amount?: number; mode?: Mode; party?: string }
@@ -17,7 +18,8 @@ const WORD_NUM: Record<string, number> = {
 };
 
 export function normalizeSpeech(raw: string): string {
-  let s = raw.toLowerCase();
+  // Hindi / Hinglish / more Kannada → English words first (lib/lang.ts)
+  let s = (needsEnglish(raw) ? toEnglish(raw) : raw).toLowerCase();
   s = s.replace(/[೦-೯]/g, (d) => String(KN_DIGITS.indexOf(d)));
   s = s.replace(/₹|rs\.?|rupees?|ರೂಪಾಯಿ|ರೂ/g, " rs ");
   s = s.replace(/(\d),(\d)/g, "$1$2");
@@ -72,7 +74,7 @@ export function parseVoice(raw: string): VoiceAction {
     a.unit = /kg|kilo|ಕೆಜಿ/.test(u) ? "kg" : /l|ಲೀಟರ್/.test(u) && !/bag/.test(u) ? "ltr" : /bag|ಚೀಲ/.test(u) ? "bags" : /box/.test(u) ? "box" : "pcs";
   }
   // rate: "at 250", "rate 250", "250 per kg"
-  const r = s.match(/(?:at|rate|@|ದರ)\s*(?:rs\s*)?(\d+(?:\.\d+)?)/) || s.match(/(\d+(?:\.\d+)?)\s*(?:rs\s*)?(?:per|each|\/)/);
+  const r = s.match(/(?:at|rate|@|ದರ)\s*(?:rs\s*)?(\d+(?:\.\d+)?)/) || s.match(/(\d+(?:\.\d+)?)\s*(?:rs\s*)?(?:per|each|\/|rate\b)/);
   if (r) a.rate = Number(r[1]);
   // amount: "rs 500", "500 rupees", "amount 500", or the last number left over
   const am = s.match(/(?:rs|amount|total|ಮೊತ್ತ)\s*(\d+(?:\.\d+)?)/) || s.match(/(\d+(?:\.\d+)?)\s*rs/);

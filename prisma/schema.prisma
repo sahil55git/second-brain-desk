@@ -1223,3 +1223,23 @@ model MachineLog {
 
   @@index([machine, date])
 }
+
+// Customer orders (WhatsApp or typed in): draft until the customer confirms, then new → packed →
+// delivered (or cancelled). The sale itself is entered in the register as usual.
+model CustomerOrder {
+  id        String   @id @default(cuid())
+  no        String   @unique // "SO-41"
+  channel   String   @default("whatsapp") // whatsapp | app
+  phone     String?
+  name      String?
+  lines     Json // [{ item, qty, unit, rate, amount }]
+  totalInr  Float?
+  status    String   @default("draft") // draft | new | packed | delivered | cancelled
+  note      String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phone, createdAt])
+  @@index([status])
+}

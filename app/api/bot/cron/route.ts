@@ -8,6 +8,7 @@ import { businessDate } from "@/lib/register";
 import { botKeys } from "@/lib/bot/config";
 import { digestText, openTasks, reviewText, taskLines } from "@/lib/bot/engine";
 import { sendToOwners, sendToUsers } from "@/lib/bot/push";
+import { refreshMandi } from "@/lib/mandiServer";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -34,13 +35,15 @@ export async function GET(req: NextRequest) {
         const r = await sendToUsers([u.username], { text: [`☀️ **Good morning — today's tasks**`, ...taskLines(due, today)].join("\n"), buttons: due.slice(0, 4).map((t, i) => ({ label: `✓ ${i + 1}`, data: `task:${t.id}` })) });
         sent += r.sent;
       }
+      // today's mandi seed prices (Insights → Mandi)
+      const mandi = await refreshMandi().catch(() => null);
       // Sunday: the weekly review to the owner
       let weekly = false;
       if (new Date(`${today}T00:00:00Z`).getUTCDay() === 0) {
         const r = await sendToOwners({ text: await reviewText(Date.now()), buttons: [{ label: "👀 Watch", data: "cmd:watch" }, { label: "🙌 Udhaar", data: "cmd:udhaar" }] });
         weekly = r.sent > 0;
       }
-      return { morning: true, sent, weekly };
+      return { morning: true, sent, weekly, mandi };
     });
     return NextResponse.json(m.ok ? { data: m.data } : { error: m.error }, { status: m.ok ? 200 : 503 });
   }

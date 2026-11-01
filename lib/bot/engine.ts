@@ -26,6 +26,8 @@ import { matchParty, normName, similarity, MATCH_MIN } from "@/lib/smartEntry";
 import { excelBlob, pdfBlob } from "@/lib/exporters";
 import { runAi } from "@/lib/aiProvider";
 import { anomalies, weeklyReview } from "@/lib/ops";
+import { COMMODITIES, mandiSignals } from "@/lib/mandi";
+import { loadMandi } from "@/lib/mandiServer";
 import type { Budgets, RateCards } from "@/lib/money";
 import { HELP_TEXT, parseCommand, type Cmd, type EntryCmd } from "@/lib/bot/parse";
 import { parseVoice } from "@/lib/voice";
@@ -527,6 +529,12 @@ export async function runCommand(text: string, who: BotWho, ctx: BotCtx, nowMs =
       return alerts(who, nowMs);
     case "watch":
       return watch(who, nowMs);
+    case "mandi": {
+      if (!who.isOwner) throw new BotRefusal(OWNER_ONLY);
+      const m = await loadMandi();
+      const sig = mandiSignals(m.rows, COMMODITIES);
+      return { text: sig.length ? [`**🌾 Mandi seed prices**`, ...sig.map((s) => `${s.signal === "buy" ? "🟢" : s.signal === "wait" ? "🟠" : "⚪"} ${s.commodity}: ₹${(s.latest / 100).toFixed(1)}/kg${s.change7Pct != null ? ` (${s.change7Pct > 0 ? "+" : ""}${s.change7Pct}% wk)` : ""}`), "", ...sig.filter((s) => s.signal !== "steady").map((s) => s.say)].join("\n") : "No mandi prices yet — open Insights → Mandi and tap “Get today's prices”.", open: { path: "/insights#mandi", label: "Open Mandi prices" } };
+    }
     case "review":
       if (!who.isOwner) throw new BotRefusal(OWNER_ONLY);
       return { text: await reviewText(nowMs), open: { path: "/insights#weekly", label: "Open weekly review" } };

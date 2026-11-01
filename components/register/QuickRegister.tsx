@@ -1836,7 +1836,10 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
       return;
     }
     const rec = new Rec();
-    rec.lang = lang === "kn" ? "kn-IN" : "en-IN";
+    // the language picked in the AI / voice sheet (EN · ಕನ್ನಡ · हिन्दी), else the screen language
+    let saved = "";
+    try { saved = localStorage.getItem(SPEECH_KEY) || ""; } catch {}
+    rec.lang = saved === "hi-IN" || saved === "kn-IN" || saved === "en-IN" ? saved : lang === "kn" ? "kn-IN" : "en-IN";
     rec.interimResults = true;
     rec.maxAlternatives = 1;
     let finalText = "";
