@@ -16,7 +16,7 @@ import {
 } from "@/lib/printHelper";
 import { canCancel, canReprint, statusText } from "@/lib/printQueue";
 import {
-  connectBluetooth, connectUsb, currentConnection, directConfig, directSupport, disconnectPrinter, dotsAcross, explainError, isUsbHeld, knownUsbPrinters, monoFromDataUrl, reconnectBluetooth, sendBytes, unsupportedReason, usbMatches,
+  connectBluetooth, connectNative, connectUsb, isNativeId, currentConnection, directConfig, directSupport, disconnectPrinter, dotsAcross, explainError, isUsbHeld, knownUsbPrinters, monoFromDataUrl, reconnectBluetooth, sendBytes, unsupportedReason, usbMatches,
   type DirectCfg, type DirectConnection,
 } from "@/lib/directPrint";
 import SavedPrinterBar from "@/components/barrels/SavedPrinterBar";
@@ -425,6 +425,12 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
   const ensureConnected = async (t: Target): Promise<DirectConnection> => {
     const cur = currentConnection();
     if (cur && (!t.printer?.deviceId || cur.deviceId === t.printer.deviceId)) return cur;
+    if (isNativeId(t.printer?.deviceId)) {
+      const c = await connectNative(t.printer!.deviceId!);
+      setConn(c);
+      setDlog(c.log);
+      return c;
+    }
     let c: DirectConnection | null = null;
     if (t.printer?.via === "usb") {
       const list = await knownUsbPrinters();
@@ -446,7 +452,8 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
     (async () => {
       try {
         let c: DirectConnection | null = null;
-        if (p.via === "usb") {
+        if (isNativeId(p.deviceId)) c = await connectNative(p.deviceId!, p.name);
+        else if (p.via === "usb") {
           const dev = (await knownUsbPrinters()).find((d) => usbMatches(d, p.deviceId!));
           if (dev) c = await connectUsb(dev, lost);
         } else c = await reconnectBluetooth(p.deviceId!, cfg.service, lost, setDlog);
@@ -477,8 +484,8 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
         cut: false,
       });
       await sendBytes(via.sink, bytes, {
-        chunk: Math.min(c.chunk, via.kind === "usb" ? 16384 : c.chunk),
-        delayMs: via.kind === "usb" ? 0 : c.delay,
+        chunk: isNativeId(via.deviceId) ? 16384 : Math.min(c.chunk, via.kind === "usb" ? 16384 : c.chunk),
+        delayMs: via.kind === "usb" || isNativeId(via.deviceId) ? 0 : c.delay,
         onProgress: (sent, all) => setProg(`Sending ${i + 1} of ${monos.length} · ${Math.round((sent / all) * 100)}%`),
       });
       total++;

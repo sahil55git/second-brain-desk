@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Mahadev Desk</string>
+    <string name="title_activity_main">Mahadev Desk</string>
+    <string name="package_name">in.mahadevtraders.desk</string>
+    <string name="custom_url_scheme">in.mahadevtraders.desk</string>
+    <string name="app_base_url" translatable="false">https://mahadev-second-brain.vercel.app</string>
+    <string name="widget_summary_desc">Today\'s sales, cash, UPI, udhaar and barrels</string>
+    <string name="widget_barrels_desc">Barrels to weigh and waiting to be emptied</string>
+    <string name="widget_actions_desc">One-tap Sale, Expense, Udhaar, Weigh, Cash, Quick card</string>
+    <string name="sc_sale">Sale</string>
+    <string name="sc_expense">Expense</string>
+    <string name="sc_weigh">Weigh barrel</string>
+    <string name="sc_quick">Quick card</string>
+</resources>

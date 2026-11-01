@@ -1,0 +1,5 @@
+node_modules/
+*.keystore
+*.jks
+Mahadev-Desk.apk
+android/build.log

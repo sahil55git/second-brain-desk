@@ -1043,3 +1043,19 @@ model EmployeeEvent {
 
   @@index([employeeId, at])
 }
+
+// A phone that shows the home-screen widgets and alerts (Android app). The widget cannot sign
+// in like a person, so it holds a long random key; only its SHA-256 is kept here. The key can
+// only READ the widget summary, nothing else, and the owner can switch it off.
+model DeviceToken {
+  id         String    @id @default(cuid())
+  name       String // "Redmi Note 12 · counter"
+  hash       String    @unique
+  username   String
+  role       String // OWNER | STAFF (what the widget may show)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  @@index([username])
+}

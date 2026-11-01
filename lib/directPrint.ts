@@ -3,6 +3,7 @@
 // and Edge only, https only) and sends the printer commands built in printerLang.ts.
 // The pure parts (picking the write channel, chunked sending, error wording, defaults) are tested in
 // lib/__tests__/directPrint.test.ts; the browser parts need a real printer and are checked with the Test label.
+import { MahadevPrinter, isNative, toBase64, type NativePrinter } from "@/lib/native";
 import { mmToDots, toMono, type Mono, type PrinterLang } from "@/lib/printerLang";
 
 // ---------------------------------------------------------------------------
@@ -81,6 +82,7 @@ export interface DirectSupport {
 }
 export function directSupport(): DirectSupport {
   if (typeof navigator === "undefined") return { bluetooth: false, usb: false, secure: false };
+  if (isNative()) return { bluetooth: true, usb: true, secure: true }; // the Android app prints through the phone itself
   const n = navigator as unknown as Nav;
   return { bluetooth: !!n.bluetooth, usb: !!n.usb, secure: typeof window !== "undefined" ? window.isSecureContext : false };
 }
@@ -352,6 +354,7 @@ function btServices(extraService: string): string[] {
 
 /** Open the Bluetooth chooser (must be called from a tap) and connect to the printer that is picked. */
 export async function connectBluetooth(extraService = "", onLost?: () => void, onLog?: (lines: string[]) => void): Promise<DirectConnection> {
+  if (isNative()) return connectNativeFirst("bluetooth");
   const bt = btNav();
   if (!bt) throw new Error("This browser has no Bluetooth printing. Use Chrome on Android or PC.");
   await disconnectPrinter();
@@ -365,6 +368,7 @@ export async function connectBluetooth(extraService = "", onLost?: () => void, o
  * Returns null when the browser cannot do that (older Chrome) or the printer is not in range / not known.
  */
 export async function reconnectBluetooth(deviceId: string, extraService = "", onLost?: () => void, onLog?: (lines: string[]) => void): Promise<DirectConnection | null> {
+  if (isNativeId(deviceId)) return connectNative(deviceId);
   const bt = btNav();
   if (!bt || typeof bt.getDevices !== "function") return null;
   let list: BtDevice[] = [];
@@ -520,6 +524,7 @@ export const usbLooksLikePrinter = (d: { configuration: { interfaces: { alternat
 
 /** Bluetooth printers this site was allowed before (only where Chrome can list them; else an empty list). */
 export async function knownBluetoothPrinters(): Promise<{ id: string; name: string }[]> {
+  if (isNative()) return (await nativePrinters()).filter((p) => p.kind === "bluetooth").map((p) => ({ id: p.id, name: p.name }));
   const bt = typeof navigator === "undefined" ? undefined : btNav();
   if (!bt || typeof bt.getDevices !== "function") return [];
   try {
@@ -531,6 +536,7 @@ export async function knownBluetoothPrinters(): Promise<{ id: string; name: stri
 
 /** Open the USB chooser (from a tap) or reuse a printer already allowed, then claim its bulk-out channel. */
 export async function connectUsb(device?: UsbDevice, onLost?: () => void): Promise<DirectConnection> {
+  if (isNative()) return connectNativeFirst("usb");
   const usb = (navigator as unknown as { usb?: { requestDevice(o: unknown): Promise<UsbDevice>; addEventListener(t: string, f: (e: { device: UsbDevice }) => void): void } }).usb;
   if (!usb) throw new Error("This browser has no USB printing. Use Chrome on Android or PC.");
   await disconnectPrinter();
@@ -623,4 +629,59 @@ export async function monoFromDataUrl(url: string, widthDots: number, threshold 
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(img, 0, 0, w, h);
   return toMono(ctx.getImageData(0, 0, w, h).data, w, h, threshold);
+}
+
+// ---------------------------------------------------------------------------
+// Android app: Bluetooth (classic, the kind most label / receipt printers are) and USB printers
+// reached through the phone itself (mobile/ MahadevPrinter plugin). Ids are "nbt:<mac>" and
+// "nusb:<device>", so a saved printer finds the same one again.
+// ---------------------------------------------------------------------------
+export const isNativeId = (id: string | null | undefined) => !!id && (id.startsWith("nbt:") || id.startsWith("nusb:"));
+
+/** Printers the phone knows: paired Bluetooth printers and plugged-in USB ones. Printer-like first. */
+export async function nativePrinters(): Promise<NativePrinter[]> {
+  if (!isNative()) return [];
+  try {
+    const r = await MahadevPrinter.list();
+    return [...r.printers].sort((a, b) => Number(b.printer) - Number(a.printer));
+  } catch {
+    return [];
+  }
+}
+
+export async function connectNative(id: string, name?: string): Promise<DirectConnection> {
+  await disconnectPrinter();
+  const kind: "bluetooth" | "usb" = id.startsWith("nusb:") ? "usb" : "bluetooth";
+  const label = name || (await nativePrinters()).find((p) => p.id === id)?.name || (kind === "usb" ? "USB printer" : "Bluetooth printer");
+  let open = true;
+  const conn: DirectConnection = {
+    kind,
+    name: label,
+    deviceId: id,
+    log: [`Through the phone: ${label} (${kind === "usb" ? "USB" : "Bluetooth"})`],
+    sink: { write: async (chunk) => { await MahadevPrinter.write({ id, base64: toBase64(chunk) }); } },
+    chunk: 16384,
+    delay: 0,
+    isOpen: () => open,
+    close: async () => {
+      open = false;
+      await MahadevPrinter.close().catch(() => {});
+    },
+  };
+  current = conn;
+  return conn;
+}
+
+/** "＋ Bluetooth printer" / "＋ USB printer" in the app: the first printer of that kind the phone knows. */
+async function connectNativeFirst(kind: "bluetooth" | "usb"): Promise<DirectConnection> {
+  const list = (await nativePrinters()).filter((p) => p.kind === kind);
+  const p = list.find((x) => x.printer) ?? list[0];
+  if (!p) {
+    throw new Error(
+      kind === "bluetooth"
+        ? "No paired Bluetooth printer. Switch the printer on, pair it in Android Settings → Bluetooth (PIN is usually 0000 or 1234), then come back and pick it in Print to."
+        : "No USB printer found. Plug the printer into the phone with an OTG cable, allow the app to use it, then try again.",
+    );
+  }
+  return connectNative(p.id, p.name);
 }
