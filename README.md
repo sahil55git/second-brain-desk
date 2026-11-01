@@ -391,3 +391,4 @@ acting on it.
 
 ## Smart entry (scan, speak, check, ask)
 Every entry desk (Purchase, Sales, Expenses, Stock tally, Job-work, Manufacturing, Daily closing) has an AI terminal that fills the form from a bill photo, speech (English / Kannada / Hindi) or text — for review, never auto-saved — plus ready questions that check the entry against your records, live exact checks (duplicate bills, GSTIN checksum, totals, rates, below-cost sales, duplicate expenses), item barcodes / QR with labels (`/labels`), and scale capture. See [docs/SMART-ENTRY.md](docs/SMART-ENTRY.md).
+
