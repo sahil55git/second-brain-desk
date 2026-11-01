@@ -1150,3 +1150,42 @@ model UdhaarNote {
 
   @@index([name])
 }
+
+// Staff attendance: one row per person per day — present / half day / absent, the time in and
+// out, a small selfie taken at check-in and where the phone was. Daily wages are filled from it.
+model Attendance {
+  id         String    @id @default(cuid())
+  employeeId String
+  date       String // "YYYY-MM-DD"
+  status     String // P (present) | H (half day) | A (absent)
+  inAt       DateTime?
+  outAt      DateTime?
+  photo      String? // small JPEG data URL (≤ 60 kB)
+  lat        Float?
+  lng        Float?
+  accuracyM  Float?
+  distanceM  Float? // from the shop, when the shop's place is set
+  note       String?
+  markedBy   String?
+  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime  @default(now())
+
+  @@unique([employeeId, date])
+  @@index([date])
+}
+
+// Things to do and reminders, from the chat ("remind me friday to pay digwal") or the app.
+model Task {
+  id        String    @id @default(cuid())
+  text      String
+  due       String? // "YYYY-MM-DD"
+  dueTime   String? // "HH:MM"
+  username  String // whose task
+  doneAt    DateTime?
+  remindedAt DateTime?
+  createdAt DateTime  @default(now())
+  createdVia String?
+
+  @@index([username, doneAt])
+  @@index([due])
+}

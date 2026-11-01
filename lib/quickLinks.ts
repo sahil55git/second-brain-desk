@@ -39,6 +39,7 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "weighfull", icon: "⚖️", title: "Weigh full barrel", kn: "ತುಂಬಿದ ಬ್ಯಾರಲ್ ತೂಕ", desc: "Straight to the full-barrel weight", href: "/barrels?weigh=full", group: "entry" },
   { id: "barrelsimple", icon: "👷", title: "Barrels: simple mode", kn: "ಬ್ಯಾರಲ್ ಸರಳ", desc: "Only weighing, for the manager and workers", href: "/barrels?simple=1", group: "entry" },
   { id: "barrels", icon: "🛢️", title: "Barrel receiving", kn: "ಬ್ಯಾರಲ್ ಸ್ವೀಕಾರ", desc: "Label, weigh full & empty, check the oil", href: "/barrels", group: "entry" },
+  { id: "attendance", icon: "🕘", title: "Attendance", kn: "ಹಾಜರಿ", desc: "Present / half / absent, check-in selfie and place", href: "/attendance", group: "entry" },
   { id: "employees", icon: "👷", title: "Employee ledger", kn: "ನೌಕರರ ಖಾತೆ", desc: "Salary, daily wages, advances, payments, balance of each person", href: "/employees", group: "entry", ownerOnly: true },
   { id: "fleet", icon: "🛢️", title: "Our barrels", kn: "ನಮ್ಮ ಬ್ಯಾರಲ್‌ಗಳು", desc: "Our own barrels: tare, weigh, where each one is", href: "/barrels/fleet", group: "entry" },
   { id: "smart", icon: "✨", title: "Smart entry (register)", kn: "ಸ್ಮಾರ್ಟ್ ದಾಖಲೆ", desc: "Say / photo → register form filled", href: "/register?open=smart", group: "entry" },
