@@ -18,6 +18,8 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: "/icons/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
     shortcuts: [
+      { name: "Quick card", url: "/quick" },
+      { name: "Weigh full barrel", url: "/barrels?weigh=full" },
       { name: "POS counter", url: "/register/pos" },
       { name: "Sale", url: "/register?open=sale" },
       { name: "Expense", url: "/register?open=expense" },

@@ -5,6 +5,7 @@
 // routes, so every entry lands in the same Postgres database as the rest of
 // Second Brain Desk.
 
+import ShareButton from "@/components/share/ShareButton";
 import UdhaarHint from "./UdhaarHint";
 import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -4397,6 +4398,7 @@ function ReportSheet({
         <button className="qr-btn2" onClick={() => window.print()}>
           <G e="🖨️" /> {word("print", lang)}
         </button>
+        <ShareButton text={text()} title={`Day summary ${day.date}`} className="qr-btn2" url={false} />
         <button className="qr-btn2" onClick={() => setRcpt({ title: "DAY SUMMARY", when: day.date, rows: [], pre: text().replace(/^MAHADEV TRADERS — [^\n]*\n/, "") })} title="Print on the receipt printer">
           <G e="🧾" /> {lang === "kn" ? "ರಸೀದಿ ಪ್ರಿಂಟರ್" : "Slip printer"}
         </button>

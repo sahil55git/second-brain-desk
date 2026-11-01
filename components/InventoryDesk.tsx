@@ -286,7 +286,7 @@ export default function InventoryDesk({
         </form>
       )}
 
-      <div className="flex justify-end -mb-2"><PrintButton area="#pa-items" label="🖨️ Print item list" className="rounded border border-black/20 dark:border-white/20 px-3 py-1 text-sm" /></div>
+      <div className="flex justify-end gap-2 -mb-2"><PrintButton area="#pa-items" label="🖨️ Print item list" className="rounded border border-black/20 dark:border-white/20 px-3 py-1 text-sm" /></div>
       <div id="pa-items" className="rounded-xl border border-black/10 dark:border-white/10 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-left opacity-60 border-b border-black/10 dark:border-white/10">

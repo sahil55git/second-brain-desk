@@ -106,3 +106,27 @@ html[data-skin="pastel"] .ql-fab { background: linear-gradient(180deg, #8d6cf0, 
 html.is-embed .pnav, html.is-embed .pnav-fab { display: none !important; }
 html.is-embed.has-pnav body { padding-bottom: 0 !important; }
 @media print { .ql-fab, .ql-edge, .ql-panel, .ql-scrim, .ql-pop { display: none !important; } }
+
+/* quick windows: sizes, see-through, bubbles */
+.ql-pop.sz-s { --qw: 190px; width: 380px; height: min(460px, 70vh); }
+.ql-pop.sz-m { --qw: 280px; }
+.ql-pop.sz-l { --qw: 400px; width: 800px; height: min(820px, 88vh); max-width: calc(100vw - 20px); }
+.ql-pop.max { inset: 10px; width: auto; height: auto; }
+.ql-pop:hover, .ql-pop:focus-within { opacity: 1 !important; transition: opacity .15s; }
+.ql-pt { gap: 6px; }
+.ql-cnt { font-weight: 500; opacity: .7; }
+.ql-opts { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px 12px; background: #3a352d; color: #f7f2e7; font-size: 13px; }
+.ql-opts .ql-seg { display: inline-flex; gap: 4px; }
+.ql-opts .ql-seg button { border: 1px solid rgba(255,255,255,.25); background: transparent; color: inherit; border-radius: 999px; padding: 4px 12px; cursor: pointer; font: inherit; }
+.ql-opts .ql-seg button.on { background: #f7f2e7; color: #2e2a24; }
+.ql-op { display: inline-flex; align-items: center; gap: 8px; }
+.ql-bubbles { position: fixed; z-index: 9000; right: max(8px, env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%); display: grid; gap: 6px; }
+.ql-bubble { display: flex; align-items: center; gap: 6px; max-width: 150px; padding: 8px 12px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--foreground) 18%, transparent); background: var(--background); color: var(--foreground); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 8px 22px -10px rgba(0,0,0,.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 760px) {
+  .ql-pop { left: 8px !important; right: 8px !important; width: auto !important; top: auto !important; bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important; }
+  .ql-pop.sz-s { height: 42vh; } .ql-pop.sz-m { height: 64vh; } .ql-pop.sz-l { height: calc(100vh - 70px); }
+  .ql-pop.max { inset: 8px !important; height: auto; }
+  .ql-pop:not(.top) { visibility: hidden; }
+  .ql-pt button { width: 32px; height: 32px; }
+}
+@media print { .ql-bubbles { display: none !important; } }

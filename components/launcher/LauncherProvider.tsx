@@ -12,9 +12,11 @@ import {
   addItem, FUNCTION_CHOICES, ICON_CHOICES, LAUNCHER_KEY, moveItem, normalizePrefs, removeItem, resolveOpening, updateItem,
   type Gesture, type GestureKey, type LItem, type LKind, type LauncherPrefs,
 } from "@/lib/launcher";
+import { cleanPops, MAX_POPS, POPS_KEY, type PopState } from "@/lib/popWindows";
+import PopWindow from "@/components/launcher/PopWindow";
 
 export type PopSpec = { title: string; url: string; external?: boolean; kind?: LKind };
-type Pop = PopSpec & { id: number };
+type Pop = PopState & { id: number };
 type BigTab = "Function" | "App" | "Link" | "Custom" | "Gest";
 
 type Ctx = {
@@ -54,7 +56,25 @@ export default function LauncherProvider({ children }: { children: ReactNode }) 
     if (!raw && window.matchMedia("(max-width: 760px)").matches) p.fabSide = "left";
     setPrefsState(p);
     setLoaded(true);
+    // windows left open stay open on every page until closed
+    if (!emb) {
+      try {
+        const kept = cleanPops(JSON.parse(localStorage.getItem(POPS_KEY) || "null"));
+        if (kept.length) setPops(kept.map((x) => ({ ...x, id: nid.current++ })));
+      } catch {}
+    }
   }, []);
+  const popsLoaded = useRef(false);
+  useEffect(() => {
+    if (!loaded) return;
+    if (!popsLoaded.current) {
+      popsLoaded.current = true;
+      return;
+    }
+    try {
+      localStorage.setItem(POPS_KEY, JSON.stringify(pops.map(({ title, url, kind, external, size, opacity, min, x, y }) => ({ title, url, kind, external, size, opacity, min, x, y }))));
+    } catch {}
+  }, [pops, loaded]);
 
   const setPrefs = useCallback((next: LauncherPrefs | ((p: LauncherPrefs) => LauncherPrefs)) => {
     setPrefsState((cur) => {
@@ -73,7 +93,11 @@ export default function LauncherProvider({ children }: { children: ReactNode }) 
     }
     setPanel(false);
     setBig(null);
-    setPops((cur) => [...cur.filter((x) => x.url !== p.url), { ...p, id: nid.current++ }].slice(-3));
+    setPops((cur) => {
+      const old = cur.find((x) => x.url === p.url);
+      const fresh: Pop = { size: "m", opacity: 1, x: 0, y: 0, ...old, ...p, min: false, id: nid.current++ };
+      return [...cur.filter((x) => x.url !== p.url), fresh].slice(-MAX_POPS);
+    });
   }, []);
 
   const openItem = useCallback(
@@ -119,7 +143,33 @@ export default function LauncherProvider({ children }: { children: ReactNode }) 
           {big && <BigWindow tab={big} setTab={setBig} prefs={prefs} setPrefs={setPrefs} openItem={openItem} close={() => setBig(null)} />}
         </>
       )}
-      {!embedded && pops.map((p, k) => <PopWindow key={p.id} pop={p} index={k} close={() => { setPops((c) => c.filter((x) => x.id !== p.id)); window.dispatchEvent(new Event("ql-pop-closed")); }} />)}
+      {!embedded && pops.filter((p) => !p.min).map((p, k, open) => (
+        <PopWindow
+          key={p.id}
+          pop={p}
+          index={k}
+          count={open.length}
+          change={(patch) => setPops((c) => c.map((x) => (x.id === p.id ? { ...x, ...patch } : x)))}
+          front={() => setPops((c) => [...c.filter((x) => x.id !== p.id), p])}
+          cycle={(dir) => setPops((c) => {
+            const vis = c.filter((x) => !x.min);
+            if (vis.length < 2) return c;
+            // swipe: the next window comes to the front
+            const next = dir > 0 ? vis[0] : vis[vis.length - 2];
+            return [...c.filter((x) => x.id !== next.id), next];
+          })}
+          close={() => { setPops((c) => c.filter((x) => x.id !== p.id)); window.dispatchEvent(new Event("ql-pop-closed")); }}
+        />
+      ))}
+      {!embedded && pops.some((p) => p.min) && (
+        <div className="ql-bubbles" aria-label="Quick windows kept open">
+          {pops.filter((p) => p.min).map((p) => (
+            <button key={p.id} className="ql-bubble" onClick={() => setPops((c) => [...c.filter((x) => x.id !== p.id), { ...p, min: false }])} title={`Open ${p.title}`}>
+              <span className={`ql-dot k-${p.kind || "App"}`} /> {p.title}
+            </button>
+          ))}
+        </div>
+      )}
     </LauncherCtx.Provider>
   );
 }
@@ -168,48 +218,6 @@ function FabAndPanel({ prefs, panel, setPanel, openBig, openItem }: { prefs: Lau
         </>
       )}
     </>
-  );
-}
-
-function PopWindow({ pop, index, close }: { pop: Pop; index: number; close: () => void }) {
-  const [max, setMax] = useState(false);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const drag = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
-  const internal = pop.url.startsWith("/");
-  return (
-    <div
-      className={`ql-pop${max ? " max" : ""}`}
-      style={max ? undefined : { left: `calc(50% - 280px + ${index * 34 + pos.x}px)`, top: `calc(9vh + ${index * 30 + pos.y}px)`, zIndex: 9001 + index }}
-      role="dialog"
-      aria-label={pop.title}
-    >
-      <div
-        className="ql-pt"
-        onPointerDown={(e) => {
-          if (max || (e.target as HTMLElement).closest("button")) return;
-          drag.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y };
-          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        }}
-        onPointerMove={(e) => {
-          const d = drag.current;
-          if (d) setPos({ x: d.ox + e.clientX - d.sx, y: d.oy + e.clientY - d.sy });
-        }}
-        onPointerUp={() => (drag.current = null)}
-      >
-        <span className={`ql-dot k-${pop.kind || "App"}`} />
-        <b>{pop.title}</b>
-        <button onClick={() => window.open(pop.url, "_blank", internal ? undefined : "noopener,noreferrer")} title="Open in a new tab" aria-label="Open in a new tab"><Icon name="external" size={15} /></button>
-        <button onClick={() => setMax(!max)} title={max ? "Smaller" : "Full screen"} aria-label={max ? "Smaller" : "Full screen"}>{max ? "▭" : "⤢"}</button>
-        <button onClick={close} aria-label="Close">✕</button>
-      </div>
-      <iframe
-        title={pop.title}
-        src={pop.url}
-        referrerPolicy={internal ? undefined : "no-referrer"}
-        sandbox={internal ? undefined : "allow-scripts allow-forms allow-popups"}
-      />
-      {!internal && <div className="ql-note">If this stays blank, the site doesn’t allow being shown inside a window. Use “Open in a new tab” (↗ above).</div>}
-    </div>
   );
 }
 

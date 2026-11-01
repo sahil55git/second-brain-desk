@@ -2,6 +2,7 @@
 
 // The ledger: every weighing and movement of the shop's barrels, newest first. Filter by barrel,
 // customer / supplier, what happened and dates; print it or take it to Excel.
+import ShareButton from "@/components/share/ShareButton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ACTION_LABEL, LOCATION_LABEL, PURPOSE_LABEL, eventFlags, ledgerCsv, type FleetAction, type Location, type Purpose } from "@/lib/barrelFleet";
 import { api, kg, whenFull } from "@/components/barrels/shared";
@@ -104,6 +105,7 @@ export default function FleetLedger({ barrels, presetCode }: { barrels: FBarrel[
       <div className="bd-row bd-noprint">
         <button className="bd-btn" onClick={() => window.print()} disabled={!rows?.length}>🖨️ Print</button>
         <button className="bd-btn" onClick={csv} disabled={!rows?.length}>⬇️ Excel (CSV)</button>
+        <ShareButton area=".bd-wrap .bd-tablewrap" className="bd-btn" title="Barrel ledger" />
         <span className="bd-m small">{rows ? `${rows.length} row(s)` : ""}{truncated ? " · showing the newest 500, narrow the dates to see older ones" : ""}</span>
       </div>
       {err && <div className="bd-err">{err}</div>}

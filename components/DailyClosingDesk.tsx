@@ -395,7 +395,7 @@ export default function DailyClosingDesk({
       </div>
 
       {/* Ledger panel */}
-      <div className="flex justify-end -mb-2"><PrintButton area="#pa-closings" label="🖨️ Print closings" className="rounded border border-black/20 dark:border-white/20 px-3 py-1 text-sm" /></div>
+      <div className="flex justify-end gap-2 -mb-2"><PrintButton area="#pa-closings" label="🖨️ Print closings" className="rounded border border-black/20 dark:border-white/20 px-3 py-1 text-sm" /></div>
       <div id="pa-closings" className="overflow-x-auto rounded-xl border border-black/10 dark:border-white/10">
         <table className="w-full text-sm">
           <thead className="bg-black/5 dark:bg-white/5 text-left">

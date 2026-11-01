@@ -12,6 +12,7 @@ import type { BizData } from "@/lib/bizReports";
 import { homeSparks, homeSummary, rangeSummary, type HomeRange, type HomeSummary, type RangeSummary } from "@/lib/homeSummary";
 import { businessDate } from "@/lib/register";
 import { Icon } from "@/components/ui/Icons";
+import ShareButton from "@/components/share/ShareButton";
 
 type Go = (desk: "jobwork" | "manufacturing" | "closing" | "sales" | "inventory" | "reports" | "ledger" | "parties") => void;
 
@@ -142,6 +143,13 @@ function RangeBar({ r, s, range, onRange, go }: { r: RangeSummary; s: HomeSummar
         <span className="g-chip cash">Cash {inr(r.cashIn)}</span>
         <span className="g-chip upi">UPI {inr(r.upiIn)}</span>
         {r.creditGiven > 0 && <span className="g-chip ud">Udhaar given {inr(r.creditGiven)}</span>}
+        <ShareButton
+          className="g-n"
+          label="📤 Share"
+          title={`Mahadev Traders · ${RANGE_WORD[r.range].sold}`}
+          url={false}
+          text={[`${RANGE_WORD[r.range].sold}: ${inr(r.sold)} (${r.bills} bills)`, `Cash in ${inr(r.cashIn)} · UPI ${inr(r.upiIn)}`, r.creditGiven > 0 ? `Udhaar given ${inr(r.creditGiven)}` : "", `Udhaar pending: ${s.udhaarCustomers} customers, ${inr(s.udhaarOutstanding)}`, `Job-work waiting: ${s.jobWork.waiting}`, `Spent today ${inr(s.spentToday)}`].filter(Boolean).join("\n")}
+        />
       </div>
     </div>
   );
