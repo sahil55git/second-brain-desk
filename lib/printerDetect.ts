@@ -141,7 +141,18 @@ const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> => Promise.race(
  * (`helperCode` set), so other devices never get Chrome's "allow local network" question.
  */
 export async function detect(opts: { helperCode?: string; askQueue?: boolean }): Promise<Detected> {
-  const { knownUsbPrinters, knownBluetoothPrinters, usbDeviceId, usbLabel, usbLooksLikePrinter } = await import("@/lib/directPrint");
+  const { knownUsbPrinters, knownBluetoothPrinters, usbDeviceId, usbLabel, usbLooksLikePrinter, nativePrinters } = await import("@/lib/directPrint");
+  const { isNative } = await import("@/lib/native");
+  if (isNative()) {
+    // the Android app: the phone's paired Bluetooth printers and plugged-in USB printers
+    const list = await nativePrinters();
+    return {
+      usb: list.filter((p) => p.kind === "usb").map((p) => ({ deviceId: p.id, name: p.name })),
+      bluetooth: list.filter((p) => p.kind === "bluetooth").map((p) => ({ id: p.id, name: p.name })),
+      helper: null,
+      queue: opts.askQueue === false ? null : await (await import("@/lib/printHelper")).fetchQueue(1).then((q) => (q.agent.lastSeen || q.agent.online ? { online: q.agent.online, labelPrinter: q.agent.labelPrinter, slipPrinter: q.agent.slipPrinter } : null)).catch(() => null),
+    };
+  }
   const { pingHelper, helperPrinters, pairingCodeOk, fetchQueue } = await import("@/lib/printHelper");
   const [usb, bluetooth, helper, queue] = await Promise.all([
     knownUsbPrinters().then((l) => l.filter(usbLooksLikePrinter).map((d) => ({ deviceId: usbDeviceId(d.vendorId, d.productId), name: usbLabel(d) }))),

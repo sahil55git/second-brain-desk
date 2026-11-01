@@ -1,0 +1,110 @@
+# Builds the Android app (mobile/) and publishes the APK as a GitHub release:
+#   main  → release "android-latest"  (the link in the app's /app page)
+#   PRs   → release "android-preview" (test build) + a comment if the build fails
+# Signing: add the repository secrets ANDROID_KEYSTORE_B64 and ANDROID_KEYSTORE_PASSWORD
+# (Settings → Secrets and variables → Actions). Without them the build is signed with a
+# temporary test key and phones must uninstall the old app before installing a new build.
+name: Android app
+
+on:
+  push:
+    branches: [main]
+    paths: ["mobile/**", ".github/workflows/android.yml"]
+  pull_request:
+    paths: ["mobile/**", ".github/workflows/android.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install Capacitor
+        run: npm ci --no-audit --no-fund
+
+      - name: Copy plugins into the Android project
+        run: npx cap sync android
+
+      - name: Signing key
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > android/app/release.keystore
+            echo "SIGNED=release" >> "$GITHUB_ENV"
+          else
+            echo "SIGNED=test" >> "$GITHUB_ENV"
+            echo "::warning::No ANDROID_KEYSTORE_B64 secret: building a test-signed APK."
+          fi
+
+      - name: Build the APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: mahadev
+        run: |
+          cd android
+          chmod +x gradlew
+          TASK=assembleRelease
+          [ "$SIGNED" = "test" ] && TASK=assembleDebug
+          set -o pipefail
+          ./gradlew --no-daemon --stacktrace "$TASK" -PversionCode=${{ github.run_number }} 2>&1 | tee build.log
+          APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          echo "Built $APK"
+          cp "$APK" ../Mahadev-Desk.apk
+
+      - name: Tell the PR why the build failed
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "### ❌ Android build failed (run ${{ github.run_number }})"
+            echo '```'
+            if [ -f android/build.log ]; then
+              (grep -nE "error:|e: |FAILURE|What went wrong|\.java:[0-9]+|AAPT|Execution failed|Could not" android/build.log | head -60; echo "----- last lines -----"; tail -n 40 android/build.log) | cut -c1-300
+            else
+              echo "No build log (failed before Gradle)."
+            fi
+            echo '```'
+          } > comment.md
+          gh pr comment ${{ github.event.pull_request.number }} --body-file comment.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mahadev-Desk-apk
+          path: mobile/Mahadev-Desk.apk
+
+      - name: Publish the APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then TAG=android-preview; TITLE="Android app — test build"; PRE=--prerelease; else TAG=android-latest; TITLE="Android app"; PRE=--latest; fi
+          gh release delete "$TAG" --yes --cleanup-tag || true
+          NOTES="Mahadev Desk for Android, build ${{ github.run_number }} ($SIGNED key) from ${GITHUB_SHA::7}. Install: open this on the phone, download Mahadev-Desk.apk, allow installing from this source, Install."
+          gh release create "$TAG" Mahadev-Desk.apk --target "${{ github.event.pull_request.head.sha || github.sha }}" --title "$TITLE (build ${{ github.run_number }})" --notes "$NOTES" $PRE
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            gh pr comment ${{ github.event.pull_request.number }} --body "✅ Android build ${{ github.run_number }} ($SIGNED key): https://github.com/${{ github.repository }}/releases/download/$TAG/Mahadev-Desk.apk"
+          fi

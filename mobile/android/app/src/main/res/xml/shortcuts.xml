@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="sale" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_sale">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="in.mahadevtraders.desk" android:targetClass="in.mahadevtraders.desk.MainActivity" android:data="https://mahadev-second-brain.vercel.app/register?open=sale" />
+    </shortcut>
+    <shortcut android:shortcutId="expense" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_expense">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="in.mahadevtraders.desk" android:targetClass="in.mahadevtraders.desk.MainActivity" android:data="https://mahadev-second-brain.vercel.app/register?open=expense" />
+    </shortcut>
+    <shortcut android:shortcutId="weigh" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_weigh">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="in.mahadevtraders.desk" android:targetClass="in.mahadevtraders.desk.MainActivity" android:data="https://mahadev-second-brain.vercel.app/barrels?weigh=full" />
+    </shortcut>
+    <shortcut android:shortcutId="quick" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_quick">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="in.mahadevtraders.desk" android:targetClass="in.mahadevtraders.desk.MainActivity" android:data="https://mahadev-second-brain.vercel.app/quick" />
+    </shortcut>
+</shortcuts>

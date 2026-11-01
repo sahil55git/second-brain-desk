@@ -1,0 +1,22 @@
+{
+  "appId": "in.mahadevtraders.desk",
+  "appName": "Mahadev Desk",
+  "webDir": "www",
+  "server": {
+    "url": "https://mahadev-second-brain.vercel.app/go",
+    "androidScheme": "https",
+    "allowNavigation": ["mahadev-second-brain.vercel.app", "*.mahadev-second-brain.vercel.app"],
+    "errorPath": "offline.html"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_notify",
+      "iconColor": "#7d8b6a"
+    }
+  }
+}
