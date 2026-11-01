@@ -1,5 +1,7 @@
-// 9 pm summary to the owner's linked chats (Vercel Cron, vercel.json). Sends once a day at most,
-// whoever calls it; with CRON_SECRET set in Vercel only the cron itself can call it.
+// 9 pm summary to the owner's linked chats. Called every evening by the GitHub Actions schedule
+// (.github/workflows/bot-digest.yml). Whoever calls it, it sends at most once a day and only
+// between 8 pm and midnight (India time), so an outside call can do no harm; with CRON_SECRET
+// set (in Vercel and as a GitHub secret) only the schedule can call it at all.
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { businessDate } from "@/lib/register";
@@ -12,9 +14,11 @@ export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
-  if (secret ? req.headers.get("authorization") !== `Bearer ${secret}` : !/vercel-cron/i.test(req.headers.get("user-agent") || "")) {
+  if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Only the scheduled job can call this." }, { status: 401 });
   }
+  const hourIst = Number(new Date().toLocaleString("en-GB", { hour: "2-digit", hour12: false, timeZone: "Asia/Kolkata" }));
+  if (hourIst < 20) return NextResponse.json({ data: { skipped: "the summary goes out after 8 pm" } });
   const r = await safeDbCall(async () => {
     const k = await botKeys();
     if (!k.digestOn) return { skipped: "summary is off" };
