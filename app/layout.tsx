@@ -4,6 +4,7 @@ import "./skins.css";
 import "./home.css";
 import "./launcher.css";
 import "./mobile.css";
+import "./polish.css";
 import { CustomizeProvider } from "@/lib/customize";
 import AuthSessionProvider from "@/components/AuthSessionProvider";
 import { ScaleProvider } from "@/components/ScaleProvider";

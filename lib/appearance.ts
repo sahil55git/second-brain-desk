@@ -57,7 +57,13 @@ export interface Look {
   tileStyle: TileStyle;
   skin: Skin;
   finish: Finish;
+  /** How cards and panels look: as the theme draws them, or flat / soft shadow / glass / outline. */
+  card: CardStyle;
+  /** Headings and tabs: the theme's own, or tighter "refined" type. */
+  type: TypeStyle;
 }
+export type CardStyle = "theme" | "flat" | "soft" | "glass" | "outline";
+export type TypeStyle = "theme" | "refined";
 
 /** The original flat look (kept so the old themes stay exactly as they were). */
 export const CLASSIC_LOOK: Look = {
@@ -75,6 +81,8 @@ export const CLASSIC_LOOK: Look = {
   tileStyle: "solid",
   skin: "none",
   finish: "gloss",
+  card: "theme",
+  type: "theme",
 };
 
 export const NEON_COLORS: CustomTheme = { bg: "#0a0e24", fg: "#e9edff", card: "#161c42", accent: "#6d8bff" };
@@ -241,6 +249,8 @@ export function clampLook(raw: unknown): Look {
     tileStyle: one(r.tileStyle, ["solid", "soft", "outline"] as const, "solid"),
     skin: one(r.skin, SKINS, "none"),
     finish: one(r.finish, ["gloss", "matte"] as const, "gloss"),
+    card: one(r.card, ["theme", "flat", "soft", "glass", "outline"] as const, "theme"),
+    type: one(r.type, ["theme", "refined"] as const, "theme"),
   };
 }
 
