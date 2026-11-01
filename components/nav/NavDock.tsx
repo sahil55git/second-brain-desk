@@ -77,7 +77,7 @@ export default function NavDock() {
     );
   }
   return (
-    <div className="nd-bar" role="navigation" aria-label="Back, home and search">
+    <div className={`nd-bar${path === "/" ? " nd-home" : ""}`} role="navigation" aria-label="Back, home and search">
       <button className="nd-b" onClick={back} aria-label="Back" title="Back">←</button>
       {path !== "/" && <a className="nd-b" href="/" aria-label="Home" title="Home">⌂</a>}
       <div className="nd-search" ref={wrap}>
