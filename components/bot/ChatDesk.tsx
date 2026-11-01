@@ -68,7 +68,8 @@ function Text({ text }: { text: string }) {
   );
 }
 
-function ChatBox({ isOwner }: { isOwner: boolean }) {
+/** The chat box; `fresh` = no saved history (pop-up windows), `say` = a command to run at once. */
+export function ChatBox({ isOwner, fresh = false, say, compact = false }: { isOwner: boolean; fresh?: boolean; say?: string; compact?: boolean }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -76,13 +77,18 @@ function ChatBox({ isOwner }: { isOwner: boolean }) {
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (fresh) return;
     try {
       const h = JSON.parse(localStorage.getItem(HIST) || "[]") as Msg[];
       // files are not kept (too big); their message says so
       setMsgs(Array.isArray(h) ? h.slice(-60) : []);
     } catch {}
-  }, []);
+  }, [fresh]);
   useEffect(() => {
+    if (fresh) {
+      end.current?.scrollIntoView({ block: "end" });
+      return;
+    }
     try {
       localStorage.setItem(HIST, JSON.stringify(msgs.slice(-60).map((m) => (m.file ? { ...m, file: undefined, text: `${m.text}\n(file not kept — ask again)` } : m))));
     } catch {}
@@ -108,6 +114,14 @@ function ChatBox({ isOwner }: { isOwner: boolean }) {
     }
   }, [busy]);
 
+  // a command given with the window (widget chips, voice from the home screen): run it once
+  const said = useRef(false);
+  useEffect(() => {
+    if (!say || said.current) return;
+    said.current = true;
+    void send({ text: say }, say);
+  }, [say, send]);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const t = text.trim();
@@ -118,7 +132,7 @@ function ChatBox({ isOwner }: { isOwner: boolean }) {
   };
 
   return (
-    <section className="cb-box">
+    <section className={`cb-box${compact ? " compact" : ""}`}>
       <div className="cb-list" aria-live="polite">
         {msgs.length === 0 && (
           <div className="cb-hello">

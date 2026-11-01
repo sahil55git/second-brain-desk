@@ -119,6 +119,37 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_note_info" />
         </receiver>
 
+        <receiver android:name=".ChatWidget" android:label="Mahadev · Chat" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="in.mahadevtraders.desk.REFRESH" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_chat_info" />
+        </receiver>
+        <receiver android:name=".TipsWidget" android:label="Mahadev · Do next" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="in.mahadevtraders.desk.REFRESH" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_tips_info" />
+        </receiver>
+        <receiver android:name=".TasksWidget" android:label="Mahadev · Tasks" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="in.mahadevtraders.desk.REFRESH" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_tasks_info" />
+        </receiver>
+        <activity
+            android:name=".PopupActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="in.mahadevtraders.desk.pop"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/PopupTheme" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
