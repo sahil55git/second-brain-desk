@@ -22,3 +22,33 @@
 .and-list small { opacity: .7; }
 .and-msg { padding: 10px 12px; border-radius: 10px; margin-bottom: 12px; border: 1px solid var(--h-r); color: var(--h-r); font-weight: 600; }
 .and-msg.ok { border-color: var(--h-g); color: var(--h-g); }
+
+/* widget catalogue */
+.and-cat { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 8px; margin-top: 8px; }
+.and-w { display: grid; grid-template-columns: 54px minmax(0, 1fr); grid-template-rows: auto auto; gap: 6px 10px; padding: 10px; border: 1px solid var(--h-line); border-radius: 14px; align-items: start; }
+.and-w > button { grid-column: 1 / -1; justify-self: end; }
+.and-w.placed { border-color: var(--h-g); }
+.and-w.lock { opacity: .7; }
+.and-wprev { width: 54px; height: 54px; border-radius: 12px; background: #1a150f; position: relative; display: grid; place-items: center; overflow: hidden; }
+.and-wprev .ic { font-size: 22px; position: relative; z-index: 1; }
+.and-wprev i { position: absolute; left: 8px; height: 3px; border-radius: 2px; background: #e0a52666; }
+.and-wprev i:nth-of-type(1) { bottom: 14px; width: 38px; }
+.and-wprev i:nth-of-type(2) { bottom: 9px; width: 26px; }
+.and-wprev i:nth-of-type(3) { bottom: 4px; width: 32px; }
+.and-wprev.k-dashboard i { width: 6px !important; bottom: 4px; height: 14px; }
+.and-wprev.k-dashboard i:nth-of-type(2) { left: 18px; height: 20px; }
+.and-wprev.k-dashboard i:nth-of-type(3) { left: 28px; height: 10px; background: #e0a526; }
+.and-wprev.k-note { background: #fff3c4; }
+.and-wprev.k-note i { background: #2a241433; }
+.and-wtx { display: grid; gap: 2px; font-size: 13px; line-height: 1.35; min-width: 0; }
+.and-wtx b { font-size: 15px; }
+.and-wtx small { opacity: .65; }
+.and-wtx span { opacity: .85; }
+/* quick buttons picker */
+.and-picked, .and-acts { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.and-picked button, .and-acts button { border: 1px solid var(--h-line); background: var(--h-card); color: inherit; border-radius: 10px; padding: 7px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.and-picked button { background: var(--h-acc); border-color: var(--h-acc); color: #fff; font-weight: 700; }
+.and-acts button:disabled { opacity: .4; cursor: default; }
+/* sticky note */
+.and-note { width: 100%; border-radius: 14px; border: 1px solid #0002; padding: 12px; font: inherit; font-size: 16px; line-height: 1.4; resize: vertical; box-sizing: border-box; }
+.and-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid #0003; vertical-align: -1px; }

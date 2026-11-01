@@ -15,7 +15,7 @@ import androidx.work.WorkerParameters;
 
 import java.util.concurrent.TimeUnit;
 
-/** Fetches the widget summary in the background (about every 30 minutes), redraws widgets, posts alerts. */
+/** Fetches the widget summary in the background (every 15, 30 or 60 minutes, chosen in the app), redraws widgets, posts alerts. */
 public class RefreshWorker extends Worker {
     private static final String PERIODIC = "mahadev-refresh";
     private static final String ONCE = "mahadev-refresh-now";
@@ -42,9 +42,19 @@ public class RefreshWorker extends Worker {
     }
 
     public static void schedule(Context c) {
+        enqueue(c, ExistingPeriodicWorkPolicy.KEEP);
+    }
+
+    /** After the interval was changed in the app. */
+    public static void reschedule(Context c) {
+        enqueue(c, ExistingPeriodicWorkPolicy.UPDATE);
+    }
+
+    private static void enqueue(Context c, ExistingPeriodicWorkPolicy policy) {
         if (!WidgetData.isOn(c)) return;
-        PeriodicWorkRequest r = new PeriodicWorkRequest.Builder(RefreshWorker.class, 30, TimeUnit.MINUTES).setConstraints(net()).build();
-        WorkManager.getInstance(c).enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.KEEP, r);
+        int every = WidgetData.prefs(c).getInt(Widgets.K_EVERY, 30);
+        PeriodicWorkRequest r = new PeriodicWorkRequest.Builder(RefreshWorker.class, Math.max(15, every), TimeUnit.MINUTES).setConstraints(net()).build();
+        WorkManager.getInstance(c).enqueueUniquePeriodicWork(PERIODIC, policy, r);
     }
 
     public static void now(Context c) {

@@ -7,7 +7,14 @@
     <string name="app_base_url" translatable="false">https://mahadev-second-brain.vercel.app</string>
     <string name="widget_summary_desc">Today\'s sales, cash, UPI, udhaar and barrels</string>
     <string name="widget_barrels_desc">Barrels to weigh and waiting to be emptied</string>
-    <string name="widget_actions_desc">One-tap Sale, Expense, Udhaar, Weigh, Cash, Quick card</string>
+    <string name="widget_dashboard_desc">Big dashboard: Today / Week / Month, cash, UPI, udhaar, job-work, barrels and a 7-day chart</string>
+    <string name="widget_cash_desc">Cash in the counter today and whether the count matches</string>
+    <string name="widget_udhaar_desc">Udhaar to collect and the top customers</string>
+    <string name="widget_jobwork_desc">Job-work lots waiting and the oldest ones</string>
+    <string name="widget_stock_desc">Oil stock, low items marked</string>
+    <string name="widget_alerts_desc">What needs attention right now</string>
+    <string name="widget_note_desc">A sticky note you write in the app</string>
+    <string name="widget_actions_desc">Six one-tap buttons you choose in the app</string>
     <string name="sc_sale">Sale</string>
     <string name="sc_expense">Expense</string>
     <string name="sc_weigh">Weigh barrel</string>

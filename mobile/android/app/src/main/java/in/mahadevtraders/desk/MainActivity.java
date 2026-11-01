@@ -39,6 +39,13 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    @Override
+    public void onPause() {
+        super.onPause();
+        // an entry was probably just made: bring the widgets up to date when leaving the app
+        if (WidgetData.isOn(this)) RefreshWorker.now(this);
+    }
+
     /** A widget button, shortcut, notification or link: load that page of the site. */
     private void openFromIntent(Intent intent, long delayMs) {
         if (intent == null) return;

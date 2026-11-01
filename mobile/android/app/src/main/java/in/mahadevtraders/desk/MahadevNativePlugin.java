@@ -134,10 +134,86 @@ public class MahadevNativePlugin extends Plugin {
             return;
         }
         String kind = call.getString("kind", "summary");
-        Class<?> k = "actions".equals(kind) ? ActionsWidget.class : "barrels".equals(kind) ? BarrelsWidget.class : SummaryWidget.class;
+        Class<?> k = Widgets.KINDS.get(kind);
+        if (k == null) k = SummaryWidget.class;
         AppWidgetManager m = AppWidgetManager.getInstance(getContext());
         boolean ok = m.isRequestPinAppWidgetSupported() && m.requestPinAppWidget(new ComponentName(getContext(), k), null, null);
         r.put("ok", ok);
+        call.resolve(r);
+    }
+
+    /** The sticky-note widget's text and colour. */
+    @PluginMethod
+    public void setNote(PluginCall call) {
+        String text = call.getString("text", "");
+        if (text == null) text = "";
+        if (text.length() > 400) text = text.substring(0, 400);
+        WidgetData.prefs(getContext()).edit()
+                .putString(Widgets.K_NOTE, text)
+                .putString(Widgets.K_NOTE_COLOR, call.getString("color", "yellow"))
+                .apply();
+        Widgets.renderAll(getContext());
+        call.resolve();
+    }
+
+    /** The Quick buttons widget: up to six {label, path}; an empty list brings back the default six. */
+    @PluginMethod
+    public void setActions(PluginCall call) {
+        org.json.JSONArray out = new org.json.JSONArray();
+        try {
+            com.getcapacitor.JSArray a = call.getArray("actions");
+            for (int i = 0; a != null && i < a.length() && out.length() < 6; i++) {
+                org.json.JSONObject o = a.getJSONObject(i);
+                String path = o.optString("path", "");
+                String label = o.optString("label", "");
+                if (!path.startsWith("/") || label.isEmpty()) continue;
+                out.put(new org.json.JSONObject().put("label", label.length() > 24 ? label.substring(0, 24) : label).put("path", path));
+            }
+        } catch (Exception e) {
+            call.reject("Bad buttons");
+            return;
+        }
+        WidgetData.prefs(getContext()).edit().putString(Widgets.K_ACTIONS, out.toString()).apply();
+        Widgets.renderAll(getContext());
+        call.resolve();
+    }
+
+    /** How often the widgets fetch new figures in the background: 15, 30 or 60 minutes. */
+    @PluginMethod
+    public void setRefresh(PluginCall call) {
+        Integer m = call.getInt("minutes", 30);
+        int v = m == null ? 30 : m <= 15 ? 15 : m >= 60 ? 60 : 30;
+        WidgetData.prefs(getContext()).edit().putInt(Widgets.K_EVERY, v).apply();
+        RefreshWorker.reschedule(getContext());
+        call.resolve();
+    }
+
+    /** Keep today's figures in the status bar as a quiet notification. */
+    @PluginMethod
+    public void setLive(PluginCall call) {
+        Boolean on = call.getBoolean("on", false);
+        WidgetData.prefs(getContext()).edit().putBoolean(Widgets.K_LIVE, on != null && on).apply();
+        Widgets.postLive(getContext());
+        if (on != null && on) RefreshWorker.now(getContext());
+        call.resolve();
+    }
+
+    /** What the widget settings are now (for the app page). */
+    @PluginMethod
+    public void widgetPrefs(PluginCall call) {
+        SharedPreferences p = WidgetData.prefs(getContext());
+        JSObject r = new JSObject();
+        r.put("note", p.getString(Widgets.K_NOTE, ""));
+        r.put("noteColor", p.getString(Widgets.K_NOTE_COLOR, "yellow"));
+        r.put("live", p.getBoolean(Widgets.K_LIVE, false));
+        r.put("minutes", p.getInt(Widgets.K_EVERY, 30));
+        r.put("actions", p.getString(Widgets.K_ACTIONS, "[]"));
+        com.getcapacitor.JSArray placed = new com.getcapacitor.JSArray();
+        AppWidgetManager m = AppWidgetManager.getInstance(getContext());
+        for (java.util.Map.Entry<String, Class<?>> e : Widgets.KINDS.entrySet()) {
+            if (m.getAppWidgetIds(new ComponentName(getContext(), e.getValue())).length > 0) placed.put(e.getKey());
+        }
+        r.put("placed", placed);
         call.resolve(r);
     }
 
