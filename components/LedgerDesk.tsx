@@ -23,6 +23,8 @@ export default function LedgerDesk() {
   const [from, setFrom] = useState(() => shiftDay(today, -30));
   const [to, setTo] = useState(today);
   const [source, setSource] = useState<string>("All");
+  // one person / supplier: ?party=Name opens it straight away
+  const [party, setParty] = useState(() => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("party") || ""));
   const [data, setData] = useState<BizData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,9 +46,15 @@ export default function LedgerDesk() {
 
   const ledger = useMemo(() => (data ? unifiedLedger(data, { from, to }) : null), [data, from, to]);
   const rows: LedgerRow[] = useMemo(
-    () => (ledger ? ledger.rows.filter((r) => source === "All" || r.source === source) : []),
-    [ledger, source]
+    () => {
+      const q = party.trim().toLowerCase();
+      return ledger ? ledger.rows.filter((r) => (source === "All" || r.source === source) && (!q || r.party.toLowerCase().includes(q))) : [];
+    },
+    [ledger, source, party]
   );
+  const partyNames = useMemo(() => Array.from(new Set((ledger?.rows || []).map((r) => r.party).filter(Boolean))).sort(), [ledger]);
+  const fIn = rows.reduce((a, r) => a + r.in, 0);
+  const fOut = rows.reduce((a, r) => a + r.out, 0);
 
   return (
     <section className="space-y-4">
@@ -68,7 +76,26 @@ export default function LedgerDesk() {
             ))}
           </select>
         </label>
+        <label className="text-sm">
+          Party
+          <input value={party} onChange={(e) => setParty(e.target.value)} list="ledger-parties" placeholder="All parties" className="ml-2 rounded border px-2 py-1" />
+          <datalist id="ledger-parties">{partyNames.map((n) => <option key={n} value={n} />)}</datalist>
+        </label>
+        <span className="flex gap-1 text-sm">
+          {[["7d", 6], ["30d", 29], ["90d", 89], ["1 yr", 364]].map(([l, d]) => (
+            <button key={l} type="button" onClick={() => { setFrom(shiftDay(today, -Number(d))); setTo(today); }} className="rounded border px-2 py-1">{l}</button>
+          ))}
+        </span>
       </div>
+
+      {party.trim() && ledger && (
+        <div className="rounded-xl border border-black/10 dark:border-white/10 p-3 text-sm flex flex-wrap gap-4">
+          <strong>{party.trim()}</strong>
+          <span>Received / sold: <strong>{inr(fIn)}</strong></span>
+          <span>Paid / bought: <strong>{inr(fOut)}</strong></span>
+          <span>{rows.length} entries</span>
+        </div>
+      )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       {ledger && (

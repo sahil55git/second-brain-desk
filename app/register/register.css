@@ -396,3 +396,8 @@ html.hc .qr .qr-tile { box-shadow: inset 0 0 0 2px #ffffff; }
 .qr-entp { position: absolute; top: 10px; right: 4px; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--qr-line, #ddd); background: var(--qr-card, #fff); cursor: pointer; font-size: 15px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; opacity: .8; }
 .qr-entp:hover { opacity: 1; }
 @media print { .qr-entp { display: none !important; } }
+
+/* edit an entry (components/register/EditEntry.tsx) */
+.qr-ed-row { display: grid; grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr); gap: 8px; }
+.qr-ed-del { display: block; width: 100%; margin-top: 10px; padding: 12px; border-radius: calc(12px * var(--ui-r, 1)); border: 1px solid var(--qr-out, #c8352e); background: transparent; color: var(--qr-out, #c8352e); font: inherit; font-weight: 700; cursor: pointer; }
+.qr-ed-err { color: var(--qr-out, #c8352e); font-weight: 700; }
