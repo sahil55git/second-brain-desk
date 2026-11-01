@@ -12,6 +12,7 @@ import PhoneNav from "@/components/PhoneNav";
 import LauncherProvider from "@/components/launcher/LauncherProvider";
 import NavDock from "@/components/nav/NavDock";
 import NativeBridge from "@/components/native/NativeBridge";
+import WallGlass from "@/components/WallGlass";
 
 export const metadata: Metadata = {
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
@@ -45,6 +46,7 @@ export default function RootLayout({
                 <LauncherProvider>
                   <NavDock />
                   <NativeBridge />
+                  <WallGlass />
                   {children}
                   <PhoneNav />
                 </LauncherProvider>

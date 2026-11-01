@@ -8,9 +8,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { pieces, type BotReply } from "@/lib/bot/format";
 import { download, nativeShare } from "@/lib/exporters";
+import { MahadevNative, isNative } from "@/lib/native";
 import "./chat.css";
 
-interface Msg { id: string; me: boolean; text: string; buttons?: BotReply["buttons"]; file?: BotReply["file"]; at: number; used?: boolean }
+interface Msg { id: string; me: boolean; text: string; buttons?: BotReply["buttons"]; file?: BotReply["file"]; open?: BotReply["open"]; at: number; used?: boolean }
 const HIST = "sbd_chat_v1";
 const CHIPS: { label: string; text: string; owner?: boolean }[] = [
   { label: "📊 Today", text: "today", owner: true },
@@ -67,7 +68,8 @@ function Text({ text }: { text: string }) {
   );
 }
 
-function ChatBox({ isOwner }: { isOwner: boolean }) {
+/** The chat box; `fresh` = no saved history (pop-up windows), `say` = a command to run at once. */
+export function ChatBox({ isOwner, fresh = false, say, compact = false }: { isOwner: boolean; fresh?: boolean; say?: string; compact?: boolean }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -75,13 +77,18 @@ function ChatBox({ isOwner }: { isOwner: boolean }) {
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (fresh) return;
     try {
       const h = JSON.parse(localStorage.getItem(HIST) || "[]") as Msg[];
       // files are not kept (too big); their message says so
       setMsgs(Array.isArray(h) ? h.slice(-60) : []);
     } catch {}
-  }, []);
+  }, [fresh]);
   useEffect(() => {
+    if (fresh) {
+      end.current?.scrollIntoView({ block: "end" });
+      return;
+    }
     try {
       localStorage.setItem(HIST, JSON.stringify(msgs.slice(-60).map((m) => (m.file ? { ...m, file: undefined, text: `${m.text}\n(file not kept — ask again)` } : m))));
     } catch {}
@@ -98,12 +105,22 @@ function ChatBox({ isOwner }: { isOwner: boolean }) {
       const j = await r.json().catch(() => ({}));
       const reply: BotReply = j.data ?? { text: j.error || "Could not reach the desk. Check the internet." };
       setMsgs((m) => [...m, { id: newId(), me: false, at: Date.now(), ...reply }]);
+      // "open barrel receiving", "new purchase…": go there (the chat stays in history)
+      if (reply.open) setTimeout(() => { window.location.href = reply.open!.path; }, 700);
     } catch {
       setMsgs((m) => [...m, { id: newId(), me: false, at: Date.now(), text: "No internet. Try again." }]);
     } finally {
       setBusy(false);
     }
   }, [busy]);
+
+  // a command given with the window (widget chips, voice from the home screen): run it once
+  const said = useRef(false);
+  useEffect(() => {
+    if (!say || said.current) return;
+    said.current = true;
+    void send({ text: say }, say);
+  }, [say, send]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,7 +132,7 @@ function ChatBox({ isOwner }: { isOwner: boolean }) {
   };
 
   return (
-    <section className="cb-box">
+    <section className={`cb-box${compact ? " compact" : ""}`}>
       <div className="cb-list" aria-live="polite">
         {msgs.length === 0 && (
           <div className="cb-hello">
@@ -128,6 +145,9 @@ function ChatBox({ isOwner }: { isOwner: boolean }) {
           <div key={m.id} className={`cb-msg ${m.me ? "me" : "bot"}`}>
             <div className="cb-bub">
               <Text text={m.text} />
+              {m.open && (
+                <div className="cb-btns"><a className="hub-btn sm" href={m.open.path}>↗ {m.open.label}</a></div>
+              )}
               {m.file && (
                 <div className="cb-file">
                   <span>📄 {m.file.name}</span>
@@ -161,9 +181,74 @@ function ChatBox({ isOwner }: { isOwner: boolean }) {
       </div>
       <form className="cb-in" onSubmit={submit}>
         <input ref={input} value={text} onChange={(e) => setText(e.target.value)} placeholder="today · udhaar ramesh · sale 500 upi suresh" enterKeyHint="send" autoComplete="off" aria-label="Message" maxLength={500} />
+        <MicButton disabled={busy} onText={(t) => { setText(""); void send({ text: t }, `🎤 ${t}`); }} onPartial={setText} />
         <button className="hub-btn primary" disabled={busy || !text.trim()} aria-label="Send">➤</button>
       </form>
     </section>
+  );
+}
+
+// ------------------------------------------------------------------ speak instead of typing
+type Rec = { lang: string; interimResults: boolean; onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void; onerror: (e: { error: string }) => void; onend: () => void; start: () => void; stop: () => void };
+const LANG_KEY = "sbd_chat_voice_lang";
+
+/** 🎤: the browser's speech recogniser (Chrome / Edge), or Android's own one inside the app. */
+function MicButton({ disabled, onText, onPartial }: { disabled: boolean; onText: (t: string) => void; onPartial: (t: string) => void }) {
+  const [on, setOn] = useState(false);
+  const [lang, setLang] = useState("en-IN");
+  const [err, setErr] = useState<string | null>(null);
+  const rec = useRef<Rec | null>(null);
+  useEffect(() => {
+    try { setLang(localStorage.getItem(LANG_KEY) || "en-IN"); } catch {}
+  }, []);
+  const flip = () => {
+    const n = lang === "en-IN" ? "kn-IN" : lang === "kn-IN" ? "hi-IN" : "en-IN";
+    setLang(n);
+    try { localStorage.setItem(LANG_KEY, n); } catch {}
+  };
+  const start = async () => {
+    setErr(null);
+    if (on) { rec.current?.stop(); return; }
+    const w = window as unknown as Record<string, (new () => Rec) | undefined>;
+    const R = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (R) {
+      const r = new R();
+      r.lang = lang;
+      r.interimResults = true;
+      let final = "";
+      r.onresult = (e) => {
+        let t = "";
+        for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+        if (e.results[e.results.length - 1].isFinal) final = t;
+        onPartial(t);
+      };
+      r.onerror = (e) => setErr(e.error === "not-allowed" ? "Allow the microphone for this site." : "Did not hear that — try again.");
+      r.onend = () => { setOn(false); rec.current = null; if (final.trim()) onText(final.trim()); };
+      rec.current = r;
+      setOn(true);
+      r.start();
+      return;
+    }
+    if (isNative()) {
+      try {
+        setOn(true);
+        const r = await MahadevNative.listen({ lang });
+        setOn(false);
+        if (r.text?.trim()) onText(r.text.trim());
+      } catch (x) {
+        setOn(false);
+        setErr(/not implemented/i.test(String(x)) ? "Update the app (⬇️ on the Android app page) to talk to the chat." : "Did not hear that — try again.");
+      }
+      return;
+    }
+    setErr("This browser cannot listen. Use Chrome, or the Android app.");
+  };
+  return (
+    <>
+      <button type="button" className={`cb-mic${on ? " on" : ""}`} disabled={disabled} onClick={start} aria-label={on ? "Stop listening" : "Speak"} title="Speak (tap the language to change it)">🎤</button>
+      <button type="button" className="cb-lang" onClick={flip} aria-label="Speech language">{lang === "en-IN" ? "EN" : lang === "kn-IN" ? "ಕ" : "हि"}</button>
+      {err && <span className="cb-micerr" role="alert">{err}</span>}
+    </>
   );
 }
 

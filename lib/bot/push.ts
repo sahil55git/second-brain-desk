@@ -7,9 +7,14 @@ import { discordDM } from "@/lib/bot/discord";
 import type { BotReply } from "@/lib/bot/format";
 
 export async function sendToOwners(reply: BotReply): Promise<{ sent: number; failed: string[] }> {
-  const keys = await botKeys();
   const owners = (await prisma.user.findMany({ where: { role: "OWNER", active: true }, select: { username: true } })).map((u) => u.username);
-  const links = await prisma.botLink.findMany({ where: { revokedAt: null, username: { in: owners } } });
+  return sendToUsers(owners, reply);
+}
+
+/** To every chat account linked to these logins. */
+export async function sendToUsers(usernames: string[], reply: BotReply): Promise<{ sent: number; failed: string[] }> {
+  const keys = await botKeys();
+  const links = await prisma.botLink.findMany({ where: { revokedAt: null, username: { in: usernames } } });
   let sent = 0;
   const failed: string[] = [];
   for (const l of links) {
