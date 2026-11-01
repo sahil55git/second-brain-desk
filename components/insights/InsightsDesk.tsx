@@ -13,16 +13,20 @@ import {
   type CostInputs, type UdhaarNote,
 } from "@/lib/insights";
 import { csvRows, matchStatement, readStatement, type BankTxn, type MatchResult, type RegEntry } from "@/lib/bankMatch";
+import { BudgetTab, PlTab, RatesTab } from "./MoneyTabs";
 import "./insights.css";
 
-type Tab = "yield" | "stock" | "profit" | "map" | "udhaar" | "bank";
+type Tab = "pl" | "yield" | "stock" | "profit" | "map" | "udhaar" | "bank" | "budget" | "rates";
 const TABS: { key: Tab; label: string }[] = [
+  { key: "pl", label: "💰 Profit & cash" },
   { key: "yield", label: "🌾 Oil yield" },
   { key: "stock", label: "📦 Stock & buying" },
   { key: "profit", label: "💹 Profit per kg" },
   { key: "map", label: "🛢️ Tanks & barrels" },
   { key: "udhaar", label: "🙌 Udhaar reminders" },
   { key: "bank", label: "🏦 Bank match" },
+  { key: "budget", label: "🎯 Budgets" },
+  { key: "rates", label: "📋 Rate cards" },
 ];
 const rs = (n: number | null | undefined) => (n == null ? "–" : `₹${Math.round(n).toLocaleString("en-IN")}`);
 const rs2 = (n: number | null | undefined) => (n == null ? "–" : `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
@@ -70,6 +74,9 @@ export default function InsightsDesk() {
       {tab === "map" && <MapTab today={today} />}
       {data && tab === "udhaar" && <UdhaarTab d={data} today={today} />}
       {tab === "bank" && <BankTab />}
+      {data && tab === "pl" && <PlTab d={data} today={today} />}
+      {data && tab === "budget" && <BudgetTab d={data} today={today} />}
+      {data && tab === "rates" && <RatesTab d={data} />}
     </div>
   );
 }

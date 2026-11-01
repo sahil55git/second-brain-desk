@@ -10,6 +10,7 @@
 import ShareButton from "@/components/share/ShareButton";
 import { useEffect, useState } from "react";
 import ReceiptSheet from "@/components/print/ReceiptSheet";
+import { EwayButton, InvoiceTaxBlock } from "@/components/InvoiceExtras";
 import { billReceipt } from "@/lib/receipt";
 import type { SalesInvoiceDTO, BusinessSettingsDTO, PartyDTO } from "@/lib/types";
 
@@ -41,7 +42,7 @@ export default function InvoicePrint({
       onClick={onClose}
     >
       <div
-        className="bg-white text-black w-full max-w-2xl rounded-lg shadow-xl my-8 print:my-0 print:shadow-none print:rounded-none"
+        className="relative bg-white text-black w-full max-w-2xl rounded-lg shadow-xl my-8 print:my-0 print:shadow-none print:rounded-none"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Toolbar — hidden when printing */}
@@ -58,6 +59,7 @@ export default function InvoicePrint({
             <button onClick={() => setRoll(true)} className="rounded border px-3 py-1.5 text-sm font-medium" title="Print on the receipt printer (58 / 80 mm roll)">
               🧾 Roll receipt
             </button>
+            <EwayButton invoice={invoice} settings={settings} party={party} />
             <button onClick={onClose} className="rounded border px-3 py-1.5 text-sm">
               Close
             </button>
@@ -134,6 +136,7 @@ export default function InvoicePrint({
             </div>
           </div>
 
+          <InvoiceTaxBlock invoice={invoice} settings={settings} />
           {invoice.notes && <p className="mt-3 text-xs text-gray-600">Note: {invoice.notes}</p>}
           <p className="mt-4 text-[10px] text-gray-400">
             {invoice.interState ? "Inter-state supply (IGST)" : "Intra-state supply (CGST + SGST)"} ·

@@ -56,3 +56,10 @@
 .ins-promise { display: inline-flex; gap: 4px; align-items: center; }
 .ins-promise input[type="number"] { width: 90px; }
 .ins-shop summary { cursor: pointer; font-weight: 700; }
+.ins-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)); gap: 10px; margin-bottom: 12px; }
+.ins-kpis .hub-card { display: grid; gap: 2px; margin: 0; }
+.ins-kpis b { font-size: 24px; font-variant-numeric: tabular-nums; }
+.ins-kpis small { opacity: .7; }
+.ins-bad { border-color: var(--h-r) !important; }
+.ins-plist { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.ins-plist li { display: flex; gap: 6px; align-items: center; border: 1px solid var(--h-line); border-radius: 999px; padding: 2px 4px 2px 10px; }
