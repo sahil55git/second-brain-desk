@@ -1059,3 +1059,71 @@ model DeviceToken {
 
   @@index([username])
 }
+
+// ---------------------------------------------------------------------------
+// Chat bot (lib/bot): the same commands from the in-app chat box, Telegram and
+// Discord. A chat account is linked to a login with a one-time code made in the
+// app; the bot then acts with that login's rights. Bot tokens are kept here,
+// server-side only (never sent to the browser), or in Vercel env variables.
+// ---------------------------------------------------------------------------
+model BotConfig {
+  id               String   @id @default("singleton")
+  telegramToken    String?
+  telegramSecret   String? // checked on every Telegram webhook call
+  telegramName     String? // @username of the bot
+  discordAppId     String?
+  discordPublicKey String?
+  discordToken     String?
+  digestOn         Boolean  @default(true) // nightly summary + alerts to owner chats
+  lastDigestDay    String?
+  updatedAt        DateTime @updatedAt
+}
+
+model BotLink {
+  id         String    @id @default(cuid())
+  channel    String // telegram | discord
+  externalId String // the chat app's user id
+  chatId     String? // where pushed messages go (Telegram chat / Discord DM channel)
+  label      String? // name shown in the chat app
+  username   String // our login
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  @@unique([channel, externalId])
+  @@index([username])
+}
+
+model BotCode {
+  id        String    @id @default(cuid())
+  codeHash  String    @unique
+  username  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+// An entry waiting for ✅ Save / ❌ Cancel in the chat.
+model BotPending {
+  id        String    @id
+  username  String
+  channel   String
+  payload   Json
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  doneAt    DateTime?
+  result    String?
+}
+
+model BotLog {
+  id         String   @id @default(cuid())
+  at         DateTime @default(now())
+  channel    String
+  username   String?
+  externalId String?
+  text       String
+  reply      String?
+  ok         Boolean  @default(true)
+
+  @@index([at])
+}
