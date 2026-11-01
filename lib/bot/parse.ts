@@ -38,6 +38,8 @@ export type Cmd =
   | { t: "barrels" }
   | { t: "jobwork" }
   | { t: "alerts" }
+  | { t: "review" }
+  | { t: "watch" }
   | { t: "report"; what: ReportWhat; span: Span; format: ReportFormat }
   | EntryCmd
   | { t: "link"; code: string }
@@ -306,6 +308,8 @@ export function parseCommand(input: string): Cmd {
   if (head === "barrels" || head === "barrel" || head === "drums") return { t: "barrels" };
   if (head === "jobwork" || two === "job work" || head === "jw") return { t: "jobwork" };
   if (head === "alerts" || head === "alert" || head === "attention" || head === "problems") return { t: "alerts" };
+  if (head === "review" || two === "weekly review" || two === "week review" || head === "weekly") return { t: "review" };
+  if (head === "watch" || head === "unusual" || head === "suspicious" || head === "anomalies") return { t: "watch" };
   if (head === "expenses" || head === "expense" || head === "kharcha") return { t: "report", what: "expenses", span: span ?? "today", format: "text" };
   // "barrel receiving", "ledger", "count cash" … said without "open"
   const target = openTarget(text);
@@ -317,6 +321,7 @@ export const HELP_TEXT = [
   "**Ask**",
   "today · yesterday · week · month",
   "cash · stock · barrels · jobwork · alerts",
+  "review (this week, with what to do) · watch (anything unusual)",
   "udhaar · udhaar ramesh · remind ramesh",
   "",
   "**Enter** (you get ✅ Save / ❌ Cancel first)",

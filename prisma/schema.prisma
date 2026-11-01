@@ -1189,3 +1189,37 @@ model Task {
   @@index([username, doneAt])
   @@index([due])
 }
+
+// Purchase orders: what was ordered from a supplier; what arrived is matched from purchases.
+model PurchaseOrder {
+  id        String   @id @default(cuid())
+  no        String   @unique // "PO-12"
+  date      String // "YYYY-MM-DD"
+  supplier  String
+  phone     String?
+  dueDate   String?
+  lines     Json // [{ item, qty, unit, rate }]
+  status    String   @default("open") // open | cancelled (done / late are worked out)
+  notes     String?
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([supplier])
+}
+
+// Machine (expeller / filter press) log: hours run, power units, stoppages, and service done.
+model MachineLog {
+  id          String   @id @default(cuid())
+  date        String // "YYYY-MM-DD"
+  machine     String
+  kind        String   @default("run") // run | stop | service
+  hours       Float?
+  powerUnits  Float?
+  downtimeMin Float?
+  note        String?
+  by          String?
+  createdAt   DateTime @default(now())
+
+  @@index([machine, date])
+}

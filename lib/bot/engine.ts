@@ -25,6 +25,8 @@ import { proofNeeded } from "@/lib/proofs";
 import { matchParty, normName, similarity, MATCH_MIN } from "@/lib/smartEntry";
 import { excelBlob, pdfBlob } from "@/lib/exporters";
 import { runAi } from "@/lib/aiProvider";
+import { anomalies, weeklyReview } from "@/lib/ops";
+import type { Budgets, RateCards } from "@/lib/money";
 import { HELP_TEXT, parseCommand, type Cmd, type EntryCmd } from "@/lib/bot/parse";
 import { parseVoice } from "@/lib/voice";
 import { dueText, parseTask } from "@/lib/tasks";
@@ -114,6 +116,27 @@ async function loadBiz(nowMs: number) {
   const from = lastMonthStart < shift(today, -8) ? lastMonthStart : shift(today, -8);
   const data = (await loadHubData(from, today)) as unknown as BizData;
   return { biz: data, today };
+}
+
+/** 90 days of rows + the rate cards and budgets: for the watch list and the weekly review. */
+export async function loadWatch(nowMs: number) {
+  const today = businessDate(nowMs);
+  const [biz, cards, budgets] = await Promise.all([
+    loadHubData(shift(today, -90), today) as unknown as Promise<BizData>,
+    prisma.appSetting.findUnique({ where: { key: "rates" } }).then((r) => (r?.data as RateCards | null) ?? null).catch(() => null),
+    prisma.appSetting.findUnique({ where: { key: "budgets" } }).then((r) => (r?.data as Budgets | null) ?? null).catch(() => null),
+  ]);
+  return { biz, today, cards, budgets };
+}
+export async function reviewText(nowMs: number): Promise<string> {
+  const w = await loadWatch(nowMs);
+  return weeklyReview(w.biz, w.today, w).text;
+}
+async function watch(who: BotWho, nowMs: number): Promise<BotReply> {
+  if (!who.isOwner) throw new BotRefusal(OWNER_ONLY);
+  const w = await loadWatch(nowMs);
+  const list = anomalies(w.biz, w.today, { ...w, days: 7 });
+  return { text: list.length ? [`**👀 Unusual in the last 7 days (${list.length})**`, ...list.map((a) => `${a.level === "red" ? "🔴" : "🟠"} ${a.text}`)].join("\n") : "✅ Nothing unusual in the last 7 days.", open: { path: "/insights#watch", label: "Open Watch" } };
 }
 
 async function barrelsNow(nowMs: number): Promise<BarrelCounts> {
@@ -260,6 +283,8 @@ export async function alertsText(who: BotWho, nowMs: number): Promise<string[]> 
   if (who.isOwner) {
     const { biz } = await loadBiz(nowMs);
     out.push(...attentionList(biz, today, nowMs).filter((a) => a.severity !== "info").slice(0, 10).map((a) => `${a.severity === "critical" ? "🔴" : "🟠"} ${a.area}: ${a.message}`));
+    const w = await loadWatch(nowMs).catch(() => null);
+    if (w) out.push(...anomalies(w.biz, w.today, { ...w, days: 2 }).slice(0, 6).map((x) => `${x.level === "red" ? "🔴" : "🟠"} ${x.area}: ${x.text}`));
   }
   return out;
 }
@@ -500,6 +525,11 @@ export async function runCommand(text: string, who: BotWho, ctx: BotCtx, nowMs =
       return jobwork(who, nowMs);
     case "alerts":
       return alerts(who, nowMs);
+    case "watch":
+      return watch(who, nowMs);
+    case "review":
+      if (!who.isOwner) throw new BotRefusal(OWNER_ONLY);
+      return { text: await reviewText(nowMs), open: { path: "/insights#weekly", label: "Open weekly review" } };
     case "report":
       return report(cmd, who, nowMs);
     case "entry":

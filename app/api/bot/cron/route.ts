@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { businessDate } from "@/lib/register";
 import { botKeys } from "@/lib/bot/config";
-import { digestText, openTasks, taskLines } from "@/lib/bot/engine";
+import { digestText, openTasks, reviewText, taskLines } from "@/lib/bot/engine";
 import { sendToOwners, sendToUsers } from "@/lib/bot/push";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +34,13 @@ export async function GET(req: NextRequest) {
         const r = await sendToUsers([u.username], { text: [`☀️ **Good morning — today's tasks**`, ...taskLines(due, today)].join("\n"), buttons: due.slice(0, 4).map((t, i) => ({ label: `✓ ${i + 1}`, data: `task:${t.id}` })) });
         sent += r.sent;
       }
-      return { morning: true, sent };
+      // Sunday: the weekly review to the owner
+      let weekly = false;
+      if (new Date(`${today}T00:00:00Z`).getUTCDay() === 0) {
+        const r = await sendToOwners({ text: await reviewText(Date.now()), buttons: [{ label: "👀 Watch", data: "cmd:watch" }, { label: "🙌 Udhaar", data: "cmd:udhaar" }] });
+        weekly = r.sent > 0;
+      }
+      return { morning: true, sent, weekly };
     });
     return NextResponse.json(m.ok ? { data: m.data } : { error: m.error }, { status: m.ok ? 200 : 503 });
   }
