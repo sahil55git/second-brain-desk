@@ -12,15 +12,17 @@ import {
   DEFAULT_COSTS, MARGIN_TARGET_PCT, PRODUCTS, priceFor, profitRows, reminderRows, reminderText, runOut, runOutLine, supplierYield, waPhone, yieldLots,
   type CostInputs, type UdhaarNote,
 } from "@/lib/insights";
+import { csvRows, matchStatement, readStatement, type BankTxn, type MatchResult, type RegEntry } from "@/lib/bankMatch";
 import "./insights.css";
 
-type Tab = "yield" | "stock" | "profit" | "map" | "udhaar";
+type Tab = "yield" | "stock" | "profit" | "map" | "udhaar" | "bank";
 const TABS: { key: Tab; label: string }[] = [
   { key: "yield", label: "🌾 Oil yield" },
   { key: "stock", label: "📦 Stock & buying" },
   { key: "profit", label: "💹 Profit per kg" },
   { key: "map", label: "🛢️ Tanks & barrels" },
   { key: "udhaar", label: "🙌 Udhaar reminders" },
+  { key: "bank", label: "🏦 Bank match" },
 ];
 const rs = (n: number | null | undefined) => (n == null ? "–" : `₹${Math.round(n).toLocaleString("en-IN")}`);
 const rs2 = (n: number | null | undefined) => (n == null ? "–" : `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
@@ -67,6 +69,7 @@ export default function InsightsDesk() {
       {data && tab === "profit" && <ProfitTab d={data} today={today} />}
       {tab === "map" && <MapTab today={today} />}
       {data && tab === "udhaar" && <UdhaarTab d={data} today={today} />}
+      {tab === "bank" && <BankTab />}
     </div>
   );
 }
@@ -401,6 +404,76 @@ function UdhaarTab({ d, today }: { d: BizData; today: string }) {
         </table>
       </div>
       <p className="hub-m small">WhatsApp opens with the message ready (and your UPI pay link when the UPI id is set); you press Send. Each send is noted so you see who was reminded this week.</p>
+    </>
+  );
+}
+
+// ------------------------------------------------------------------ 6. bank / UPI statement matching
+function BankTab() {
+  const [res, setRes] = useState<MatchResult | null>(null);
+  const [span, setSpan] = useState<{ from: string; to: string; n: number } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [show, setShow] = useState<"bank" | "reg" | "ok">("bank");
+  const onFile = async (f: File | undefined) => {
+    if (!f) return;
+    setBusy(true); setErr(null); setRes(null);
+    try {
+      let rows: unknown[][];
+      if (/\.xlsx?$/i.test(f.name)) {
+        const { default: readXlsx } = await import("read-excel-file/universal");
+        rows = ((await readXlsx(f))[0]?.data || []) as unknown[][];
+      } else rows = csvRows(await f.text());
+      const { txns, problem } = readStatement(rows);
+      if (problem) throw new Error(problem);
+      const from = txns.reduce((a, t) => (t.date < a ? t.date : a), txns[0].date);
+      const to = txns.reduce((a, t) => (t.date > a ? t.date : a), txns[0].date);
+      const r = await fetch(`/api/register/range?from=${shift(from, -2)}&to=${shift(to, 2)}`);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Could not load the register.");
+      setRes(matchStatement(txns, j.data as RegEntry[]));
+      setSpan({ from, to, n: txns.length });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not read the file.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const amt = (n: number) => <span className={n >= 0 ? "good" : "bad"}>{n >= 0 ? "+" : "−"}₹{Math.abs(n).toLocaleString("en-IN")}</span>;
+  return (
+    <>
+      <section className="hub-card">
+        <h3>Upload a bank or UPI statement</h3>
+        <p className="hub-m">Download the statement from net-banking, PhonePe Business or GPay for Business as <b>CSV or Excel</b>, then choose it here. It never leaves this page — only the matching is shown.</p>
+        <input type="file" accept=".csv,.xlsx,.xls,text/csv" onChange={(e) => void onFile(e.target.files?.[0])} disabled={busy} />
+        {busy && <span className="hub-m"> Reading…</span>}
+        {err && <p className="hub-banner">{err}</p>}
+      </section>
+      {res && span && (
+        <>
+          <div className="hub-kpis">
+            <div className="hub-kpi g"><div className="l">Matched ✓</div><div className="v">{res.matched.length}</div><div className="s">of {span.n} bank lines · {dmy(span.from)} to {dmy(span.to)}</div></div>
+            <div className="hub-kpi r"><div className="l">In the bank, not in the register</div><div className="v">{res.bankOnly.length}</div><div className="s">{rs(res.bankOnly.reduce((a, t) => a + Math.abs(t.amount), 0))}</div></div>
+            <div className="hub-kpi o"><div className="l">In the register, not in the bank</div><div className="v">{res.registerOnly.length}</div><div className="s">{rs(res.registerOnly.reduce((a, e) => a + e.amountInr, 0))}</div></div>
+          </div>
+          <div className="hub-range">
+            <button className={show === "bank" ? "on" : ""} onClick={() => setShow("bank")}>Missing from register ({res.bankOnly.length})</button>
+            <button className={show === "reg" ? "on" : ""} onClick={() => setShow("reg")}>Missing from bank ({res.registerOnly.length})</button>
+            <button className={show === "ok" ? "on" : ""} onClick={() => setShow("ok")}>Matched ({res.matched.length})</button>
+          </div>
+          <div className="ins-tbl"><table>
+            {show === "bank" && (<><thead><tr><th>Date</th><th>Bank description</th><th className="r">Amount</th><th /></tr></thead>
+              <tbody>{res.bankOnly.map((t: BankTxn) => <tr key={t.i}><td>{dmy(t.date)}</td><td>{t.desc}{t.ref && <div className="hub-m small">{t.ref}</div>}</td><td className="r">{amt(t.amount)}</td><td><a className="hub-btn sm" href={`/register?date=${t.date}`}>Add in register</a></td></tr>)}
+              {!res.bankOnly.length && <tr><td colSpan={4} className="hub-m">Everything in the bank is in the register ✓</td></tr>}</tbody></>)}
+            {show === "reg" && (<><thead><tr><th>Date</th><th>Entry</th><th className="r">Amount</th><th /></tr></thead>
+              <tbody>{res.registerOnly.map((e) => <tr key={e.id}><td>{dmy(e.date)}</td><td>{e.kind.replace("_", " ").toLowerCase()} · {e.partyName || e.itemLabel || e.item || ""} <span className="hub-m small">({e.paymentMode})</span></td><td className="r">{rs(e.amountInr)}</td><td><a className="hub-btn sm" href={`/register?date=${e.date}`}>Check / edit</a></td></tr>)}
+              {!res.registerOnly.length && <tr><td colSpan={4} className="hub-m">Every UPI / bank entry is in the statement ✓</td></tr>}</tbody></>)}
+            {show === "ok" && (<><thead><tr><th>Bank date</th><th>Bank</th><th>Register</th><th className="r">Amount</th></tr></thead>
+              <tbody>{res.matched.map((m) => <tr key={m.bank.i}><td>{dmy(m.bank.date)}{m.dayGap ? <span className="hub-m small"> ({m.dayGap}d)</span> : null}</td><td>{m.bank.desc}</td><td>{m.entry.partyName || m.entry.itemLabel || m.entry.kind}</td><td className="r">{amt(m.bank.amount)}</td></tr>)}</tbody></>)}
+          </table></div>
+          <p className="hub-m small">A match = the same amount within 2 days. Cash entries are not compared; pigmee and owner draws are left out.</p>
+        </>
+      )}
     </>
   );
 }
