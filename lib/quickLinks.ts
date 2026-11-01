@@ -70,6 +70,7 @@ export const QUICK_LINKS: QuickLink[] = [
   // Office
   { id: "records", icon: "🗂️", title: "Proofs & scans", kn: "ಪುರಾವೆ ಮತ್ತು ಸ್ಕ್ಯಾನ್", desc: "Signatures, slips, bills; cash paid without proof", href: "/records", group: "office", ownerOnly: true },
   { id: "chat", icon: "💬", title: "Chat bot", kn: "ಚಾಟ್", desc: "Ask, enter, get PDFs — also on Telegram / Discord", href: "/chat", group: "office" },
+  { id: "insights", icon: "📈", title: "Insights", kn: "ಒಳನೋಟ", desc: "Oil yield, stock run-out, profit per kg, tanks map, udhaar reminders", href: "/insights", group: "office", ownerOnly: true },
   { id: "reports", icon: "📊", title: "Reports", kn: "ವರದಿ", desc: "Sales, stock, udhar, cash", href: "/reports", group: "office", ownerOnly: true },
   { id: "settings", icon: "⚙️", title: "Settings", kn: "ಸೆಟ್ಟಿಂಗ್ಸ್", desc: "Items, rates, import / export", href: "/settings", group: "office", ownerOnly: true },
   { id: "desk", icon: "🗂️", title: "Full desk", kn: "ಪೂರ್ಣ ಡೆಸ್ಕ್", desc: "Job-work, closing, manufacturing", href: "/", group: "office" },

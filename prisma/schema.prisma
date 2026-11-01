@@ -1127,3 +1127,26 @@ model BotLog {
 
   @@index([at])
 }
+
+// Small shared settings (one JSON per key): "profit" — cost inputs per oil (lib/insights.ts),
+// "shop" — shop name and UPI id for udhaar reminders.
+model AppSetting {
+  key       String   @id
+  data      Json
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+// Udhaar follow-up: a reminder sent, or the date a customer promised to pay.
+model UdhaarNote {
+  id     String   @id @default(cuid())
+  name   String // customer, as in the udhaar list
+  kind   String // REMIND | PROMISE
+  date   String // REMIND: day sent · PROMISE: promised day "YYYY-MM-DD"
+  amount Float?
+  note   String?
+  by     String?
+  at     DateTime @default(now())
+
+  @@index([name])
+}
