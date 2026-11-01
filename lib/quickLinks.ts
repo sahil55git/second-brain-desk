@@ -39,6 +39,9 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "weighfull", icon: "⚖️", title: "Weigh full barrel", kn: "ತುಂಬಿದ ಬ್ಯಾರಲ್ ತೂಕ", desc: "Straight to the full-barrel weight", href: "/barrels?weigh=full", group: "entry" },
   { id: "barrelsimple", icon: "👷", title: "Barrels: simple mode", kn: "ಬ್ಯಾರಲ್ ಸರಳ", desc: "Only weighing, for the manager and workers", href: "/barrels?simple=1", group: "entry" },
   { id: "barrels", icon: "🛢️", title: "Barrel receiving", kn: "ಬ್ಯಾರಲ್ ಸ್ವೀಕಾರ", desc: "Label, weigh full & empty, check the oil", href: "/barrels", group: "entry" },
+  { id: "attendance", icon: "🕘", title: "Attendance", kn: "ಹಾಜರಿ", desc: "Present / half / absent, check-in selfie and place", href: "/attendance", group: "entry" },
+  { id: "machines", icon: "⚙️", title: "Machines", kn: "ಯಂತ್ರಗಳು", desc: "Hours, power units, breakdowns and service per expeller", href: "/machines", group: "entry" },
+  { id: "orders", icon: "🛒", title: "Orders", kn: "ಆರ್ಡರ್", desc: "WhatsApp and phone orders: new, packed, delivered", href: "/orders", group: "entry" },
   { id: "employees", icon: "👷", title: "Employee ledger", kn: "ನೌಕರರ ಖಾತೆ", desc: "Salary, daily wages, advances, payments, balance of each person", href: "/employees", group: "entry", ownerOnly: true },
   { id: "fleet", icon: "🛢️", title: "Our barrels", kn: "ನಮ್ಮ ಬ್ಯಾರಲ್‌ಗಳು", desc: "Our own barrels: tare, weigh, where each one is", href: "/barrels/fleet", group: "entry" },
   { id: "smart", icon: "✨", title: "Smart entry (register)", kn: "ಸ್ಮಾರ್ಟ್ ದಾಖಲೆ", desc: "Say / photo → register form filled", href: "/register?open=smart", group: "entry" },
@@ -70,6 +73,7 @@ export const QUICK_LINKS: QuickLink[] = [
   // Office
   { id: "records", icon: "🗂️", title: "Proofs & scans", kn: "ಪುರಾವೆ ಮತ್ತು ಸ್ಕ್ಯಾನ್", desc: "Signatures, slips, bills; cash paid without proof", href: "/records", group: "office", ownerOnly: true },
   { id: "chat", icon: "💬", title: "Chat bot", kn: "ಚಾಟ್", desc: "Ask, enter, get PDFs — also on Telegram / Discord", href: "/chat", group: "office" },
+  { id: "insights", icon: "📈", title: "Insights", kn: "ಒಳನೋಟ", desc: "Oil yield, stock run-out, profit per kg, tanks map, udhaar reminders", href: "/insights", group: "office", ownerOnly: true },
   { id: "reports", icon: "📊", title: "Reports", kn: "ವರದಿ", desc: "Sales, stock, udhar, cash", href: "/reports", group: "office", ownerOnly: true },
   { id: "settings", icon: "⚙️", title: "Settings", kn: "ಸೆಟ್ಟಿಂಗ್ಸ್", desc: "Items, rates, import / export", href: "/settings", group: "office", ownerOnly: true },
   { id: "desk", icon: "🗂️", title: "Full desk", kn: "ಪೂರ್ಣ ಡೆಸ್ಕ್", desc: "Job-work, closing, manufacturing", href: "/", group: "office" },

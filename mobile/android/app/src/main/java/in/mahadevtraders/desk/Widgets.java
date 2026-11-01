@@ -60,6 +60,9 @@ public final class Widgets {
         KINDS.put("stock", StockWidget.class);
         KINDS.put("alerts", AlertsWidget.class);
         KINDS.put("note", NoteWidget.class);
+        KINDS.put("chat", ChatWidget.class);
+        KINDS.put("tips", TipsWidget.class);
+        KINDS.put("tasks", TasksWidget.class);
     }
 
     public static RemoteViews views(Context c, String kind) {
@@ -70,6 +73,7 @@ public final class Widgets {
             case "actions": return actionViews(c);
             case "cash": return cash(c);
             case "note": return note(c);
+            case "chat": return chat(c);
             default: return list(c, kind);
         }
     }
@@ -123,7 +127,7 @@ public final class Widgets {
             WidgetData.text(v, R.id.sub, WidgetData.isOn(c) ? "Barrels: " + (b == null ? "–" : b.optInt("toWeighFull") + " to weigh · " + b.optInt("waitingEmpty") + " waiting") : "Sign in and the widgets switch on", l.soft, 12, l);
             for (int id : new int[] { R.id.v1, R.id.v2, R.id.v3, R.id.v4, R.id.v5, R.id.v6, R.id.k1, R.id.k2, R.id.k3, R.id.k4, R.id.k5, R.id.k6, R.id.alert }) WidgetData.text(v, id, "", l.soft, 11, l);
             v.setViewVisibility(R.id.chart, View.GONE);
-            v.setOnClickPendingIntent(R.id.big, WidgetData.open(c, "/", 64));
+            v.setOnClickPendingIntent(R.id.big, WidgetData.pop(c, "/pop?w=dashboard", 64, false));
             return v;
         }
         v.setViewVisibility(R.id.chart, View.VISIBLE);
@@ -140,9 +144,9 @@ public final class Widgets {
         JSONArray al = j.optJSONArray("alerts");
         JSONObject first = al != null && al.length() > 0 ? al.optJSONObject(0) : null;
         WidgetData.text(v, R.id.alert, first != null ? "⚠ " + first.optString("text") : "✓ Nothing needs attention", first != null ? Color.parseColor("#ff9d8a") : l.soft, 11, l);
-        v.setOnClickPendingIntent(R.id.big, WidgetData.open(c, "/reports", 65));
-        v.setOnClickPendingIntent(R.id.cells1, WidgetData.open(c, "/cash", 66));
-        v.setOnClickPendingIntent(R.id.cells2, WidgetData.open(c, "/?desk=ledger", 67));
+        v.setOnClickPendingIntent(R.id.big, WidgetData.pop(c, "/pop?w=dashboard", 65, false));
+        v.setOnClickPendingIntent(R.id.cells1, WidgetData.pop(c, "/pop?w=cash", 66, false));
+        v.setOnClickPendingIntent(R.id.cells2, WidgetData.pop(c, "/pop?w=udhaar", 67, false));
         v.setOnClickPendingIntent(R.id.chart, WidgetData.open(c, "/reports", 68));
         v.setOnClickPendingIntent(R.id.alert, WidgetData.open(c, first != null ? first.optString("url", "/") : "/", 69));
         return v;
@@ -200,7 +204,7 @@ public final class Widgets {
             String count = lc == null ? "Not counted yet today" : (lc.optBoolean("mismatch") ? "⚠ Count off by " + WidgetData.rupees(Math.abs(lc.optDouble("diff"))) : "✓ Counted, matches");
             WidgetData.text(v, R.id.line2, count, lc != null && lc.optBoolean("mismatch") ? Color.parseColor("#ff9d8a") : l.soft, 12, l);
         }
-        v.setOnClickPendingIntent(R.id.body, WidgetData.open(c, "/cash", 71));
+        v.setOnClickPendingIntent(R.id.body, WidgetData.pop(c, "/pop?w=cash", 71, false));
         return v;
     }
 
@@ -251,17 +255,39 @@ public final class Widgets {
                 break;
             }
             case "stock": {
-                title = "📦 Oil stock";
-                path = "/stock";
-                JSONArray a = j.optJSONArray("stock");
-                big = !owner ? "Owner only" : a == null || a.length() == 0 ? "No stock figures" : "";
+                title = "📦 Stock · days left";
+                path = "/insights#stock";
+                JSONArray a = j.optJSONArray("runout");
+                big = !owner ? "Owner only" : a == null || a.length() == 0 ? "Do a stock count" : "";
                 if (a != null) {
                     rows = new String[Math.min(5, a.length())][];
                     for (int i = 0; i < rows.length; i++) {
                         JSONObject o = a.optJSONObject(i);
-                        rows[i] = new String[] { (o.optBoolean("low") ? "⚠ " : "") + o.optString("name"), Math.round(o.optDouble("qty")) + " " + o.optString("unit") };
+                        String lv = o.optString("level");
+                        String d = o.isNull("days") ? (o.isNull("kg") ? "–" : Math.round(o.optDouble("kg")) + " kg") : o.optInt("days") + " days";
+                        rows[i] = new String[] { ("out".equals(lv) ? "⛔ " : "low".equals(lv) ? "⚠ " : "") + o.optString("name"), d };
                     }
                 }
+                break;
+            }
+            case "tips": {
+                title = "✨ Do next";
+                path = "/insights";
+                JSONArray a = j.optJSONArray("tips");
+                int n = a == null ? 0 : a.length();
+                big = !WidgetData.isOn(c) ? "Open the app" : n == 0 ? "✓ All good" : "";
+                rows = new String[Math.min(5, n)][];
+                for (int i = 0; i < rows.length; i++) { JSONObject o = a.optJSONObject(i); rows[i] = new String[] { o.optString("icon") + " " + o.optString("text"), "" }; }
+                break;
+            }
+            case "tasks": {
+                title = "📌 Tasks";
+                path = "/chat";
+                JSONArray a = j.optJSONArray("tasks");
+                int n = a == null ? 0 : a.length();
+                big = !WidgetData.isOn(c) ? "Open the app" : n == 0 ? "No tasks · say ‘remind me…’" : "";
+                rows = new String[Math.min(5, n)][];
+                for (int i = 0; i < rows.length; i++) { JSONObject o = a.optJSONObject(i); rows[i] = new String[] { (o.optBoolean("late") ? "⚠ " : "") + o.optString("text"), o.optString("when") }; }
                 break;
             }
             default: {
@@ -289,7 +315,27 @@ public final class Widgets {
         }
         v.setTextColor(R.id.refresh, l.text);
         v.setOnClickPendingIntent(R.id.refresh, WidgetData.refresh(c, KINDS.get(kind) == null ? AlertsWidget.class : KINDS.get(kind)));
-        v.setOnClickPendingIntent(R.id.body, WidgetData.open(c, path, "udhaar".equals(kind) ? 81 : "jobwork".equals(kind) ? 82 : "stock".equals(kind) ? 83 : 84));
+        v.setOnClickPendingIntent(R.id.body, WidgetData.pop(c, "/pop?w=" + kind, "udhaar".equals(kind) ? 81 : "jobwork".equals(kind) ? 82 : "stock".equals(kind) ? 83 : "tips".equals(kind) ? 85 : "tasks".equals(kind) ? 86 : 84, false));
+        return v;
+    }
+
+
+    // ------------------------------------------------------------------ chat: ask, speak, chips
+    static RemoteViews chat(Context c) {
+        WidgetData.Look l = WidgetData.look(c);
+        RemoteViews v = new RemoteViews(c.getPackageName(), R.layout.widget_chat);
+        WidgetData.paint(v, l);
+        WidgetData.text(v, R.id.title, "💬 Ask Mahadev", l.soft, 12, l);
+        WidgetData.text(v, R.id.ask, "Type or say… today · udhaar ramesh · sale 500 upi", l.soft, 13, l);
+        WidgetData.text(v, R.id.mic, "🎤", l.text, 20, l);
+        String[][] chips = { { "📊 Today", "today" }, { "🙌 Udhaar", "udhaar" }, { "📌 Tasks", "tasks" }, { "🔔 Alerts", "alerts" } };
+        int[] ids = { R.id.c1, R.id.c2, R.id.c3, R.id.c4 };
+        for (int i = 0; i < ids.length; i++) {
+            WidgetData.text(v, ids[i], chips[i][0], l.text, 12, l);
+            v.setOnClickPendingIntent(ids[i], WidgetData.pop(c, "/pop?w=chat&say=" + chips[i][1], 120 + i, false));
+        }
+        v.setOnClickPendingIntent(R.id.ask, WidgetData.pop(c, "/pop?w=chat", 118, false));
+        v.setOnClickPendingIntent(R.id.mic, WidgetData.pop(c, "/pop?w=chat", 119, true));
         return v;
     }
 
@@ -340,7 +386,7 @@ public final class Widgets {
             if (i < acts.length && acts[i][1].startsWith("/")) {
                 v.setViewVisibility(ACT_IDS[i], View.VISIBLE);
                 WidgetData.text(v, ACT_IDS[i], acts[i][0], l.text, 13, l);
-                v.setOnClickPendingIntent(ACT_IDS[i], WidgetData.open(c, acts[i][1], 31 + i));
+                v.setOnClickPendingIntent(ACT_IDS[i], WidgetData.pop(c, acts[i][1], 31 + i, false));
             } else {
                 v.setViewVisibility(ACT_IDS[i], View.INVISIBLE);
             }

@@ -6,7 +6,9 @@
 //   expense 200 diesel · got 1000 ramesh (udhaar received) · purchase 5000 seed bank · paid 3000 salary raju
 //   report today pdf · sales week excel · udhaar pdf · stock pdf
 //   link 123456 · help
+import { needsEnglish, toEnglish } from "@/lib/lang";
 import { CATALOG, type Mode, type RegisterKind } from "@/lib/register";
+import { taskWords } from "@/lib/tasks";
 
 export type Span = "today" | "yesterday" | "week" | "month" | "lastMonth";
 export type ReportWhat = "day" | "sales" | "expenses" | "udhaar" | "stock" | "cash" | "jobwork" | "purchase";
@@ -37,11 +39,18 @@ export type Cmd =
   | { t: "barrels" }
   | { t: "jobwork" }
   | { t: "alerts" }
+  | { t: "review" }
+  | { t: "watch" }
+  | { t: "mandi" }
   | { t: "report"; what: ReportWhat; span: Span; format: ReportFormat }
   | EntryCmd
   | { t: "link"; code: string }
   | { t: "unlink" }
   | { t: "whoami" }
+  | { t: "open"; path: string; label: string }
+  | { t: "task"; words: string }
+  | { t: "tasks" }
+  | { t: "fill"; kind: RegisterKind; text: string; why: string }
   | { t: "bad"; why: string }
   | { t: "unknown"; text: string };
 
@@ -72,9 +81,9 @@ const MODE: Record<string, Mode | "CREDIT"> = {
 const KIND_WORDS: [string[], RegisterKind][] = [
   [["got", "received", "recd", "jama", "collected", "collect", "udhaarin", "udharin"], "UDHAAR_IN"],
   [["sale", "sold", "sell", "becha", "bikri", "maarata", "marata"], "SALE"],
-  [["expense", "exp", "spent", "kharcha", "kharch"], "EXPENSE"],
-  [["purchase", "bought", "buy", "kharidi", "kharid"], "PURCHASE"],
-  [["paid", "payment", "pay"], "PAYMENT"],
+  [["expense", "exp", "spent", "spend", "kharcha", "kharch"], "EXPENSE"],
+  [["purchase", "purchased", "bought", "buy", "kharidi", "kharid"], "PURCHASE"],
+  [["paid", "payment", "pay", "salary"], "PAYMENT"],
 ];
 
 /** Catalogue item for this kind named somewhere in the words (also "sunflower oil" → sunflower). */
@@ -185,9 +194,70 @@ const REPORT_WORDS: Record<string, ReportWhat> = {
   jobwork: "jobwork", purchases: "purchase", purchase: "purchase",
 };
 
+// Pages and windows the chat can open (in the app it goes there; in Telegram / Discord it sends the link).
+export const OPEN_TARGETS: { re: RegExp; path: string; label: string }[] = [
+  { re: /(weigh|weight)\s*(the\s*)?empty|empty\s*(barrel|weigh)/, path: "/barrels?weigh=empty", label: "Weigh empty barrels" },
+  { re: /barrel\s*(receiv|weigh)|weigh\s*(full|barrel)|receiv\w*\s*barrel|full\s*barrel/, path: "/barrels?weigh=full", label: "Barrel receiving · weigh full" },
+  { re: /simple\s*barrel|barrel\s*simple/, path: "/barrels?simple=1", label: "Barrels · simple mode" },
+  { re: /our\s*barrels|barrel\s*fleet|fleet/, path: "/barrels/fleet", label: "Our barrels" },
+  { re: /barrel/, path: "/barrels", label: "Barrels" },
+  { re: /edit\s*(the\s*)?(last|latest|previous)|last\s*entry|undo\s*(last|entry)|fix\s*(last|entry)/, path: "/register?edit=last", label: "Edit the last entry" },
+  { re: /count\s*cash|cash\s*(count|tally)|tally\s*cash/, path: "/register?open=cash", label: "Count cash" },
+  { re: /stock\s*(count|tally)|count\s*stock|tank\s*dip/, path: "/register?open=stock", label: "Stock count" },
+  { re: /calc/, path: "/register?open=calc", label: "Calculator" },
+  { re: /estimate|quotation/, path: "/register?open=estimate", label: "Estimate" },
+  { re: /scan|slip|photo\s*bill/, path: "/register?open=scan", label: "Scan a slip / bill" },
+  { re: /fresh\s*crush|crush/, path: "/register?open=crush", label: "Fresh crush sale" },
+  { re: /(new|add)\s*(job\s*work|intake)|intake/, path: "/register?open=jobwork", label: "New job-work intake" },
+  { re: /settle|job\s*work\s*pay/, path: "/register?open=jwsettle", label: "Job-work settle" },
+  { re: /(new|add|open)\s*sale|sale\s*form/, path: "/register?open=sale", label: "New sale" },
+  { re: /(new|add|open)\s*purchase|purchase\s*form/, path: "/register?open=purchase", label: "New purchase" },
+  { re: /(new|add|open)\s*expense|expense\s*form/, path: "/register?open=expense", label: "New expense" },
+  { re: /(udhaar|udhar)\s*(in|form|received)/, path: "/register?open=udhaar", label: "Udhaar received" },
+  { re: /purchases?\s*(tab|desk|list|page)|purchase\s*bills/, path: "/?desk=purchase", label: "Purchase desk" },
+  { re: /sales?\s*(tab|desk|list|page|bills)/, path: "/?desk=sales", label: "Sales desk" },
+  { re: /ledger|day\s*book|khata/, path: "/?desk=ledger", label: "Ledger" },
+  { re: /part(y|ies)|customers|suppliers/, path: "/?desk=parties", label: "Parties" },
+  { re: /wage|employee|salary\s*(sheet|ledger)|staff\s*ledger/, path: "/employees", label: "Employee ledger" },
+  { re: /label|print/, path: "/print", label: "Print centre" },
+  { re: /report/, path: "/reports", label: "Reports" },
+  { re: /cash/, path: "/cash", label: "Cash tally" },
+  { re: /stock/, path: "/stock", label: "Stock" },
+  { re: /register|quick\s*register/, path: "/register", label: "Quick Register" },
+  { re: /manufactur|mfg|batch/, path: "/mfg", label: "Manufacturing" },
+  { re: /setting|appearance|theme/, path: "/appearance", label: "Appearance" },
+  { re: /widget|android|app\b/, path: "/app", label: "Android app settings" },
+  { re: /quick\s*card/, path: "/quick", label: "Quick card" },
+  { re: /home|dashboard|desk/, path: "/", label: "Home" },
+];
+
+/** "open barrel receiving" / "go to ledger" / "show purchase tab" → that page. */
+export function openTarget(text: string): { path: string; label: string } | null {
+  const t = text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  const hit = OPEN_TARGETS.find((o) => o.re.test(t));
+  return hit ? { path: hit.path, label: hit.label } : null;
+}
+
+// Words people put in front of a question: "check stocks today", "show me udhaar of ramesh", "what is cash"
+const FILLER = /^(please |pls |can you |could you |check |show( me)? |tell( me)? |give( me)? |get( me)? |what( i|')?s |what are |how much( is)? |my |the |today'?s )+/;
+const PLURAL: Record<string, string> = { stocks: "stock", alert: "alerts", barrel: "barrels", jobs: "jobwork", reports: "report", udhaars: "udhaar", sales: "sales" };
+
 export function parseCommand(input: string): Cmd {
+  if (needsEnglish(input)) input = toEnglish(input);
   // Telegram sends "/today@MahadevBot"; people type "Udhaar  Ramesh?"
-  const text = input.trim().replace(/^\//, "").replace(/^(\w+)@\w+/, "$1").replace(/[?!.]+$/, "").trim();
+  let text = input.trim().replace(/^\//, "").replace(/^(\w+)@\w+/, "$1").replace(/[?!.,]+$/, "").replace(/\s*,(\s+|$)/g, " ").trim();
+  // tasks and reminders: "remind me friday to pay digwal", "todo order tins", "tasks"
+  const tw = taskWords(text);
+  if (tw) return { t: "task", words: tw };
+  if (/^(my\s+)?(tasks|todos?|to-?dos|reminders|todo list)$/i.test(text)) return { t: "tasks" };
+  // opening a page / window: "open barrel receiving", "go to ledger", "start stock count"
+  const opener = /^(open|go to|goto|take me to|show page|launch|start|edit)\b\s*/i.exec(text);
+  if (opener) {
+    const target = openTarget(text);
+    if (target) return { t: "open", ...target };
+  }
+  text = text.replace(FILLER, "").trim() || text;
+  text = text.split(/\s+/).map((w, i) => (i === 0 && PLURAL[w.toLowerCase()] ? PLURAL[w.toLowerCase()] : w)).join(" ");
   if (!text) return { t: "help" };
   const ws = words(text);
   const lw = ws.map((w) => w.toLowerCase());
@@ -208,12 +278,18 @@ export function parseCommand(input: string): Cmd {
   }
 
   // entries
-  if (two === "udhaar in" || two === "udhar in") return parseEntry("UDHAAR_IN", ws.slice(2));
+  const entry = (kind: RegisterKind, rest: string[]): Cmd => {
+    const e = parseEntry(kind, rest);
+    // amount or name missing: open the form filled with what was said, to finish there
+    if (e.t === "bad") return { t: "fill", kind, text, why: e.why };
+    return e;
+  };
+  if (two === "udhaar in" || two === "udhar in") return entry("UDHAAR_IN", ws.slice(2));
   for (const [ks, kind] of KIND_WORDS) if (ks.includes(head)) {
     // "sales week" is a question, "sale 500" is an entry
     if (kind === "SALE" && !ws.slice(1).some((w) => money(w) !== null || /^\d/.test(w))) break;
-    if (kind === "EXPENSE" && !ws.slice(1).some((w) => money(w) !== null)) break;
-    return parseEntry(kind, ws.slice(1));
+    if (kind === "EXPENSE" && !ws.slice(1).some((w) => money(w) !== null || /^\d/.test(w))) break;
+    return entry(kind, ws.slice(1));
   }
 
   // questions
@@ -235,7 +311,13 @@ export function parseCommand(input: string): Cmd {
   if (head === "barrels" || head === "barrel" || head === "drums") return { t: "barrels" };
   if (head === "jobwork" || two === "job work" || head === "jw") return { t: "jobwork" };
   if (head === "alerts" || head === "alert" || head === "attention" || head === "problems") return { t: "alerts" };
+  if (head === "review" || two === "weekly review" || two === "week review" || head === "weekly") return { t: "review" };
+  if (head === "mandi" || two === "seed rates" || two === "mandi rates" || head === "apmc") return { t: "mandi" };
+  if (head === "watch" || head === "unusual" || head === "suspicious" || head === "anomalies") return { t: "watch" };
   if (head === "expenses" || head === "expense" || head === "kharcha") return { t: "report", what: "expenses", span: span ?? "today", format: "text" };
+  // "barrel receiving", "ledger", "count cash" … said without "open"
+  const target = openTarget(text);
+  if (target && text.split(/\s+/).length <= 4) return { t: "open", ...target };
   return { t: "unknown", text };
 }
 
@@ -243,6 +325,7 @@ export const HELP_TEXT = [
   "**Ask**",
   "today · yesterday · week · month",
   "cash · stock · barrels · jobwork · alerts",
+  "review (this week, with what to do) · watch (anything unusual) · mandi (seed prices)",
   "udhaar · udhaar ramesh · remind ramesh",
   "",
   "**Enter** (you get ✅ Save / ❌ Cancel first)",
@@ -253,6 +336,13 @@ export const HELP_TEXT = [
   "expense 200 diesel",
   "purchase 5000 seed bank",
   "paid 3000 salary raju",
+  "",
+  "**Open** (goes there in the app, sends the link in Telegram)",
+  "open barrel receiving · open ledger · count cash",
+  "new purchase · edit last entry · open wages",
+  "",
+  "**Tasks**",
+  "remind me friday to pay digwal · todo order tins · tasks",
   "",
   "**Files**",
   "report today pdf · sales week excel",

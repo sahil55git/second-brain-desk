@@ -12,7 +12,7 @@ import { getToken } from "next-auth/jwt";
 import { BUILTIN_PROFILES, effectivePerms, pagesForPath, pathAllowed, type Perms } from "@/lib/access";
 import { internalKey } from "@/lib/accessKey";
 
-const OWNER_ONLY_PATHS = ["/settings", "/reports", "/records"];
+const OWNER_ONLY_PATHS = ["/settings", "/reports", "/records", "/insights"];
 
 // Profiles live in the database, which the edge cannot reach, so we ask a small
 // internal route and remember the answer for a few seconds per login.
@@ -79,6 +79,6 @@ export const config = {
   // Everything except: NextAuth's own API routes, the login/setup pages
   // and their APIs, and Next.js internals/static assets.
   matcher: [
-    "/((?!api/auth|api/setup|api/scale-ticks/ingest|api/print-jobs/agent|api/device/summary|api/bot/telegram|api/bot/discord|api/bot/cron|login|setup|_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|print-helper/).*)",
+    "/((?!api/auth|api/setup|api/scale-ticks/ingest|api/print-jobs/agent|api/device/summary|api/bot/telegram|api/bot/discord|api/bot/cron|api/wa|login|setup|_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|print-helper/).*)",
   ],
 };
