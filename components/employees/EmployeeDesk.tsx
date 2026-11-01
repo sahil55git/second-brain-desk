@@ -40,6 +40,9 @@ const payText = (e: { payType: PayType; monthlySalaryInr: number; dailyWageInr: 
 
 export default function EmployeeDesk() {
   const [tab, setTab] = useState<Tab>("staff");
+  useEffect(() => {
+    if (window.location.hash === "#wages") setTab("wages");
+  }, []);
   const [emps, setEmps] = useState<Emp[] | null>(null);
   const [month, setMonth] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -568,6 +571,10 @@ function WagesView({ onDone, onNew }: { onDone: (t: string) => void; onNew: () =
     try {
       const j = await api<{ date: string; data: WageRow[] }>(`/api/employees/wages?date=${date}`);
       setRows(j.data);
+      // days worked from Attendance (present = 1, half day = ½, absent = 0), when it was marked
+      const at = await fetch(`/api/attendance?date=${date}`).then((r) => r.json()).catch(() => null);
+      const marked = ((at?.data || []) as { id: string; att: { status: string } | null }[]).filter((x) => x.att);
+      if (marked.length) setDays((d) => ({ ...Object.fromEntries(marked.map((x) => [x.id, x.att!.status === "P" ? "1" : x.att!.status === "H" ? "0.5" : "0"])), ...d }));
       setErr(null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not load.");

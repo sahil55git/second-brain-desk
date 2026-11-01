@@ -2,6 +2,7 @@
 // its own look (text size, theme, font…), so the shop phone can differ
 // from the owner's laptop.
 import AppearancePanel from "@/components/AppearancePanel";
+import { WallGlassPanel } from "@/components/WallGlass";
 import "@/components/hub/hub.css";
 
 export const metadata = { title: "Appearance — Second Brain Desk" };
@@ -20,6 +21,7 @@ export default function AppearancePage() {
         </nav>
       </header>
       <div style={{ maxWidth: 980 }}>
+        <WallGlassPanel />
         <AppearancePanel />
       </div>
     </div>

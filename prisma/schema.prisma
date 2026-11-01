@@ -1127,3 +1127,65 @@ model BotLog {
 
   @@index([at])
 }
+
+// Small shared settings (one JSON per key): "profit" — cost inputs per oil (lib/insights.ts),
+// "shop" — shop name and UPI id for udhaar reminders.
+model AppSetting {
+  key       String   @id
+  data      Json
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+// Udhaar follow-up: a reminder sent, or the date a customer promised to pay.
+model UdhaarNote {
+  id     String   @id @default(cuid())
+  name   String // customer, as in the udhaar list
+  kind   String // REMIND | PROMISE
+  date   String // REMIND: day sent · PROMISE: promised day "YYYY-MM-DD"
+  amount Float?
+  note   String?
+  by     String?
+  at     DateTime @default(now())
+
+  @@index([name])
+}
+
+// Staff attendance: one row per person per day — present / half day / absent, the time in and
+// out, a small selfie taken at check-in and where the phone was. Daily wages are filled from it.
+model Attendance {
+  id         String    @id @default(cuid())
+  employeeId String
+  date       String // "YYYY-MM-DD"
+  status     String // P (present) | H (half day) | A (absent)
+  inAt       DateTime?
+  outAt      DateTime?
+  photo      String? // small JPEG data URL (≤ 60 kB)
+  lat        Float?
+  lng        Float?
+  accuracyM  Float?
+  distanceM  Float? // from the shop, when the shop's place is set
+  note       String?
+  markedBy   String?
+  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime  @default(now())
+
+  @@unique([employeeId, date])
+  @@index([date])
+}
+
+// Things to do and reminders, from the chat ("remind me friday to pay digwal") or the app.
+model Task {
+  id        String    @id @default(cuid())
+  text      String
+  due       String? // "YYYY-MM-DD"
+  dueTime   String? // "HH:MM"
+  username  String // whose task
+  doneAt    DateTime?
+  remindedAt DateTime?
+  createdAt DateTime  @default(now())
+  createdVia String?
+
+  @@index([username, doneAt])
+  @@index([due])
+}
