@@ -2,13 +2,19 @@
 // by Discord (checked here). Discord wants an answer within 3 seconds, so we say "thinking…"
 // at once and fill the message in afterwards (waitUntil keeps the function running).
 import { NextRequest, NextResponse } from "next/server";
-import { waitUntil } from "@vercel/functions";
 import { botKeys } from "@/lib/bot/config";
 import { handle, handleUnlinked, linkedWho, type BotCtx } from "@/lib/bot/engine";
 import { discordEditOriginal, discordFollowup, verifyDiscord } from "@/lib/bot/discord";
 import type { BotReply } from "@/lib/bot/format";
 
 export const dynamic = "force-dynamic";
+
+// Keep the function alive after the answer is sent (what @vercel/functions' waitUntil does,
+// without the extra package): Vercel puts a request context on globalThis.
+function waitUntil(p: Promise<unknown>) {
+  const holder = (globalThis as unknown as Record<symbol, { get?: () => { waitUntil?: (p: Promise<unknown>) => void } } | undefined>)[Symbol.for("@vercel/request-context")];
+  holder?.get?.()?.waitUntil?.(p);
+}
 export const maxDuration = 60;
 
 interface DUser { id: string; username?: string; global_name?: string }
