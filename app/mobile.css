@@ -1,0 +1,106 @@
+/* Phone and tablet: fast and compact.
+   1. Touch devices (phones, tablets, the Android app): no live blur, no fixed background, no
+      entrance animations — these are what made scrolling lag and pages feel stuck.
+   2. Phone widths: one clean top bar (← ⌂ search ☰ 📤) and the bottom tabs; the other floating
+      buttons go, the desk header stops sticking and fits on one line, headings and cards are
+      smaller, so more of the page fits on the screen. */
+
+@media (pointer: coarse), (max-width: 760px) {
+  html[data-skin] body { background-attachment: scroll !important; }
+  html[data-skin] *, html[data-skin] *::before, html[data-skin] *::after {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  /* glass panels need a solid-enough fill once the blur is gone */
+  html[data-skin] :is(.sb-head, .hub-card, .hub-kpi, .bd-card, .hm-card, .stk-card, .tly-card, .csh-card, .nd-bar, .ql-panel, .sh-menu, .nd-hits) {
+    background-color: color-mix(in srgb, var(--ui-card, var(--background)) 92%, transparent);
+  }
+  .hm-rise, .hm-bar, .hm-wbar, .hm-meter i, .hm-stockbars .track i, .hm-line .l1, .hm-earth .hm-hills, .hm-pastel .hm-mountains, .mlogo-leaf { animation: none !important; }
+  html[data-skin] :is(.hub-card, .bd-card, .hm-card, .sb-head) { box-shadow: 0 1px 2px rgba(0, 0, 0, .18) !important; }
+  html[data-skin] .hm-line .l1 { filter: none; }
+  .nd-bar { background: var(--background, #111) !important; }
+}
+
+@media (max-width: 760px) {
+  /* --- fewer floating things: the top bar's ☰ opens the quick window, so no round button or edge tab */
+  .ql-fab, .ql-edge { display: none !important; }
+  /* "New sale" becomes a small round + above the tabs */
+  .pnav-fab { width: 52px; height: 52px; padding: 0 !important; border-radius: 50% !important; justify-content: center; right: 14px !important; bottom: calc(78px + env(safe-area-inset-bottom, 0px)) !important; }
+  .pnav-fab span { display: none; }
+
+  /* --- top bar: slimmer */
+  .nd-bar { padding-top: max(4px, env(safe-area-inset-top, 0px)); padding-bottom: 4px; gap: 4px; }
+  .nd-b { min-width: 36px; height: 36px; font-size: 16px; }
+  .nd-search input { height: 36px; font-size: 16px; }
+
+  /* --- the desk header: not sticky, one short row */
+  html[data-skin] .sb-head, .sb-head { position: static !important; padding: 8px 10px !important; margin-bottom: 10px !important; gap: 6px !important; }
+  .sb-head h1 { font-size: 17px !important; }
+  .sb-tag { display: none; }
+  .sb-logo { transform: scale(.85); }
+  .sb-actions { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; gap: 6px !important; width: 100%; padding-bottom: 2px; }
+  .sb-actions::-webkit-scrollbar { display: none; }
+  .sb-actions > * { flex: 0 0 auto; white-space: nowrap; padding: 6px 10px !important; font-size: 13px !important; }
+  .sb-avatar { display: none !important; }
+  main.sb-app { padding: 8px 10px 16px !important; }
+
+  /* --- home */
+  .hm-greet h2 { font-size: 22px !important; }
+  .hm-greet { margin-bottom: 4px; }
+  .hm-actions { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 6px !important; margin: 8px 0 !important; }
+  .hm-act { flex-direction: column; justify-content: center; text-align: center; gap: 4px !important; padding: 10px 6px !important; min-height: 0 !important; }
+  .hm-act.main { grid-column: auto !important; }
+  .hm-act .ic { font-size: 24px !important; }
+  .hm-act .tx b, .hm-act.main .tx b { font-size: 13px !important; line-height: 1.15; }
+  .hm-act .tx small, .hm-act .go { display: none !important; }
+
+  /* --- every desk: tighter cards, smaller headings, Kannada beside the English */
+  .bd-wrap { padding: 8px 10px 90px !important; }
+  .bd-wrap h1 { font-size: 20px !important; line-height: 1.2; }
+  .bd-wrap h1 .bd-kn, .bd-wrap h2 .bd-kn, .bd-wrap h3 .bd-kn { display: inline; margin-left: 6px; font-size: .62em; }
+  .bd-card { padding: 10px !important; margin-bottom: 10px !important; }
+  .bd-top { gap: 8px; align-items: center !important; }
+  .bd-top .bd-btn { padding: 6px 10px; font-size: 13px; }
+  .bd-steps.bd-tabs { gap: 6px !important; }
+  .bd-steps.bd-tabs button { padding: 8px 10px !important; font-size: 14px !important; min-height: 0 !important; }
+  .bd-steps.bd-tabs button small { display: none; }
+  .bd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px !important; }
+  .bd-kpi { padding: 8px 10px !important; }
+  .bd-kpi .v { font-size: 18px !important; }
+  .hub { padding: 10px 10px 90px !important; }
+  .hub h1 { font-size: 20px !important; }
+  .hub-card { padding: 10px 12px !important; }
+  .hub-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px !important; }
+  .hub-kpi .v { font-size: 18px !important; }
+
+  /* typing on a phone: 16px so the screen does not jump or zoom */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea { font-size: 16px !important; }
+
+  /* simple barrel mode */
+  .bd-simple-stat { font-size: 15px; gap: 4px 14px; }
+  .bd-simple-stat b { font-size: 17px; }
+
+  /* --- Quick Register: its header no longer hides under the top bar, one row of tools
+     (Appearance, Reports, Records, Settings and Full desk are in ☰ and the search) */
+  html .qr .qr-top, .qr-top { position: static !important; margin: 4px 0 8px !important; padding: 6px 8px !important; row-gap: 6px !important; }
+  .qr .qr-top a.qr-pill { display: none !important; }
+  html[data-skin] .qr .qr-pill { height: 34px; min-width: 34px; padding: 0 8px; }
+  html[data-skin] .qr .qr-top h1 { font-size: 16px !important; }
+  html[data-skin] .qr .qr-hero { padding: 10px 12px !important; margin-bottom: 10px !important; }
+  html[data-skin] .qr .qr-hero-v { font-size: 32px !important; margin: 2px 0 8px !important; }
+  html[data-skin] .qr .qr-hero-chips span { padding: 6px 8px !important; }
+  html[data-skin] .qr .qr-tile { min-height: 50px !important; padding: 7px 10px !important; }
+  html[data-skin] .qr .qr-tile .ic { width: 32px !important; height: 32px !important; font-size: 17px !important; }
+  html[data-skin] .qr-wrap { padding: 6px 10px 90px !important; }
+
+  /* --- barrel weighing: the two big choices fit on one line */
+  .bd-steps:not(.bd-tabs) button small { display: none; }
+  .bd-steps:not(.bd-tabs) button { padding: 10px 8px !important; font-size: 15px !important; }
+
+  /* --- desk tabs on the home page: one line you swipe, not words broken over three lines */
+  .sb-tabs { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; margin-bottom: 12px !important; }
+  .sb-tabs::-webkit-scrollbar { display: none; }
+  .sb-tabs > * { flex: 0 0 auto !important; white-space: nowrap; }
+  /* the home page has its own data search (parties, bills, items), so the top bar's page search steps aside there */
+  .nd-bar.nd-home .nd-search { visibility: hidden; }
+}

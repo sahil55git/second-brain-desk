@@ -5,6 +5,7 @@
 // pictures, PDFs) is saved to Downloads and offered to share; navigator.share works (WhatsApp,
 // Bluetooth, Drive…); tapping a reminder notification opens its page. Renders nothing.
 import { useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { AppEvents, LocalNotifications, MahadevNative, blobToBase64, isNative } from "@/lib/native";
 
 let installed = false;
@@ -76,9 +77,43 @@ export function installNativeShims() {
   }).catch(() => {});
 }
 
+const AUTO_KEY = "sbd_widgets_auto_v1";
+
+/**
+ * First time the app is signed in on a phone: switch the widgets on by themselves, so a widget
+ * put on the home screen shows figures straight away instead of "Open the app". Done once; the
+ * owner can switch it off in ☰ → Android app.
+ */
+async function autoWidgets(isOwner: boolean, who: string) {
+  try {
+    if (localStorage.getItem(AUTO_KEY)) return;
+    const st = await MahadevNative.deviceStatus();
+    if (st.on) {
+      localStorage.setItem(AUTO_KEY, "already");
+      return;
+    }
+    const info = await MahadevNative.info().catch(() => null);
+    const name = `${info?.model || "Android phone"}${who ? ` · ${who}` : ""}`;
+    const r = await fetch("/api/device/tokens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.data?.token) return;
+    await MahadevNative.setDevice({ baseUrl: window.location.origin, token: j.data.token, role: isOwner ? "OWNER" : "STAFF", name });
+    localStorage.setItem(AUTO_KEY, "on");
+  } catch {
+    /* try again next time the app opens */
+  }
+}
+
 export default function NativeBridge() {
+  const { data: session, status } = useSession();
   useEffect(() => {
     installNativeShims();
   }, []);
+  useEffect(() => {
+    if (status !== "authenticated" || !isNative()) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const u = session?.user as any;
+    void autoWidgets(u?.role === "OWNER", u?.name || "");
+  }, [status, session]);
   return null;
 }

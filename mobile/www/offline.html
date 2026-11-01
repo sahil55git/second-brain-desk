@@ -1,4 +1,11 @@
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>No internet</title>
-<style>body{font-family:system-ui,sans-serif;background:#17120b;color:#f5ead7;display:grid;place-items:center;min-height:100vh;margin:0;padding:24px;text-align:center}button{font:inherit;font-size:18px;padding:14px 22px;border-radius:14px;border:0;background:#e0a526;color:#17120b;font-weight:800}</style></head>
+<style>body{font-family:system-ui,sans-serif;background:#17120b;color:#f5ead7;display:grid;place-items:center;min-height:100vh;margin:0;padding:24px;text-align:center}button{font:inherit;font-size:18px;padding:14px 22px;border-radius:14px;border:0;background:#e0a526;color:#17120b;font-weight:800}small{display:block;margin-top:14px;opacity:.6}</style></head>
 <body><div><div style="font-size:56px">📶</div><h1>No internet</h1><p>Mahadev Desk needs the internet to open.<br>ಇಂಟರ್ನೆಟ್ ಇಲ್ಲ. ಸಂಪರ್ಕ ಪರಿಶೀಲಿಸಿ.</p>
-<button onclick="location.href='https://mahadev-second-brain.vercel.app/go'">Try again · ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ</button></div></body></html>
+<button onclick="go()">Try again · ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ</button><small id="s">Trying again by itself…</small></div>
+<script>
+var URL_='https://mahadev-second-brain.vercel.app/go',n=0;
+function go(){location.href=URL_}
+// come back by itself: as soon as the phone is online again, and every few seconds
+window.addEventListener('online',go);
+var t=setInterval(function(){n++;document.getElementById('s').textContent='Trying again by itself… ('+n+')';if(navigator.onLine)go();if(n>40)clearInterval(t)},5000);
+</script></body></html>

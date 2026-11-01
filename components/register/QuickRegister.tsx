@@ -604,7 +604,7 @@ function PlaceChips({ value, onPick, known }: { value: string; onPick: (v: strin
     <div className="qr-chips compact" style={{ marginTop: 6 }} aria-label="Villages and towns">
       <span className="qr-m" style={{ alignSelf: "center" }}><G e="📍" /></span>
       {list.map((n) => (
-        <button key={n} type="button" className="qr-chip" onClick={() => onPick(n)}>
+        <button key={n} type="button" className="qr-chip" onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(n)}>
           {n}
         </button>
       ))}
@@ -629,33 +629,54 @@ function PartyField({
   lang: LangMode;
   label?: WordKey;
 }) {
+  // The name chips (regular customers, villages) show only while this box is in use, so the
+  // form stays short; tapping a chip fills the box and closes them.
+  const [open, setOpen] = useState(false);
+  const pick = (n: string) => {
+    onChange(n);
+    setOpen(false);
+  };
   return (
-    <div className="qr-f">
+    <div
+      className="qr-f"
+      onFocusCapture={() => setOpen(true)}
+      onBlurCapture={(e) => {
+        const next = e.relatedTarget as Node | null;
+        if (!next || !e.currentTarget.contains(next)) setTimeout(() => setOpen(false), 150);
+      }}
+    >
       <label>
         <Txt k={label} lang={lang} />
       </label>
-      {top.length > 0 && (
-        <div className="qr-chips compact" style={{ marginBottom: 6 }}>
-          {top.slice(0, 4).map((n) => (
-            <button key={n} type="button" className={`qr-chip${value === n ? " sel" : ""}`} onClick={() => onChange(n)}>
-              <G e="👤" /> {n}
-            </button>
-          ))}
-        </div>
-      )}
       <input
         className="qr-txt"
-        list="qr-parties"
+        list={open ? "qr-parties" : undefined}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
         autoComplete="off"
       />
-      <datalist id="qr-parties">
-        {all.map((n) => (
-          <option key={n} value={n} />
-        ))}
-      </datalist>
-      {places && <PlaceChips value={value} onPick={onChange} known={all} />}
+      {open && (
+        <>
+          <datalist id="qr-parties">
+            {all.map((n) => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
+          {top.length > 0 && (
+            <div className="qr-chips compact" style={{ marginTop: 6 }}>
+              {top.slice(0, 4).map((n) => (
+                <button key={n} type="button" className={`qr-chip${value === n ? " sel" : ""}`} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(n)}>
+                  <G e="👤" /> {n}
+                </button>
+              ))}
+            </div>
+          )}
+          {places && <PlaceChips value={value} onPick={pick} known={all} />}
+        </>
+      )}
     </div>
   );
 }
