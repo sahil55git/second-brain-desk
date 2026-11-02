@@ -14,11 +14,14 @@ import {
 } from "@/lib/insights";
 import { csvRows, matchStatement, readStatement, type BankTxn, type MatchResult, type RegEntry } from "@/lib/bankMatch";
 import { BudgetTab, PlTab, RatesTab } from "./MoneyTabs";
+import { ForecastTab, MachinesTab, OrdersTab, WatchTab, WeeklyTab } from "./OpsTabs";
 import "./insights.css";
 
-type Tab = "pl" | "yield" | "stock" | "profit" | "map" | "udhaar" | "bank" | "budget" | "rates";
+type Tab = "pl" | "yield" | "stock" | "profit" | "map" | "udhaar" | "bank" | "budget" | "rates" | "orders" | "machines" | "forecast" | "watch" | "weekly";
 const TABS: { key: Tab; label: string }[] = [
   { key: "pl", label: "💰 Profit & cash" },
+  { key: "weekly", label: "🗓️ Weekly review" },
+  { key: "watch", label: "👀 Watch" },
   { key: "yield", label: "🌾 Oil yield" },
   { key: "stock", label: "📦 Stock & buying" },
   { key: "profit", label: "💹 Profit per kg" },
@@ -27,6 +30,9 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "bank", label: "🏦 Bank match" },
   { key: "budget", label: "🎯 Budgets" },
   { key: "rates", label: "📋 Rate cards" },
+  { key: "orders", label: "🧾 Orders & suppliers" },
+  { key: "machines", label: "⚙️ Machines" },
+  { key: "forecast", label: "📦 Forecast" },
 ];
 const rs = (n: number | null | undefined) => (n == null ? "–" : `₹${Math.round(n).toLocaleString("en-IN")}`);
 const rs2 = (n: number | null | undefined) => (n == null ? "–" : `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
@@ -77,6 +83,11 @@ export default function InsightsDesk() {
       {data && tab === "pl" && <PlTab d={data} today={today} />}
       {data && tab === "budget" && <BudgetTab d={data} today={today} />}
       {data && tab === "rates" && <RatesTab d={data} />}
+      {data && tab === "orders" && <OrdersTab d={data} today={today} />}
+      {data && tab === "machines" && <MachinesTab d={data} today={today} />}
+      {data && tab === "forecast" && <ForecastTab d={data} today={today} />}
+      {data && tab === "watch" && <WatchTab d={data} today={today} />}
+      {data && tab === "weekly" && <WeeklyTab d={data} today={today} />}
     </div>
   );
 }
