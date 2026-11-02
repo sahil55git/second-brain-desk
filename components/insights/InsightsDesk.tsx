@@ -3,6 +3,8 @@
 // 📈 Insights (/insights, owner): oil yield by lot and supplier, stock run-out and what to buy,
 // profit per kg for each oil, a map of tanks and barrels, and udhaar reminders by WhatsApp.
 // Numbers come from lib/insights.ts (pure); this page only fetches and draws.
+import { useFeatures } from "@/lib/useFeatures";
+import { tabOn } from "@/lib/features";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BizData } from "@/lib/bizReports";
 import { udhaarReport } from "@/lib/bizReports";
@@ -15,10 +17,11 @@ import {
 import { csvRows, matchStatement, readStatement, type BankTxn, type MatchResult, type RegEntry } from "@/lib/bankMatch";
 import { BudgetTab, PlTab, RatesTab } from "./MoneyTabs";
 import MandiTab from "./MandiTab";
+import { ContractsTab, DepositsTab, VarianceTab } from "./StockTabs";
 import { ForecastTab, MachinesTab, OrdersTab, WatchTab, WeeklyTab } from "./OpsTabs";
 import "./insights.css";
 
-type Tab = "pl" | "yield" | "stock" | "profit" | "map" | "udhaar" | "bank" | "budget" | "rates" | "orders" | "machines" | "forecast" | "watch" | "weekly" | "mandi";
+type Tab = "pl" | "yield" | "stock" | "profit" | "map" | "udhaar" | "bank" | "budget" | "rates" | "orders" | "machines" | "forecast" | "watch" | "weekly" | "mandi" | "contracts" | "variance" | "deposits";
 const TABS: { key: Tab; label: string }[] = [
   { key: "pl", label: "💰 Profit & cash" },
   { key: "weekly", label: "🗓️ Weekly review" },
@@ -35,6 +38,9 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "machines", label: "⚙️ Machines" },
   { key: "forecast", label: "📦 Forecast" },
   { key: "mandi", label: "🌾 Mandi prices" },
+  { key: "contracts", label: "🤝 Contracts" },
+  { key: "variance", label: "⚖️ Stock variance" },
+  { key: "deposits", label: "🛢️ Barrel deposits" },
 ];
 const rs = (n: number | null | undefined) => (n == null ? "–" : `₹${Math.round(n).toLocaleString("en-IN")}`);
 const rs2 = (n: number | null | undefined) => (n == null ? "–" : `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
@@ -43,6 +49,7 @@ const shift = (d: string, days: number) => new Date(new Date(`${d}T00:00:00Z`).g
 
 export default function InsightsDesk() {
   const today = useMemo(() => businessDate(Date.now()), []);
+  const feats = useFeatures().state;
   const [tab, setTab] = useState<Tab>("yield");
   const [data, setData] = useState<BizData | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -59,6 +66,9 @@ export default function InsightsDesk() {
       })
       .catch((e: Error) => setErr(e.message));
   }, [today]);
+  useEffect(() => {
+    if (!tabOn(feats, tab)) { const first = TABS.find((t) => tabOn(feats, t.key)); if (first) setTab(first.key); }
+  }, [feats, tab]);
   const pick = (t: Tab) => {
     setTab(t);
     try { history.replaceState(null, "", `#${t}`); } catch {}
@@ -71,7 +81,7 @@ export default function InsightsDesk() {
       </header>
       <nav className="hub-tabs ins-tabs" role="tablist">
         {TABS.map((t) => (
-          <button key={t.key} role="tab" aria-selected={tab === t.key} className={tab === t.key ? "on" : ""} onClick={() => pick(t.key)}>{t.label}</button>
+          tabOn(feats, t.key) && <button key={t.key} role="tab" aria-selected={tab === t.key} className={tab === t.key ? "on" : ""} onClick={() => pick(t.key)}>{t.label}</button>
         ))}
       </nav>
       {err && <div className="hub-banner">{err}</div>}
@@ -91,6 +101,9 @@ export default function InsightsDesk() {
       {data && tab === "watch" && <WatchTab d={data} today={today} />}
       {data && tab === "weekly" && <WeeklyTab d={data} today={today} />}
       {tab === "mandi" && <MandiTab />}
+      {data && tab === "contracts" && <ContractsTab d={data} today={today} />}
+      {data && tab === "variance" && <VarianceTab d={data} today={today} />}
+      {tab === "deposits" && <DepositsTab />}
     </div>
   );
 }

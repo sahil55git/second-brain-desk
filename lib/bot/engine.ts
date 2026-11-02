@@ -26,6 +26,8 @@ import { matchParty, normName, similarity, MATCH_MIN } from "@/lib/smartEntry";
 import { excelBlob, pdfBlob } from "@/lib/exporters";
 import { runAi } from "@/lib/aiProvider";
 import { anomalies, weeklyReview } from "@/lib/ops";
+import { cmdOn, isOn } from "@/lib/features";
+import { loadFeatures } from "@/lib/featuresServer";
 import { COMMODITIES, mandiSignals } from "@/lib/mandi";
 import { loadMandi } from "@/lib/mandiServer";
 import type { Budgets, RateCards } from "@/lib/money";
@@ -285,7 +287,7 @@ export async function alertsText(who: BotWho, nowMs: number): Promise<string[]> 
   if (who.isOwner) {
     const { biz } = await loadBiz(nowMs);
     out.push(...attentionList(biz, today, nowMs).filter((a) => a.severity !== "info").slice(0, 10).map((a) => `${a.severity === "critical" ? "🔴" : "🟠"} ${a.area}: ${a.message}`));
-    const w = await loadWatch(nowMs).catch(() => null);
+    const w = isOn(await loadFeatures().catch(() => null), "watch") ? await loadWatch(nowMs).catch(() => null) : null;
     if (w) out.push(...anomalies(w.biz, w.today, { ...w, days: 2 }).slice(0, 6).map((x) => `${x.level === "red" ? "🔴" : "🟠"} ${x.area}: ${x.text}`));
   }
   return out;
@@ -499,6 +501,7 @@ function fillForm(kind: RegisterKind, text: string, who: BotWho, why?: string): 
 // ------------------------------------------------------------------ the one entry point
 export async function runCommand(text: string, who: BotWho, ctx: BotCtx, nowMs = Date.now()): Promise<BotReply> {
   const cmd = parseCommand(text);
+  if (!cmdOn(await loadFeatures().catch(() => null), cmd.t)) return { text: "That feature is switched off (Settings → 🧩 Features)." };
   switch (cmd.t) {
     case "start":
     case "help":

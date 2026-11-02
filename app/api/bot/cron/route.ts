@@ -9,6 +9,7 @@ import { botKeys } from "@/lib/bot/config";
 import { digestText, openTasks, reviewText, taskLines } from "@/lib/bot/engine";
 import { sendToOwners, sendToUsers } from "@/lib/bot/push";
 import { refreshMandi } from "@/lib/mandiServer";
+import { featureOn } from "@/lib/featuresServer";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -36,10 +37,10 @@ export async function GET(req: NextRequest) {
         sent += r.sent;
       }
       // today's mandi seed prices (Insights → Mandi)
-      const mandi = await refreshMandi().catch(() => null);
+      const mandi = (await featureOn("mandi")) ? await refreshMandi().catch(() => null) : null;
       // Sunday: the weekly review to the owner
       let weekly = false;
-      if (new Date(`${today}T00:00:00Z`).getUTCDay() === 0) {
+      if (new Date(`${today}T00:00:00Z`).getUTCDay() === 0 && (await featureOn("weekly"))) {
         const r = await sendToOwners({ text: await reviewText(Date.now()), buttons: [{ label: "👀 Watch", data: "cmd:watch" }, { label: "🙌 Udhaar", data: "cmd:udhaar" }] });
         weekly = r.sent > 0;
       }

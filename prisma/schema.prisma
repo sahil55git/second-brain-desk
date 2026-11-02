@@ -1244,6 +1244,24 @@ model CustomerOrder {
   @@index([status])
 }
 
+// Shop-floor records of many small kinds (seed godown stacks, contracts, packing material, BOMs,
+// spares, maintenance plans, settling timers, dipstick charts, cycle counts…). `kind` says which;
+// `data` holds its fields; lib/stockOps.ts adds them up.
+model OpsRecord {
+  id        String   @id @default(cuid())
+  kind      String
+  date      String // "YYYY-MM-DD"
+  ref       String? // the thing it belongs to: stack, item, SKU, machine, tank
+  data      Json
+  status    String   @default("open")
+  by        String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kind, date])
+  @@index([kind, ref])
+}
+
 // The look each login picked (theme, colours, cards…), so it follows the person to every
 // browser and the Android app. lib/customize.tsx keeps a copy in the browser as well.
 model UserLook {

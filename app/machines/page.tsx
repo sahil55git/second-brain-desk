@@ -2,10 +2,11 @@
 // expeller / filter press. The owner's report is in Insights → Machines.
 import MachineLogDesk from "@/components/machines/MachineLogDesk";
 import "@/components/hub/hub.css";
+import { FeatureGate } from "@/lib/useFeatures";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Machines — Second Brain Desk" };
 
 export default function MachinesPage() {
-  return <MachineLogDesk />;
+  return <FeatureGate k="machines"><MachineLogDesk /></FeatureGate>;
 }
