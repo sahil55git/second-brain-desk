@@ -51,12 +51,12 @@ describe("entries", () => {
   });
   it("credit sale needs a name", () => {
     expect(parseCommand("sale 900 udhaar ramesh")).toMatchObject({ kind: "SALE", mode: "CREDIT", party: "Ramesh" });
-    expect(parseCommand("sale 900 udhaar").t).toBe("bad");
+    expect(parseCommand("sale 900 udhaar").t).toBe("fill");
   });
   it("udhaar received", () => {
     expect(parseCommand("got 1000 ramesh")).toMatchObject({ kind: "UDHAAR_IN", amount: 1000, party: "Ramesh", mode: "CASH" });
     expect(parseCommand("udhaar in 1,000 ramesh upi")).toMatchObject({ kind: "UDHAAR_IN", amount: 1000, mode: "UPI" });
-    expect(parseCommand("got 1000").t).toBe("bad");
+    expect(parseCommand("got 1000").t).toBe("fill");
   });
   it("expense", () => {
     expect(parseCommand("expense 200 diesel")).toMatchObject({ kind: "EXPENSE", amount: 200, item: "diesel", party: null });
@@ -69,10 +69,29 @@ describe("entries", () => {
     expect(parseCommand("paid 3000 salary raju")).toMatchObject({ kind: "PAYMENT", item: "salary", party: "Raju", amount: 3000 });
   });
   it("missing amount", () => {
-    expect(parseCommand("sale 15kg groundnut")).toEqual({ t: "bad", why: expect.stringMatching(/How much/) });
+    expect(parseCommand("sale 15kg groundnut")).toMatchObject({ t: "fill", kind: "SALE", why: expect.stringMatching(/How much/) });
   });
   it("link codes", () => {
     expect(parseCommand("/link 123456")).toEqual({ t: "link", code: "123456" });
     expect(parseCommand("link 12").t).toBe("bad");
+  });
+});
+
+describe("talking like a person", () => {
+  it("drops the extra words", () => {
+    expect(parseCommand("check stocks today").t).toBe("stock");
+    expect(parseCommand("show me udhaar of ramesh")).toEqual({ t: "udhaar", name: "ramesh" });
+    expect(parseCommand("what is cash").t).toBe("cash");
+  });
+  it("opens pages and windows", () => {
+    expect(parseCommand("open barrel receiving")).toMatchObject({ t: "open", path: "/barrels?weigh=full" });
+    expect(parseCommand("go to ledger")).toMatchObject({ t: "open", path: "/?desk=ledger" });
+    expect(parseCommand("edit last entry")).toMatchObject({ t: "open", path: "/register?edit=last" });
+    expect(parseCommand("count cash")).toMatchObject({ t: "open", path: "/register?open=cash" });
+    expect(parseCommand("open wages")).toMatchObject({ t: "open", path: "/employees" });
+  });
+  it("fills the form when the amount is missing", () => {
+    expect(parseCommand("purchased sunflower oil 180 kg, digwal")).toMatchObject({ t: "fill", kind: "PURCHASE" });
+    expect(parseCommand("got ramesh")).toMatchObject({ t: "fill", kind: "UDHAAR_IN" });
   });
 });

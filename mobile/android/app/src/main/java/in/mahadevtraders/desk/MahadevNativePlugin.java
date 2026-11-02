@@ -24,7 +24,12 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import androidx.activity.result.ActivityResult;
+import android.app.Activity;
+import android.speech.RecognizerIntent;
+import java.util.ArrayList;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -139,6 +144,36 @@ public class MahadevNativePlugin extends Plugin {
         AppWidgetManager m = AppWidgetManager.getInstance(getContext());
         boolean ok = m.isRequestPinAppWidgetSupported() && m.requestPinAppWidget(new ComponentName(getContext(), k), null, null);
         r.put("ok", ok);
+        call.resolve(r);
+    }
+
+    /** Speech to text with Android's own recogniser (Google voice typing): returns what was said. */
+    @PluginMethod
+    public void listen(PluginCall call) {
+        Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        String lang = call.getString("lang", "en-IN");
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang);
+        i.putExtra(RecognizerIntent.EXTRA_PROMPT, "Say it… e.g. sale 500 UPI Suresh");
+        i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+        if (i.resolveActivity(getContext().getPackageManager()) == null) {
+            call.reject("No speech recogniser on this phone (install or enable Google voice typing).");
+            return;
+        }
+        startActivityForResult(call, i, "listenResult");
+    }
+
+    @ActivityCallback
+    private void listenResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
+            call.reject("cancelled");
+            return;
+        }
+        ArrayList<String> said = result.getData().getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+        JSObject r = new JSObject();
+        r.put("text", said == null || said.isEmpty() ? "" : said.get(0));
         call.resolve(r);
     }
 

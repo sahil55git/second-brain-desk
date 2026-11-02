@@ -16,6 +16,8 @@ export interface BotReply {
   text: string;
   buttons?: BotButton[];
   file?: BotFile;
+  /** a page / window to open: the app goes there; Telegram / Discord get the link */
+  open?: { path: string; label: string };
 }
 
 export const rs = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;

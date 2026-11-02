@@ -9,7 +9,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // CI passes -PversionCode=<run number>, so every build installs over the last one
         versionCode (project.hasProperty("versionCode") ? project.property("versionCode").toInteger() : 1)
-        versionName "1.1." + (project.hasProperty("versionCode") ? project.property("versionCode") : "0")
+        versionName "1.2." + (project.hasProperty("versionCode") ? project.property("versionCode") : "0")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

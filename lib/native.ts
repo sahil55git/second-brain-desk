@@ -28,6 +28,8 @@ interface MahadevNativePlugin {
   setActions(o: { actions: WidgetAction[] }): Promise<void>;
   setRefresh(o: { minutes: number }): Promise<void>;
   setLive(o: { on: boolean }): Promise<void>;
+  /** Android speech-to-text (app 1.2+) */
+  listen(o: { lang: string }): Promise<{ text: string }>;
   widgetPrefs(): Promise<{ note: string; noteColor: string; live: boolean; minutes: number; actions: string; placed: WidgetKind[] }>;
   print(o: { name: string }): Promise<void>;
   saveFile(o: { name: string; base64: string; mime: string; share: boolean }): Promise<{ uri: string; where: string }>;
