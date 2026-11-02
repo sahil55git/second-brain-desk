@@ -25,6 +25,7 @@ import AiTerminal from "@/components/AiTerminal";
 import ChecksList from "@/components/smart/ChecksList";
 import CodeScan from "@/components/smart/CodeScan";
 import RateHint from "@/components/smart/RateHint";
+import { rateFor, type RateCards } from "@/lib/money";
 import UnknownCode from "@/components/smart/UnknownCode";
 import { cleanAiLines, findItemByCode, matchParty, salesChecks } from "@/lib/smartEntry";
 import { addScannedItem, applyFilledLines, blankLine, formSummary, toLite, type DraftLine } from "@/lib/smartLines";
@@ -59,6 +60,11 @@ export default function SalesDesk({
   const [printing, setPrinting] = useState<SalesInvoiceDTO | null>(null);
 
   const [partyId, setPartyId] = useState("");
+  // Rate cards (Insights → Rate cards): fill and hint the party's price list rate.
+  const [cards, setCards] = useState<RateCards | null>(null);
+  useEffect(() => {
+    fetch("/api/settings/app?key=rates").then((r) => r.json()).then((j) => setCards(j.data || null)).catch(() => {});
+  }, []);
   const [date, setDate] = useState(todayISO());
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("CASH");
   const [notes, setNotes] = useState("");
@@ -133,9 +139,11 @@ export default function SalesDesk({
     setActiveScaleLine(r.index);
   }
 
+  const partyName = activeParties.find((p) => p.id === partyId)?.name || "";
   function pickItem(idx: number, itemId: string) {
     setActiveScaleLine(idx);
     const item = activeItems.find((i) => i.id === itemId);
+    const card = item ? rateFor(cards, partyName, item.name) : null;
     setLines((prev) =>
       prev.map((l, i) =>
         i === idx
@@ -143,6 +151,7 @@ export default function SalesDesk({
               ...l,
               itemId,
               name: item ? item.name : l.name,
+              rateInr: !l.rateInr.trim() && card ? String(card.rate) : l.rateInr,
               hsnCode: item?.hsnCode || "",
               unit: item?.unit || l.unit,
               gstRatePct:
@@ -494,6 +503,16 @@ export default function SalesDesk({
                 </div>
                 <div className="col-span-12 -mt-1 flex flex-wrap gap-x-3">
                   <RateHint bills={invoices} line={l} partyId={partyId} label="sold" onUse={(r) => setLine(idx, { rateInr: String(r) })} />
+                  {(() => {
+                    const c = rateFor(cards, partyName, l.name);
+                    if (!c) return null;
+                    const low = Number(l.rateInr) > 0 && Number(l.rateInr) < c.rate;
+                    return (
+                      <button type="button" className={`text-xs underline-offset-2 hover:underline ${low ? "text-red-600 font-medium" : "opacity-70"}`} onClick={() => setLine(idx, { rateInr: String(c.rate) })} title="Use the rate card price">
+                        📋 {c.from} ₹{c.rate}{low ? " — below card!" : ""}
+                      </button>
+                    );
+                  })()}
                   <RateHint bills={purchases} line={l} label="cost" />
                 </div>
               </div>
