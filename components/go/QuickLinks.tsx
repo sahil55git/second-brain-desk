@@ -3,6 +3,7 @@
 // Quick links (/go). My tiles = the stars you pick on this device. Pin mode
 // shows a star and a "copy link" button on every tile; to put a tile on your
 // phone's home screen, open it, then use the browser menu → Add to Home screen.
+import { useFeatures } from "@/lib/useFeatures";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { GROUP_META, GROUP_ORDER, visibleLinks, type QuickLink } from "@/lib/quickLinks";
@@ -50,7 +51,8 @@ export default function QuickLinks() {
   };
   const toggle = (id: string) => save(favs.includes(id) ? favs.filter((f) => f !== id) : [...favs, id]);
 
-  const links = useMemo(() => visibleLinks(isOwner), [isOwner]);
+  const feats = useFeatures().state;
+  const links = useMemo(() => visibleLinks(isOwner, feats), [isOwner, feats]);
   const needle = q.trim().toLowerCase();
   const match = (l: QuickLink) => !needle || `${l.title} ${l.kn} ${l.desc}`.toLowerCase().includes(needle);
 

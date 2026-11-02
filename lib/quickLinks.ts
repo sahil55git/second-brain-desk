@@ -2,6 +2,8 @@
 // can be a tile on the Quick links page (/go) or pinned to a phone home screen
 // ("Add to Home screen" works on any of these addresses). Register links use
 // ?open=<key>, which Quick Register turns into the right form on arrival.
+import { linkOn, pathOn, type FeatureState } from "./features";
+
 export type LinkGroup = "entry" | "jobwork" | "tally" | "mfg" | "print" | "office";
 
 export interface QuickLink {
@@ -40,6 +42,12 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "barrelsimple", icon: "👷", title: "Barrels: simple mode", kn: "ಬ್ಯಾರಲ್ ಸರಳ", desc: "Only weighing, for the manager and workers", href: "/barrels?simple=1", group: "entry" },
   { id: "barrels", icon: "🛢️", title: "Barrel receiving", kn: "ಬ್ಯಾರಲ್ ಸ್ವೀಕಾರ", desc: "Label, weigh full & empty, check the oil", href: "/barrels", group: "entry" },
   { id: "attendance", icon: "🕘", title: "Attendance", kn: "ಹಾಜರಿ", desc: "Present / half / absent, check-in selfie and place", href: "/attendance", group: "entry" },
+  { id: "godown", icon: "🏚️", title: "Seed godown", kn: "ಗೋದಾಮು", desc: "Bags in / out by stack, moisture, oldest first", href: "/godown", group: "mfg" },
+  { id: "packing", icon: "🏷️", title: "Packing material", kn: "ಪ್ಯಾಕಿಂಗ್", desc: "Bottles, caps, labels; packed today; cost per SKU", href: "/packing", group: "mfg" },
+  { id: "dip", icon: "📏", title: "Tank dipstick", kn: "ಡಿಪ್", desc: "Dip in cm → kg", href: "/dip", group: "tally" },
+  { id: "cyclecount", icon: "🔁", title: "Cycle count", kn: "ಎಣಿಕೆ", desc: "3 things to count today", href: "/count", group: "tally" },
+  { id: "maintenance", icon: "🔧", title: "Maintenance & spares", kn: "ನಿರ್ವಹಣೆ", desc: "Jobs due by hours, spare parts", href: "/maintenance", group: "mfg" },
+  { id: "settling", icon: "⏳", title: "Settling tanks", kn: "ತಳ ಕೂರುವಿಕೆ", desc: "When a tank is ready to decant", href: "/settling", group: "mfg" },
   { id: "machines", icon: "⚙️", title: "Machines", kn: "ಯಂತ್ರಗಳು", desc: "Hours, power units, breakdowns and service per expeller", href: "/machines", group: "entry" },
   { id: "orders", icon: "🛒", title: "Orders", kn: "ಆರ್ಡರ್", desc: "WhatsApp and phone orders: new, packed, delivered", href: "/orders", group: "entry" },
   { id: "employees", icon: "👷", title: "Employee ledger", kn: "ನೌಕರರ ಖಾತೆ", desc: "Salary, daily wages, advances, payments, balance of each person", href: "/employees", group: "entry", ownerOnly: true },
@@ -86,6 +94,6 @@ export const REGISTER_OPEN_KEYS = ["sale", "crush", "udhaar", "purchase", "expen
 export type RegisterOpenKey = (typeof REGISTER_OPEN_KEYS)[number];
 
 /** Which links to show this person. */
-export function visibleLinks(isOwner: boolean): QuickLink[] {
-  return QUICK_LINKS.filter((l) => isOwner || !l.ownerOnly);
+export function visibleLinks(isOwner: boolean, features?: FeatureState | null): QuickLink[] {
+  return QUICK_LINKS.filter((l) => (isOwner || !l.ownerOnly) && linkOn(features, l.id) && pathOn(features, l.href));
 }

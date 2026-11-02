@@ -4,6 +4,7 @@
 // from Item masters (or free-text lines), see the CGST/SGST vs IGST split
 // update live as you type, save it (server allocates the invoice number and
 // re-computes GST authoritatively), and print a clean invoice.
+import { useFeatures } from "@/lib/useFeatures";
 import PrintButton from "@/components/print/PrintButton";
 import { useEffect, useMemo, useState } from "react";
 import type {
@@ -62,9 +63,10 @@ export default function SalesDesk({
   const [partyId, setPartyId] = useState("");
   // Rate cards (Insights → Rate cards): fill and hint the party's price list rate.
   const [cards, setCards] = useState<RateCards | null>(null);
+  const rateCardsOn = useFeatures().on("rateCards");
   useEffect(() => {
-    fetch("/api/settings/app?key=rates").then((r) => r.json()).then((j) => setCards(j.data || null)).catch(() => {});
-  }, []);
+    fetch("/api/settings/app?key=rates").then((r) => r.json()).then((j) => setCards(rateCardsOn ? j.data || null : null)).catch(() => {});
+  }, [rateCardsOn]);
   const [date, setDate] = useState(todayISO());
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("CASH");
   const [notes, setNotes] = useState("");

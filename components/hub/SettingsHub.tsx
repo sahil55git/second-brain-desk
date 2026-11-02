@@ -8,6 +8,7 @@
 //  • The fixed business rules (read-only, with where each comes from)
 //  • Data backup / export
 
+import FeaturesPanel from "@/components/features/FeaturesPanel";
 import { useCallback, useEffect, useState } from "react";
 import SettingsDesk from "@/components/SettingsDesk";
 import AppearancePanel from "@/components/AppearancePanel";
@@ -32,8 +33,9 @@ import { DEFAULT_HUB_PREFS, WIDGETS, loadHubPrefs, saveHubPrefs, type HubPrefs, 
 import { registerItemName } from "@/lib/bizReports";
 import { DeviceCopySettings } from "@/components/register/ProofParts";
 
-type Section = "users" | "simple" | "integrations" | "appearance" | "register" | "rates" | "library" | "device" | "printers" | "dashboard" | "business" | "rules" | "data" | "io" | "proofs";
+type Section = "features" | "users" | "simple" | "integrations" | "appearance" | "register" | "rates" | "library" | "device" | "printers" | "dashboard" | "business" | "rules" | "data" | "io" | "proofs";
 const SECTIONS: { key: Section; label: string }[] = [
+  { key: "features", label: "🧩 Features" },
   { key: "users", label: "👥 Users & profiles" },
   { key: "simple", label: "🧸 Simple mode" },
   { key: "register", label: "📒 Quick Register" },
@@ -208,6 +210,7 @@ export default function SettingsHub() {
         </nav>
 
         <div>
+          {section === "features" && <FeaturesPanel />}
           {section === "register" && cfg && (
             <>
               <section className="hub-card">

@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import QrCode from "@/components/barrels/QrCode";
 import { amountInWords, ewayJson, ewayNeeded, ewayProblems, hsnSummary, upiPay, validVpa } from "@/lib/money";
+import { useFeatures } from "@/lib/useFeatures";
 import type { BusinessSettingsDTO, PartyDTO, SalesInvoiceDTO } from "@/lib/types";
 
 let shopCache: Promise<{ upi?: string; name?: string } | null> | null = null;
@@ -14,10 +15,13 @@ const loadShop = () => (shopCache ||= fetch("/api/settings/app?key=shop").then((
 export function InvoiceTaxBlock({ invoice, settings }: { invoice: SalesInvoiceDTO; settings: BusinessSettingsDTO | null }) {
   const [vpa, setVpa] = useState<string | null>(null);
   useEffect(() => { void loadShop().then((s) => setVpa(validVpa(s?.upi) ? s!.upi!.trim() : null)); }, []);
+  const f = useFeatures();
   const rows = hsnSummary(invoice.lineItems, invoice.interState);
-  const due = invoice.paymentMode !== "CASH";
+  const due = invoice.paymentMode !== "CASH" && f.on("upiQr");
+  if (!f.on("gstInvoice") && !due) return null;
   return (
     <div className="mt-3 text-xs">
+      {f.on("gstInvoice") && <>
       <table className="w-full mb-2">
         <thead>
           <tr className="border-b text-left text-gray-500">
@@ -37,12 +41,13 @@ export function InvoiceTaxBlock({ invoice, settings }: { invoice: SalesInvoiceDT
           ))}
         </tbody>
       </table>
+      </>}
       <div className="flex justify-between items-end gap-4">
-        <div>
+        {f.on("gstInvoice") ? <div>
           <div className="font-medium">{amountInWords(invoice.totalInr)}</div>
           <div className="text-[10px] text-gray-500 mt-2">This is a computer-generated invoice.</div>
           <div className="mt-6 text-[10px]">For {settings?.businessName || "the business"} — Authorised signatory</div>
-        </div>
+        </div> : <span />}
         {vpa && due && (
           <div className="text-center">
             <QrCode value={upiPay(vpa, settings?.businessName || "Shop", invoice.totalInr, invoice.invoiceNo)} moduleSize={3} />
@@ -57,8 +62,9 @@ export function InvoiceTaxBlock({ invoice, settings }: { invoice: SalesInvoiceDT
 export function EwayButton({ invoice, settings, party }: { invoice: SalesInvoiceDTO; settings: BusinessSettingsDTO | null; party: PartyDTO | null }) {
   const [open, setOpen] = useState(false);
   const [vehicleNo, setVehicle] = useState("");
+  const feats = useFeatures();
   const [km, setKm] = useState("");
-  if (!ewayNeeded(invoice.totalInr)) return null;
+  if (!ewayNeeded(invoice.totalInr) || !feats.on("eway")) return null;
   const input = {
     invoice,
     seller: { gstin: settings?.gstin || null, businessName: settings?.businessName || "", address: settings?.address || null, state: settings?.state || null },
