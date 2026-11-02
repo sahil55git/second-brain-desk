@@ -285,6 +285,29 @@ export default function AppearancePanel() {
             onChange={(v) => setLook({ tileStyle: v })}
           />
         </Row>
+        <Row label="Cards and panels" hint="How every card, panel and window is drawn.">
+          <Seg
+            value={look.card}
+            options={[
+              { key: "theme", label: "Theme" },
+              { key: "flat", label: "Flat" },
+              { key: "soft", label: "Soft shadow" },
+              { key: "glass", label: "Glass" },
+              { key: "outline", label: "Outline" },
+            ]}
+            onChange={(v) => setLook({ card: v })}
+          />
+        </Row>
+        <Row label="Headings and tabs" hint="Refined: tighter headings, pill tabs, even number columns.">
+          <Seg
+            value={look.type}
+            options={[
+              { key: "theme", label: "Theme" },
+              { key: "refined", label: "Refined" },
+            ]}
+            onChange={(v) => setLook({ type: v })}
+          />
+        </Row>
       </section>
 
       {/* Effects */}
