@@ -87,6 +87,16 @@ public final class WidgetData {
         return PendingIntent.getActivity(c, requestCode, i, piFlags());
     }
 
+    /** Tapping opens the small quick window over the home screen (PopupActivity) at this page. */
+    public static PendingIntent pop(Context c, String path, int requestCode, boolean voice) {
+        Intent i = new Intent(c, PopupActivity.class);
+        i.setData(Uri.parse("mahadev-pop://" + requestCode + (voice ? "/v" : "/") + "?" + path.hashCode()));
+        i.putExtra(EXTRA_PATH, path);
+        i.putExtra(PopupActivity.EXTRA_VOICE, voice);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        return PendingIntent.getActivity(c, requestCode, i, piFlags());
+    }
+
     static PendingIntent refresh(Context c, Class<?> provider) {
         Intent i = new Intent(c, provider);
         i.setAction(ACTION_REFRESH);

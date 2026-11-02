@@ -14,6 +14,9 @@
     <string name="widget_stock_desc">Oil stock, low items marked</string>
     <string name="widget_alerts_desc">What needs attention right now</string>
     <string name="widget_note_desc">A sticky note you write in the app</string>
+    <string name="widget_chat_desc">Ask or speak to the shop desk; answers and entries open in a small window</string>
+    <string name="widget_tips_desc">Smart tips: what to do next</string>
+    <string name="widget_tasks_desc">Your tasks and reminders</string>
     <string name="widget_actions_desc">Six one-tap buttons you choose in the app</string>
     <string name="sc_sale">Sale</string>
     <string name="sc_expense">Expense</string>

@@ -10,6 +10,9 @@ import { homeSummary, rangeSummary } from "@/lib/homeSummary";
 import { udhaarReport } from "@/lib/bizReports";
 import type { BizData } from "@/lib/bizReports";
 import { barrelCounts, bearer, hashDeviceToken, widgetAlerts } from "@/lib/deviceToken";
+import { runOut } from "@/lib/insights";
+import { tips } from "@/lib/tips";
+import { dueText } from "@/lib/tasks";
 
 export const dynamic = "force-dynamic";
 
@@ -30,11 +33,13 @@ export async function GET(req: NextRequest) {
     const monthStart = `${today.slice(0, 7)}-01`;
     const from = monthStart < shift(today, -8) ? monthStart : shift(today, -8);
     const data = owner ? await loadHubData(from, today) : null;
-    return { dev, barrels, data, today, owner };
+    // the phone owner's open tasks (from the chat)
+    const tasks = await prisma.task.findMany({ where: { username: dev.username, doneAt: null }, orderBy: [{ due: "asc" }, { createdAt: "asc" }], take: 12 }).catch(() => []);
+    return { dev, barrels, data, today, owner, tasks };
   });
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 503 });
   if (!r.data) return NextResponse.json({ error: "This widget key is switched off. Turn widgets on again in the app." }, { status: 401 });
-  const { barrels, data, today, owner, dev } = r.data;
+  const { barrels, data, today, owner, dev, tasks } = r.data;
   const b = barrelCounts(barrels, now);
   const s = data ? homeSummary(data as unknown as BizData, now) : null;
   const hourIst = Number(new Date(now).toLocaleString("en-GB", { hour: "2-digit", hour12: false, timeZone: "Asia/Kolkata" }));
@@ -49,9 +54,23 @@ export async function GET(req: NextRequest) {
   const udhaarTop = biz
     ? udhaarReport(biz, today).rows.filter((x) => x.balance > 0).slice(0, 5).map((x) => ({ name: x.name, balance: x.balance, days: nowDays(x.last) }))
     : [];
+  const runout = biz ? runOut(biz, today) : [];
+  const taskList = [...tasks].sort((a, c) => (a.due || "9999").localeCompare(c.due || "9999"));
+  const tipList = tips({
+    runout,
+    udhaar: udhaarTop.length ? (biz ? udhaarReport(biz, today).rows.filter((x) => x.balance > 0).map((x) => ({ name: x.name, balance: x.balance, days: nowDays(x.last) })) : []) : [],
+    barrels: b,
+    cashCounted: money ? money.cashCounted : null,
+    hourIst,
+    jobWorkOverdue: money?.jobWorkOverdue ?? 0,
+    tasksDue: taskList.filter((t) => t.due && t.due <= today),
+  });
   return NextResponse.json(
     {
       at: new Date(now).toISOString(),
+      tasks: taskList.map((t) => ({ id: t.id, text: t.text, when: dueText(t.due, t.dueTime, today), late: !!t.due && t.due < today })),
+      tips: tipList.map((t) => ({ icon: t.icon, text: t.text, path: t.path })),
+      runout: runout.filter((x) => x.stockKg !== null || x.perDay !== null).map((x) => ({ name: x.name, kg: x.stockKg, days: x.daysLeft, level: x.level, last: x.lastBuy ? `${x.lastBuy.party || ""}${x.lastBuy.rate ? ` ₹${x.lastBuy.rate}` : ""}`.trim() : "" })),
       day: today,
       role: owner ? "OWNER" : "STAFF",
       who: dev.username,

@@ -1,0 +1,10 @@
+/* the widget pop-up window: everything fits a small window, glass look */
+.pop { max-width: 640px; margin: 0 auto; padding: 8px 8px 0 !important; display: grid; gap: 8px; }
+.pop-acts { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.pop-acts::-webkit-scrollbar { display: none; }
+.pop-act { flex: 0 0 auto; display: grid; justify-items: center; gap: 2px; min-width: 66px; padding: 8px 6px; border-radius: 14px; text-decoration: none; color: inherit; font-size: 12px; font-weight: 700;
+  background: color-mix(in srgb, var(--h-card) 70%, transparent); border: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
+.pop-act span { font-size: 20px; }
+.cb-box.compact { height: calc(100dvh - 104px); min-height: 300px; }
+/* inside the pop-up window there is no app chrome */
+body:has(.pop) :is(.nd-bar, .pnav, .pnav-fab, .ql-fab, .ql-edge) { display: none !important; }
