@@ -17,11 +17,12 @@ import {
 import { csvRows, matchStatement, readStatement, type BankTxn, type MatchResult, type RegEntry } from "@/lib/bankMatch";
 import { BudgetTab, PlTab, RatesTab } from "./MoneyTabs";
 import MandiTab from "./MandiTab";
+import { AdvisorTab, CostTab, PredictTab, ReorderTab, ScenarioTab, WeatherTab, YoyTab } from "./IntelTabs";
 import { ContractsTab, DepositsTab, VarianceTab } from "./StockTabs";
 import { ForecastTab, MachinesTab, OrdersTab, WatchTab, WeeklyTab } from "./OpsTabs";
 import "./insights.css";
 
-type Tab = "pl" | "yield" | "stock" | "profit" | "map" | "udhaar" | "bank" | "budget" | "rates" | "orders" | "machines" | "forecast" | "watch" | "weekly" | "mandi" | "contracts" | "variance" | "deposits";
+type Tab = "pl" | "yield" | "stock" | "profit" | "map" | "udhaar" | "bank" | "budget" | "rates" | "orders" | "machines" | "forecast" | "watch" | "weekly" | "mandi" | "contracts" | "variance" | "deposits" | "predict" | "advisor" | "cost" | "reorder" | "scenario" | "weather" | "yoy";
 const TABS: { key: Tab; label: string }[] = [
   { key: "pl", label: "💰 Profit & cash" },
   { key: "weekly", label: "🗓️ Weekly review" },
@@ -41,6 +42,13 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "contracts", label: "🤝 Contracts" },
   { key: "variance", label: "⚖️ Stock variance" },
   { key: "deposits", label: "🛢️ Barrel deposits" },
+  { key: "advisor", label: "🧭 Buy advisor" },
+  { key: "reorder", label: "🛒 Smart reorder" },
+  { key: "predict", label: "🔮 Should-yield" },
+  { key: "cost", label: "🧮 Cost per kg" },
+  { key: "scenario", label: "🎛️ What-if" },
+  { key: "weather", label: "🌦️ Weather" },
+  { key: "yoy", label: "📅 Year-on-year" },
 ];
 const rs = (n: number | null | undefined) => (n == null ? "–" : `₹${Math.round(n).toLocaleString("en-IN")}`);
 const rs2 = (n: number | null | undefined) => (n == null ? "–" : `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
@@ -104,6 +112,13 @@ export default function InsightsDesk() {
       {data && tab === "contracts" && <ContractsTab d={data} today={today} />}
       {data && tab === "variance" && <VarianceTab d={data} today={today} />}
       {tab === "deposits" && <DepositsTab />}
+      {data && tab === "advisor" && <AdvisorTab d={data} today={today} />}
+      {data && tab === "reorder" && <ReorderTab d={data} today={today} />}
+      {data && tab === "predict" && <PredictTab d={data} today={today} />}
+      {data && tab === "cost" && <CostTab d={data} today={today} />}
+      {data && tab === "scenario" && <ScenarioTab d={data} today={today} />}
+      {tab === "weather" && <WeatherTab today={today} />}
+      {tab === "yoy" && <YoyTab today={today} />}
     </div>
   );
 }
