@@ -2,11 +2,9 @@
 
 // Dashboard-wide look & feel customization (Theme / Accent / Background),
 // ported from the original Second Brain Desk artifact's Customize modal
-// (plan doc, Version 15). Per-browser only — saved to localStorage, not
-// the shared Postgres data, exactly like the artifact's own architecture
-// note: "Look-and-feel preferences ... are deliberately not part of the
-// shared store — they're per-browser, since they're not shared business
-// data."
+// (plan doc, Version 15). Saved in the browser (localStorage) and, since Nov 2026, the theme
+// part (theme, accent, background, look) also with the login (/api/me/look), so the theme you
+// pick last on any device is the one every device and the Android app show.
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { DEFAULT_LOOK, FONTS, THEME_PRESETS, clampLook, deriveSurface, fontHref, type Look } from "./appearance";
@@ -36,7 +34,13 @@ export interface Prefs {
   look: Look;
   /** 2 = saved after the glass looks arrived (see migrateLook). */
   lookV?: number;
+  /** When the theme / look was last picked on this device (ms) — newest wins across devices. */
+  lookAt?: number;
 }
+
+/** The part of the prefs that follows the login to every device. */
+type SyncedLook = Pick<Prefs, "theme" | "accent" | "background" | "look">;
+const syncedPart = (p: Prefs): SyncedLook => ({ theme: p.theme, accent: p.accent, background: p.background, look: p.look });
 
 /**
  * The glass looks became the default in look version 2. A device that was
@@ -231,7 +235,38 @@ export function CustomizeProvider({ children }: { children: React.ReactNode }) {
       // ignore — start from defaults
     }
     setLoaded(true);
+    // the theme picked last on any device (saved with the login) wins over this browser's copy
+    fetch("/api/me/look")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { data?: { look: Partial<SyncedLook>; savedAt: number } | null } | null) => {
+        const srv = j?.data;
+        if (!srv?.look) return;
+        setPrefsState((prev) => {
+          if ((prev.lookAt || 0) >= srv.savedAt) return prev;
+          const l = srv.look;
+          return {
+            ...prev,
+            ...(l.theme ? { theme: l.theme } : {}),
+            ...(l.accent ? { accent: l.accent } : {}),
+            ...(l.background ? { background: l.background } : {}),
+            ...(l.look ? { look: clampLook(l.look) } : {}),
+            lookAt: srv.savedAt,
+          };
+        });
+      })
+      .catch(() => {});
   }, []);
+
+  // send a new pick to the login (debounced), so other devices get it
+  const syncKey = loaded ? JSON.stringify(syncedPart(prefs)) : "";
+  const lookAt = prefs.lookAt || 0;
+  useEffect(() => {
+    if (!loaded || !lookAt) return;
+    const t = window.setTimeout(() => {
+      fetch("/api/me/look", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ look: JSON.parse(syncKey), savedAt: lookAt }) }).catch(() => {});
+    }, 1200);
+    return () => window.clearTimeout(t);
+  }, [syncKey, lookAt, loaded]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -280,6 +315,8 @@ export function CustomizeProvider({ children }: { children: React.ReactNode }) {
       root.classList.toggle("matte", look.finish === "matte");
       root.dataset.density = look.density;
       root.dataset.tiles = look.tileStyle;
+      root.dataset.card = look.card;
+      root.dataset.type = look.type;
       root.dataset.pattern = look.pattern;
       if (look.skin !== "none") root.dataset.skin = look.skin;
       else delete root.dataset.skin;
@@ -312,9 +349,9 @@ export function CustomizeProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<Ctx>(
     () => ({
       prefs,
-      setPrefs: (p) => setPrefsState((prev) => ({ ...prev, ...p })),
-      reset: () => setPrefsState(DEFAULT_PREFS),
-      setLook: (patch) => setPrefsState((prev) => ({ ...prev, look: clampLook({ ...prev.look, ...patch }) })),
+      setPrefs: (p) => setPrefsState((prev) => ({ ...prev, ...p, ...("theme" in p || "accent" in p || "background" in p || "look" in p ? { lookAt: Date.now() } : {}) })),
+      reset: () => setPrefsState({ ...DEFAULT_PREFS, lookAt: Date.now() }),
+      setLook: (patch) => setPrefsState((prev) => ({ ...prev, look: clampLook({ ...prev.look, ...patch }), lookAt: Date.now() })),
       setListPrefs: (kind, desk, patch) =>
         setPrefsState((prev) => {
           const cur = prev[kind][desk] ?? { order: [], hidden: [] };
