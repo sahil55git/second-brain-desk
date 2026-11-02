@@ -1127,3 +1127,12 @@ model BotLog {
 
   @@index([at])
 }
+
+// The look each login picked (theme, colours, cards…), so it follows the person to every
+// browser and the Android app. lib/customize.tsx keeps a copy in the browser as well.
+model UserLook {
+  username  String   @id
+  data      Json
+  savedAt   BigInt // ms, when it was picked (newest wins between devices)
+  updatedAt DateTime @updatedAt
+}

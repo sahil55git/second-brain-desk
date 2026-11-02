@@ -206,6 +206,7 @@ interface Prefs {
   leftW: number | null; // side-by-side: width of the buttons column (drag the divider)
   float: { on: boolean; x: number; y: number; w: number; h: number; op: number }; // floating workspace window
   size: TileSize; // button + text size in the designed looks (S / M / L)
+  cols: "auto" | "1" | "2" | "3"; // side by side: how many columns the windows use on wide screens
 }
 type TileSize = "s" | "m" | "l";
 const DEFAULT_PREFS: Prefs = {
@@ -216,6 +217,7 @@ const DEFAULT_PREFS: Prefs = {
   leftW: null,
   float: { on: false, x: 120, y: 120, w: 440, h: 560, op: 1 },
   size: "m",
+  cols: "auto",
 };
 // The page is scaled by the Appearance "text size" (CSS zoom on <body>), so
 // pointer positions must be divided by it to get layout pixels.
@@ -2219,17 +2221,23 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
               }}
             />
             <div className="qr-right" ref={rightRef}>
-              {wins.hid.length > 0 && (
-                <div className="qr-wrestore" role="group" aria-label="Hidden windows">
-                  <span>Hidden:</span>
-                  {wins.hid.map((id) => (
-                    <button key={id} type="button" className="qr-pill" onClick={() => setWins((w) => showWin(w, id))}>
-                      ＋ {WIN_LABEL[id]}
+              <div className="qr-wrestore" role="group" aria-label="Windows">
+                <span className="qr-colpick" role="radiogroup" aria-label="Columns">
+                  <span>Columns</span>
+                  {(["auto", "1", "2", "3"] as const).map((c) => (
+                    <button key={c} type="button" role="radio" aria-checked={(prefs.cols || "auto") === c} className={(prefs.cols || "auto") === c ? "on" : ""} onClick={() => setPrefs((p) => ({ ...p, cols: c }))}>
+                      {c === "auto" ? "Auto" : c}
                     </button>
                   ))}
-                </div>
-              )}
-              <div className="qr-rforms">
+                </span>
+                {wins.hid.length > 0 && <span>Hidden:</span>}
+                {wins.hid.map((id) => (
+                  <button key={id} type="button" className="qr-pill" onClick={() => setWins((w) => showWin(w, id))}>
+                    ＋ {WIN_LABEL[id]}
+                  </button>
+                ))}
+              </div>
+              <div className={`qr-rforms cols-${prefs.cols || "auto"}`}>
                 {wins.order.map((id) => {
                   const node: React.ReactNode =
                     id === "form" ? (sheetEl ? <SheetModeCtx.Provider value="inline">{sheetEl}</SheetModeCtx.Provider> : null)
