@@ -17,12 +17,13 @@ import {
 import { csvRows, matchStatement, readStatement, type BankTxn, type MatchResult, type RegEntry } from "@/lib/bankMatch";
 import { BudgetTab, PlTab, RatesTab } from "./MoneyTabs";
 import MandiTab from "./MandiTab";
+import { CfoTab, TallyTab } from "./AiTabs";
 import { AdvisorTab, CostTab, PredictTab, ReorderTab, ScenarioTab, WeatherTab, YoyTab } from "./IntelTabs";
 import { ContractsTab, DepositsTab, VarianceTab } from "./StockTabs";
 import { ForecastTab, MachinesTab, OrdersTab, WatchTab, WeeklyTab } from "./OpsTabs";
 import "./insights.css";
 
-type Tab = "pl" | "yield" | "stock" | "profit" | "map" | "udhaar" | "bank" | "budget" | "rates" | "orders" | "machines" | "forecast" | "watch" | "weekly" | "mandi" | "contracts" | "variance" | "deposits" | "predict" | "advisor" | "cost" | "reorder" | "scenario" | "weather" | "yoy";
+type Tab = "pl" | "yield" | "stock" | "profit" | "map" | "udhaar" | "bank" | "budget" | "rates" | "orders" | "machines" | "forecast" | "watch" | "weekly" | "mandi" | "contracts" | "variance" | "deposits" | "predict" | "advisor" | "cost" | "reorder" | "scenario" | "weather" | "yoy" | "cfo" | "tally";
 const TABS: { key: Tab; label: string }[] = [
   { key: "pl", label: "💰 Profit & cash" },
   { key: "weekly", label: "🗓️ Weekly review" },
@@ -49,6 +50,8 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "scenario", label: "🎛️ What-if" },
   { key: "weather", label: "🌦️ Weather" },
   { key: "yoy", label: "📅 Year-on-year" },
+  { key: "cfo", label: "🧑‍💼 AI CFO" },
+  { key: "tally", label: "🔄 Tally / Vyapar" },
 ];
 const rs = (n: number | null | undefined) => (n == null ? "–" : `₹${Math.round(n).toLocaleString("en-IN")}`);
 const rs2 = (n: number | null | undefined) => (n == null ? "–" : `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
@@ -119,6 +122,8 @@ export default function InsightsDesk() {
       {data && tab === "scenario" && <ScenarioTab d={data} today={today} />}
       {tab === "weather" && <WeatherTab today={today} />}
       {tab === "yoy" && <YoyTab today={today} />}
+      {tab === "cfo" && <CfoTab />}
+      {tab === "tally" && <TallyTab today={today} />}
     </div>
   );
 }

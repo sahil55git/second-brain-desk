@@ -4,6 +4,7 @@
 // "report today pdf" — and get answers, ✅ Save / ❌ Cancel for entries, and PDF / Excel files.
 // The same commands work from Telegram and Discord once linked (Connect tab). The owner also
 // connects the bots here. History stays on this device only.
+import { useFeatures } from "@/lib/useFeatures";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { pieces, type BotReply } from "@/lib/bot/format";
@@ -71,6 +72,9 @@ function Text({ text }: { text: string }) {
 /** The chat box; `fresh` = no saved history (pop-up windows), `say` = a command to run at once. */
 export function ChatBox({ isOwner, fresh = false, say, compact = false }: { isOwner: boolean; fresh?: boolean; say?: string; compact?: boolean }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
+  const voiceOn = useFeatures().on("voiceAnswer");
+  const [speak, setSpeak] = useState(false);
+  useEffect(() => { try { setSpeak(localStorage.getItem(SPEAK_KEY) === "1"); } catch {} }, []);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
@@ -105,6 +109,7 @@ export function ChatBox({ isOwner, fresh = false, say, compact = false }: { isOw
       const j = await r.json().catch(() => ({}));
       const reply: BotReply = j.data ?? { text: j.error || "Could not reach the desk. Check the internet." };
       setMsgs((m) => [...m, { id: newId(), me: false, at: Date.now(), ...reply }]);
+      if (speak && voiceOn && reply.text) void sayAloud(reply.text);
       // "open barrel receiving", "new purchase…": go there (the chat stays in history)
       if (reply.open) setTimeout(() => { window.location.href = reply.open!.path; }, 700);
     } catch {
@@ -112,7 +117,7 @@ export function ChatBox({ isOwner, fresh = false, say, compact = false }: { isOw
     } finally {
       setBusy(false);
     }
-  }, [busy]);
+  }, [busy, speak, voiceOn]);
 
   // a command given with the window (widget chips, voice from the home screen): run it once
   const said = useRef(false);
@@ -181,6 +186,7 @@ export function ChatBox({ isOwner, fresh = false, say, compact = false }: { isOw
       </div>
       <form className="cb-in" onSubmit={submit}>
         <input ref={input} value={text} onChange={(e) => setText(e.target.value)} placeholder="today · udhaar ramesh · sale 500 upi suresh" enterKeyHint="send" autoComplete="off" aria-label="Message" maxLength={500} />
+        {voiceOn && <button type="button" className={`cb-mic${speak ? " on" : ""}`} onClick={() => { const n = !speak; setSpeak(n); try { localStorage.setItem(SPEAK_KEY, n ? "1" : "0"); } catch {} if (!n) window.speechSynthesis?.cancel(); }} aria-label={speak ? "Stop reading answers aloud" : "Read answers aloud"} title="Read answers aloud">{speak ? "🔊" : "🔈"}</button>}
         <MicButton disabled={busy} onText={(t) => { setText(""); void send({ text: t }, `🎤 ${t}`); }} onPartial={setText} />
         <button className="hub-btn primary" disabled={busy || !text.trim()} aria-label="Send">➤</button>
       </form>
@@ -191,6 +197,27 @@ export function ChatBox({ isOwner, fresh = false, say, compact = false }: { isOw
 // ------------------------------------------------------------------ speak instead of typing
 type Rec = { lang: string; interimResults: boolean; onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void; onerror: (e: { error: string }) => void; onend: () => void; start: () => void; stop: () => void };
 const LANG_KEY = "sbd_chat_voice_lang";
+const SPEAK_KEY = "sbd_chat_speak";
+
+/** Read a reply aloud in the voice language picked on the mic (EN / ಕನ್ನಡ / हिन्दी). */
+async function sayAloud(raw: string) {
+  const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
+  if (!synth) return;
+  let lang = "en-IN";
+  try { lang = localStorage.getItem(LANG_KEY) || "en-IN"; } catch {}
+  let text = raw.replace(/\*\*/g, "").replace(/[•🔴🟠🟢⚪✅⚠️]/g, "").replace(/₹\s?/g, "rupees ").slice(0, 900);
+  if (lang !== "en-IN") {
+    const j = await fetch("/api/say", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, lang: lang.slice(0, 2) }) }).then((r) => r.json()).catch(() => null);
+    if (j?.data?.text) text = j.data.text;
+  }
+  synth.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = lang;
+  const v = synth.getVoices().find((x) => x.lang === lang) || synth.getVoices().find((x) => x.lang.startsWith(lang.slice(0, 2)));
+  if (v) u.voice = v;
+  u.rate = 0.95;
+  synth.speak(u);
+}
 
 /** 🎤: the browser's speech recogniser (Chrome / Edge), or Android's own one inside the app. */
 function MicButton({ disabled, onText, onPartial }: { disabled: boolean; onText: (t: string) => void; onPartial: (t: string) => void }) {

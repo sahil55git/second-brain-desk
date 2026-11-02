@@ -659,6 +659,13 @@ function DataCard() {
       </div>
       <div className="set-row">
         <span className="lab">
+          Full backup (zip)
+          <small>Every table as CSV (opens in Excel / Google Sheets) plus one JSON, in a zip. Passwords and tokens are left out. With “Google Drive backup” switched on in 🧩 Features, a copy also goes to Drive every night (07_App_Backups).</small>
+        </span>
+        <a className="hub-btn primary" href="/api/backup">⬇ Download zip</a>
+      </div>
+      <div className="set-row">
+        <span className="lab">
           CSV per report
           <small>Every table in Reports has its own ⬇ CSV button (sales, purchases, stock, udhaar, day book…).</small>
         </span>

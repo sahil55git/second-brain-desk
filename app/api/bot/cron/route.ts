@@ -10,6 +10,10 @@ import { digestText, openTasks, reviewText, taskLines } from "@/lib/bot/engine";
 import { sendToOwners, sendToUsers } from "@/lib/bot/push";
 import { refreshMandi } from "@/lib/mandiServer";
 import { featureOn } from "@/lib/featuresServer";
+import { runRules } from "@/lib/rulesServer";
+import { cfoReport } from "@/lib/cfoServer";
+import { backupZip } from "@/lib/backupServer";
+import { driveConfigured, uploadToDrive } from "@/lib/driveUpload";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -44,11 +48,22 @@ export async function GET(req: NextRequest) {
         const r = await sendToOwners({ text: await reviewText(Date.now()), buttons: [{ label: "👀 Watch", data: "cmd:watch" }, { label: "🙌 Udhaar", data: "cmd:udhaar" }] });
         weekly = r.sent > 0;
       }
-      return { morning: true, sent, weekly, mandi };
+      // the owner's rules, and on the 1st the AI CFO report for last month
+      const rules = (await featureOn("rules")) ? await runRules({ send: true }).catch(() => null) : null;
+      let cfo = false;
+      if (today.endsWith("-01") && (await featureOn("aiCfo"))) {
+        const r = await cfoReport(Date.now() - 86400000).catch(() => null);
+        if (r?.text) cfo = (await sendToOwners({ text: `**🧑‍💼 AI CFO — last month**\n${r.text}`, open: { path: "/insights#cfo", label: "Open AI CFO" } })).sent > 0;
+      }
+      return { morning: true, sent, weekly, mandi, rules: rules?.sent ?? null, cfo };
     });
     return NextResponse.json(m.ok ? { data: m.data } : { error: m.error }, { status: m.ok ? 200 : 503 });
   }
-  if (hourIst < 20) return NextResponse.json({ data: { skipped: "the summary goes out after 8 pm" } });
+  if (hourIst < 20) {
+    // midday run: only the rules (e.g. "no entry for 3 hours")
+    const r = (await featureOn("rules").catch(() => false)) ? await safeDbCall(() => runRules({ send: true })) : null;
+    return NextResponse.json({ data: { skipped: "the summary goes out after 8 pm", rules: r?.ok ? r.data.sent : null } });
+  }
   const r = await safeDbCall(async () => {
     const k = await botKeys();
     if (!k.digestOn) return { skipped: "summary is off" };
@@ -62,7 +77,18 @@ export async function GET(req: NextRequest) {
     const tomorrow = new Date(Date.parse(`${today}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
     const tasks = (await Promise.all(owners.map((o) => openTasks(o.username)))).flat().filter((t) => t.due && t.due <= tomorrow);
     const text = (await digestText()) + (tasks.length ? `\n\n**📌 Tasks for tomorrow**\n${taskLines(tasks, today).join("\n")}` : "");
-    return sendToOwners({ text, buttons: [{ label: "📄 Today PDF", data: "cmd:report today pdf" }, { label: "🙌 Udhaar", data: "cmd:udhaar" }, { label: "📋 Tasks", data: "cmd:tasks" }] });
+    const res = await sendToOwners({ text, buttons: [{ label: "📄 Today PDF", data: "cmd:report today pdf" }, { label: "🙌 Udhaar", data: "cmd:udhaar" }, { label: "📋 Tasks", data: "cmd:tasks" }] });
+    if (await featureOn("rules")) await runRules({ send: true }).catch(() => null);
+    // nightly copy of everything to Google Drive (Settings → Features → Google Drive backup)
+    let drive: string | null = null;
+    if ((await featureOn("driveBackup")) && driveConfigured()) {
+      const z = await backupZip().catch(() => null);
+      if (z) {
+        const up = await uploadToDrive({ folderPath: ["07_App_Backups", today.slice(0, 7)], fileName: `second-brain-backup_${today}.zip`, mime: "application/zip", base64: Buffer.from(z.bytes).toString("base64") }).catch((e) => ({ ok: false, error: String(e) }));
+        drive = up.ok ? "saved" : up.error || "failed";
+      }
+    }
+    return { ...res, drive };
   });
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 503 });
   return NextResponse.json({ data: r.data });
