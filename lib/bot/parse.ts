@@ -6,6 +6,7 @@
 //   expense 200 diesel · got 1000 ramesh (udhaar received) · purchase 5000 seed bank · paid 3000 salary raju
 //   report today pdf · sales week excel · udhaar pdf · stock pdf
 //   link 123456 · help
+import { needsEnglish, toEnglish } from "@/lib/lang";
 import { CATALOG, type Mode, type RegisterKind } from "@/lib/register";
 import { taskWords } from "@/lib/tasks";
 
@@ -40,6 +41,7 @@ export type Cmd =
   | { t: "alerts" }
   | { t: "review" }
   | { t: "watch" }
+  | { t: "mandi" }
   | { t: "report"; what: ReportWhat; span: Span; format: ReportFormat }
   | EntryCmd
   | { t: "link"; code: string }
@@ -241,6 +243,7 @@ const FILLER = /^(please |pls |can you |could you |check |show( me)? |tell( me)?
 const PLURAL: Record<string, string> = { stocks: "stock", alert: "alerts", barrel: "barrels", jobs: "jobwork", reports: "report", udhaars: "udhaar", sales: "sales" };
 
 export function parseCommand(input: string): Cmd {
+  if (needsEnglish(input)) input = toEnglish(input);
   // Telegram sends "/today@MahadevBot"; people type "Udhaar  Ramesh?"
   let text = input.trim().replace(/^\//, "").replace(/^(\w+)@\w+/, "$1").replace(/[?!.,]+$/, "").replace(/\s*,(\s+|$)/g, " ").trim();
   // tasks and reminders: "remind me friday to pay digwal", "todo order tins", "tasks"
@@ -309,6 +312,7 @@ export function parseCommand(input: string): Cmd {
   if (head === "jobwork" || two === "job work" || head === "jw") return { t: "jobwork" };
   if (head === "alerts" || head === "alert" || head === "attention" || head === "problems") return { t: "alerts" };
   if (head === "review" || two === "weekly review" || two === "week review" || head === "weekly") return { t: "review" };
+  if (head === "mandi" || two === "seed rates" || two === "mandi rates" || head === "apmc") return { t: "mandi" };
   if (head === "watch" || head === "unusual" || head === "suspicious" || head === "anomalies") return { t: "watch" };
   if (head === "expenses" || head === "expense" || head === "kharcha") return { t: "report", what: "expenses", span: span ?? "today", format: "text" };
   // "barrel receiving", "ledger", "count cash" … said without "open"
@@ -321,7 +325,7 @@ export const HELP_TEXT = [
   "**Ask**",
   "today · yesterday · week · month",
   "cash · stock · barrels · jobwork · alerts",
-  "review (this week, with what to do) · watch (anything unusual)",
+  "review (this week, with what to do) · watch (anything unusual) · mandi (seed prices)",
   "udhaar · udhaar ramesh · remind ramesh",
   "",
   "**Enter** (you get ✅ Save / ❌ Cancel first)",

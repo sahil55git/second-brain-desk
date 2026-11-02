@@ -14,10 +14,11 @@ import {
 } from "@/lib/insights";
 import { csvRows, matchStatement, readStatement, type BankTxn, type MatchResult, type RegEntry } from "@/lib/bankMatch";
 import { BudgetTab, PlTab, RatesTab } from "./MoneyTabs";
+import MandiTab from "./MandiTab";
 import { ForecastTab, MachinesTab, OrdersTab, WatchTab, WeeklyTab } from "./OpsTabs";
 import "./insights.css";
 
-type Tab = "pl" | "yield" | "stock" | "profit" | "map" | "udhaar" | "bank" | "budget" | "rates" | "orders" | "machines" | "forecast" | "watch" | "weekly";
+type Tab = "pl" | "yield" | "stock" | "profit" | "map" | "udhaar" | "bank" | "budget" | "rates" | "orders" | "machines" | "forecast" | "watch" | "weekly" | "mandi";
 const TABS: { key: Tab; label: string }[] = [
   { key: "pl", label: "💰 Profit & cash" },
   { key: "weekly", label: "🗓️ Weekly review" },
@@ -33,6 +34,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "orders", label: "🧾 Orders & suppliers" },
   { key: "machines", label: "⚙️ Machines" },
   { key: "forecast", label: "📦 Forecast" },
+  { key: "mandi", label: "🌾 Mandi prices" },
 ];
 const rs = (n: number | null | undefined) => (n == null ? "–" : `₹${Math.round(n).toLocaleString("en-IN")}`);
 const rs2 = (n: number | null | undefined) => (n == null ? "–" : `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
@@ -88,6 +90,7 @@ export default function InsightsDesk() {
       {data && tab === "forecast" && <ForecastTab d={data} today={today} />}
       {data && tab === "watch" && <WatchTab d={data} today={today} />}
       {data && tab === "weekly" && <WeeklyTab d={data} today={today} />}
+      {tab === "mandi" && <MandiTab />}
     </div>
   );
 }
