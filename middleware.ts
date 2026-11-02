@@ -12,7 +12,7 @@ import { getToken } from "next-auth/jwt";
 import { BUILTIN_PROFILES, effectivePerms, pagesForPath, pathAllowed, type Perms } from "@/lib/access";
 import { internalKey } from "@/lib/accessKey";
 
-const OWNER_ONLY_PATHS = ["/settings", "/reports", "/records"];
+const OWNER_ONLY_PATHS = ["/settings", "/reports", "/records", "/insights"];
 
 // Profiles live in the database, which the edge cannot reach, so we ask a small
 // internal route and remember the answer for a few seconds per login.

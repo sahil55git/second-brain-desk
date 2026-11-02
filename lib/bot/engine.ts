@@ -27,6 +27,7 @@ import { excelBlob, pdfBlob } from "@/lib/exporters";
 import { runAi } from "@/lib/aiProvider";
 import { HELP_TEXT, parseCommand, type Cmd, type EntryCmd } from "@/lib/bot/parse";
 import { parseVoice } from "@/lib/voice";
+import { dueText, parseTask } from "@/lib/tasks";
 import { dmy, kg, pct, rs, type BotButton, type BotReply } from "@/lib/bot/format";
 import { KIND_NAME, describeEntry } from "@/lib/bot/entryText";
 import { WHAT_NAME, reportFileName, reportTables, spanFor, spanName } from "@/lib/bot/reports";
@@ -252,6 +253,10 @@ export async function alertsText(who: BotWho, nowMs: number): Promise<string[]> 
   const b = await barrelsNow(nowMs);
   const today = businessDate(nowMs);
   const out = widgetAlerts(b, null, 0, today).map((a) => `${a.title}: ${a.text}`);
+  if (who.username) {
+    const due = (await openTasks(who.username).catch(() => [])).filter((t) => t.due && t.due <= today);
+    out.push(...taskLines(due, today));
+  }
   if (who.isOwner) {
     const { biz } = await loadBiz(nowMs);
     out.push(...attentionList(biz, today, nowMs).filter((a) => a.severity !== "info").slice(0, 10).map((a) => `${a.severity === "critical" ? "🔴" : "🟠"} ${a.area}: ${a.message}`));
@@ -358,6 +363,12 @@ export async function runButton(data: string, who: BotWho, ctx: BotCtx, nowMs = 
   const [act, ...rest] = data.split(":");
   const id = rest.join(":");
   if (act === "cmd") return runCommand(id, who, ctx, nowMs);
+  if (act === "task") {
+    const t = await prisma.task.findUnique({ where: { id } });
+    if (!t || t.username !== who.username) return { text: "That task is not here any more." };
+    if (!t.doneAt) await prisma.task.update({ where: { id }, data: { doneAt: new Date(nowMs) } });
+    return { text: `✓ Done: **${t.text}**`, buttons: [{ label: "📋 Tasks left", data: "cmd:tasks" }] };
+  }
   const p = await prisma.botPending.findUnique({ where: { id } });
   if (!p || p.username !== who.username) return { text: "That entry is not here any more." };
   const e = p.payload as unknown as EntryCmd;
@@ -417,6 +428,37 @@ async function askAi(text: string, who: BotWho, nowMs: number): Promise<BotReply
   return answer ? { text: `${answer.trim()}\n\n(AI answer from the shop figures — check before acting)` } : null;
 }
 
+// ------------------------------------------------------------------ tasks and reminders
+async function addTask(words: string, who: BotWho, ctx: BotCtx, nowMs: number): Promise<BotReply> {
+  const today = businessDate(nowMs);
+  const t = parseTask(words, today);
+  if (!t.text) throw new BotRefusal("What should I remind you about? e.g. remind me friday to pay digwal");
+  const row = await prisma.task.create({ data: { text: t.text.slice(0, 200), due: t.due, dueTime: t.dueTime, username: who.username, createdVia: ctx.channel } });
+  return {
+    text: `📌 Saved: **${row.text}** — ${dueText(t.due, t.dueTime, today)}${t.due ? "\nI will remind you that morning (and in the 9 pm summary the day before)." : ""}`,
+    buttons: [{ label: "✓ Done", data: `task:${row.id}` }, { label: "📋 All tasks", data: "cmd:tasks" }],
+  };
+}
+
+export async function openTasks(username: string) {
+  return prisma.task.findMany({ where: { username, doneAt: null }, orderBy: [{ due: "asc" }, { createdAt: "asc" }], take: 30 });
+}
+
+async function listTasks(who: BotWho, nowMs: number): Promise<BotReply> {
+  const today = businessDate(nowMs);
+  const list = await openTasks(who.username);
+  if (!list.length) return { text: "No open tasks. Add one: remind me friday to pay digwal" };
+  const sorted = [...list].sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+  return {
+    text: [`**📋 Your tasks (${list.length})**`, ...sorted.map((t, i) => `${i + 1}. ${t.text} — ${dueText(t.due, t.dueTime, today)}`)].join("\n"),
+    buttons: sorted.slice(0, 5).map((t, i) => ({ label: `✓ ${i + 1}`, data: `task:${t.id}` })),
+  };
+}
+
+export function taskLines(list: { text: string; due: string | null; dueTime: string | null }[], today: string): string[] {
+  return list.map((t) => `📌 ${t.text} — ${dueText(t.due, t.dueTime, today)}`);
+}
+
 // ------------------------------------------------------------------ open a form filled with what was said
 function fillForm(kind: RegisterKind, text: string, who: BotWho, why?: string): BotReply {
   if (!who.isOwner && !canFn(who.perms, kindToFn(kind))) throw new BotRefusal(`Your login cannot add ${KIND_NAME[kind].toLowerCase()} entries.`);
@@ -464,6 +506,10 @@ export async function runCommand(text: string, who: BotWho, ctx: BotCtx, nowMs =
       return previewEntry(cmd, who, ctx, nowMs);
     case "open":
       return { text: `↗ Opening **${cmd.label}**`, open: { path: cmd.path, label: cmd.label } };
+    case "task":
+      return addTask(cmd.words, who, ctx, nowMs);
+    case "tasks":
+      return listTasks(who, nowMs);
     case "fill":
       return fillForm(cmd.kind, cmd.text, who, cmd.why);
     case "bad":

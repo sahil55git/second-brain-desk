@@ -7,6 +7,7 @@
 //   report today pdf · sales week excel · udhaar pdf · stock pdf
 //   link 123456 · help
 import { CATALOG, type Mode, type RegisterKind } from "@/lib/register";
+import { taskWords } from "@/lib/tasks";
 
 export type Span = "today" | "yesterday" | "week" | "month" | "lastMonth";
 export type ReportWhat = "day" | "sales" | "expenses" | "udhaar" | "stock" | "cash" | "jobwork" | "purchase";
@@ -43,6 +44,8 @@ export type Cmd =
   | { t: "unlink" }
   | { t: "whoami" }
   | { t: "open"; path: string; label: string }
+  | { t: "task"; words: string }
+  | { t: "tasks" }
   | { t: "fill"; kind: RegisterKind; text: string; why: string }
   | { t: "bad"; why: string }
   | { t: "unknown"; text: string };
@@ -238,6 +241,10 @@ const PLURAL: Record<string, string> = { stocks: "stock", alert: "alerts", barre
 export function parseCommand(input: string): Cmd {
   // Telegram sends "/today@MahadevBot"; people type "Udhaar  Ramesh?"
   let text = input.trim().replace(/^\//, "").replace(/^(\w+)@\w+/, "$1").replace(/[?!.,]+$/, "").replace(/\s*,(\s+|$)/g, " ").trim();
+  // tasks and reminders: "remind me friday to pay digwal", "todo order tins", "tasks"
+  const tw = taskWords(text);
+  if (tw) return { t: "task", words: tw };
+  if (/^(my\s+)?(tasks|todos?|to-?dos|reminders|todo list)$/i.test(text)) return { t: "tasks" };
   // opening a page / window: "open barrel receiving", "go to ledger", "start stock count"
   const opener = /^(open|go to|goto|take me to|show page|launch|start|edit)\b\s*/i.exec(text);
   if (opener) {
@@ -324,6 +331,9 @@ export const HELP_TEXT = [
   "**Open** (goes there in the app, sends the link in Telegram)",
   "open barrel receiving · open ledger · count cash",
   "new purchase · edit last entry · open wages",
+  "",
+  "**Tasks**",
+  "remind me friday to pay digwal · todo order tins · tasks",
   "",
   "**Files**",
   "report today pdf · sales week excel",

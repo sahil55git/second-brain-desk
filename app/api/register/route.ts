@@ -37,6 +37,12 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const kind = body.kind as RegisterKind;
+  // an entry kept offline and sent again: already saved → answer with the saved one
+  const clientId = typeof body.clientId === "string" && /^c[a-z0-9]{6,24}$/.test(body.clientId) ? body.clientId : null;
+  if (clientId) {
+    const dup = await safeDbCall(() => prisma.registerEntry.findFirst({ where: { details: { path: ["clientId"], equals: clientId } } }));
+    if (dup.ok && dup.data) return NextResponse.json({ data: dup.data, duplicate: true }, { status: 200 });
+  }
   if (!ALL_KINDS.includes(kind)) {
     return NextResponse.json({ error: "Unknown entry type" }, { status: 400 });
   }
@@ -191,6 +197,7 @@ export async function POST(req: NextRequest) {
               partyId,
               notes,
               details: {
+                ...(clientId && idx === 0 ? { clientId } : {}),
                 split: { id: gid, i: idx + 1, n, total: amount },
                 bill: { line: r.line + 1, lines: lines.length },
                 ...(r.channel === "OWNER_PHONEPE" ? { channel: "OWNER_PHONEPE" } : {}),
@@ -228,6 +235,7 @@ export async function POST(req: NextRequest) {
               details: {
                 // fresh-crush production numbers live on the first row only
                 ...(idx === 0 && details ? details : {}),
+                ...(clientId && idx === 0 ? { clientId } : {}),
                 split: { id: gid, i: idx + 1, n, total: amount },
                 ...(p.channel === "OWNER_PHONEPE" ? { channel: "OWNER_PHONEPE" } : {}),
               },
@@ -256,7 +264,7 @@ export async function POST(req: NextRequest) {
         partyId,
         notes,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        details: ((ownerPhonePe ? { ...(details || linkDetails || {}), channel: "OWNER_PHONEPE" } : details || linkDetails) as any) ?? undefined,
+        details: (((ownerPhonePe || clientId) ? { ...(details || linkDetails || {}), ...(ownerPhonePe ? { channel: "OWNER_PHONEPE" } : {}), ...(clientId ? { clientId } : {}) } : details || linkDetails) as any) ?? undefined,
         createdByName: user.name || null,
       },
     });
