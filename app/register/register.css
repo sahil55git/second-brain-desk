@@ -188,12 +188,24 @@ html.dark .qr-favs-head { color: #ffd54a; }
 .qr-rforms .qr-sheet.inline, .qr-rforms .qr-work { max-width: 720px; }
 .qr-right .qr-rforms > .qr-work:first-child { margin-top: 0; }
 @media (min-width: 1500px) {
-  .qr-wrap.split { max-width: 1800px; }
+  .qr-wrap.split { max-width: 2400px; }
   .qr-split { grid-template-columns: minmax(360px, 480px) minmax(0, 1fr); }
-  .qr-right { display: grid; grid-template-columns: minmax(420px, 600px) minmax(0, 1fr); gap: 16px; align-items: start; }
   .qr-rforms .qr-sheet.inline, .qr-rforms .qr-work { max-width: none; }
-  .qr-rtables > .qr-card:first-child { margin-top: 6px; }
 }
+/* the windows (form, workspace, job-work, today's entries) flow into columns so wide screens
+   are used: Auto = 2 columns from 1500 px, 3 from 2300 px; or pick 1 / 2 / 3 */
+.qr-rforms { column-gap: 16px; }
+.qr-rforms > .qr-win { break-inside: avoid; -webkit-column-break-inside: avoid; display: block; width: 100%; margin-bottom: 14px; }
+.qr-rforms.cols-2 { columns: 2 380px; }
+.qr-rforms.cols-3 { columns: 3 340px; }
+@media (min-width: 1500px) { .qr-rforms.cols-auto { columns: 2 420px; } }
+@media (min-width: 2300px) { .qr-rforms.cols-auto { columns: 3 420px; } }
+.qr-wrestore { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 10px; font-size: 13px; }
+.qr-colpick { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; border: 1px solid var(--qr-line); margin-right: 6px; }
+.qr-colpick > span { padding: 0 8px 0 6px; opacity: .7; font-weight: 600; }
+.qr-colpick button { border: 0; background: none; color: inherit; font: inherit; font-weight: 700; padding: 4px 10px; border-radius: 999px; cursor: pointer; }
+.qr-colpick button.on { background: var(--accent, #d97706); color: #fff; }
+@media (max-width: 900px) { .qr-colpick { display: none; } }
 
 /* thermal-printer slip (≈ 3-inch / 80 mm, also fine on A4) */
 .qr-print { display: none; }

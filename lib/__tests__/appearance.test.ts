@@ -68,3 +68,13 @@ describe("matte grey looks", () => {
     expect(clampLook({}).finish).toBe("gloss");
   });
 });
+
+describe("card and type styles", () => {
+  it("keeps valid choices and falls back to the theme", async () => {
+    const { clampLook } = await import("@/lib/appearance");
+    expect(clampLook({ card: "glass", type: "refined" }).card).toBe("glass");
+    expect(clampLook({ card: "glass", type: "refined" }).type).toBe("refined");
+    expect(clampLook({ card: "wobbly" }).card).toBe("theme");
+    expect(clampLook({}).type).toBe("theme");
+  });
+});
