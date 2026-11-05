@@ -21,7 +21,7 @@ const isOld = (e: unknown) => /not implemented|unimplemented/i.test(e instanceof
 interface Key { id: string; name: string; username: string; role: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null }
 
 const PREFS = "sbd_android_v1";
-interface Prefs { style: "dark" | "light" | "glass"; opacity: number; textSize: "s" | "m" | "l"; alerts: boolean; awake: boolean; reminders: Record<string, { on: boolean; time: string }> }
+interface Prefs { style: "dark" | "light" | "glass" | "ink" | "paper"; opacity: number; textSize: "s" | "m" | "l" | "xl"; fit?: boolean; alerts: boolean; awake: boolean; reminders: Record<string, { on: boolean; time: string }> }
 const DEFAULT_PREFS: Prefs = { style: "dark", opacity: 90, textSize: "m", alerts: true, awake: false, reminders: Object.fromEntries(REMINDERS.map((r) => [r.key, { on: r.key === "cash", time: `${String(r.hour).padStart(2, "0")}:${String(r.minute).padStart(2, "0")}` }])) };
 const readPrefs = (): Prefs => {
   try {
@@ -174,7 +174,7 @@ function PhoneSettings() {
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.data?.token) throw new Error(j.error || "Could not make a widget key.");
     await MahadevNative.setDevice({ baseUrl: window.location.origin, token: j.data.token, role: isOwner ? "OWNER" : "STAFF", name });
-    await MahadevNative.setWidgetStyle({ style: p.style, opacity: p.opacity, textSize: p.textSize });
+    await MahadevNative.setWidgetStyle({ style: p.style, opacity: p.opacity, textSize: p.textSize, fit: p.fit !== false });
     await MahadevNative.setAlerts({ on: p.alerts });
     await MahadevNative.refresh();
     say(true, "Widgets are on. Add them to the home screen below (or long-press the home screen → Widgets → Mahadev Desk).");
@@ -188,7 +188,7 @@ function PhoneSettings() {
   const style = (n: Partial<Prefs>) => {
     const next = { ...p, ...n };
     save(next);
-    void MahadevNative.setWidgetStyle({ style: next.style, opacity: next.opacity, textSize: next.textSize }).catch(() => {});
+    void MahadevNative.setWidgetStyle({ style: next.style, opacity: next.opacity, textSize: next.textSize, fit: next.fit !== false }).catch(() => {});
   };
 
   const askNotify = () => run(async () => {
@@ -265,11 +265,13 @@ function PhoneSettings() {
         )}
         <div className="and-grid">
           <span>Look</span>
-          <span className="and-chips">{(["dark", "light", "glass"] as const).map((s) => <button key={s} className={p.style === s ? "on" : ""} onClick={() => style({ style: s })}>{s === "dark" ? "Dark" : s === "light" ? "Light" : "See-through"}</button>)}</span>
+          <span className="and-chips">{([["dark", "Dark"], ["light", "Light"], ["glass", "See-through"], ["ink", "Ink & gold"], ["paper", "Ivory paper"]] as const).map(([s, label]) => <button key={s} className={p.style === s ? "on" : ""} onClick={() => style({ style: s })}>{label}</button>)}</span>
           <span>Solid</span>
           <span className="and-range"><input type="range" min={20} max={100} step={5} value={p.opacity} onChange={(e) => style({ opacity: Number(e.target.value) })} /> {p.opacity}%</span>
           <span>Text</span>
-          <span className="and-chips">{(["s", "m", "l"] as const).map((s) => <button key={s} className={p.textSize === s ? "on" : ""} onClick={() => style({ textSize: s })}>{s === "s" ? "Small" : s === "m" ? "Medium" : "Large"}</button>)}</span>
+          <span className="and-chips">{(["s", "m", "l", "xl"] as const).map((s) => <button key={s} className={p.textSize === s ? "on" : ""} onClick={() => style({ textSize: s })}>{s === "s" ? "Small" : s === "m" ? "Medium" : s === "l" ? "Large" : "Extra large"}</button>)}</span>
+          <span>Fit</span>
+          <span className="and-chips"><button className={p.fit !== false ? "on" : ""} onClick={() => style({ fit: true })}>Grow with widget size</button><button className={p.fit === false ? "on" : ""} onClick={() => style({ fit: false })}>Same size always</button></span>
           <span>Update</span>
           <span className="and-chips">{REFRESH_CHOICES.map((m) => <button key={m} disabled={busy} className={(wp?.minutes ?? 30) === m ? "on" : ""} onClick={() => setEvery(m)}>every {m} min</button>)}</span>
         </div>

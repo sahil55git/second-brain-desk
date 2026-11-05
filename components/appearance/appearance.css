@@ -1,0 +1,32 @@
+/* Appearance settings: controls on the left, the live preview pinned on the right (wide screens);
+   on phones the preview sits on top and scrolls away. */
+.ap-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+.ap-split > * { min-width: 0; }
+@media (min-width: 1100px) {
+  .ap-split { grid-template-columns: minmax(0, 1fr) minmax(420px, 48%); }
+  .ap-split .ap-pv { position: sticky; top: 10px; max-height: calc(100vh - 20px); overflow: auto; order: 2; }
+}
+.ap-pv-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.ap-frame { margin: 0 auto; transition: max-width .25s ease; }
+.ap-frame.phone { max-width: 390px; }
+.ap-frame.tablet { max-width: 820px; }
+.ap-frame.full { max-width: none; }
+.ap-screen {
+  border-radius: 22px; padding: 14px; overflow: hidden; display: grid; gap: 16px;
+  background: var(--background); color: var(--foreground);
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  box-shadow: inset 0 0 0 6px color-mix(in srgb, currentColor 4%, transparent), 0 18px 40px -24px rgba(0, 0, 0, .55);
+}
+.ap-frame.phone .ap-screen { border-radius: 30px; padding: 12px; }
+/* the register sample: not a whole page */
+.ap-screen .ap-qr { min-height: 0 !important; background: transparent; padding: 0; }
+.ap-screen .ap-qr .qr-hero { margin-bottom: 14px; }
+.ap-classic { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ap-screen .ap-hub { display: grid; gap: 10px; }
+.ap-screen .ap-hub .hub-tabs { display: flex; gap: 4px; flex-wrap: nowrap; overflow-x: auto; }
+.ap-screen .ap-hub .hub-tabs > button { border: 1px solid color-mix(in srgb, currentColor 14%, transparent); background: transparent; color: inherit; border-radius: 10px; padding: 6px 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.ap-screen .ap-hub .hub-tabs > button.on { background: var(--accent); color: var(--accent-contrast, #fff); border-color: transparent; }
+.ap-screen .ap-links { margin: 0; }
+.ap-group { display: grid; gap: 0; }
+.ap-group h3 small { font-weight: 500; opacity: .7; margin-left: 6px; font-size: 13px; }
+.ap-screen .ins-cards { align-items: start; }

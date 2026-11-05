@@ -5,6 +5,8 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
+import android.appwidget.AppWidgetProviderInfo;
+import android.os.Bundle;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -82,9 +84,47 @@ public final class Widgets {
         AppWidgetManager m = AppWidgetManager.getInstance(c);
         for (Map.Entry<String, Class<?>> e : KINDS.entrySet()) {
             int[] ids = m.getAppWidgetIds(new ComponentName(c, e.getValue()));
-            if (ids.length > 0) m.updateAppWidget(ids, views(c, e.getKey()));
+            for (int id : ids) m.updateAppWidget(id, viewsFor(c, m, id, e.getKey()));
         }
         postLive(c);
+    }
+
+    /** One placed widget, its text sized to fit how big it is on the home screen. */
+    public static RemoteViews viewsFor(Context c, AppWidgetManager m, int id, String kind) {
+        WidgetData.boost = fit(c, m, id);
+        try {
+            return views(c, kind);
+        } finally {
+            WidgetData.boost = 1f;
+        }
+    }
+
+    /** Tablets start one step bigger (7" 1.1×, 10" 1.2×). */
+    static float tabletFloor(Context c) {
+        int sw = c.getResources().getConfiguration().smallestScreenWidthDp;
+        return sw >= 720 ? 1.2f : sw >= 600 ? 1.1f : 1f;
+    }
+
+    /**
+     * How much bigger to draw this widget's text: its size now against the size it was designed
+     * for (its provider's minimum), kept between 0.9× and 1.6×, never below the tablet step.
+     * Off (Settings → Android → "Fit text to widget size") = the tablet step only.
+     */
+    static float fit(Context c, AppWidgetManager m, int id) {
+        float floor = tabletFloor(c);
+        if (!WidgetData.prefs(c).getBoolean(WidgetData.K_FIT, true)) return floor;
+        try {
+            Bundle o = m.getAppWidgetOptions(id);
+            AppWidgetProviderInfo info = m.getAppWidgetInfo(id);
+            float d = c.getResources().getDisplayMetrics().density;
+            int w = o == null ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0);
+            int h = o == null ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0);
+            if (info == null || w <= 0 || h <= 0 || info.minWidth <= 0 || info.minHeight <= 0) return floor;
+            float s = Math.min(w / (info.minWidth / d), h / (info.minHeight / d));
+            return Math.max(floor, Math.min(1.6f, Math.max(0.9f, s)));
+        } catch (RuntimeException e) {
+            return floor;
+        }
     }
 
     private static PendingIntent range(Context c, String r, int code) {

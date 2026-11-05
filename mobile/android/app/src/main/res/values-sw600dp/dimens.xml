@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="w_pad">18dp</dimen>
+    <dimen name="w_pad_s">15dp</dimen>
+    <dimen name="w_pad_xs">9dp</dimen>
+    <dimen name="w_side">12dp</dimen>
+    <dimen name="w_side_l">20dp</dimen>
+    <dimen name="w_pill_h">40dp</dimen>
+    <dimen name="w_btn_h">44dp</dimen>
+    <dimen name="w_btn_h_l">56dp</dimen>
+    <dimen name="w_btn_h_m">52dp</dimen>
+</resources>

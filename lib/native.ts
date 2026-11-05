@@ -20,7 +20,7 @@ interface MahadevNativePlugin {
   clearDevice(): Promise<void>;
   deviceStatus(): Promise<{ on: boolean; baseUrl?: string; name?: string; lastOk?: number; lastError?: string }>;
   refresh(): Promise<void>;
-  setWidgetStyle(o: { style: string; opacity: number; textSize: string }): Promise<void>;
+  setWidgetStyle(o: { style: string; opacity: number; textSize: string; fit?: boolean }): Promise<void>;
   setAlerts(o: { on: boolean }): Promise<void>;
   pinWidget(o: { kind: WidgetKind }): Promise<{ ok: boolean }>;
   /** app 1.1 and newer: older ones reject with "not implemented" */

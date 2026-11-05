@@ -4,6 +4,7 @@
 // shows a star and a "copy link" button on every tile; to put a tile on your
 // phone's home screen, open it, then use the browser menu → Add to Home screen.
 import { useFeatures } from "@/lib/useFeatures";
+import { useCustomize } from "@/lib/customize";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { GROUP_META, GROUP_ORDER, visibleLinks, type QuickLink } from "@/lib/quickLinks";
@@ -20,6 +21,7 @@ export default function QuickLinks() {
   const [pin, setPin] = useState(false);
   const [q, setQ] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  const linkCards = useCustomize().prefs.look.links === "cards";
   const [look, setLook] = useState<TileLook>(DEFAULT_TILE_LOOK);
   const [panel, setPanel] = useState(false);
   const [editing, setEditing] = useState<QuickLink | null>(null);
@@ -83,7 +85,7 @@ export default function QuickLinks() {
         )}
         <span className="t">{own.title ?? l.title}</span>
         {look.showKn && <span className="k">{l.kn}</span>}
-        {look.showDesc && <span className="d">{l.desc}</span>}
+        {(look.showDesc || linkCards) && <span className="d">{l.desc}</span>}
       </a>
       {pin && (
         <>

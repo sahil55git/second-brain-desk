@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget spacing. Tablets get roomier values from values-sw600dp / values-sw720dp. -->
+<resources>
+    <dimen name="w_pad">12dp</dimen>
+    <dimen name="w_pad_s">10dp</dimen>
+    <dimen name="w_pad_xs">6dp</dimen>
+    <dimen name="w_side">8dp</dimen>
+    <dimen name="w_side_l">14dp</dimen>
+    <dimen name="w_pill_h">30dp</dimen>
+    <dimen name="w_btn_h">34dp</dimen>
+    <dimen name="w_btn_h_l">44dp</dimen>
+    <dimen name="w_btn_h_m">40dp</dimen>
+</resources>

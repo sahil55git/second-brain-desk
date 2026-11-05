@@ -7,7 +7,7 @@
 // pick last on any device is the one every device and the Android app show.
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { DEFAULT_LOOK, FONTS, THEME_PRESETS, clampLook, deriveSurface, fontHref, type Look } from "./appearance";
+import { DEFAULT_LOOK, FONTS, NUM_FONTS, THEME_PRESETS, clampLook, deriveSurface, fontHref, numFontHref, tabletOn, type Look } from "./appearance";
 import type { DeskKey } from "./desksConfig";
 
 export type ThemeMode = "auto" | "light" | "dark";
@@ -318,6 +318,24 @@ export function CustomizeProvider({ children }: { children: React.ReactNode }) {
       root.dataset.card = look.card;
       root.dataset.type = look.type;
       root.dataset.pattern = look.pattern;
+      root.dataset.tabs = look.tabs;
+      root.dataset.tablayout = look.tabLayout;
+      root.dataset.icons = look.icons;
+      root.dataset.tilelayout = look.tileLayout;
+      root.dataset.cardcols = look.cardCols;
+      root.dataset.links = look.links;
+      root.dataset.width = look.width;
+      const short = Math.min(window.screen?.width || window.innerWidth, window.screen?.height || window.innerHeight);
+      root.classList.toggle("tablet", tabletOn(look.tablet, short, window.matchMedia("(pointer: coarse)").matches));
+      const num = NUM_FONTS[look.numFont];
+      if (num?.stack) { root.style.setProperty("--num-font", num.stack); root.dataset.num = look.numFont; }
+      else { root.style.removeProperty("--num-font"); delete root.dataset.num; }
+      const numHref = numFontHref(look.numFont);
+      let numLink = document.getElementById("ui-num-font-link") as HTMLLinkElement | null;
+      if (numHref) {
+        if (!numLink) { numLink = document.createElement("link"); numLink.id = "ui-num-font-link"; numLink.rel = "stylesheet"; document.head.appendChild(numLink); }
+        if (numLink.href !== numHref) numLink.href = numHref;
+      } else if (numLink) numLink.remove();
       if (look.skin !== "none") root.dataset.skin = look.skin;
       else delete root.dataset.skin;
       const stack = FONTS[look.font]?.stack;

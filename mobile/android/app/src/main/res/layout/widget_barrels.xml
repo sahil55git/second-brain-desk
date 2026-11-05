@@ -16,7 +16,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="10dp">
+        android:padding="@dimen/w_pad_s">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -80,7 +80,7 @@
             <TextView
                 android:id="@+id/btn_full"
                 android:layout_width="0dp"
-                android:layout_height="40dp"
+                android:layout_height="@dimen/w_btn_h_m"
                 android:layout_marginEnd="4dp"
                 android:layout_weight="1"
                 android:background="@drawable/widget_btn"
@@ -91,7 +91,7 @@
             <TextView
                 android:id="@+id/btn_empty"
                 android:layout_width="0dp"
-                android:layout_height="40dp"
+                android:layout_height="@dimen/w_btn_h_m"
                 android:layout_marginStart="4dp"
                 android:layout_weight="1"
                 android:background="@drawable/widget_btn"

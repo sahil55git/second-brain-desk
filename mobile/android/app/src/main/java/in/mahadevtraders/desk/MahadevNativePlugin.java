@@ -113,7 +113,9 @@ public class MahadevNativePlugin extends Plugin {
         String style = call.getString("style", "dark");
         Integer op = call.getInt("opacity", 90);
         String ts = call.getString("textSize", "m");
+        Boolean fit = call.getBoolean("fit", true);
         WidgetData.prefs(getContext()).edit()
+                .putBoolean(WidgetData.K_FIT, fit == null || fit)
                 .putString(WidgetData.K_STYLE, style)
                 .putInt(WidgetData.K_OPACITY, op == null ? 90 : Math.max(20, Math.min(100, op)))
                 .putString(WidgetData.K_TEXT, ts)

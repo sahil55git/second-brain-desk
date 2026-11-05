@@ -50,6 +50,8 @@ public final class WidgetData {
     public static final String K_STYLE = "style";
     public static final String K_OPACITY = "opacity";
     public static final String K_TEXT = "textSize";
+    /** true (default): each widget's text grows with the widget's size on the home screen. */
+    public static final String K_FIT = "fitText";
     public static final String K_ALERTS = "alerts";
     public static final String K_SEEN = "seenAlerts";
     public static final String K_AWAKE = "keepAwake";
@@ -196,17 +198,22 @@ public final class WidgetData {
         int bg; int text; int soft; int alpha; float scale;
     }
 
+    /** Extra text size for the widget being drawn right now: fits its real size (see Widgets.fit). */
+    static float boost = 1f;
+
     static Look look(Context c) {
         SharedPreferences p = prefs(c);
         String style = p.getString(K_STYLE, "dark");
         Look l = new Look();
         if ("light".equals(style)) { l.bg = R.drawable.widget_bg_light; l.text = Color.parseColor("#1d2422"); l.soft = Color.parseColor("#5f6b66"); }
         else if ("glass".equals(style)) { l.bg = R.drawable.widget_bg_glass; l.text = Color.WHITE; l.soft = Color.parseColor("#e6ffffff"); }
+        else if ("ink".equals(style)) { l.bg = R.drawable.widget_bg_ink; l.text = Color.parseColor("#eef1fa"); l.soft = Color.parseColor("#a9b3d1"); }
+        else if ("paper".equals(style)) { l.bg = R.drawable.widget_bg_paper; l.text = Color.parseColor("#1f1b16"); l.soft = Color.parseColor("#6b6254"); }
         else { l.bg = R.drawable.widget_bg_dark; l.text = Color.parseColor("#f5ead7"); l.soft = Color.parseColor("#c9bda6"); }
         int op = p.getInt(K_OPACITY, 90);
         l.alpha = Math.max(30, Math.min(255, Math.round(op * 2.55f)));
         String ts = p.getString(K_TEXT, "m");
-        l.scale = "s".equals(ts) ? 0.86f : "l".equals(ts) ? 1.2f : 1f;
+        l.scale = ("s".equals(ts) ? 0.86f : "l".equals(ts) ? 1.2f : "xl".equals(ts) ? 1.4f : 1f) * boost;
         return l;
     }
 

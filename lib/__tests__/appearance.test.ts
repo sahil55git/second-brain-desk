@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CLASSIC_LOOK, DEFAULT_LOOK, THEME_PRESETS, clampLook, contrastRatio, deriveSurface, fontHref, mixHex, parseThemeCode, themeCode } from "../appearance";
+import { CLASSIC_LOOK, DEFAULT_LOOK, THEME_PRESETS, clampLook, contrastRatio, deriveSurface, fontHref, mixHex, numFontHref, tabletOn, parseThemeCode, themeCode } from "../appearance";
 import { migrateLook } from "../customize";
 
 describe("glass looks", () => {
@@ -76,5 +76,39 @@ describe("card and type styles", () => {
     expect(clampLook({ card: "glass", type: "refined" }).type).toBe("refined");
     expect(clampLook({ card: "wobbly" }).card).toBe("theme");
     expect(clampLook({}).type).toBe("theme");
+  });
+});
+
+describe("style & layout options (Nov 2026)", () => {
+  it("defaults keep the old look: theme styles, wide page, auto tablet", () => {
+    const l = clampLook({});
+    expect(l).toMatchObject({ numFont: "theme", tabs: "theme", tabLayout: "scroll", icons: "theme", tileLayout: "theme", cardCols: "auto", links: "grid", width: "wide", tablet: "auto" });
+  });
+  it("keeps valid choices and drops unknown ones", () => {
+    const l = clampLook({ card: "edge", tabs: "underline", icons: "ring", tileLayout: "big", cardCols: "2", links: "cards", width: "comfort", tablet: "on", numFont: "serif", pattern: "topo", font: "lexend" });
+    expect(l).toMatchObject({ card: "edge", tabs: "underline", icons: "ring", tileLayout: "big", cardCols: "2", links: "cards", width: "comfort", tablet: "on", numFont: "serif", pattern: "topo", font: "lexend" });
+    const bad = clampLook({ card: "wobbly", tabs: "x", cardCols: 4, tablet: "maybe", numFont: "comic", pattern: "stars" });
+    expect(bad).toMatchObject({ card: "theme", tabs: "theme", cardCols: "auto", tablet: "auto", numFont: "theme", pattern: "none" });
+  });
+  it("tablet mode: auto only on touch screens 600 px and wider", () => {
+    expect(tabletOn("auto", 800, true)).toBe(true);
+    expect(tabletOn("auto", 412, true)).toBe(false);
+    expect(tabletOn("auto", 1080, false)).toBe(false);
+    expect(tabletOn("on", 360, false)).toBe(true);
+    expect(tabletOn("off", 1200, true)).toBe(false);
+  });
+  it("number fonts and new fonts load from Google Fonts", () => {
+    expect(numFontHref("theme")).toBeNull();
+    expect(numFontHref("same")).toBeNull();
+    expect(numFontHref("serif")).toContain("family=Fraunces");
+    expect(fontHref("geist")).toContain("family=Geist");
+    expect(fontHref("lexend")).toContain("Noto+Sans+Kannada");
+  });
+  it("every preset's look survives clampLook unchanged", () => {
+    for (const p of THEME_PRESETS) {
+      if (!p.look) continue;
+      const l = clampLook({ ...p.look, custom: p.colors });
+      for (const [k, v] of Object.entries(p.look)) expect([p.key, k, (l as unknown as Record<string, unknown>)[k]]).toEqual([p.key, k, v]);
+    }
   });
 });

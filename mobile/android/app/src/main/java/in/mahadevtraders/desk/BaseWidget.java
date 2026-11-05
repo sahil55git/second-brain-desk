@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Bundle;
 
 /** A home-screen widget of one kind: draws itself, ⟳ fetches new figures, the dashboard's Today / Week / Month switch. */
 public abstract class BaseWidget extends AppWidgetProvider {
@@ -11,8 +12,15 @@ public abstract class BaseWidget extends AppWidgetProvider {
 
     @Override
     public void onUpdate(Context c, AppWidgetManager m, int[] ids) {
-        m.updateAppWidget(ids, Widgets.views(c, kind()));
+        for (int id : ids) m.updateAppWidget(id, Widgets.viewsFor(c, m, id, kind()));
         RefreshWorker.schedule(c);
+    }
+
+    /** Resized on the home screen: draw again so the text fits the new size. */
+    @Override
+    public void onAppWidgetOptionsChanged(Context c, AppWidgetManager m, int id, Bundle options) {
+        super.onAppWidgetOptionsChanged(c, m, id, options);
+        m.updateAppWidget(id, Widgets.viewsFor(c, m, id, kind()));
     }
 
     @Override

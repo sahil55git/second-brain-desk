@@ -537,7 +537,8 @@ function payBody(total: number, p: PayState, party: string): { body: Record<stri
   return { body: { paymentMode: "CASH", splits } };
 }
 
-function PayPicker({ lang, total, state, onChange }: { lang: LangMode; total: number; state: PayState; onChange: (s: PayState) => void }) {
+const SPLIT_OPT = { key: "SPLIT" as const, icon: "➗", en: "Split payment", kn: "ಹಂಚಿ ಪಾವತಿ" };
+function PayPicker({ lang, total, state, onChange, menu }: { lang: LangMode; total: number; state: PayState; onChange: (s: PayState) => void; menu?: boolean }) {
   const assigned = Math.round(PAY_CHANNELS.reduce((a, c) => a + (parseFloat(state.parts[c] || "") || 0), 0) * 100) / 100;
   const left = Math.round(((total || 0) - assigned) * 100) / 100;
   return (
@@ -545,7 +546,15 @@ function PayPicker({ lang, total, state, onChange }: { lang: LangMode; total: nu
       <label>
         <Txt k="how" lang={lang} />
       </label>
-      {!state.splitOn ? (
+      {!state.splitOn && menu ? (
+        <PickMenu<PayChannel | "SPLIT">
+          lang={lang}
+          value={state.chan}
+          searchAt={99}
+          options={[...PAY_OPTS, SPLIT_OPT]}
+          onPick={(k) => (k === "SPLIT" ? onChange({ ...state, splitOn: true, parts: { [state.chan]: total > 0 ? String(total) : "" } }) : onChange({ ...state, chan: k }))}
+        />
+      ) : !state.splitOn ? (
         <div className="qr-chips compact" role="radiogroup">
           {PAY_OPTS.map((o) => {
             const l = pairLabel(o.en, o.kn, lang);
@@ -2513,10 +2522,11 @@ function AmountPad({
   };
   const shown = value ? Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "0";
   // Keypad can be hidden (remembered on this device); the amount box still takes typing.
-  const [padOff, setPadOff] = useState(false);
+  // Hidden unless someone opened it on this device ("qr-pad" = "on").
+  const [padOff, setPadOff] = useState(true);
   useEffect(() => {
     try {
-      setPadOff(localStorage.getItem("qr-pad") === "off");
+      setPadOff(localStorage.getItem("qr-pad") !== "on");
     } catch {}
   }, []);
   const togglePad = () => {
@@ -2570,6 +2580,24 @@ function AmountPad({
     </div>
   );
 }
+
+// Products from the Items master (packed oils, cake bags…) for the item drop-down; loaded once.
+type Product = { id: string; name: string; unit: string; gstRatePct: number | null; hsnCode: string | null };
+let productsCache: Promise<Product[]> | null = null;
+function loadProducts(): Promise<Product[]> {
+  return (productsCache ||= fetch("/api/items")
+    .then((r) => (r.ok ? r.json() : { data: [] }))
+    .then((j: { data?: (Product & { active?: boolean })[] }) => (j.data || []).filter((x) => x.active !== false).map((x) => ({ id: x.id, name: x.name, unit: x.unit, gstRatePct: x.gstRatePct ?? null, hsnCode: x.hsnCode ?? null })))
+    .catch(() => []));
+}
+function useProducts(on: boolean): Product[] {
+  const [list, setList] = useState<Product[]>([]);
+  useEffect(() => {
+    if (on) void loadProducts().then(setList);
+  }, [on]);
+  return list;
+}
+const UNIT_ALIAS: Record<string, string> = { kg: "kg", kgs: "kg", ltr: "ltr", l: "ltr", litre: "ltr", liter: "ltr", bag: "bags", bags: "bags", pcs: "pcs", pc: "pcs", piece: "pcs", box: "box" };
 
 // One item already added to a multi-item bill (the form holds the next one).
 type DraftLine = { item: string | null; otherName: string; qty: number | null; unit: string; rate: number | null; amount: number };
@@ -2660,6 +2688,37 @@ function EntrySheet({
   const showItemwise = !(kind === "SALE" && totalMode === "total");
   const unitObj = UNITS.find((u) => u.key === unit) || UNITS[0];
   const canBill = showItemwise && hasQty && items.length > 0;
+  // Designed looks: item, qty, unit and rate on one tidy row, with a facts line under it.
+  const posLine = pos && canBill;
+  const products = useProducts(posLine);
+  const catalogNames = new Set(items.map((o) => o.en.trim().toLowerCase()));
+  const productOpts = products
+    .filter((pr) => !catalogNames.has(pr.name.trim().toLowerCase()))
+    .map((pr) => ({ key: `p:${pr.id}`, icon: "📦", en: pr.name, kn: `${pr.unit}${pr.gstRatePct != null ? ` · GST ${pr.gstRatePct}%` : ""}` }));
+  const pickedProduct = item === "other" ? products.find((pr) => pr.name.trim().toLowerCase() === otherName.trim().toLowerCase()) || null : null;
+  const pickValue = pickedProduct ? `p:${pickedProduct.id}` : item;
+  const pickOptions = [...items.filter((o) => o.key !== "other"), ...productOpts, ...items.filter((o) => o.key === "other")];
+  const pickItem = (k: string) => {
+    if (k.startsWith("p:")) {
+      const pr = products.find((x) => `p:${x.id}` === k);
+      if (!pr) return;
+      setItem("other");
+      setOtherName(pr.name);
+      const u = UNIT_ALIAS[pr.unit.trim().toLowerCase()];
+      if (u) setUnit(u);
+    } else {
+      setItem(k);
+      if (k === "other") setOtherName("");
+      setRate(savedRate(k));
+    }
+    setAmtTouched(false);
+  };
+  // Facts for the picked item: usual rate, today's total so far for it, the sum being made.
+  const sameItem = (e: Entry) => e.kind === kind && (item === "other" ? (e.itemLabel || "").trim().toLowerCase() === otherName.trim().toLowerCase() && !!otherName.trim() : e.item === item);
+  const todayLines = posLine && item ? day.entries.filter(sameItem) : [];
+  const todayQty = Math.round(todayLines.reduce((a, e) => a + (e.qty || 0), 0) * 100) / 100;
+  const todayInr = todayLines.reduce((a, e) => a + e.amountInr, 0);
+  const usual = item && item !== "other" ? savedRate(item) : "";
   const billOn = canBill && bill.length > 0;
   const curAmt = parseFloat(amountValue) || 0;
   const itemName = (k: string | null, other: string) => {
@@ -2843,7 +2902,61 @@ function EntrySheet({
         </div>
       )}
 
-      {showItemwise && items.length > 0 && (
+      {posLine && (
+        <div className="qr-f pos-line">
+          <div className="pl-item">
+            <label className="qr-lbl">
+              <Txt k="what" lang={lang} />
+            </label>
+            <PickMenu lang={lang} value={pickValue} options={pickOptions} onPick={pickItem} searchAt={6} />
+            {item === "other" && !pickedProduct && (
+              <input className="qr-txt" style={{ marginTop: 6 }} placeholder={word("itemName", lang)} value={otherName} onChange={(e) => setOtherName(e.target.value)} autoFocus={!init?.otherName} />
+            )}
+          </div>
+          <div className="pl-qty">
+            <label className="qr-lbl">
+              <Txt k="qty" lang={lang} />
+            </label>
+            <QtyStepper lang={lang} value={qty} onChange={(v) => { setQty(v); setAmtTouched(false); }} />
+          </div>
+          <div className="pl-unit">
+            <label className="qr-lbl">{pairLabel("Unit", "ಘಟಕ", lang).main}</label>
+            <PickMenu lang={lang} value={unit} onPick={(u) => { setUnit(u); setAmtTouched(false); }} options={UNITS} searchAt={99} />
+          </div>
+          <div className="pl-rate">
+            <label className="qr-lbl">
+              {words("rate", lang).main} / {lang === "kn" ? unitObj.kn : unitObj.en}
+            </label>
+            <input className="qr-num" type="number" inputMode="decimal" min={0} value={rate} placeholder={usual || "0"} onChange={(e) => { setRate(e.target.value); setAmtTouched(false); }} />
+          </div>
+          <div className="pl-facts" aria-live="polite">
+            {qty && rate ? <span className="sum">{qty} {lang === "kn" ? unitObj.kn : unitObj.en} × ₹{rate} = <b>{rs((parseFloat(qty) || 0) * (parseFloat(rate) || 0))}</b></span> : null}
+            {usual && usual !== rate ? (
+              <button type="button" className="fact-btn" onClick={() => { setRate(usual); setAmtTouched(false); }}>
+                {lang === "kn" ? "ಸಾಮಾನ್ಯ ದರ" : "Usual rate"} <b>₹{usual}</b>
+              </button>
+            ) : null}
+            {todayLines.length > 0 && (
+              <span>
+                {lang === "kn" ? "ಇಂದು" : kind === "SALE" ? "Sold today" : "Bought today"} <b>{todayQty || ""}{todayQty ? ` ${lang === "kn" ? unitObj.kn : unitObj.en} · ` : ""}{rs(todayInr)}</b> ({todayLines.length})
+              </span>
+            )}
+            {pickedProduct?.hsnCode && <span>HSN <b>{pickedProduct.hsnCode}</b></span>}
+          </div>
+          <div className="pl-tools">
+            <CodeBtn lang={lang} onCode={onCode} />
+            <ScaleBtn
+              lang={lang}
+              onUse={(w) => {
+                setQty(String(w));
+                setUnit("kg");
+                setAmtTouched(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
+      {!posLine && showItemwise && items.length > 0 && (
         <div className="qr-f">
           <label>
             <Txt k="what" lang={lang} />
@@ -2877,7 +2990,7 @@ function EntrySheet({
           )}
         </div>
       )}
-      {showItemwise && hasQty && items.length > 0 && <CodeBtn lang={lang} onCode={onCode} />}
+      {!posLine && showItemwise && hasQty && items.length > 0 && <CodeBtn lang={lang} onCode={onCode} />}
 
       {kind === "OWNER_DRAW" && (
         <div className="qr-f">
@@ -2894,7 +3007,7 @@ function EntrySheet({
         </div>
       )}
 
-      {showItemwise && hasQty && (
+      {!posLine && showItemwise && hasQty && (
         <ScaleBtn
           lang={lang}
           onUse={(w) => {
@@ -2904,7 +3017,7 @@ function EntrySheet({
           }}
         />
       )}
-      {showItemwise && hasQty && pos && (
+      {!posLine && showItemwise && hasQty && pos && (
         <div className="qr-f pos-qty">
           <div className="pq-row">
             <div className="pq-q">
@@ -3032,7 +3145,7 @@ function EntrySheet({
 
       {side !== "oth" && kind === "SALE" && (
         <div className={pos ? "pos-pay" : undefined}>
-          <PayPicker lang={lang} total={billTotal} state={pay} onChange={setPay} />
+          <PayPicker lang={lang} total={billTotal} state={pay} onChange={setPay} menu={pos} />
         </div>
       )}
       {side !== "oth" && kind !== "SALE" && (
@@ -3040,7 +3153,7 @@ function EntrySheet({
           <label>
             <Txt k="how" lang={lang} />
           </label>
-          <Chips compact lang={lang} value={mode} onPick={setMode} options={modes} />
+          {pos ? <PickMenu lang={lang} value={mode} onPick={setMode} options={modes} searchAt={99} /> : <Chips compact lang={lang} value={mode} onPick={setMode} options={modes} />}
         </div>
       )}
 

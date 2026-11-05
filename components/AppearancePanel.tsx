@@ -10,6 +10,7 @@ import {
   CLASSIC_LOOK,
   DEFAULT_LOOK,
   FONTS,
+  NUM_FONTS,
   THEME_PRESETS,
   contrastRatio,
   deriveSurface,
@@ -17,8 +18,10 @@ import {
   themeCode,
   type CustomTheme,
   type FontKey,
+  type NumFont,
   type ThemePreset,
 } from "@/lib/appearance";
+import AppearancePreview from "@/components/appearance/AppearancePreview";
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -88,25 +91,9 @@ export default function AppearancePanel() {
   const ratio = contrastRatio(current.bg, current.fg);
 
   return (
-    <div className="appearance">
-      {/* Live preview */}
-      <section className="hub-card ap-preview" aria-label="Preview">
-        <div className="ap-prev-top">
-          <b>Preview</b>
-          <span className="hub-m small">Changes apply instantly on this device.</span>
-        </div>
-        <div className="ap-prev-grid">
-          <div className="ap-tile in">💰<b>Sale</b><small>ಮಾರಾಟ</small></div>
-          <div className="ap-tile out">🧾<b>Expense</b><small>ಖರ್ಚು</small></div>
-          <div className="ap-tile jw">🌾<b>New intake</b><small>ಹೊಸ ದಾಖಲೆ</small></div>
-          <div className="hub-kpi g ap-kpi"><div className="l">Sales today</div><div className="v">₹9,360</div><div className="s">2 counter · 1 invoice</div></div>
-        </div>
-        <div className="ap-prev-text">
-          Should be in counter <b>₹1,160</b> · <span className="hub-m">ಕೌಂಟರಿನಲ್ಲಿ ಇರಬೇಕಾದ್ದು</span> ·{" "}
-          <button className="hub-btn primary sm" type="button">Button</button>
-        </div>
-      </section>
-
+    <div className="appearance ap-split">
+      <AppearancePreview />
+      <div className="ap-group">
       {/* Themes */}
       <section className="hub-card">
         <h3>Themes</h3>
@@ -244,6 +231,15 @@ export default function AppearancePanel() {
             ))}
           </select>
         </Row>
+        <Row label="Number font" hint="For big amounts: counter total, sales, KPIs.">
+          <select value={look.numFont} onChange={(e) => setLook({ numFont: e.target.value as NumFont })} aria-label="Number font">
+            {(Object.keys(NUM_FONTS) as NumFont[]).map((k) => (
+              <option key={k} value={k}>
+                {NUM_FONTS[k].label}
+              </option>
+            ))}
+          </select>
+        </Row>
         <Row label="Text size" hint="Makes everything bigger or smaller — good for older eyes or small phones.">
           <Slider value={look.textScale} min={0.85} max={1.4} step={0.05} onChange={(v) => setLook({ textScale: v })} fmt={(v) => `${Math.round(v * 100)}%`} />
         </Row>
@@ -294,8 +290,38 @@ export default function AppearancePanel() {
               { key: "soft", label: "Soft shadow" },
               { key: "glass", label: "Glass" },
               { key: "outline", label: "Outline" },
+              { key: "elevated", label: "Elevated" },
+              { key: "edge", label: "Gradient edge" },
+              { key: "tinted", label: "Tinted" },
+              { key: "neo", label: "Soft 3D" },
             ]}
             onChange={(v) => setLook({ card: v })}
+          />
+        </Row>
+        <Row label="Tab style" hint="Every tab bar: register workspace, reports, settings.">
+          <Seg
+            value={look.tabs}
+            options={[
+              { key: "theme", label: "Theme" },
+              { key: "pill", label: "Pills" },
+              { key: "underline", label: "Underline" },
+              { key: "segment", label: "Segmented" },
+              { key: "chip", label: "Chips" },
+            ]}
+            onChange={(v) => setLook({ tabs: v })}
+          />
+        </Row>
+        <Row label="Register button icons" hint="The icon square on each register button (designed looks).">
+          <Seg
+            value={look.icons}
+            options={[
+              { key: "theme", label: "Theme" },
+              { key: "filled", label: "Filled" },
+              { key: "soft", label: "Soft tint" },
+              { key: "ring", label: "Ring" },
+              { key: "plain", label: "Plain" },
+            ]}
+            onChange={(v) => setLook({ icons: v })}
           />
         </Row>
         <Row label="Headings and tabs" hint="Refined: tighter headings, pill tabs, even number columns.">
@@ -310,13 +336,88 @@ export default function AppearancePanel() {
         </Row>
       </section>
 
+      {/* Layout */}
+      <section className="hub-card">
+        <h3>Layout <small>tiles, cards, tabs, quick links, tablet</small></h3>
+        <Row label="Register buttons" hint="Row: icon beside the words. Stack: icon on top. Small fits more; Big is easiest to tap (tablets).">
+          <Seg
+            value={look.tileLayout}
+            options={[
+              { key: "theme", label: "As set" },
+              { key: "row", label: "Row" },
+              { key: "stack", label: "Stack" },
+              { key: "small", label: "Small" },
+              { key: "big", label: "Big" },
+            ]}
+            onChange={(v) => setLook({ tileLayout: v })}
+          />
+        </Row>
+        <Row label="Cards per row" hint="Lists of cards: orders, stock, machines, insights.">
+          <Seg
+            value={look.cardCols}
+            options={[
+              { key: "auto", label: "Auto" },
+              { key: "1", label: "1" },
+              { key: "2", label: "2" },
+              { key: "3", label: "3" },
+            ]}
+            onChange={(v) => setLook({ cardCols: v })}
+          />
+        </Row>
+        <Row label="Tab bars" hint="Scroll sideways, wrap onto more lines, or stretch to the full width.">
+          <Seg
+            value={look.tabLayout}
+            options={[
+              { key: "scroll", label: "Scroll" },
+              { key: "wrap", label: "Wrap" },
+              { key: "fill", label: "Fill width" },
+            ]}
+            onChange={(v) => setLook({ tabLayout: v })}
+          />
+        </Row>
+        <Row label="Quick links" hint="The /go page: tiles, a list, icons only, or cards with the description.">
+          <Seg
+            value={look.links}
+            options={[
+              { key: "grid", label: "Tiles" },
+              { key: "list", label: "List" },
+              { key: "icons", label: "Icons only" },
+              { key: "cards", label: "Cards" },
+            ]}
+            onChange={(v) => setLook({ links: v })}
+          />
+        </Row>
+        <Row label="Page width" hint="On big screens: as before, use the full screen, or keep a comfortable reading width.">
+          <Seg
+            value={look.width}
+            options={[
+              { key: "wide", label: "Wide" },
+              { key: "full", label: "Full screen" },
+              { key: "comfort", label: "Comfortable" },
+            ]}
+            onChange={(v) => setLook({ width: v })}
+          />
+        </Row>
+        <Row label="Tablet mode" hint="Bigger buttons, text and numbers for touch. Auto turns it on for tablets (7 inch and up).">
+          <Seg
+            value={look.tablet}
+            options={[
+              { key: "auto", label: "Auto" },
+              { key: "on", label: "On" },
+              { key: "off", label: "Off" },
+            ]}
+            onChange={(v) => setLook({ tablet: v })}
+          />
+        </Row>
+      </section>
+
       {/* Effects */}
       <section className="hub-card">
         <h3>Effects &amp; accessibility</h3>
         <Row label="Panel transparency" hint="Below 100% panels become see-through glass over the background.">
           <Slider value={look.panelOpacity} min={0.5} max={1} step={0.05} onChange={(v) => setLook({ panelOpacity: v })} fmt={(v) => `${Math.round(v * 100)}%`} />
         </Row>
-        <Row label="Background pattern">
+        <Row label="Background graphic">
           <Seg
             value={look.pattern}
             options={[
@@ -325,6 +426,11 @@ export default function AppearancePanel() {
               { key: "sunrise", label: "Sunrise" },
               { key: "dots", label: "Dots" },
               { key: "grid", label: "Grid" },
+              { key: "mesh", label: "Colour mesh" },
+              { key: "grain", label: "Paper grain" },
+              { key: "topo", label: "Contour lines" },
+              { key: "drops", label: "Oil drops" },
+              { key: "lines", label: "Pinstripe" },
             ]}
             onChange={(v) => setLook({ pattern: v })}
           />
@@ -362,6 +468,7 @@ export default function AppearancePanel() {
           </button>
         </Row>
       </section>
+      </div>
     </div>
   );
 }

@@ -17,7 +17,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="12dp">
+        android:padding="@dimen/w_pad">
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -35,28 +35,28 @@
             <TextView
                 android:id="@+id/rt"
                 android:layout_width="wrap_content"
-                android:layout_height="30dp"
+                android:layout_height="@dimen/w_pill_h"
                 android:gravity="center"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="@dimen/w_side"
+                android:paddingEnd="@dimen/w_side"
                 android:textStyle="bold"
                 android:text="Today" />
             <TextView
                 android:id="@+id/rw"
                 android:layout_width="wrap_content"
-                android:layout_height="30dp"
+                android:layout_height="@dimen/w_pill_h"
                 android:gravity="center"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="@dimen/w_side"
+                android:paddingEnd="@dimen/w_side"
                 android:textStyle="bold"
                 android:text="Week" />
             <TextView
                 android:id="@+id/rm"
                 android:layout_width="wrap_content"
-                android:layout_height="30dp"
+                android:layout_height="@dimen/w_pill_h"
                 android:gravity="center"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="@dimen/w_side"
+                android:paddingEnd="@dimen/w_side"
                 android:textStyle="bold"
                 android:text="Month" />
             <TextView

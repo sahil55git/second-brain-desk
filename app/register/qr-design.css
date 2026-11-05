@@ -581,3 +581,46 @@ html.matte[data-skin] .qr .qr-save { background: var(--t) !important; box-shadow
 html.matte[data-skin] .qr :is(.qr-top, .qr-hero) { box-shadow: var(--q-shadow); }
 html.matte[data-skin] .qr .qr-hero { background: var(--q-surface) !important; }
 html.matte[data-skin] .qr-logo { box-shadow: none !important; }
+
+/* ===========================================================================
+   Compact entry row (Sale / Purchase in the designed looks, Nov 2026):
+   item drop-down · qty · unit · rate on one row, a facts line under it, the
+   scan / scale buttons beside each other; amount box without the keypad.
+   =========================================================================== */
+.pos-line { display: grid; grid-template-columns: minmax(0, 2.1fr) minmax(0, 1.5fr) minmax(0, .95fr) minmax(0, 1fr); gap: calc(8px * var(--qs, 1)) calc(10px * var(--qs, 1)); align-items: end; }
+.pos-line > div { min-width: 0; }
+.pos-line .qr-lbl { display: block; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pos-line .pl-facts, .pos-line .pl-tools { grid-column: 1 / -1; }
+.pos-line .qr-pick, .pos-line .qr-pickbtn { width: 100%; }
+.pos-line .pos-step { height: calc(46px * var(--qs, 1)); }
+@media (max-width: 620px) {
+  .pos-line { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .pos-line :is(.pl-item, .pl-qty) { grid-column: 1 / -1; }
+}
+/* in the row: no number spinners, slimmer +/− so the quantity has room; unit shows just "kg" */
+.pos-line .pos-step { grid-template-columns: calc(38px * var(--qs, 1)) minmax(0, 1fr) calc(38px * var(--qs, 1)); }
+.pos-line input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.pos-line input[type="number"]::-webkit-outer-spin-button, .pos-line input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.pos-line .pl-unit .qr-pickbtn .ci, .pos-line .pl-unit .qr-pickbtn .qr-sub { display: none !important; }
+.pos-line .qr-menu { min-width: min(320px, 86vw); }
+.pos-line .pl-unit .qr-pickbtn { padding-inline: 10px; }
+.pl-facts { display: flex; flex-wrap: wrap; gap: 6px; min-height: 0; }
+.pl-facts:empty { display: none; }
+.pl-facts > * {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; font: inherit;
+  font-size: calc(12.5px * var(--qs, 1)); line-height: 1.2; color: var(--q-soft, #5e6b65);
+  background: var(--q-surface-2, rgba(0, 0, 0, .04)); border: 1px solid var(--q-line, rgba(0, 0, 0, .1));
+}
+.pl-facts b { color: var(--q-ink, inherit); font-variant-numeric: tabular-nums; }
+.pl-facts .sum { color: var(--q-ink, inherit); border-color: color-mix(in srgb, var(--q-accent, #888) 40%, transparent); background: color-mix(in srgb, var(--q-accent, #888) 10%, transparent); }
+.pl-facts .fact-btn { cursor: pointer; }
+.pl-facts .fact-btn:hover { border-color: var(--q-accent, #888); color: var(--q-ink, inherit); }
+.pl-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.pl-tools > * { margin: 0 !important; }
+/* the amount box is smaller once the keypad is put away */
+.pos-amt.pad-off .pa-box { padding: calc(8px * var(--qs, 1)) calc(14px * var(--qs, 1)); border-radius: 14px; }
+.pos-amt.pad-off .pa-v { font-size: calc(28px * var(--qs, 1)); }
+.pos-amt.pad-off .pa-toggle { margin-top: 6px; min-height: 30px; padding: 4px 10px; font-size: calc(12px * var(--qs, 1)); opacity: .75; }
+/* "Add more items" and payment: one tidy line each */
+html[data-skin] .qr .qr-addbill { min-height: calc(42px * var(--qs)); padding: 6px 12px; font-size: calc(14px * var(--qs)); border-radius: 12px; }
+html[data-skin] .qr .pos-pay .qr-pick { max-width: 420px; }
