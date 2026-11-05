@@ -1198,9 +1198,16 @@ model PurchaseOrder {
   supplier  String
   phone     String?
   dueDate   String?
-  lines     Json // [{ item, qty, unit, rate }]
-  status    String   @default("open") // open | cancelled (done / late are worked out)
+  lines     Json // [{ item, qty, unit, rate, gst? }]
+  status    String   @default("open") // draft | open | closed | cancelled (done / late / part are worked out)
   notes     String?
+  terms     String? // payment / quality terms printed on the order
+  deliverTo String? // delivery address, when not the shop
+  transport String? // who brings it: "supplier's truck", "our tempo"
+  rev       Int      @default(1) // goes up each time a sent order is edited
+  sentAt    DateTime?
+  sentVia   String? // whatsapp | share | print | link
+  shareToken String? @unique // random; the supplier's read-only link /po/<token>. Cleared to switch the link off
   createdBy String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

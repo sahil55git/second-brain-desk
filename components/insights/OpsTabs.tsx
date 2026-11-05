@@ -1,10 +1,11 @@
 "use client";
 
 // 🏭 Insights → Orders & suppliers, Machines, Forecast, Watch, Weekly review. Numbers from lib/ops.ts.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { BizData } from "@/lib/bizReports";
-import { anomalies, demandForecast, machineReport, poProgress, seedSplit, supplierScores, weeklyReview, type MachineLogLite, type PoLine, type PurchaseOrderLite } from "@/lib/ops";
+import { anomalies, demandForecast, machineReport, poProgress, seedSplit, supplierScores, weeklyReview, type MachineLogLite, type PurchaseOrderLite } from "@/lib/ops";
 import type { Budgets, RateCards } from "@/lib/money";
+import PoDesk from "@/components/po/PoDesk";
 
 const rs = (n: number | null | undefined) => (n == null ? "–" : `₹${Math.round(n).toLocaleString("en-IN")}`);
 const dmy = (d: string | null | undefined) => (d ? d.split("-").reverse().join("-") : "–");
@@ -13,72 +14,14 @@ const getSetting = (key: string) => fetch(`/api/settings/app?key=${key}`).then((
 const md = (t: string) => t.split("\n").map((l, i) => <div key={i} className={l.startsWith("**") ? "ins-wk-h" : ""}>{l.replace(/\*\*/g, "") || " "}</div>);
 
 // ------------------------------------------------------------------ purchase orders + supplier scores
-const STATUS: Record<string, string> = { open: "⏳ Open", part: "🚚 Part received", done: "✅ Received", late: "⚠️ Late", cancelled: "✕ Cancelled" };
+// The order desk itself lives in components/po/PoDesk.tsx (also at /purchase-orders); this tab adds the scores.
 export function OrdersTab({ d, today }: { d: BizData; today: string }) {
   const [orders, setOrders] = useState<PurchaseOrderLite[]>([]);
-  const [form, setForm] = useState<{ supplier: string; phone: string; dueDate: string; lines: PoLine[] }>({ supplier: "", phone: "", dueDate: shift(today, 3), lines: [{ item: "", qty: 0, unit: "kg", rate: 0 }] });
-  const [msg, setMsg] = useState<string | null>(null);
-  const load = useCallback(() => fetch("/api/orders").then((r) => r.json()).then((j) => setOrders(j.data || [])).catch(() => {}), []);
-  useEffect(() => { void load(); }, [load]);
   const prog = useMemo(() => poProgress(orders, d, today), [orders, d, today]);
   const scores = useMemo(() => supplierScores(d, prog, today), [d, prog, today]);
-  const suppliers = useMemo(() => Array.from(new Set(d.register.filter((e) => e.kind === "PURCHASE" && e.partyName).map((e) => e.partyName!.trim()).concat(d.purchases.map((p) => p.party?.name || "").filter(Boolean)))).sort(), [d]);
-  const setLine = (i: number, p: Partial<PoLine>) => setForm({ ...form, lines: form.lines.map((l, j) => (j === i ? { ...l, ...p } : l)) });
-  const save = async () => {
-    const r = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, date: today }) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) return setMsg(j.error || "Could not save.");
-    setMsg(`${j.data.no} saved ✓`);
-    setForm({ supplier: "", phone: "", dueDate: shift(today, 3), lines: [{ item: "", qty: 0, unit: "kg", rate: 0 }] });
-    void load();
-  };
-  const share = (p: (typeof prog)[number]) => {
-    const o = orders.find((x) => x.id === p.id) as (PurchaseOrderLite & { phone?: string | null }) | undefined;
-    const text = [`*Purchase order ${p.no}* — Mahadev Traders`, `Date: ${dmy(p.date)}${p.dueDate ? ` · Deliver by ${dmy(p.dueDate)}` : ""}`, ...p.lines.map((l) => `• ${l.item}: ${l.qty} ${l.unit}${l.rate ? ` @ ₹${l.rate}` : ""}`)].join("\n");
-    const ph = (o?.phone || "").replace(/\D/g, "");
-    return `https://wa.me/${ph.length === 10 ? `91${ph}` : ph}?text=${encodeURIComponent(text)}`;
-  };
-  const cancel = async (id: string, status: string) => { await fetch("/api/orders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, status }) }); void load(); };
   return (
     <>
-      <section className="hub-card">
-        <h3>＋ New purchase order</h3>
-        <div className="ins-row">
-          <label>Supplier <input list="po-sup" value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} /></label>
-          <datalist id="po-sup">{suppliers.map((s) => <option key={s} value={s} />)}</datalist>
-          <label>WhatsApp no. <input inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
-          <label>Deliver by <input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></label>
-        </div>
-        {form.lines.map((l, i) => (
-          <div key={i} className="ins-row">
-            <label>Item <input value={l.item} placeholder="Groundnut seed" onChange={(e) => setLine(i, { item: e.target.value })} /></label>
-            <label>Qty <input type="number" value={l.qty || ""} onChange={(e) => setLine(i, { qty: Number(e.target.value) || 0 })} /></label>
-            <label>Unit <select value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })}>{["kg", "qtl", "ltr", "tin", "pcs"].map((u) => <option key={u}>{u}</option>)}</select></label>
-            <label>Rate ₹ <input type="number" value={l.rate || ""} onChange={(e) => setLine(i, { rate: Number(e.target.value) || 0 })} /></label>
-          </div>
-        ))}
-        <div className="ins-row">
-          <button className="hub-btn sm" onClick={() => setForm({ ...form, lines: [...form.lines, { item: "", qty: 0, unit: "kg", rate: 0 }] })}>＋ Item</button>
-          <button className="hub-btn primary" onClick={() => void save()}>Save order</button>
-          {msg && <span className="hub-m">{msg}</span>}
-        </div>
-        <p className="hub-m small">When the goods come, just enter the purchase as usual (Quick Register or Purchase desk) with the same supplier name — the order fills itself.</p>
-      </section>
-      <div className="ins-cards">
-        {prog.map((p) => (
-          <div key={p.id} className={`hub-card ins-run ${p.status === "late" ? "out" : p.status === "done" ? "ok" : p.status === "part" ? "low" : ""}`}>
-            <div className="ins-run-h"><b>{p.no} · {p.supplier}</b><span className="ins-chip">{STATUS[p.status]}</span></div>
-            <small className="hub-m">{dmy(p.date)}{p.dueDate ? ` → due ${dmy(p.dueDate)}` : ""}{p.lateDays ? ` · ${p.lateDays} days late` : ""}</small>
-            {p.lines.map((l) => (
-              <div key={l.item} className="ins-bar"><span className="n">{l.item}</span><span className="b"><i style={{ width: `${Math.min(100, (l.got / l.qty) * 100)}%` }} /></span><span className="v">{l.got}/{l.qty}</span>{l.avgRate != null && l.rate > 0 && l.avgRate > l.rate && <small className="bad">billed ₹{l.avgRate} vs ordered ₹{l.rate}</small>}</div>
-            ))}
-            <div className="ins-row">
-              <a className="hub-btn sm" href={share(p)} target="_blank" rel="noreferrer">📤 WhatsApp</a>
-              {p.status !== "done" && <button className="hub-btn sm" onClick={() => void cancel(p.id, p.status === "cancelled" ? "open" : "cancelled")}>{p.status === "cancelled" ? "Reopen" : "Cancel"}</button>}
-            </div>
-          </div>
-        ))}
-      </div>
+      <PoDesk d={d} today={today} onOrders={setOrders} />
       <section className="hub-card">
         <h3>⭐ Supplier scores <small className="hub-m">(last 6 months)</small></h3>
         <div className="ins-tbl"><table>

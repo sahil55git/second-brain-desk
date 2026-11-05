@@ -44,7 +44,9 @@ export const FEATURES: Feature[] = [
   { key: "udhaarRemind", icon: "🙌", title: "Udhaar reminders", desc: "WhatsApp reminders and promised dates", group: "money", tabs: ["udhaar"] },
   // stock & buying
   { key: "runOut", icon: "📦", title: "Stock run-out", desc: "Days left per product and what to buy", group: "stock", tabs: ["stock"] },
-  { key: "purchaseOrders", icon: "🧾", title: "Purchase orders & supplier scores", desc: "Orders that fill from purchases; supplier 0–100 score", group: "stock", tabs: ["orders"] },
+  { key: "purchaseOrders", icon: "🧾", title: "Purchase orders & supplier scores", desc: "Write, send and print orders to suppliers; they fill from purchases; supplier 0–100 score", group: "stock", tabs: ["orders"], paths: ["/purchase-orders"], links: ["po"] },
+  { key: "poShare", icon: "🔗", title: "PO supplier link", desc: "A link the supplier opens to view and print an order — no sign-in. Off = existing links stop working", group: "stock" },
+  { key: "poAlerts", icon: "📅", title: "Purchase order reminders", desc: "Late orders, orders due today or tomorrow and unsent drafts in the chat's needs-attention list", group: "stock" },
   { key: "smartReorder", icon: "🛒", title: "Smart reorder", desc: "Draft purchase orders from forecast and stock", group: "stock", tabs: ["reorder"] },
   { key: "godown", icon: "🏚️", title: "Seed godown", desc: "Bags by stack, moisture loss, oldest-first (FIFO) alerts", group: "stock", paths: ["/godown"], links: ["godown"], tabs: ["godown"] },
   { key: "contracts", icon: "🤝", title: "Contracts & forward buys", desc: "Booked quantity, rate, delivery due and balance per supplier", group: "stock", tabs: ["contracts"] },

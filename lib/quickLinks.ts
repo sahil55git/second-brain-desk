@@ -85,6 +85,7 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "ask", icon: "💡", title: "Ask your business", kn: "ವ್ಯಾಪಾರ ಕೇಳಿ", desc: "Questions answered from your own records", href: "/ask", group: "office", ownerOnly: true },
   { id: "rules", icon: "⚡", title: "Rules", kn: "ನಿಯಮಗಳು", desc: "If this happens → alert me / make a task", href: "/rules", group: "office", ownerOnly: true },
   { id: "snap", icon: "📸", title: "Photo reading", kn: "ಫೋಟೋ ಓದು", desc: "Count bags, read meter / gauge / scale from a photo", href: "/snap", group: "tally" },
+  { id: "po", icon: "🧾", title: "Purchase orders", kn: "ಖರೀದಿ ಆರ್ಡರ್", desc: "Order from suppliers, send on WhatsApp or as a link, see what has arrived", href: "/purchase-orders", group: "office", ownerOnly: true },
   { id: "insights", icon: "📈", title: "Insights", kn: "ಒಳನೋಟ", desc: "Oil yield, stock run-out, profit per kg, tanks map, udhaar reminders", href: "/insights", group: "office", ownerOnly: true },
   { id: "reports", icon: "📊", title: "Reports", kn: "ವರದಿ", desc: "Sales, stock, udhar, cash", href: "/reports", group: "office", ownerOnly: true },
   { id: "settings", icon: "⚙️", title: "Settings", kn: "ಸೆಟ್ಟಿಂಗ್ಸ್", desc: "Items, rates, import / export", href: "/settings", group: "office", ownerOnly: true },

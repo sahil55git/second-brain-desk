@@ -33,7 +33,7 @@ export default function PhoneNav() {
     setDesk(new URLSearchParams(window.location.search).get("desk"));
   }, [path]);
 
-  const hidden = status !== "authenticated" || path.startsWith("/login") || path.startsWith("/setup");
+  const hidden = status !== "authenticated" || path.startsWith("/login") || path.startsWith("/setup") || path.startsWith("/po/");
   useEffect(() => {
     document.documentElement.classList.toggle("has-pnav", !hidden);
     return () => document.documentElement.classList.remove("has-pnav");

@@ -28,6 +28,7 @@ import { runAi } from "@/lib/aiProvider";
 import { anomalies, weeklyReview } from "@/lib/ops";
 import { cmdOn, isOn } from "@/lib/features";
 import { loadFeatures } from "@/lib/featuresServer";
+import { poAlertLines } from "@/lib/poServer";
 import { COMMODITIES, mandiSignals } from "@/lib/mandi";
 import { loadMandi } from "@/lib/mandiServer";
 import type { Budgets, RateCards } from "@/lib/money";
@@ -289,6 +290,7 @@ export async function alertsText(who: BotWho, nowMs: number): Promise<string[]> 
     out.push(...attentionList(biz, today, nowMs).filter((a) => a.severity !== "info").slice(0, 10).map((a) => `${a.severity === "critical" ? "🔴" : "🟠"} ${a.area}: ${a.message}`));
     const w = isOn(await loadFeatures().catch(() => null), "watch") ? await loadWatch(nowMs).catch(() => null) : null;
     if (w) out.push(...anomalies(w.biz, w.today, { ...w, days: 2 }).slice(0, 6).map((x) => `${x.level === "red" ? "🔴" : "🟠"} ${x.area}: ${x.text}`));
+    if (isOn(await loadFeatures().catch(() => null), "poAlerts")) out.push(...(await poAlertLines(today).catch(() => [])).slice(0, 6));
   }
   return out;
 }

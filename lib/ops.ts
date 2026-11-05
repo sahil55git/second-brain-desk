@@ -15,10 +15,10 @@ const median = (xs: number[]) => { if (!xs.length) return 0; const s = [...xs].s
 // ===========================================================================
 // Purchase orders
 // ===========================================================================
-export interface PoLine { item: string; qty: number; unit: string; rate: number }
+export interface PoLine { item: string; qty: number; unit: string; rate: number; gst?: number }
 export interface PurchaseOrderLite { id: string; no: string; date: string; supplier: string; dueDate: string | null; status: string; lines: PoLine[] }
 export interface PoLineProgress extends PoLine { got: number; left: number; lastDate: string | null; avgRate: number | null }
-export interface PoProgress { id: string; no: string; supplier: string; date: string; dueDate: string | null; status: "open" | "part" | "done" | "late" | "cancelled"; pct: number; lines: PoLineProgress[]; doneDate: string | null; lateDays: number }
+export interface PoProgress { id: string; no: string; supplier: string; date: string; dueDate: string | null; status: "draft" | "open" | "part" | "done" | "late" | "cancelled" | "closed"; pct: number; lines: PoLineProgress[]; doneDate: string | null; lateDays: number }
 
 /** Everything received from a supplier (register purchases + purchase bills): item, kg, rate, date. */
 export function receipts(d: BizData): { supplier: string; item: string; qty: number; rate: number | null; date: string }[] {
@@ -43,7 +43,7 @@ export function poProgress(orders: PurchaseOrderLite[], d: BizData, today: strin
   for (const o of sorted) {
     const lines: PoLineProgress[] = o.lines.map((l) => {
       let got = 0, cost = 0, lastDate: string | null = null;
-      if (o.status !== "cancelled") for (const r of pool) {
+      if (o.status !== "cancelled" && o.status !== "draft") for (const r of pool) {
         if (got >= l.qty) break;
         if (r.left <= 0 || r.date < o.date || r.supplier !== norm(o.supplier) || !itemMatch(l.item, r.item)) continue;
         const take = Math.min(r.left, l.qty - got);
@@ -54,8 +54,9 @@ export function poProgress(orders: PurchaseOrderLite[], d: BizData, today: strin
     const want = lines.reduce((a, l) => a + l.qty, 0), got = lines.reduce((a, l) => a + l.got, 0);
     const pct = want ? Math.round((got / want) * 100) : 0;
     const doneDate = pct >= 98 ? lines.reduce<string | null>((a, l) => (l.lastDate && (!a || l.lastDate > a) ? l.lastDate : a), null) : null;
-    const lateDays = o.dueDate ? Math.max(0, gapDays(o.dueDate, doneDate || today)) : 0;
-    const status: PoProgress["status"] = o.status === "cancelled" ? "cancelled" : pct >= 98 ? "done" : lateDays > 0 ? "late" : got > 0 ? "part" : "open";
+    const settled = o.status === "draft" || o.status === "cancelled" || (o.status === "closed" && pct < 98); // not sent / cancelled / closed short: never "late"
+    const lateDays = o.dueDate && !settled ? Math.max(0, gapDays(o.dueDate, doneDate || today)) : 0;
+    const status: PoProgress["status"] = o.status === "cancelled" ? "cancelled" : o.status === "draft" ? "draft" : pct >= 98 ? "done" : o.status === "closed" ? "closed" : lateDays > 0 ? "late" : got > 0 ? "part" : "open";
     res.push({ id: o.id, no: o.no, supplier: o.supplier, date: o.date, dueDate: o.dueDate, status, pct, lines, doneDate, lateDays });
   }
   return res.reverse();
