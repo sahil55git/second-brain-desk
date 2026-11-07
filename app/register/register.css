@@ -416,3 +416,30 @@ html.hc .qr .qr-tile { box-shadow: inset 0 0 0 2px #ffffff; }
 
 /* entries kept on the phone while offline */
 .qr-offline { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); z-index: 35; border: 0; border-radius: 999px; padding: 10px 16px; font: inherit; font-weight: 700; background: #b7791f; color: #fff; box-shadow: 0 6px 20px rgba(0,0,0,.3); cursor: pointer; max-width: 92vw; }
+
+/* ---- Cash sheet board (Money in | Money out with a total on every line) ---- */
+.cs-wrap { display: flex; flex-direction: column; gap: 10px; }
+.cs-board { margin-top: 0; }
+.cs-line { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.cs-main { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid var(--qr-line); background: var(--qr-card); color: inherit; border-radius: calc(14px * var(--ui-r, 1)); padding: 10px 12px; min-height: 56px; }
+.cs-main:disabled { opacity: .7; }
+.cs-ic { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; flex: none; font-size: 20px; }
+.qr-col.in .cs-ic { background: var(--qr-in-bg); color: var(--qr-in); }
+.qr-col.out .cs-ic { background: var(--qr-out-bg); color: var(--qr-out); }
+.cs-t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.cs-t small { opacity: .7; font-size: 12px; }
+.cs-amt { font-size: 18px; white-space: nowrap; }
+.qr-col.in .cs-amt { color: var(--qr-in); } .qr-col.out .cs-amt { color: var(--qr-out); }
+.cs-extras { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 4px; }
+.cs-drawer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; border-radius: calc(16px * var(--ui-r, 1)); padding: 12px 16px; background: #2a2140; color: #fff; }
+.cs-drawer .cs-dnum { margin-left: auto; font-size: 28px; }
+.cs-more { display: flex; flex-direction: column; gap: 10px; }
+.cs-more-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cs-sp { flex: 1; }
+.cs-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cs-manage, .cs-add { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--qr-line); border-radius: 14px; padding: 10px 12px; background: var(--qr-card); }
+.cs-cards { display: flex; flex-wrap: wrap; gap: 8px; }
+.cs-card { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 130px; max-width: 220px; text-align: left; border: 1px solid var(--qr-line); background: var(--qr-card); color: inherit; border-radius: 14px; padding: 9px 12px; }
+.cs-card small { opacity: .7; font-size: 11.5px; }
+.cs-empty { font-size: 13px; opacity: .7; }
+.cs-err { color: #b3261e; font-size: 13px; font-weight: 700; }
