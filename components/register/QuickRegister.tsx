@@ -45,6 +45,7 @@ import {
   MASS_BALANCE_TOLERANCE_PCT,
   rateKey,
   systemCash,
+  toClosingBuckets,
   toCsv,
   type CashEvent,
   type LangMode,
@@ -81,6 +82,9 @@ import { DESK_PROMPTS } from "@/lib/aiPrompts";
 import { findItemByCode } from "@/lib/smartEntry";
 import MfgQuick from "@/components/mfg/MfgQuick";
 import BillSheet from "@/components/register/BillSheet";
+import CashSheetBoard, { type CashLine, type MoreCard } from "@/components/register/CashSheetBoard";
+import { visibleLinks } from "@/lib/quickLinks";
+import { useFeatures } from "@/lib/useFeatures";
 import { useCustomize } from "@/lib/customize";
 import { BrandMark, Icon, type IconName } from "@/components/ui/Icons";
 import { BUILTIN_SIMPLE, assignedMode, type SimpleMode } from "@/lib/simpleMode";
@@ -207,6 +211,7 @@ interface Prefs {
   float: { on: boolean; x: number; y: number; w: number; h: number; op: number }; // floating workspace window
   size: TileSize; // button + text size in the designed looks (S / M / L)
   cols: "auto" | "1" | "2" | "3"; // side by side: how many columns the windows use on wide screens
+  cashSheet: boolean; // Money in / out board with a total on each line and a More windows area
 }
 type TileSize = "s" | "m" | "l";
 const DEFAULT_PREFS: Prefs = {
@@ -218,6 +223,7 @@ const DEFAULT_PREFS: Prefs = {
   float: { on: false, x: 120, y: 120, w: 440, h: 560, op: 1 },
   size: "m",
   cols: "auto",
+  cashSheet: false,
 };
 // The page is scaled by the Appearance "text size" (CSS zoom on <body>), so
 // pointer positions must be divided by it to get layout pixels.
@@ -1152,6 +1158,25 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   // Quick links (/go) and home-screen shortcuts arrive as /register?open=sale etc.
   // Open that form once the day has loaded, then tidy the address.
   const deepRef = useRef(false);
+  const openByKey: Record<string, () => void> = {
+    sale: () => setSheet({ t: "entry", kind: "SALE" }),
+    crush: () => setSheet({ t: "fresh" }),
+    udhaar: () => setSheet({ t: "entry", kind: "UDHAAR_IN" }),
+    purchase: () => setSheet({ t: "entry", kind: "PURCHASE" }),
+    expense: () => setSheet({ t: "entry", kind: "EXPENSE" }),
+    payment: () => setSheet({ t: "entry", kind: "PAYMENT" }),
+    pigmee: () => setSheet({ t: "entry", kind: "PIGMEE" }),
+    draw: () => setSheet({ t: "entry", kind: "OWNER_DRAW" }),
+    jobwork: () => setSheet({ t: "jw" }),
+    jwsettle: () => setTimeout(scrollToLedger, 400),
+    cash: () => setSheet({ t: "count" }),
+    stock: () => setSheet({ t: "stock" }),
+    calc: () => setSheet({ t: "calc" }),
+    estimate: () => setSheet({ t: "estimate" }),
+    scan: () => setSheet({ t: "scan" }),
+    smart: () => setSheet({ t: "smart" }),
+  };
+
   useEffect(() => {
     if (deepRef.current || !day) return;
     deepRef.current = true;
@@ -1174,24 +1199,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
       return;
     }
     if (!key) return;
-    const by: Record<string, () => void> = {
-      sale: () => setSheet({ t: "entry", kind: "SALE" }),
-      crush: () => setSheet({ t: "fresh" }),
-      udhaar: () => setSheet({ t: "entry", kind: "UDHAAR_IN" }),
-      purchase: () => setSheet({ t: "entry", kind: "PURCHASE" }),
-      expense: () => setSheet({ t: "entry", kind: "EXPENSE" }),
-      payment: () => setSheet({ t: "entry", kind: "PAYMENT" }),
-      pigmee: () => setSheet({ t: "entry", kind: "PIGMEE" }),
-      draw: () => setSheet({ t: "entry", kind: "OWNER_DRAW" }),
-      jobwork: () => setSheet({ t: "jw" }),
-      jwsettle: () => setTimeout(scrollToLedger, 400),
-      cash: () => setSheet({ t: "count" }),
-      stock: () => setSheet({ t: "stock" }),
-      calc: () => setSheet({ t: "calc" }),
-      estimate: () => setSheet({ t: "estimate" }),
-      scan: () => setSheet({ t: "scan" }),
-      smart: () => setSheet({ t: "smart" }),
-    };
+    const by = openByKey;
     const go = by[key];
     if (go && !dbOffline) go();
     window.history.replaceState(null, "", window.location.pathname);
@@ -1294,6 +1302,68 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   const nextLayout: Record<LayoutMode, LayoutMode> = { auto: "side", side: "stack", stack: "auto" };
   const layoutLabel: Record<LayoutMode, string> = { auto: "⇆ Auto", side: "⇆ Side", stack: "☰ One" };
   const favKeys = prefs.favs.filter((f): f is TileKey => f in TILES);
+
+  // ---------------------------------------------------------------------
+  // Cash sheet board: one line per money bucket with today's total. Every
+  // line opens the app's own form; nothing is saved by the board itself.
+  // ---------------------------------------------------------------------
+  const feats = useFeatures().state;
+  const cashBuckets = day ? toClosingBuckets(day.opening.value, day.entries, day.jwEvents) : null;
+  const gate = (id: TileKey) => {
+    const need = TILE_FN[id];
+    return !need || acc.fn(need);
+  };
+  const cashLines: CashLine[] = cashBuckets
+    ? ([
+        { key: "open", icon: "🌅", k: "opening", side: "in", amount: cashBuckets.cashInOpening, locked: true },
+        { key: "sale", icon: "💰", k: "SALE", side: "in", amount: cashBuckets.cashInSales, open: TILES.SALE.open, fn: "SALE",
+          extras: [{ k: "FRESH_CRUSH", icon: "🫗", open: TILES.FRESH_CRUSH.open, fn: "FRESH_CRUSH" }, { k: "bill", icon: "📃", open: TILES.bill.open, fn: "bill" }] },
+        { key: "udh", icon: "🙌", k: "UDHAAR_IN", side: "in", amount: cashBuckets.cashInOther, open: TILES.UDHAAR_IN.open, fn: "UDHAAR_IN" },
+        { key: "jw", icon: "🌾", k: "jwSettle", side: "out", amount: cashBuckets.cashOutGrn, open: scrollToLedger, fn: "jwSettle",
+          extras: [{ k: "jwNew", icon: "🌾", open: TILES.jwNew.open, fn: "jwNew" }] },
+        { key: "pur", icon: "🛒", k: "PURCHASE", side: "out", amount: cashBuckets.cashOutOther, open: TILES.PURCHASE.open, fn: "PURCHASE" },
+        { key: "exp", icon: "🧾", k: "EXPENSE", side: "out", amount: cashBuckets.cashOutExpenses, open: TILES.EXPENSE.open, fn: "EXPENSE" },
+        { key: "sal", icon: "🤝", k: "PAYMENT", side: "out", amount: cashBuckets.cashOutSalary, open: TILES.PAYMENT.open, fn: "PAYMENT" },
+        { key: "own", icon: "🧔", k: "OWNER_DRAW", side: "out", amount: cashBuckets.cashOutDraw, open: TILES.OWNER_DRAW.open, fn: "OWNER_DRAW",
+          extras: [{ k: "PIGMEE", icon: "🏦", open: TILES.PIGMEE.open, fn: "PIGMEE" }] },
+      ] as (Omit<CashLine, "extras"> & { fn?: TileKey; extras?: (NonNullable<CashLine["extras"]>[number] & { fn?: TileKey })[] })[])
+        .filter((l) => !l.fn || gate(l.fn))
+        .map((l) => ({ ...l, extras: l.extras?.filter((x) => !x.fn || gate(x.fn)) }))
+    : [];
+  const cashIn = cashBuckets ? cashBuckets.cashInOpening + cashBuckets.cashInSales + cashBuckets.cashInOther : 0;
+  const cashOut = cashBuckets ? cashBuckets.cashOutGrn + cashBuckets.cashOutExpenses + cashBuckets.cashOutSalary + cashBuckets.cashOutDraw + cashBuckets.cashOutOther + cashBuckets.cashOutUpi : 0;
+  const moreCards: MoreCard[] = [
+    ...(["calc", "estimate", "count", "stock", "scan", "smart", "reports"] as TileKey[])
+      .filter(gate)
+      .map((id) => ({ id: `w-${id}`, group: "Workings" as const, icon: TILES[id].icon, title: words(TILES[id].k, lang).main, open: TILES[id].open })),
+    { id: "r-mfg", group: "Register" as const, icon: "🏭", title: "Manufacturing", sub: "New barrel", open: () => setSheet({ t: "mfg", startNew: true }) },
+    ...visibleLinks(isOwner, feats)
+      .filter((l) => l.id !== "register")
+      .map((l) => {
+        const m = l.href.match(/^\/register\?open=([a-z]+)/);
+        const direct = m ? openByKey[m[1]] : undefined;
+        return {
+          id: `q-${l.id}`,
+          group: "Quick links" as const,
+          icon: l.icon,
+          title: l.title,
+          sub: l.desc,
+          open: direct ? () => direct() : () => window.location.assign(l.href),
+        };
+      }),
+  ];
+  const cashBoard = (
+    <CashSheetBoard
+      lang={lang}
+      lines={cashLines}
+      drawer={cashIn - cashOut}
+      inTotal={cashIn}
+      outTotal={cashOut}
+      cards={moreCards}
+      onCount={TILES.count.open}
+      offline={dbOffline}
+    />
+  );
 
   // ----------------------------- blocks --------------------------------
   const heroBlock = skinned ? (
@@ -2227,6 +2297,15 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
             </button>
           )}
           <button
+            type="button"
+            className={`qr-pill${prefs.cashSheet ? " on" : ""}`}
+            onClick={() => setPrefs((p) => ({ ...p, cashSheet: !p.cashSheet }))}
+            title="Cash in | Cash out sheet with a total on each line"
+            aria-pressed={prefs.cashSheet}
+          >
+            📋 Cash sheet
+          </button>
+          <button
             className={`qr-pill qr-posbtn${posMode ? " on" : ""}`}
             onClick={() => (posMode && startPos ? (window.location.href = "/register") : setPosMode((v) => !v))}
             title={posMode ? (lang === "kn" ? "ಪೂರ್ಣ ರಿಜಿಸ್ಟರ್" : "Back to full register") : lang === "kn" ? "ಕೌಂಟರ್ ಮೋಡ್ (POS)" : "Counter mode (POS)"}
@@ -2300,7 +2379,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
             <div className="qr-left">
               {heroBlock}
               {favouritesBlock}
-              {skinned ? designBoard : boardBlock}
+              {prefs.cashSheet ? cashBoard : skinned ? designBoard : boardBlock}
               {summaryBlock}
             </div>
             <div
@@ -2367,7 +2446,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
           <>
             {heroBlock}
             {favouritesBlock}
-            {skinned ? designBoard : boardBlock}
+            {prefs.cashSheet ? cashBoard : skinned ? designBoard : boardBlock}
             {!floating && workspaceBlock}
             {summaryBlock}
             {entriesBlock}
