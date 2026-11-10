@@ -1,60 +1,67 @@
-# Second Brain Desk — Phase 1 (coded rebuild)
+# Second Brain Desk
 
-This is a coded rebuild of Sahil's "Second Brain Desk" business dashboard
-for an edible-oil business (self-crushing, job-work crushing under GST
-Section 143, retail sales, and the developing "Ekatva" blend brand).
+The working dashboard for Sahil's edible-oil business in Bidar: self-crushing,
+job-work crushing under GST Section 143 (ITC-04), retail and wholesale sales,
+and the "Ekatva" blend brand. It is a Next.js app on Postgres, used daily on
+the shop phone, the office PC and an Android wrapper.
 
-## Why this exists — the two-phase migration
+## What is in it
 
-The full-featured dashboard (25 shipped versions: Job-Work Desk,
-Manufacturing, Mill Transfer, Stock Top-up, Daily Closing, Supplier
-Payables, Khali Sale, Business Financials, AI terminals on every desk, a
-self-service Custom Forms builder, full look-and-feel customization,
-English/Kannada language toggle, and more) **still lives as a single-file
-Claude Artifact** — a live, working tool Sahil uses today. That artifact
-is not being replaced yet.
+**Owner desk (`/`)** — tabs for Home, Job-Work, Manufacturing, Daily Closing,
+Sales, Purchase, Expenses, Parties, Inventory, Live Scales, Reports & AI,
+Ledger, Vyapar Sync and Settings.
 
-This repository is **Phase 1** of migrating that artifact into a proper
-codebase — a real Next.js app, a real Postgres database via Prisma, and a
-real test suite — instead of one big HTML file with an in-browser
-document store. Phase 1 deliberately covers **only two of the artifact's
-desks**, ported faithfully from the documented behavior of the live tool:
+**Shop floor and counter**
+- **Quick Register** (`/register`, `/register/pos`) — icon-first, English /
+  Kannada entry for sale, purchase, expense, payment, fresh crush, cash count,
+  stock tally and sheet scan. See the Quick Register section below.
+- **Barrels** (`/barrels`, `/barrels/fleet`) — barrel receiving, barrel fleet,
+  labels, weighment slips. See `docs/BARREL-RECEIVING.md`, `docs/BARREL-FLEET.md`.
+- **Live scales and printing** (`/print`, `/labels`) — scale readings pushed from
+  the shop PC, label and slip print queue. See `docs/LIVE-SCALE-SETUP.md`,
+  `docs/PRINTING.md`.
+- **Tallies, cash, stock, count, dip, godown, packing, settling, maintenance**
+  — the daily floor sheets.
 
-1. **Job-Work Desk** — intake, the customer/auto payment split, rate
-   overrides, oil-can charges, inline settle/pay, and the Khali (cake)
-   stock widget.
-2. **Daily Closing** — the two fixed daily cash counts, the System Cash
-   vs. Counter Cash computation and ₹300 mismatch flag, and the 10-product
-   oil-stock tally with its "most recent prior entry" yesterday lookup.
+**Records and reports** — `/records` (all entries, proofs and scans, and the
+owner-only Activity log of edits and deletes), `/reports`, `/insights`,
+`/orders`, customer udhaar (credit) dues, backup export.
 
-Everything else on the live artifact (Manufacturing, Mill Transfer, Stock
-Top-up, Supplier Payables, Khali Sale, Business Financials, the AI
-terminals, the Custom Forms/formula engine, and full customization) is a
-later phase — see **"Not yet built"** below. Nothing here changes or
-retires the live artifact; it keeps running exactly as it does today.
+**People and machines** — `/employees`, `/attendance`, `/machines`.
+
+**Assistants** — `/ask`, `/chat`, `/command`, `/rules`, plus a Telegram /
+WhatsApp bot. AI is optional and free-tier only; see `.env.example`.
+
+**Access** — the first visit goes to `/setup` to create the owner. After that,
+sign in at `/login`. Roles are OWNER and STAFF; what each can open or change is
+in `lib/access.ts` and `middleware.ts`. Staff edits and deletes are limited
+(`lib/editRules.ts`) and every change is written to the audit log.
 
 ## Tech stack
 
 - **Next.js 14** (App Router) + **TypeScript** + **Tailwind CSS**
-- **Prisma** ORM targeting **PostgreSQL**
-- Plain React state + `fetch` — server components for the initial page
-  load, client components for the interactive forms/ledgers
-- **Vitest** for unit tests on the pure calculation functions
+- **Prisma 5** on **PostgreSQL**
+- **next-auth** sessions with OWNER / STAFF roles
+- Server components for first load, client components for forms and ledgers
+- **Vitest** for tests; pure logic lives in `lib/*.ts`
+- **Capacitor** Android wrapper in `mobile/`; Python scale and print helpers in `tools/`
 
 ## Running locally
 
 ```bash
 npm install
-cp .env.example .env        # then fill in DATABASE_URL
-npx prisma migrate dev      # creates the tables
-npm run prisma:seed         # optional — loads the two demo rows
-npm run dev
+cp .env.example .env        # fill in DATABASE_URL and NEXTAUTH_SECRET
+npx prisma db push          # creates the tables (there is no migrations folder)
+npm run prisma:seed         # optional demo rows
+npm run dev                 # then open /setup once to create the owner login
 ```
 
-If `DATABASE_URL` is left unset, the app still builds and renders — every
-page shows a clear **"Database not connected yet"** banner instead of
-crashing (see `lib/db.ts`'s `safeDbCall()`), so you can look at the UI
-without a database provisioned.
+Every other variable in `.env.example` switches on one optional feature (AI,
+scales, Drive upload, bot, report sharing) and can stay empty.
+
+If `DATABASE_URL` is unset, the app still builds and renders; every page shows a
+**"Database not connected yet"** banner instead of crashing (`safeDbCall()` in
+`lib/db.ts`).
 
 ### Running the tests
 
@@ -62,20 +69,17 @@ without a database provisioned.
 npm test
 ```
 
-Covers the highest-stakes logic — `expectedSettlement()`,
-`expectedSettlementWithRate()`, `defaultPaySplit()`, the ₹300 cash-gap
-flag, the stock Gap/Diff calculation, and `getYesterdayStock()`'s
-"most recent prior entry" lookup — in `lib/__tests__/calculations.test.ts`.
-These are money- and GST/ITC-04-adjacent calculations ported directly from
-the artifact's documented behavior (see
-`claude/dashboard-app-plan.md`, Versions 11–14 and 23, in the project this
-was built from) — nothing here invents a new rate or threshold.
+Tests are in `lib/__tests__/` and cover the money and compliance logic:
+job-work settlement and rates, the ₹300 cash-gap flag, stock gap, GST and
+rounding, edit/delete rules, and the audit-log routes (run against an
+in-memory fake database, so no Postgres is needed). Nothing in them invents a
+rate or threshold; they follow `claude/dashboard-app-plan.md`.
 
 ### A note on `prisma generate` in a network-restricted environment
 
 This repo was built in a sandboxed environment whose egress policy blocks
 `binaries.prisma.sh` (Prisma's engine-binary CDN), so `npx prisma generate`
-/ `npx prisma migrate dev` could not be run there. `lib/db.ts` is written
+/ `npx prisma db push` could not be run there. `lib/db.ts` is written
 defensively for exactly this: constructing `PrismaClient` is wrapped in a
 try/catch, so even a completely ungenerated client degrades to the same
 "Database not connected yet" state rather than crashing the build. On a
@@ -85,37 +89,43 @@ and nothing here needs to change.
 
 ## Deploying on Vercel
 
-1. Push this repo to GitHub.
-2. Import it into Vercel.
-3. Add a `DATABASE_URL` environment variable (Vercel Postgres, Neon,
-   Supabase, etc. all work).
-4. Add `npx prisma generate` to the build command if it isn't picked up by
-   Vercel's automatic Prisma detection, and run
-   `npx prisma migrate deploy` once against the production database.
+1. Push this repo to GitHub and import it into Vercel.
+2. Add the environment variables from `.env.example` (at minimum `DATABASE_URL`
+   and `NEXTAUTH_SECRET`; set `CRON_SECRET` too).
+3. Deploy. `npm run build` runs `prisma generate` and then `scripts/db-push.js`,
+   which applies additive schema changes only (`prisma db push`, no data-loss
+   flag). If that step fails the build log says so; run `npx prisma db push` by
+   hand against the production database.
 
 ## Project structure
 
 ```
-app/
-  page.tsx                    server component — fetches initial data, renders the two-tab layout
-  api/
-    job-work/route.ts         GET (list) / POST (create intake)
-    job-work/[id]/route.ts    PATCH (edit any intake field)
-    job-work/[id]/settle/route.ts   POST (inline pay/settle, split + rate override)
-    daily-closing/route.ts    GET (list) / POST (create a closing count)
-    daily-closing/[id]/route.ts     PATCH (edit cash/stock on an existing count)
-components/
-  DeskTabs.tsx                 client — the two-tab switcher
-  JobWorkDesk.tsx               client — intake form + ledger + inline Pay/Edit
-  DailyClosingDesk.tsx          client — closing form + ledger + inline Edit
-lib/
-  calculations.ts               pure functions — see "A note on prisma generate" above for why these matter
-  db.ts                         Prisma client singleton + safeDbCall() wrapper
-  types.ts                      shared client-side DTO types
-  __tests__/calculations.test.ts
+app/                  pages (one folder per screen) and app/api (one folder per area)
+  api/                105 route files: sales, purchases, expenses, parties, items,
+                      job-work, daily-closing, register, barrels, barrel-fleet,
+                      scale-ticks, print-jobs, audit, bot, wa, reports, backup ...
+components/           React components, one folder per feature
+  register/           Quick Register forms
+  proofs/             Records desk, proofs and scans, Activity log
+  barrels/ stock/ cash/ tallies/ attendance/ employees/ machines/ orders/
+  smart/ ai/ bot/ ...
+lib/                  pure logic and server helpers (tests beside them)
+  __tests__/          Vitest suites
+  bot/                Telegram / WhatsApp bot logic
+  access.ts           who may open which page and API
+  editRules.ts        staff edit/delete limits
+  auditServer.ts      writes the audit log
+  db.ts               Prisma client and safeDbCall()
 prisma/
-  schema.prisma                 JobWorkIntake, DailyClosing models
-  seed.ts                       two example rows matching the artifact's own demo data
+  schema.prisma       all models
+  seed.ts             demo rows
+  sql/                one-off SQL scripts
+docs/                 setup and SOP notes (barrels, scales, printing, smart entry)
+tools/                Python scale bridge, print helper, Drive upload script
+mobile/               Capacitor Android wrapper
+public/               fonts, icons, print helper
+scripts/db-push.js    build-time schema push (Vercel only)
+middleware.ts         login and owner-only path checks
 ```
 
 ## Quick Register (`/register`)
@@ -184,7 +194,7 @@ still enters full invoices in Vyapar / the Sales & Purchase desks.
 **Database change** (additive only): new `RegisterEntry` and
 `RegisterConfig` tables, a `RegisterKind` enum, and two nullable columns
 on `DailyClosing` (`denoms`, `source`). After deploying run
-`npx prisma db push` (or `npx prisma migrate dev`) once against the
+`npx prisma db push` once against the
 database. No existing data is changed.
 
 Code: `app/register/`, `components/register/QuickRegister.tsx`,
@@ -353,28 +363,20 @@ Code: `lib/proofs.ts` (pure, tested in `lib/__tests__/proofs.test.ts`),
 
 Oil bought in barrels: barcode label per barrel, full and empty weight from the platform scale, net oil checked against the supplier's challan, blind receiving for staff. Barrel register (gross / tare / net per barrel with date and time, CSV, print), waiting-to-empty list, barcode + QR labels, weighment slips and lot report. Pages `/barrels`, `/barrels/labels`, `/barrels/print`; setup and rules in [docs/BARREL-RECEIVING.md](docs/BARREL-RECEIVING.md). Needs `npx prisma db push`, `SCALE_PUSH_SECRET`, and the bridge started with `--push-url`.
 
-## Not yet built (Phase 2+)
+## Not built yet
 
-Deliberately deferred, so nothing here gets silently forgotten:
+Kept here so nothing is forgotten (as of November 2026):
 
-- **Authentication** — this is a single-implicit-user app with no login
-  screen. Phase 2 item.
-- **i18n** — English only. The live artifact has full English/Kannada
-  parity for Nilkant; this rebuild does not yet.
-- **The other five desks**: Manufacturing (barrel/batch yield tracking),
-  Mill Transfer Log, Stock Top-up Log, Supplier Payables, Khali Sale.
-- **Business Financials** (the read-only Vyapar snapshot desk).
-- **AI terminals** — the per-desk AI fill/analyse terminals, the global
-  Reports & AI Q&A panel, the AI Business Advisor, and the cross-desk
-  "Needs attention today" triage panel.
-- **Custom Forms / the declarative formula engine** — Sahil's self-service
-  form builder and safe expression engine from the live artifact.
-- **Full look-and-feel customization** — theme, accent colour, tab/widget/
-  column/row reordering, panel order, etc.
-- **CSV/PDF export and report sharing.**
-- **Retail sale entry and packaged-stock tracking** (Karadi pack, Ekatva)
-  — still not built even in the live artifact; see
-  `claude/dashboard-app-plan.md`'s "Confirmed modules still to build".
+- Job-work day output, the 2% mass-balance check and an "oil collected" status.
+- Supplier payables and Khali (cake) sales.
+- Mill to K2 transfer log.
+- Expense approval above ₹2,000.
+- Challan numbers and GSTIN on job-work entries (waiting on the accountant's
+  decision on the paperwork).
+- Login attempt lockout; the nightly job endpoint is open until `CRON_SECRET` is set.
+
+Rates are not hidden from staff on sales and purchase screens, because invoice
+printing needs them.
 
 ## A note on the numbers
 
