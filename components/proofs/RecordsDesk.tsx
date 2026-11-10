@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { PROOF_META, SCAN_FIELDS, isScanKind, type ProofKind } from "@/lib/proofs";
 import { businessDate } from "@/lib/register";
 import { DeviceCopySettings } from "@/components/register/ProofParts";
+import ActivityLog from "@/components/proofs/ActivityLog";
 
 interface Rec {
   id: string;
@@ -63,7 +64,7 @@ export default function RecordsDesk() {
   const [from, setFrom] = useState(addDays(today, -6));
   const [to, setTo] = useState(today);
   const [filter, setFilter] = useState<string>("all");
-  const [tab, setTab] = useState<"records" | "missing">("records");
+  const [tab, setTab] = useState<"records" | "missing" | "activity">("records");
   const [recs, setRecs] = useState<Rec[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [driveOn, setDriveOn] = useState<boolean | null>(null);
@@ -215,6 +216,9 @@ export default function RecordsDesk() {
         <button className={tab === "missing" ? "on" : ""} onClick={() => setTab("missing")}>
           ⚠️ Cash paid without proof ({missing.length})
         </button>
+        <button className={tab === "activity" ? "on" : ""} onClick={() => setTab("activity")}>
+          🧾 Activity log
+        </button>
       </div>
 
       {tab === "records" && (
@@ -330,6 +334,8 @@ export default function RecordsDesk() {
           </div>
         </>
       )}
+
+      {tab === "activity" && <ActivityLog from={from} to={to} />}
 
       {tab === "missing" && (
         <section className="hub-card">

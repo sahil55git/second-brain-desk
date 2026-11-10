@@ -155,10 +155,12 @@ export function pagesForPath(pathname: string): PageKey[] | null {
   if (under("/api/sales") || under("/api/held-bills")) return ["sales", "register"];
   if (under("/api/parties") || under("/api/udhaar")) return ["parties", "register", "sales", "jobwork"];
   if (under("/api/job-work")) return ["jobwork", "register"];
+  // Item list: readable for anyone who bills or counts stock. Adding or changing an item is owner-only in the route itself.
+  if (under("/api/items")) return ["register", "sales", "stock"];
   if (under("/api/purchases")) return ["register", "stock", "mfg"];
   if (under("/reports") || under("/api/reports") || under("/records")) return ["reports"];
   if (under("/mfg") || under("/api/manufacturing") || under("/barrels") || under("/api/barrels") || under("/api/barrel-fleet") || under("/api/print-jobs") || under("/api/label-templates") || under("/labels")) return ["mfg", "stock"];
-  if (under("/settings") || under("/api/settings") || under("/api/import") || under("/api/users") || under("/api/access/profiles")) return ["settings"];
+  if (under("/settings") || under("/api/settings") || under("/api/import") || under("/api/users") || under("/api/access/profiles") || under("/api/audit")) return ["settings"];
   return null;
 }
 

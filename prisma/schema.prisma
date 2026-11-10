@@ -1270,3 +1270,24 @@ model UserLook {
   savedAt   BigInt // ms, when it was picked (newest wins between devices)
   updatedAt DateTime @updatedAt
 }
+
+// Append-only record of who deleted, changed or paid out something on the
+// older desks (sales, purchases, expenses, parties, items, job-work, daily
+// closing). Written in the same transaction as the change; no route ever
+// updates or deletes these rows. `before` holds the whole row (invoices
+// include their lines) so a deleted record can be read back.
+model AuditLog {
+  id        String   @id @default(cuid())
+  at        DateTime @default(now())
+  by        String // user name
+  isOwner   Boolean
+  action    String // CREATE | DELETE | EDIT | SETTLE | RESETTLE
+  entity    String // SalesInvoice | PurchaseBill | Expense | Party | Item | JobWorkIntake | DailyClosing
+  entityId  String
+  summary   String // e.g. "INV-0412 Rs 4,250 Suresh"
+  before    Json?
+  after     Json?
+
+  @@index([entity, entityId])
+  @@index([at])
+}

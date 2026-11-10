@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
+import { getUser } from "@/lib/registerServer";
+import { businessDate } from "@/lib/register";
+import { canEdit } from "@/lib/editRules";
+import { writeAudit } from "@/lib/auditServer";
 import {
   cashGapFlag,
   computeProductTally,
@@ -14,10 +18,17 @@ import {
 // entries strictly before the one being edited, not just exclude its own
 // id — otherwise editing an older count could pick up a newer count's
 // value as "yesterday" (this exact bug is called out in the plan doc).
+//
+// Staff may correct only today's count; the owner any day, so a cash mismatch
+// flag cannot be made to disappear by editing an old count. Every edit is
+// logged with the count before and after.
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const user = await getUser(req);
+  if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+
   const body = await req.json();
 
   const existingResult = await safeDbCall(() =>
@@ -27,6 +38,13 @@ export async function PATCH(
     return NextResponse.json({ error: existingResult.error }, { status: 503 });
   }
   const existing = existingResult.data;
+
+  if (!canEdit(user, existing.date, businessDate(Date.now()))) {
+    return NextResponse.json(
+      { error: "Only the owner can change a count from an earlier day." },
+      { status: 403 }
+    );
+  }
 
   const cashInputs = {
     cashInOpening: body.cashInOpening ?? existing.cashInOpening,
@@ -91,19 +109,33 @@ export async function PATCH(
   }
 
   const result = await safeDbCall(() =>
-    prisma.dailyClosing.update({
-      where: { id: params.id },
-      data: {
-        ...cashInputs,
-        counterCashInr: counterCash,
-        systemCashInr: systemCash,
-        cashDiffInr: diff,
-        cashMismatch: flagged,
-        stock:
-          stock === null || stock === undefined
-            ? Prisma.JsonNull
-            : (stock as Prisma.InputJsonValue),
-      },
+    prisma.$transaction(async (tx) => {
+      const before = await tx.dailyClosing.findUniqueOrThrow({ where: { id: params.id } });
+      const after = await tx.dailyClosing.update({
+        where: { id: params.id },
+        data: {
+          ...cashInputs,
+          counterCashInr: counterCash,
+          systemCashInr: systemCash,
+          cashDiffInr: diff,
+          cashMismatch: flagged,
+          stock:
+            stock === null || stock === undefined
+              ? Prisma.JsonNull
+              : (stock as Prisma.InputJsonValue),
+        },
+      });
+      await writeAudit(
+        tx,
+        user,
+        "EDIT",
+        "DailyClosing",
+        after.id,
+        `${after.date} ${after.session} counter ₹${after.counterCashInr} diff ₹${after.cashDiffInr}`,
+        before,
+        after
+      );
+      return after;
     })
   );
 
