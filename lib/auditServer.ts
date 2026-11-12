@@ -11,6 +11,7 @@ export type AuditEntity =
   | "Party"
   | "Item"
   | "JobWorkIntake"
+  | "JobWorkDayOutput"
   | "DailyClosing";
 
 export interface AuditUser {

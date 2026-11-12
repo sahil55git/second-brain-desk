@@ -19,6 +19,21 @@ export interface JobWorkIntakeDTO {
   settlementRatePerKg: number | null;
   settlementAmountInr: number | null;
   settledAt: string | null;
+  createdByName?: string | null;
+  settledByName?: string | null;
+  oilCollectedAt?: string | null;
+  oilHeldTag?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface JobWorkDayOutputDTO {
+  id: string;
+  date: string;
+  oilKg: number;
+  cakeKg: number;
+  notes: string | null;
+  by: string | null;
   createdAt: string;
   updatedAt: string;
 }

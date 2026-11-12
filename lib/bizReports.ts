@@ -15,6 +15,7 @@
 // as well as combined, so a double entry is visible rather than hidden.
 
 import type {
+  JobWorkDayOutputDTO,
   DailyClosingDTO,
   ExpenseDTO,
   ItemDTO,
@@ -34,6 +35,7 @@ import {
 import { computeBarrelYield } from "./mfgCalculations";
 import type { AdjustRecord } from "./stockAdjust";
 import { JOBWORK_OVERDUE_DAYS } from "./reports";
+import { JOBWORK_LOSS_TOLERANCE_PCT, OIL_TRACKING_FROM, dayBalance, daysMissingOutput, seedKgOn, uncollected } from "./jobWorkBalance";
 import {
   KIND_SIDE,
   businessDate,
@@ -82,6 +84,8 @@ export interface BizData {
   expenses: ExpenseDTO[];
   register: RegisterRow[];
   jobWork: JobWorkIntakeDTO[];
+  /** Job-work day output rows. Leave out where they were not loaded: the output alerts are then skipped. */
+  jobWorkOutputs?: JobWorkDayOutputDTO[];
   mfg: MfgBatchDTO[];
   closings: DailyClosingDTO[];
   items: ItemDTO[];
@@ -777,6 +781,19 @@ export function attentionList(d: BizData, today: string, nowMs = Date.now()): At
   const jw = jobWorkReport(d, { from: today, to: today }, nowMs);
   for (const o of jw.outstanding.filter((x) => x.ageDays >= JOBWORK_OVERDUE_DAYS))
     out.push({ id: `jw-${o.id}`, severity: "critical", area: "Job-work", message: `${o.customer} — unsettled ${o.ageDays}d, ₹${o.due} due (${o.seedKg} kg on ${o.date})` });
+  // Job-work crushing output (Spec B). Only when the outputs were loaded, so a
+  // caller that does not have them never raises a false "not recorded" alert.
+  if (d.jobWorkOutputs) {
+    for (const o of d.jobWorkOutputs.filter((x) => x.date >= OIL_TRACKING_FROM)) {
+      const b = dayBalance(seedKgOn(d.jobWork, o.date), o.oilKg, o.cakeKg);
+      if (b.flag)
+        out.push({ id: `jwo-${o.date}`, severity: "critical", area: "Job-work", message: `${o.date}: job-work crushing ${b.lossPct > 0 ? "loss" : "gain"} ${Math.abs(b.lossPct)}% (seed ${b.seedKg} kg, oil + cake ${b.outKg} kg) — over ${JOBWORK_LOSS_TOLERANCE_PCT}%` });
+    }
+    for (const day of daysMissingOutput(d.jobWork, d.jobWorkOutputs, today))
+      out.push({ id: `jwm-${day}`, severity: "caution", area: "Job-work", message: `${day}: ${seedKgOn(d.jobWork, day)} kg of job-work seed came in but no oil/cake output was recorded` });
+  }
+  for (const j of uncollected(d.jobWork, today))
+    out.push({ id: `jwc-${j.id}`, severity: "caution", area: "Job-work", message: `${j.customer} — oil from ${createdDate(j.createdAt)} (${j.seedKg} kg seed) still at the shop${j.oilHeldTag ? ` [${j.oilHeldTag}]` : ""}` });
   const m = mfgReport(d, { from: "0000-01-01", to: today });
   for (const r of m.rows.filter((x) => x.flagged)) out.push({ id: `mfg-${r.id}`, severity: "critical", area: "Manufacturing", message: `Barrel ${r.barrel} (${r.product}, ${r.date}) flagged — check yield / mass balance` });
   for (const f of m.freshRows.filter((x) => x.lossFlag && x.date >= today))

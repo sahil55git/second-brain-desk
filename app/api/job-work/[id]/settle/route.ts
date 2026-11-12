@@ -82,6 +82,7 @@ export async function POST(
           settlementRatePerKg: rate,
           settlementAmountInr: customer + auto,
           settledAt: new Date(),
+          settledByName: user.name || null,
         },
       });
       if (claim.count === 0) return { kind: "changed" as const };

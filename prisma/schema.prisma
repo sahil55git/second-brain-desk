@@ -355,6 +355,26 @@ model JobWorkIntake {
   settlementAmountInr    Float?
   settledAt              DateTime?
 
+  // Who entered / settled it, and whether the customer has taken the oil away
+  // (SOP job-work steps 5 and 8). All optional so existing rows stay valid.
+  createdByName  String?
+  settledByName  String?
+  oilCollectedAt DateTime?
+  oilHeldTag     String? // label on the oil kept at the shop for this customer
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// One row per business day: the oil and cake the job-work crushing actually
+// produced, for the mass-balance check against the seed that came in.
+model JobWorkDayOutput {
+  id        String   @id @default(cuid())
+  date      String   @unique // business date YYYY-MM-DD
+  oilKg     Float
+  cakeKg    Float
+  notes     String?
+  by        String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

@@ -8,6 +8,7 @@ export const AUDIT_ENTITIES = [
   "Party",
   "Item",
   "JobWorkIntake",
+  "JobWorkDayOutput",
   "DailyClosing",
 ] as const;
 
