@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
+import { getUser } from "@/lib/registerServer";
 
 export async function GET() {
   const result = await safeDbCall(() =>
@@ -13,6 +14,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
+  // Who entered it. Not required here (the page-level login already gates this route).
+  const user = await getUser(req);
 
   const {
     customer,
@@ -43,6 +46,7 @@ export async function POST(req: NextRequest) {
         advanceAutoInr: Number(advanceAutoInr) || 0,
         cans: cans || {},
         notes: notes || null,
+        createdByName: user?.name ?? null,
       },
     })
   );

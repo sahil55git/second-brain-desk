@@ -28,6 +28,8 @@ export async function PATCH(
     advanceAutoInr,
     cans,
     notes,
+    oilCollected,
+    oilHeldTag,
   } = body;
 
   const data: Record<string, unknown> = {};
@@ -59,18 +61,44 @@ export async function PATCH(
   if (cans !== undefined) data.cans = cans;
   if (notes !== undefined) data.notes = notes || null;
 
+  // Oil collection (Spec B). Ticking "collected" is open to staff on any day,
+  // even for an entry that is already paid, because the customer often takes
+  // the oil the day after. Un-ticking it is the owner's call.
+  const collection: Record<string, unknown> = {};
+  if (oilCollected !== undefined) {
+    if (typeof oilCollected !== "boolean") {
+      return NextResponse.json({ error: "oilCollected must be true or false." }, { status: 400 });
+    }
+    if (!oilCollected && !user.isOwner) {
+      return NextResponse.json({ error: "Only the owner can undo a collected tick." }, { status: 403 });
+    }
+    collection.oilCollectedAt = oilCollected ? new Date() : null;
+  }
+  if (oilHeldTag !== undefined) {
+    collection.oilHeldTag = typeof oilHeldTag === "string" && oilHeldTag.trim() ? oilHeldTag.trim().slice(0, 80) : null;
+  }
+  const collectionOnly = Object.keys(collection).length > 0 && Object.keys(data).length === 0;
+  if (Object.keys(collection).length === 0 && Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "Nothing to change." }, { status: 400 });
+  }
+  Object.assign(data, collection);
+
   const today = businessDate(Date.now());
   const result = await safeDbCall(() =>
     prisma.$transaction(async (tx) => {
       const before = await tx.jobWorkIntake.findUnique({ where: { id: params.id } });
       if (!before) return { kind: "missing" as const };
-      if (before.settled && !user.isOwner) return { kind: "paid" as const };
-      if (!canEdit(user, businessDate(before.createdAt), today)) return { kind: "old" as const };
+      if (!collectionOnly) {
+        if (before.settled && !user.isOwner) return { kind: "paid" as const };
+        if (!canEdit(user, businessDate(before.createdAt), today)) return { kind: "old" as const };
+      }
 
       // The change only lands if the entry is still in the state we checked. A
       // payment that went through a moment ago (settled flipped) gives count 0.
       const claim = await tx.jobWorkIntake.updateMany({
-        where: { id: params.id, settled: before.settled },
+        // A collection tick does not depend on the paid state, so it does not
+        // pin it; a field edit does (see the comment above).
+        where: collectionOnly ? { id: params.id } : { id: params.id, settled: before.settled },
         // `data` is built dynamically (only the fields the caller sent), so it's
         // typed as a loose Record rather than Prisma's exact update-input type —
         // cast at the call site rather than fighting Prisma's generated types.

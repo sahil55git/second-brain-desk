@@ -10,6 +10,7 @@ import { BrandMark } from "@/components/ui/Icons";
 import type {
   DailyClosingDTO,
   JobWorkIntakeDTO,
+  JobWorkDayOutputDTO,
   MfgBatchDTO,
   PartyDTO,
   ItemDTO,
@@ -47,6 +48,7 @@ export default async function Home() {
     purchasesResult,
     expensesResult,
     vyaparResult,
+    outputsResult,
   ] = await Promise.all([
     safeDbCall(() => prisma.jobWorkIntake.findMany({ orderBy: { createdAt: "desc" } })),
     safeDbCall(() => prisma.dailyClosing.findMany({ orderBy: { createdAt: "desc" } })),
@@ -86,6 +88,7 @@ export default async function Home() {
     isOwner
       ? safeDbCall(() => prisma.vyaparSnapshot.findUnique({ where: { id: "singleton" } }))
       : Promise.resolve({ ok: true as const, data: null }),
+    safeDbCall(() => prisma.jobWorkDayOutput.findMany({ orderBy: { date: "desc" }, take: 400 })),
   ]);
 
   const dbError = !jobWorkResult.ok
@@ -110,6 +113,8 @@ export default async function Home() {
     r.ok ? (JSON.parse(JSON.stringify(r.data)) as T[]) : [];
 
   const jobWorkEntries = mayJob ? s<JobWorkIntakeDTO>(jobWorkResult) : [];
+  // The output table is new; if it does not exist yet the desk just shows no outputs.
+  const jobWorkOutputs = mayJob ? s<JobWorkDayOutputDTO>(outputsResult) : [];
   const closingEntries = pg.register ? s<DailyClosingDTO>(closingResult) : [];
   const mfgBatches = pg.mfg || pg.stock ? s<MfgBatchDTO>(mfgResult) : [];
   const parties = mayParties ? s<PartyDTO>(partiesResult) : [];
@@ -185,6 +190,8 @@ export default async function Home() {
 
       <DeskTabs
         initialJobWork={jobWorkEntries}
+        initialJobWorkOutputs={jobWorkOutputs}
+        outputsLoaded={outputsResult.ok}
         initialClosing={closingEntries}
         initialMfg={mfgBatches}
         initialParties={parties}

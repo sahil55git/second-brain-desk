@@ -4,14 +4,15 @@ import PrintButton from "@/components/print/PrintButton";
 import ReceiptSheet from "@/components/print/ReceiptSheet";
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
 import React, { useMemo, useState } from "react";
-import type { JobWorkIntakeDTO } from "@/lib/types";
+import type { JobWorkDayOutputDTO, JobWorkIntakeDTO } from "@/lib/types";
+import { JOBWORK_LOSS_TOLERANCE_PCT, dayBalance, khaliStock, seedKgOn, uncollected } from "@/lib/jobWorkBalance";
+import { businessDate } from "@/lib/register";
 import {
   CAN_TYPES,
   CanKey,
   STANDARD_RATE,
   defaultPaySplit,
   expectedSettlementWithRate,
-  KHALI_SPLIT,
 } from "@/lib/calculations";
 import AiTerminal from "@/components/AiTerminal";
 import ScaleCapture from "@/components/smart/ScaleCapture";
@@ -46,16 +47,22 @@ function fmtTime(iso: string) {
   });
 }
 
+// Red badge: an earlier day's entry whose oil has not been collected (not for entries older than the tracking start).
+const oilAtShop = (e: JobWorkIntakeDTO) => uncollected([e], businessDate(Date.now())).length > 0;
+
 const emptyCans: Record<CanKey, number> = { can15: 0, can5new: 0, can5old: 0 };
 
 export default function JobWorkDesk({
   initialEntries,
+  initialOutputs = [],
   dbConnected,
 }: {
   initialEntries: JobWorkIntakeDTO[];
+  initialOutputs?: JobWorkDayOutputDTO[];
   dbConnected: boolean;
 }) {
   const [entries, setEntries] = useState<JobWorkIntakeDTO[]>(initialEntries);
+  const [outputs, setOutputs] = useState<JobWorkDayOutputDTO[]>(initialOutputs);
   const [loading, setLoading] = useState(false);
   const [rcpt, setRcpt] = useState<ReceiptDoc | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -116,11 +123,56 @@ export default function JobWorkDesk({
     );
   }, [seedKgNum, cakeOwnership, advCustomerNum, advAutoNum, cansForCalc]);
 
-  const khaliStock = useMemo(() => {
-    return entries
-      .filter((e) => e.cakeOwnership === "SHOP")
-      .reduce((sum, e) => sum + (e.seedKg * KHALI_SPLIT.khaliPct) / 100, 0);
-  }, [entries]);
+  // Measured cake where a day's output was recorded, the old 78% estimate otherwise.
+  const khali = useMemo(() => khaliStock(entries, outputs), [entries, outputs]);
+
+  // Today's crushing output (Spec B)
+  const today = useMemo(() => businessDate(Date.now()), []);
+  const todayOutput = outputs.find((o) => o.date === today) ?? null;
+  const [outOil, setOutOil] = useState<string>(todayOutput ? String(todayOutput.oilKg) : "");
+  const [outCake, setOutCake] = useState<string>(todayOutput ? String(todayOutput.cakeKg) : "");
+  const [outMsg, setOutMsg] = useState<string | null>(null);
+  const seedToday = useMemo(() => seedKgOn(entries, today), [entries, today]);
+  const balance = useMemo(() => dayBalance(seedToday, parseFloat(outOil) || 0, parseFloat(outCake) || 0), [seedToday, outOil, outCake]);
+  const hasOutInput = outOil.trim() !== "" || outCake.trim() !== "";
+
+  async function saveOutput() {
+    setOutMsg(null);
+    try {
+      const res = await fetch("/api/job-work/output", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: today, oilKg: outOil, cakeKg: outCake }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setOutMsg(json.error || "Could not save.");
+        return;
+      }
+      setOutputs((prev) => [json.data, ...prev.filter((o) => o.date !== today)]);
+      setOutMsg("Saved.");
+    } catch {
+      setOutMsg("Could not reach the server.");
+    }
+  }
+
+  async function patchCollection(id: string, body: Record<string, unknown>) {
+    try {
+      const res = await fetch(`/api/job-work/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json.error || "Could not update.");
+        return;
+      }
+      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...json.data } : e)));
+    } catch {
+      setError("Could not reach the server.");
+    }
+  }
 
   const unsettledCount = useMemo(() => entries.filter((e) => !e.settled).length, [entries]);
 
@@ -395,13 +447,44 @@ export default function JobWorkDesk({
 
       {/* Ledger panel */}
       <div>
+        <div className="mb-3 rounded-xl border border-black/10 dark:border-white/10 p-3 text-sm">
+          <div className="font-semibold mb-2">Today&apos;s crushing output</div>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="block">
+              <span className="block text-xs opacity-60">Oil kg</span>
+              <input type="number" inputMode="decimal" min="0" step="0.1" value={outOil} onChange={(e) => setOutOil(e.target.value)} className="w-28 rounded border border-black/15 dark:border-white/20 bg-transparent px-2 py-1" />
+            </label>
+            <label className="block">
+              <span className="block text-xs opacity-60">Cake kg</span>
+              <input type="number" inputMode="decimal" min="0" step="0.1" value={outCake} onChange={(e) => setOutCake(e.target.value)} className="w-28 rounded border border-black/15 dark:border-white/20 bg-transparent px-2 py-1" />
+            </label>
+            <button type="button" onClick={saveOutput} disabled={!hasOutInput} className="rounded bg-[var(--accent)] text-[var(--accent-contrast)] px-3 py-1.5 font-medium disabled:opacity-50">
+              Save
+            </button>
+            {outMsg && <span className="text-xs opacity-70">{outMsg}</span>}
+          </div>
+          <div className={`mt-2 text-xs ${hasOutInput && balance.flag ? "text-red-600 dark:text-red-400 font-semibold" : "opacity-70"}`}>
+            Seed in today {balance.seedKg} kg · Oil + cake out {balance.outKg} kg
+            {hasOutInput && seedToday > 0 && (
+              <>
+                {" "}· {balance.lossKg >= 0 ? "Loss" : "Gain"} {Math.abs(balance.lossKg)} kg ({Math.abs(balance.lossPct)}%)
+                {balance.flag && ` — over ${JOBWORK_LOSS_TOLERANCE_PCT}%, check the weights`}
+              </>
+            )}
+          </div>
+        </div>
         <div className="flex gap-3 mb-3">
           {(() => {
             const widgetNodes: Record<string, React.ReactNode> = {
               khali: (
                 <div className="rounded-lg border border-black/10 dark:border-white/10 px-3 py-2 text-sm">
                   <div className="opacity-60 text-xs">Khali (cake) stock</div>
-                  <div className="font-semibold">{khaliStock.toFixed(1)} kg</div>
+                  <div className="font-semibold">{khali.totalKg.toFixed(1)} kg</div>
+                  {khali.estimateKg > 0 && (
+                    <div className="opacity-60 text-xs">
+                      {khali.measuredKg.toFixed(1)} measured + {khali.estimateKg.toFixed(1)} estimate
+                    </div>
+                  )}
                 </div>
               ),
               unsettled: (
@@ -500,10 +583,39 @@ export default function JobWorkDesk({
                   seed: entry.seedKg,
                   cake: entry.cakeOwnership === "SHOP" ? "Shop" : "Customer",
                   notes: entry.notes || "—",
-                  status: entry.settled ? (
-                    <span className="text-green-700 dark:text-green-400 font-medium">Paid</span>
-                  ) : (
-                    <span className="text-[var(--accent-ink)] font-medium">Due {inr(due)}</span>
+                  status: (
+                    <>
+                      {entry.settled ? (
+                        <span className="text-green-700 dark:text-green-400 font-medium">Paid</span>
+                      ) : (
+                        <span className="text-[var(--accent-ink)] font-medium">Due {inr(due)}</span>
+                      )}
+                      <label className="mt-1 flex items-center gap-1 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={!!entry.oilCollectedAt}
+                          onChange={(e) => patchCollection(entry.id, { oilCollected: e.target.checked })}
+                        />
+                        Oil collected
+                      </label>
+                      {!entry.oilCollectedAt && (
+                        <input
+                          type="text"
+                          maxLength={80}
+                          defaultValue={entry.oilHeldTag ?? ""}
+                          placeholder="Tag / where kept"
+                          onBlur={(e) => {
+                            if (e.target.value.trim() !== (entry.oilHeldTag ?? "")) patchCollection(entry.id, { oilHeldTag: e.target.value });
+                          }}
+                          className="mt-1 w-32 rounded border border-black/15 dark:border-white/20 bg-transparent px-1 py-0.5 text-xs"
+                        />
+                      )}
+                      {oilAtShop(entry) && (
+                        <span className="mt-1 inline-block rounded bg-red-500/15 px-1.5 py-0.5 text-xs font-semibold text-red-700 dark:text-red-400">
+                          Oil still at shop
+                        </span>
+                      )}
+                    </>
                   ),
                   actions: (
                     <>

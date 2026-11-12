@@ -20,6 +20,7 @@ const ENTITY_LABEL: Record<string, string> = {
   Party: "Party",
   Item: "Item",
   JobWorkIntake: "Job-work entry",
+  JobWorkDayOutput: "Job-work day output",
   DailyClosing: "Daily closing",
 };
 

@@ -7,6 +7,7 @@ import type { PageKey } from "@/lib/access";
 import type {
   DailyClosingDTO,
   JobWorkIntakeDTO,
+  JobWorkDayOutputDTO,
   MfgBatchDTO,
   PartyDTO,
   ItemDTO,
@@ -68,6 +69,8 @@ type Desk =
 
 export default function DeskTabs({
   initialJobWork,
+  initialJobWorkOutputs,
+  outputsLoaded,
   initialClosing,
   initialMfg,
   initialParties,
@@ -80,6 +83,8 @@ export default function DeskTabs({
   dbConnected,
 }: {
   initialJobWork: JobWorkIntakeDTO[];
+  initialJobWorkOutputs: JobWorkDayOutputDTO[];
+  outputsLoaded: boolean;
   initialClosing: DailyClosingDTO[];
   initialMfg: MfgBatchDTO[];
   initialParties: PartyDTO[];
@@ -155,11 +160,13 @@ export default function DeskTabs({
       purchases: initialPurchases,
       expenses: initialExpenses,
       jobWork: initialJobWork,
+      // undefined (not []) when the table could not be read, so no false "not recorded" alerts
+      jobWorkOutputs: outputsLoaded ? initialJobWorkOutputs : undefined,
       mfg: initialMfg,
       closings: initialClosing,
       items: initialItems,
     }),
-    [initialSales, initialPurchases, initialExpenses, initialJobWork, initialMfg, initialClosing, initialItems]
+    [initialSales, initialPurchases, initialExpenses, initialJobWork, initialJobWorkOutputs, outputsLoaded, initialMfg, initialClosing, initialItems]
   );
   // Business date in IST, so alerts roll over at the business day, not UTC midnight.
   const today = useMemo(() => businessDate(Date.now()), []);
@@ -205,7 +212,7 @@ export default function DeskTabs({
 
       {active === "home" && isOwner && <HomeDesk onNavigate={(d) => open(d)} />}
       {active === "jobwork" && (
-        <JobWorkDesk initialEntries={initialJobWork} dbConnected={dbConnected} />
+        <JobWorkDesk initialEntries={initialJobWork} initialOutputs={initialJobWorkOutputs} dbConnected={dbConnected} />
       )}
       {active === "manufacturing" && (
         <ManufacturingDesk initialBatches={initialMfg} dbConnected={dbConnected} />
