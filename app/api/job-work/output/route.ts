@@ -20,11 +20,11 @@ export async function GET(req: NextRequest) {
   if (date && !DATE_RE.test(date)) {
     return NextResponse.json({ error: "date must be YYYY-MM-DD." }, { status: 400 });
   }
-  const result = await safeDbCall(() =>
-    date
-      ? prisma.jobWorkDayOutput.findUnique({ where: { date } })
-      : prisma.jobWorkDayOutput.findMany({ orderBy: { date: "desc" }, take: 60 })
-  );
+  // Two different result shapes (one row or a list), so two separate calls
+  // rather than one ternary, which TypeScript rejects.
+  const result = date
+    ? await safeDbCall(() => prisma.jobWorkDayOutput.findUnique({ where: { date } }))
+    : await safeDbCall(() => prisma.jobWorkDayOutput.findMany({ orderBy: { date: "desc" }, take: 60 }));
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 503 });
   return NextResponse.json({ data: result.data });
 }
