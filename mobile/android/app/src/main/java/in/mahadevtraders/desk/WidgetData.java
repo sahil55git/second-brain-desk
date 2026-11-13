@@ -192,6 +192,9 @@ public final class WidgetData {
     }
 
     // ------------------------------------------------------------------ drawing
+    /** Extra text size for the widget being drawn now (set from its size on the home screen). */
+    static float boost = 1f;
+
     static final class Look {
         int bg; int text; int soft; int alpha; float scale;
     }
@@ -206,7 +209,7 @@ public final class WidgetData {
         int op = p.getInt(K_OPACITY, 90);
         l.alpha = Math.max(30, Math.min(255, Math.round(op * 2.55f)));
         String ts = p.getString(K_TEXT, "m");
-        l.scale = "s".equals(ts) ? 0.86f : "l".equals(ts) ? 1.2f : 1f;
+        l.scale = ("s".equals(ts) ? 0.86f : "l".equals(ts) ? 1.2f : 1f) * boost;
         return l;
     }
 

@@ -658,6 +658,12 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     // from the chat bot: ?say=<what was said> fills the right form; ?edit=last opens the last entry to fix
     const say = sp.get("say");
     const edit = sp.get("edit");
+    // from the home-screen "Speak entry" button: ?voice=1 starts listening straight away
+    if (sp.get("voice") === "1" && !dbOffline) {
+      window.history.replaceState(null, "", window.location.pathname);
+      setTimeout(() => startVoice(), 400);
+      return;
+    }
     if (say && !dbOffline) {
       window.history.replaceState(null, "", window.location.pathname);
       setTimeout(() => runVoice(say), 50);

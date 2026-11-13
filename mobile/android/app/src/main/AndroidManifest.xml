@@ -104,6 +104,38 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_stock_info" />
         </receiver>
+        <receiver android:name=".KeypadWidget" android:label="Mahadev · Quick entry keypad" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="in.mahadevtraders.desk.REFRESH" />
+                <action android:name="in.mahadevtraders.desk.KEY" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_keypad_info" />
+        </receiver>
+        <receiver android:name=".MeWidget" android:label="Mahadev · My work (staff)" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="in.mahadevtraders.desk.REFRESH" />
+                <action android:name="in.mahadevtraders.desk.KEY" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_me_info" />
+        </receiver>
+        <receiver android:name=".ApprovalsWidget" android:label="Mahadev · Waiting for my OK" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="in.mahadevtraders.desk.REFRESH" />
+                <action android:name="in.mahadevtraders.desk.KEY" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_approvals_info" />
+        </receiver>
+        <receiver android:name=".StaffWidget" android:label="Mahadev · Staff ledger &amp; attendance" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="in.mahadevtraders.desk.REFRESH" />
+                <action android:name="in.mahadevtraders.desk.KEY" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_staff_info" />
+        </receiver>
         <receiver android:name=".AlertsWidget" android:label="Mahadev · Alerts" android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
