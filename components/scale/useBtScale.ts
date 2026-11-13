@@ -50,7 +50,7 @@ export interface BtScaleApi {
   lastSaved: { weightKg: number; at: number } | null;
   chooseSerial(): Promise<void>;
   listNative(): Promise<{ devices: NativeScaleDevice[]; bluetoothOn: boolean }>;
-  useNative(d: NativeScaleDevice): void;
+  pickNative(d: NativeScaleDevice): void;
   setBaud(baud: number): void;
   connect(): void;
   disconnect(): void;
@@ -224,7 +224,7 @@ export function useBtScale(): BtScaleApi {
     saveConfig({ kind: "serial", id: "", name: config?.kind === "serial" && config.name !== "" ? config.name : picked.name, baud: config?.baud ?? 9600 }, true);
   }, [config, saveConfig]);
   const listNative = useCallback(() => MahadevScale.list(), []);
-  const useNative = useCallback((d: NativeScaleDevice) => saveConfig({ kind: "native", id: d.id, name: d.name, baud: 9600 }, true), [saveConfig]);
+  const pickNative = useCallback((d: NativeScaleDevice) => saveConfig({ kind: "native", id: d.id, name: d.name, baud: 9600 }, true), [saveConfig]);
   const setBaud = useCallback((baud: number) => { if (config) saveConfig({ ...config, baud }, wanted); }, [config, wanted, saveConfig]);
   const connect = useCallback(() => { write(K_WANTED, true); setWanted(true); }, []);
   const disconnect = useCallback(() => { write(K_WANTED, false); setWanted(false); }, []);
@@ -234,7 +234,7 @@ export function useBtScale(): BtScaleApi {
   const setAutoRecord = useCallback((v: boolean) => { write(K_RECORD, v); setAutoRecordState(v); }, []);
 
   return useMemo(
-    () => ({ support, config, source, state, live, lines, checked, autoRecord, queued, lastSaved, chooseSerial, listNative, useNative, setBaud, connect, disconnect, retryNow, forget, setChecked, setAutoRecord }),
-    [support, config, source, state, live, lines, checked, autoRecord, queued, lastSaved, chooseSerial, listNative, useNative, setBaud, connect, disconnect, retryNow, forget, setChecked, setAutoRecord]
+    () => ({ support, config, source, state, live, lines, checked, autoRecord, queued, lastSaved, chooseSerial, listNative, pickNative, setBaud, connect, disconnect, retryNow, forget, setChecked, setAutoRecord }),
+    [support, config, source, state, live, lines, checked, autoRecord, queued, lastSaved, chooseSerial, listNative, pickNative, setBaud, connect, disconnect, retryNow, forget, setChecked, setAutoRecord]
   );
 }

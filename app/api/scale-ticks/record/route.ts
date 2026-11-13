@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   if (!input.ok) return NextResponse.json({ error: input.error }, { status: 400 });
   // The server clock decides "when"; the device may only say how long ago the weight settled.
   const settledAt = new Date(Date.now() - input.ageSec * 1000);
-  const result = await safeDbCall(async () => {
+  const result = await safeDbCall<{ id: string; duplicate: boolean }>(async () => {
     const existing = await prisma.scaleTick.findUnique({ where: { nonce: input.nonce }, select: { id: true } });
     if (existing) return { id: existing.id, duplicate: true };
     const t = await prisma.scaleTick.create({ data: { source: input.source, weightKg: input.weightKg, nonce: input.nonce, settledAt } });

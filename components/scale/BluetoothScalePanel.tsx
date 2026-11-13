@@ -155,7 +155,7 @@ export default function BluetoothScalePanel() {
             <div className="space-y-1">
               {!devices.length && <p className="text-sm opacity-80">No paired device found. Switch the scale on, pair it in Android Settings → Bluetooth (PIN is usually 1234 or 0000), then come back.</p>}
               {devices.map((d) => (
-                <button key={d.id} className={`block w-full text-left ${btn}`} onClick={() => { bt.useNative(d); setDevices(null); }}>
+                <button key={d.id} className={`block w-full text-left ${btn}`} onClick={() => { bt.pickNative(d); setDevices(null); }}>
                   {d.scale ? "⚖️ " : ""}{d.name} <span className="font-mono text-xs opacity-50">{d.id}</span>
                 </button>
               ))}
