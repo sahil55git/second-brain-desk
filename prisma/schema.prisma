@@ -1320,4 +1320,12 @@ model LoginAttempt {
   at       DateTime @default(now())
 
   @@index([username, at])
+
+// One row per entry made on a device while offline and sent later (lib/outbox.ts,
+// lib/clientOp.ts). The id is made on the device; saving it first makes a repeated send of the
+// same entry harmless. Rows older than 90 days can be removed.
+model ClientOp {
+  id   String   @id // "c" + time + random, made on the device
+  kind String
+  at   DateTime @default(now())
 }

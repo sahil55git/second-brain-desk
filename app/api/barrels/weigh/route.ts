@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
+import { claimOp, releaseOp } from "@/lib/clientOp";
 import { TABLE_HINT, missingTable } from "@/lib/attachmentServer";
 import { checkWeigh, checkWeighedAt, findBarrelCode, tickFresh, validKg, type Phase } from "@/lib/barrels";
 import { RECEIPT_INCLUDE, logEvent, shapeReceipt, str } from "@/lib/barrelServer";
@@ -36,6 +37,9 @@ export async function POST(req: NextRequest) {
   if (reweigh && !user.isOwner) return NextResponse.json({ error: "Only the owner can weigh a barrel again." }, { status: 403 });
   if (reweigh && (!note || note.length < 3)) return NextResponse.json({ error: "Give a reason for weighing again." }, { status: 400 });
   if (source === "MANUAL" && (!note || note.length < 3)) return NextResponse.json({ error: "Typing a weight by hand needs a reason (for example: scale not working)." }, { status: 400 });
+
+  // a typed weight kept offline and sent again must not be saved as a second weighing
+  if ((await claimOp(body.clientId, "barrel.weigh")) === "duplicate") return NextResponse.json({ data: null, duplicate: true, message: "Already saved." }, { status: 200 });
 
   const result = await safeDbCall(async () => {
     const barrel = await prisma.barrel.findUnique({ where: { code: parsed.code }, include: { receipt: true } });
@@ -90,6 +94,7 @@ export async function POST(req: NextRequest) {
     return { r: r!, code: barrel.code, kg } as const;
   });
 
+  if (!result.ok || "error" in result.data) await releaseOp(body.clientId);
   if (!result.ok) return NextResponse.json({ error: missingTable(result.error) ? TABLE_HINT : result.error }, { status: 503 });
   const d = result.data;
   if ("error" in d) return NextResponse.json({ error: d.error }, { status: d.status });

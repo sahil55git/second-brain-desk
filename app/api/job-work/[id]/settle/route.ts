@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
+import { claimOp, releaseOp } from "@/lib/clientOp";
 import { defaultPaySplit, expectedSettlementWithRate, STANDARD_RATE } from "@/lib/calculations";
 import { parseMoney, parsePositive, staffRateOk } from "@/lib/editRules";
 import { rupees, writeAudit } from "@/lib/auditServer";
@@ -49,6 +50,9 @@ export async function POST(
       return NextResponse.json({ error: "Amounts cannot be negative or invalid." }, { status: 400 });
     }
   }
+
+  // a payment kept offline and sent again: answer "already saved" instead of "already paid"
+  if ((await claimOp(body.clientId, "jobwork.settle")) === "duplicate") return NextResponse.json({ data: null, duplicate: true, message: "Already saved." }, { status: 200 });
 
   const result = await safeDbCall(() =>
     prisma.$transaction(async (tx) => {
@@ -102,6 +106,7 @@ export async function POST(
     })
   );
 
+  if (!result.ok || result.data.kind !== "done") await releaseOp(body.clientId);
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 503 });
   }

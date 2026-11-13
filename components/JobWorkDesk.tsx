@@ -3,7 +3,8 @@
 import PrintButton from "@/components/print/PrintButton";
 import ReceiptSheet from "@/components/print/ReceiptSheet";
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { outboxSend } from "@/lib/outbox";
 import type { JobWorkDayOutputDTO, JobWorkIntakeDTO } from "@/lib/types";
 import { JOBWORK_LOSS_TOLERANCE_PCT, dayBalance, khaliStock, seedKgOn, uncollected } from "@/lib/jobWorkBalance";
 import { businessDate } from "@/lib/register";
@@ -136,23 +137,27 @@ export default function JobWorkDesk({
   const balance = useMemo(() => dayBalance(seedToday, parseFloat(outOil) || 0, parseFloat(outCake) || 0), [seedToday, outOil, outCake]);
   const hasOutInput = outOil.trim() !== "" || outCake.trim() !== "";
 
+  // entries kept offline were just sent: show them
+  useEffect(() => {
+    const on = () => void refetch();
+    window.addEventListener("outbox-sent", on);
+    return () => window.removeEventListener("outbox-sent", on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function saveOutput() {
     setOutMsg(null);
     try {
-      const res = await fetch("/api/job-work/output", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: today, oilKg: outOil, cakeKg: outCake }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setOutMsg(json.error || "Could not save.");
+      const r = await outboxSend<{ data: JobWorkDayOutputDTO }>({ desk: "jobwork", label: `Day output ${today}: oil ${outOil || 0} kg, cake ${outCake || 0} kg`, url: "/api/job-work/output", method: "PUT", json: { date: today, oilKg: outOil, cakeKg: outCake } });
+      if (r.queued) {
+        setOutMsg("Saved on this device. It will be sent when the internet is back.");
         return;
       }
-      setOutputs((prev) => [json.data, ...prev.filter((o) => o.date !== today)]);
+      const saved = r.data.data;
+      if (saved) setOutputs((prev) => [saved, ...prev.filter((o) => o.date !== today)]);
       setOutMsg("Saved.");
-    } catch {
-      setOutMsg("Could not reach the server.");
+    } catch (e) {
+      setOutMsg(e instanceof Error ? e.message : "Could not save.");
     }
   }
 
@@ -182,10 +187,11 @@ export default function JobWorkDesk({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/job-work", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const r = await outboxSend<{ data: JobWorkIntakeDTO | null }>({
+        desk: "jobwork",
+        label: `Intake: ${customer}, ${seedKgNum} kg seed`,
+        url: "/api/job-work",
+        json: {
           customer,
           vehicleNo: vehicleNo || null,
           seedKg: seedKgNum,
@@ -194,13 +200,12 @@ export default function JobWorkDesk({
           advanceAutoInr: advAutoNum,
           cans: cansForCalc,
           notes: notes || null,
-        }),
+        },
       });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error || "Failed to save intake");
-      } else {
-        setEntries((prev) => [json.data, ...prev]);
+      {
+        const saved = r.queued ? null : r.data.data;
+        if (r.queued) setError("Saved on this device. It will be sent when the internet is back. It will appear in the list after that.");
+        if (saved) setEntries((prev) => [saved, ...prev]);
         setCustomer("");
         setVehicleNo("");
         setSeedKg("");
@@ -251,22 +256,20 @@ export default function JobWorkDesk({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/job-work/${entry.id}/settle`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const r = await outboxSend<{ data: JobWorkIntakeDTO | null }>({
+        desk: "jobwork",
+        label: `Payment: ${entry.customer}, ${entry.seedKg} kg seed`,
+        url: `/api/job-work/${entry.id}/settle`,
+        json: {
           ratePerKg: parseFloat(payRate) || undefined,
           settlementCustomerInr: parseFloat(payCustomer) || 0,
           settlementAutoInr: parseFloat(payAuto) || 0,
-        }),
+        },
       });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error || "Failed to record payment");
-      } else {
-        setEntries((prev) => prev.map((e) => (e.id === entry.id ? json.data : e)));
-        setPayRowId(null);
-      }
+      const saved = r.queued ? null : r.data.data;
+      if (r.queued) setError("Saved on this device. It will be sent when the internet is back. Until then this entry still shows as not paid.");
+      if (saved) setEntries((prev) => prev.map((e) => (e.id === entry.id ? saved : e)));
+      setPayRowId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to record payment");
     } finally {
