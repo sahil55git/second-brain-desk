@@ -4,6 +4,7 @@
 // with GST for input-credit tracking. Same line-item builder as Sales, minus
 // invoice numbering (the supplier's bill number is entered directly).
 import PrintButton from "@/components/print/PrintButton";
+import { businessDate } from "@/lib/register";
 import { useEffect, useMemo, useState } from "react";
 import type {
   PurchaseBillDTO,
@@ -28,7 +29,7 @@ import { useAccess } from "@/components/AccessProvider";
 const PAYMENT_MODES: PaymentMode[] = ["CASH", "UPI", "BANK", "CREDIT", "OTHER"];
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return businessDate(Date.now()); // India date, not UTC
 }
 
 export default function PurchaseDesk({

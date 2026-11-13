@@ -1,6 +1,7 @@
 "use client";
 
 import PrintButton from "@/components/print/PrintButton";
+import { businessDate } from "@/lib/register";
 import React, { useEffect, useMemo, useState } from "react";
 import type { MfgBatchDTO, BatchSupplierDTO } from "@/lib/types";
 import {
@@ -45,7 +46,7 @@ function nowTime() {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return businessDate(Date.now()); // India date, not UTC (UTC is still yesterday until 5:30 am)
 }
 
 function batchToInput(b: MfgBatchDTO): BarrelBatchInput {

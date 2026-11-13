@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { businessDate } from "@/lib/register";
 import { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
 import { claimOp, releaseOp } from "@/lib/clientOp";
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
     date:
       typeof body.date === "string" && body.date
         ? body.date
-        : new Date().toISOString().slice(0, 10),
+        : businessDate(Date.now()),
     suppliers,
     step1Kg: numOrNull(body.step1Kg),
     step2Kg: numOrNull(body.step2Kg),
