@@ -14,6 +14,7 @@ import AiTerminal from "@/components/AiTerminal";
 import { useCustomize, visibleOrderedIds } from "@/lib/customize";
 import { WIDGET_DEFS, COLUMN_DEFS } from "@/lib/desksConfig";
 import { useScale } from "@/components/ScaleProvider";
+import MillTransferPanel from "@/components/mfg/MillTransferPanel";
 
 const MFG_WIDGET_IDS = WIDGET_DEFS.mfg.map((w) => w.id);
 const MFG_COLUMN_IDS = COLUMN_DEFS.mfg.map((c) => c.id);
@@ -76,7 +77,16 @@ function bandPill(y: BarrelYieldResult) {
 
 const CRIT = "bg-red-100 text-red-800";
 
-export default function ManufacturingDesk({
+export default function ManufacturingDesk(props: { initialBatches: MfgBatchDTO[]; dbConnected: boolean }) {
+  return (
+    <>
+      <ManufacturingDeskMain {...props} />
+      <MillTransferPanel batches={props.initialBatches} />
+    </>
+  );
+}
+
+function ManufacturingDeskMain({
   initialBatches,
   dbConnected,
 }: {

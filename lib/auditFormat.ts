@@ -10,6 +10,7 @@ export const AUDIT_ENTITIES = [
   "JobWorkIntake",
   "JobWorkDayOutput",
   "DailyClosing",
+  "RegisterEntry",
 ] as const;
 
 export interface AuditRow {

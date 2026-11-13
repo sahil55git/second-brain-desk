@@ -9,6 +9,7 @@ import type { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma, safeDbCall } from "@/lib/db";
+import { LOGIN_WINDOW_MS, lockedOut } from "@/lib/loginGuard";
 
 export const authOptions: AuthOptions = {
   session: { strategy: "jwt" },
@@ -27,13 +28,28 @@ export const authOptions: AuthOptions = {
         const password = credentials?.password;
         if (!username || !password) return null;
 
+        // Too many wrong passwords for this username: refuse without checking, until the
+        // tries age out. If the table is not there yet the check is skipped, so a database
+        // hiccup can never lock everyone out.
+        const now = Date.now();
+        const recent = await safeDbCall(() =>
+          prisma.loginAttempt.findMany({ where: { username, at: { gte: new Date(now - LOGIN_WINDOW_MS) } }, select: { at: true } })
+        );
+        if (recent.ok && lockedOut(recent.data.map((r: { at: Date }) => r.at.getTime()), now)) return null;
+        const failed = async () => {
+          await safeDbCall(() => prisma.loginAttempt.create({ data: { username: username.slice(0, 80) } }));
+          await safeDbCall(() => prisma.loginAttempt.deleteMany({ where: { at: { lt: new Date(now - 86400000) } } }));
+          return null;
+        };
+
         const result = await safeDbCall(() =>
           prisma.user.findUnique({ where: { username } })
         );
-        if (!result.ok || !result.data || !result.data.active) return null;
+        if (!result.ok) return null;
+        if (!result.data || !result.data.active) return failed();
 
         const valid = await bcrypt.compare(password, result.data.passwordHash);
-        if (!valid) return null;
+        if (!valid) return failed();
 
         return {
           id: result.data.id,
