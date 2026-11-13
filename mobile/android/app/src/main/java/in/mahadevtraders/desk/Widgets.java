@@ -105,7 +105,7 @@ public final class Widgets {
         float b = 1f;
         if (w > 0) b = Math.min(w / 260f, h > 0 ? h / 170f : 9f);
         if (c.getResources().getConfiguration().smallestScreenWidthDp >= 600) b = Math.max(b, 1.15f);
-        return Math.max(0.9f, Math.min(1.6f, b));
+        return Math.max(0.9f, Math.min(1.9f, b));
     }
 
     // ------------------------------------------------------------------ keypad: type an amount, tap a kind
