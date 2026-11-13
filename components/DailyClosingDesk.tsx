@@ -1,6 +1,7 @@
 "use client";
 
 import PrintButton from "@/components/print/PrintButton";
+import { businessDate } from "@/lib/register";
 import React, { useMemo, useState } from "react";
 import type { DailyClosingDTO } from "@/lib/types";
 import {
@@ -56,7 +57,7 @@ export default function DailyClosingDesk({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => businessDate(Date.now()));
   const [session, setSession] = useState<"AFTERNOON" | "NIGHT">("AFTERNOON");
   const [cash, setCash] = useState({
     cashInOpening: "",

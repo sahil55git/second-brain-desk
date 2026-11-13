@@ -151,6 +151,7 @@ export function pagesForPath(pathname: string): PageKey[] | null {
   if (under("/register") || under("/api/register") || under("/cash") || under("/api/expenses") || under("/api/daily-closing")) return ["register"];
   if (under("/stock") || under("/tallies")) return ["stock"];
   if (under("/api/tallies") || under("/api/stock-adjustments") || under("/api/tank")) return ["stock", "register"];
+  if (under("/api/stock-ledger")) return ["stock", "reports"];
   if (under("/sales")) return ["sales"];
   if (under("/api/sales") || under("/api/held-bills")) return ["sales", "register"];
   if (under("/api/parties") || under("/api/udhaar")) return ["parties", "register", "sales", "jobwork"];
@@ -177,9 +178,42 @@ export interface MaskableEntry {
   createdByName?: string | null;
   [k: string]: unknown;
 }
-/** Entries the user may see: with "other users' entries" hidden, only their own. */
+/**
+ * "Rates and costs" hidden means COST is hidden: what the shop pays (purchase rates, supplier
+ * bills, the remembered buying rate). Selling rates stay visible, because the person at the
+ * counter has to quote and print them.
+ */
+const COST_KINDS = new Set(["PURCHASE"]);
+
+/** Entries the user may see: with "other users' entries" hidden, only their own; buying rates removed when costs are hidden. */
 export function visibleEntries<T extends MaskableEntry>(entries: T[], perms: Perms, userName: string): T[] {
   const mine = (userName || "").trim().toLowerCase();
   const list = perms.hide.others ? entries.filter((e) => (e.createdByName || "").trim().toLowerCase() === mine) : entries;
-  return perms.hide.rates ? list.map((e) => ({ ...e, rateInr: null })) : list;
+  return perms.hide.rates ? list.map((e) => (COST_KINDS.has(String(e.kind)) ? { ...e, rateInr: null } : e)) : list;
+}
+
+/** The register's remembered rates without the buying ones ("PURCHASE:<item>"). */
+export function withoutCostRates<T>(rates: Record<string, T> | null | undefined, perms: Perms): Record<string, T> {
+  const all = rates || {};
+  if (!perms.hide.rates) return all;
+  return Object.fromEntries(Object.entries(all).filter(([k]) => !COST_KINDS.has(k.split(":")[0])));
+}
+
+const BILL_MONEY = ["subtotalInr", "cgstInr", "sgstInr", "igstInr", "totalInr"] as const;
+const LINE_MONEY = ["rateInr", "lineSubtotalInr", "lineTaxInr", "lineTotalInr"] as const;
+/**
+ * Supplier bills for this user. With costs hidden the bills keep their items and quantities
+ * (stock figures need them) but every rupee figure is set to 0 and the bill is marked
+ * `costHidden`. Rate hints ignore a rate of 0, so no buying rate can be read back.
+ */
+export function billsFor<T extends object>(bills: T[], perms: Perms): T[] {
+  return perms.hide.rates ? stripBillCost(bills) : bills;
+}
+export function stripBillCost<T extends object>(bills: T[]): T[] {
+  const zero = (o: Record<string, unknown>, keys: readonly string[]) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, keys.includes(k) ? 0 : v]));
+  return bills.map((b) => {
+    const bill = zero(b as Record<string, unknown>, BILL_MONEY);
+    const lines = (b as { lineItems?: unknown }).lineItems;
+    return { ...bill, ...(Array.isArray(lines) ? { lineItems: lines.map((l) => zero(l as Record<string, unknown>, LINE_MONEY)) } : {}), notes: null, costHidden: true } as unknown as T;
+  });
 }

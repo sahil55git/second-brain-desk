@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, isValidDate, loadConfig, loadDay, saveConfig } from "@/lib/registerServer";
 import { accessFor } from "@/lib/accessServer";
-import { BUILTIN_PROFILES, canFn, effectivePerms, kindToFn, visibleEntries } from "@/lib/access";
+import { BUILTIN_PROFILES, canFn, effectivePerms, kindToFn, visibleEntries, withoutCostRates } from "@/lib/access";
 import { ALL_KINDS, KIND_SIDE, allocateBill, channelToMode, learnItem, normalizeBillLines, normalizeFreshCrush, normalizeSplit, rateKey, type BillLine, type RegisterKind } from "@/lib/register";
 
 export const dynamic = "force-dynamic";
@@ -21,12 +21,16 @@ export async function GET(req: NextRequest) {
   // Staff: what the profile hides (other users' entries, rates) is removed here, not on screen.
   const acc = await accessFor(user.username);
   const perms = acc ? acc.perms : effectivePerms(false, BUILTIN_PROFILES[1].perms);
-  const data = result.data as { entries?: Array<Record<string, unknown>> };
+  const data = result.data as { entries?: Array<Record<string, unknown>>; config?: { rates?: Record<string, number> } };
   if (Array.isArray(data.entries)) {
-    return NextResponse.json({ data: { ...data, entries: visibleEntries(data.entries, perms, user.name) } });
+    const config = data.config ? { ...data.config, rates: withoutCostRates(data.config.rates, perms) } : data.config;
+    return NextResponse.json({ data: { ...data, config, entries: visibleEntries(data.entries, perms, user.name) } });
   }
   return NextResponse.json({ data: result.data });
 }
+
+import { needsApproval, staffLimit } from "@/lib/approval";
+import { sendToOwners } from "@/lib/bot/push";
 
 const MODES = ["CASH", "UPI", "BANK", "CREDIT", "OTHER"] as const;
 const UNITS = ["kg", "ltr", "bags", "pcs", "box"];
@@ -112,6 +116,14 @@ export async function POST(req: NextRequest) {
   let item: string | null = !totalSale && typeof body.item === "string" ? body.item.slice(0, 60) : null;
   const itemLabel: string | null =
     !totalSale && typeof body.itemLabel === "string" && body.itemLabel.trim() ? body.itemLabel.trim().slice(0, 80) : null;
+
+  // Money out above the staff limit, and any owner draw entered by staff, waits for the owner's OK
+  // (SOP daily closing). The entry is saved and counted in the cash either way.
+  let pendingOk = false;
+  if (!user.isOwner && (kind === "EXPENSE" || kind === "PAYMENT" || kind === "OWNER_DRAW")) {
+    const lim = await safeDbCall(() => prisma.appSetting.findUnique({ where: { key: "approvals" } }));
+    pendingOk = needsApproval(kind, amount, false, staffLimit(lim.ok ? lim.data?.data : null));
+  }
 
   const result = await safeDbCall(async () => {
     // 1. Library: learn a typed "Other" item and remember the rate used.
@@ -264,12 +276,20 @@ export async function POST(req: NextRequest) {
         partyId,
         notes,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        details: (((ownerPhonePe || clientId) ? { ...(details || linkDetails || {}), ...(ownerPhonePe ? { channel: "OWNER_PHONEPE" } : {}), ...(clientId ? { clientId } : {}) } : details || linkDetails) as any) ?? undefined,
+        details: (((ownerPhonePe || clientId || pendingOk) ? { ...(details || linkDetails || {}), ...(ownerPhonePe ? { channel: "OWNER_PHONEPE" } : {}), ...(clientId ? { clientId } : {}), ...(pendingOk ? { approval: "pending" } : {}) } : details || linkDetails) as any) ?? undefined,
         createdByName: user.name || null,
       },
     });
   });
 
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 503 });
-  return NextResponse.json({ data: result.data }, { status: 201 });
+  if (pendingOk) {
+    // tell the owner on Telegram / Discord when linked; never fail the save over a message
+    try {
+      await sendToOwners({ text: `Needs your OK: ${kind === "OWNER_DRAW" ? "Owner draw" : kind === "EXPENSE" ? "Expense" : "Payment"} Rs ${amount.toLocaleString("en-IN")}${partyName ? ` to ${partyName}` : ""}${itemLabel || item ? ` (${itemLabel || item})` : ""}, entered by ${user.name || user.username}.`, open: { path: "/register", label: "Open the register" } });
+    } catch {
+      /* no chat linked */
+    }
+  }
+  return NextResponse.json({ data: result.data, needsOwnerOk: pendingOk }, { status: 201 });
 }

@@ -35,6 +35,7 @@ import HomeDesk from "./home/HomeDesk";
 import GlobalSearch from "./GlobalSearch";
 import Peekable from "./launcher/Peekable";
 import AlertsStrip from "./AlertsStrip";
+import KhaliSalesPanel from "./mfg/KhaliSalesPanel";
 import { businessDate } from "@/lib/register";
 
 // What the hover window / right-click menu on each desk tab offers: a one-line
@@ -215,7 +216,10 @@ export default function DeskTabs({
         <JobWorkDesk initialEntries={initialJobWork} initialOutputs={initialJobWorkOutputs} dbConnected={dbConnected} />
       )}
       {active === "manufacturing" && (
-        <ManufacturingDesk initialBatches={initialMfg} dbConnected={dbConnected} />
+        <>
+          <ManufacturingDesk initialBatches={initialMfg} dbConnected={dbConnected} />
+          <KhaliSalesPanel />
+        </>
       )}
       {active === "closing" && (
         <DailyClosingDesk initialEntries={initialClosing} dbConnected={dbConnected} />

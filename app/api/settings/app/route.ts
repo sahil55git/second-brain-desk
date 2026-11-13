@@ -5,7 +5,7 @@ import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
 
 export const dynamic = "force-dynamic";
-const KEYS = ["profit", "shop", "rates", "budgets", "cashplan", "features", "costs", "deposits", "rules", "backup"];
+const KEYS = ["profit", "shop", "rates", "budgets", "cashplan", "features", "costs", "deposits", "rules", "backup", "approvals", "stockLedger"];
 const READ_ANY = ["shop", "rates", "features"];
 
 export async function GET(req: NextRequest) {
