@@ -56,7 +56,7 @@ public class PopupActivity extends Activity {
             w.setAttributes(lp);
         }
 
-        int h = Math.round(getResources().getDisplayMetrics().heightPixels * 0.78f);
+        int h = Math.round(getResources().getDisplayMetrics().heightPixels * (getResources().getConfiguration().smallestScreenWidthDp >= 600 ? 0.7f : 0.78f));
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         GradientDrawable bg = new GradientDrawable();
@@ -110,7 +110,10 @@ public class PopupActivity extends Activity {
         card.addView(web, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h));
 
         FrameLayout root = new FrameLayout(this);
-        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+        // Tablets: a centred card about 560dp wide instead of a full-width sheet, so forms stay readable.
+        boolean tablet = getResources().getConfiguration().smallestScreenWidthDp >= 600;
+        int cw = tablet ? Math.min(dp(560), getResources().getDisplayMetrics().widthPixels - dp(48)) : ViewGroup.LayoutParams.MATCH_PARENT;
+        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(cw, ViewGroup.LayoutParams.WRAP_CONTENT, tablet ? Gravity.CENTER : Gravity.BOTTOM);
         clp.setMargins(dp(8), dp(8), dp(8), dp(12));
         root.addView(card, clp);
         root.setOnClickListener(v -> finish()); // tap outside the card closes

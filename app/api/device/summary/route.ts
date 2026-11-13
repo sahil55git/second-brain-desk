@@ -34,12 +34,18 @@ export async function GET(req: NextRequest) {
     const from = monthStart < shift(today, -8) ? monthStart : shift(today, -8);
     const data = owner ? await loadHubData(from, today) : null;
     // the phone owner's open tasks (from the chat)
+    // "My work" widget: what this phone's user entered today, and what is waiting (no money for staff)
+    const user = await prisma.user.findUnique({ where: { username: dev.username }, select: { name: true } }).catch(() => null);
+    const myName = user?.name || dev.username;
+    const mine = await prisma.registerEntry.findMany({ where: { date: today, createdByName: myName }, select: { kind: true, amountInr: true, createdAt: true, details: true } }).catch(() => []);
+    const jwOpen = await prisma.jobWorkIntake.findMany({ where: { settled: false }, select: { seedKg: true } }).catch(() => []);
+    const pendingOk = await prisma.registerEntry.findMany({ where: { date: { gte: shift(today, -60) }, details: { path: ["approval"], equals: "pending" } }, orderBy: { createdAt: "desc" }, take: 20, select: { kind: true, amountInr: true, partyName: true, createdByName: true, date: true } }).catch(() => []);
     const tasks = await prisma.task.findMany({ where: { username: dev.username, doneAt: null }, orderBy: [{ due: "asc" }, { createdAt: "asc" }], take: 12 }).catch(() => []);
-    return { dev, barrels, data, today, owner, tasks };
+    return { dev, barrels, data, today, owner, tasks, mine, jwOpen, pendingOk, myName };
   });
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 503 });
   if (!r.data) return NextResponse.json({ error: "This widget key is switched off. Turn widgets on again in the app." }, { status: 401 });
-  const { barrels, data, today, owner, dev, tasks } = r.data;
+  const { barrels, data, today, owner, dev, tasks, mine, jwOpen, pendingOk, myName } = r.data;
   const b = barrelCounts(barrels, now);
   const s = data ? homeSummary(data as unknown as BizData, now) : null;
   const hourIst = Number(new Date(now).toLocaleString("en-GB", { hour: "2-digit", hour12: false, timeZone: "Asia/Kolkata" }));
@@ -68,6 +74,16 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(
     {
       at: new Date(now).toISOString(),
+      me: {
+        name: myName,
+        entries: mine.length,
+        last: mine.length ? new Date(Math.max(...mine.map((e: { createdAt: Date }) => e.createdAt.getTime()))).toISOString() : null,
+        waitingOk: mine.filter((e: { details: unknown }) => (e.details as { approval?: string } | null)?.approval === "pending").length,
+        jobWorkLots: jwOpen.length,
+        jobWorkKg: Math.round(jwOpen.reduce((a: number, j: { seedKg: number }) => a + j.seedKg, 0)),
+      },
+      // entries waiting for the owner's OK: the owner sees each one, staff only their own count (in "me")
+      approvals: owner ? pendingOk.map((e: { kind: string; amountInr: number; partyName: string | null; createdByName: string | null; date: string }) => ({ kind: e.kind, amount: e.amountInr, party: e.partyName, by: e.createdByName, date: e.date })) : null,
       tasks: taskList.map((t) => ({ id: t.id, text: t.text, when: dueText(t.due, t.dueTime, today), late: !!t.due && t.due < today })),
       tips: tipList.map((t) => ({ icon: t.icon, text: t.text, path: t.path })),
       runout: runout.filter((x) => x.stockKg !== null || x.perDay !== null).map((x) => ({ name: x.name, kg: x.stockKg, days: x.daysLeft, level: x.level, last: x.lastBuy ? `${x.lastBuy.party || ""}${x.lastBuy.rate ? ` ₹${x.lastBuy.rate}` : ""}`.trim() : "" })),

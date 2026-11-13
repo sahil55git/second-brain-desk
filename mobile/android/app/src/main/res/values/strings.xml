@@ -17,6 +17,9 @@
     <string name="widget_chat_desc">Ask or speak to the shop desk; answers and entries open in a small window</string>
     <string name="widget_tips_desc">Smart tips: what to do next</string>
     <string name="widget_tasks_desc">Your tasks and reminders</string>
+    <string name="widget_keypad_desc">Type an amount on the widget, tap Sale, UPI, Expense or Udhaar in: the form opens filled, press Save</string>
+    <string name="widget_me_desc">For staff: what I entered today, entries waiting for the owner\'s OK, job-work and barrels, with six form buttons</string>
+    <string name="widget_approvals_desc">Owner: staff payments and expenses waiting for your OK</string>
     <string name="widget_actions_desc">Six one-tap buttons you choose in the app</string>
     <string name="sc_sale">Sale</string>
     <string name="sc_expense">Expense</string>

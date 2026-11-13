@@ -63,6 +63,9 @@ public final class Widgets {
         KINDS.put("chat", ChatWidget.class);
         KINDS.put("tips", TipsWidget.class);
         KINDS.put("tasks", TasksWidget.class);
+        KINDS.put("keypad", KeypadWidget.class);
+        KINDS.put("me", MeWidget.class);
+        KINDS.put("approvals", ApprovalsWidget.class);
     }
 
     public static RemoteViews views(Context c, String kind) {
@@ -74,6 +77,8 @@ public final class Widgets {
             case "cash": return cash(c);
             case "note": return note(c);
             case "chat": return chat(c);
+            case "keypad": return keypad(c);
+            case "me": return me(c);
             default: return list(c, kind);
         }
     }
@@ -82,9 +87,130 @@ public final class Widgets {
         AppWidgetManager m = AppWidgetManager.getInstance(c);
         for (Map.Entry<String, Class<?>> e : KINDS.entrySet()) {
             int[] ids = m.getAppWidgetIds(new ComponentName(c, e.getValue()));
-            if (ids.length > 0) m.updateAppWidget(ids, views(c, e.getKey()));
+            for (int id : ids) render(c, m, id, e.getKey());
         }
         postLive(c);
+    }
+
+    /** Draw one widget, with text sized to how big it is on the home screen (bigger on tablets). */
+    public static void render(Context c, AppWidgetManager m, int id, String kind) {
+        WidgetData.boost = sizeBoost(c, m, id);
+        try { m.updateAppWidget(id, views(c, kind)); } finally { WidgetData.boost = 1f; }
+    }
+
+    static float sizeBoost(Context c, AppWidgetManager m, int id) {
+        android.os.Bundle o = m.getAppWidgetOptions(id);
+        int w = o == null ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0);
+        int h = o == null ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0);
+        float b = 1f;
+        if (w > 0) b = Math.min(w / 260f, h > 0 ? h / 170f : 9f);
+        if (c.getResources().getConfiguration().smallestScreenWidthDp >= 600) b = Math.max(b, 1.15f);
+        return Math.max(0.9f, Math.min(1.6f, b));
+    }
+
+    // ------------------------------------------------------------------ keypad: type an amount, tap a kind
+    public static final String ACTION_KEY = "in.mahadevtraders.desk.KEY";
+    public static final String EXTRA_KEY = "key";
+    static final String K_PAD = "padAmount";
+    private static final int[] PAD_IDS = { R.id.d0, R.id.d1, R.id.d2, R.id.d3, R.id.d4, R.id.d5, R.id.d6, R.id.d7, R.id.d8, R.id.d9 };
+    private static final String[][] PAD_ACTS = {
+            { "💰 Cash sale", "sale %s cash" },
+            { "📱 UPI sale", "sale %s upi" },
+            { "🧾 Expense", "expense %s" },
+            { "🙌 Udhaar in", "udhaar received %s" },
+    };
+
+    private static PendingIntent key(Context c, String k, int code) {
+        Intent i = new Intent(c, KeypadWidget.class);
+        i.setAction(ACTION_KEY);
+        i.putExtra(EXTRA_KEY, k);
+        return PendingIntent.getBroadcast(c, 500 + code, i, WidgetData.piFlags());
+    }
+
+    /** A keypad press: digits build the amount (max 8 digits), ⌫ removes one, C clears. */
+    public static void key(Context c, String k) {
+        if (k == null) return;
+        SharedPreferences p = WidgetData.prefs(c);
+        String a = p.getString(K_PAD, "");
+        if ("C".equals(k)) a = "";
+        else if ("<".equals(k)) a = a.isEmpty() ? "" : a.substring(0, a.length() - 1);
+        else if (k.matches("\\d+")) { a = (a + k).replaceFirst("^0+", ""); if (a.length() > 8) a = a.substring(0, 8); }
+        p.edit().putString(K_PAD, a).apply();
+        AppWidgetManager m = AppWidgetManager.getInstance(c);
+        for (int id : m.getAppWidgetIds(new ComponentName(c, KeypadWidget.class))) render(c, m, id, "keypad");
+    }
+
+    static RemoteViews keypad(Context c) {
+        WidgetData.Look l = WidgetData.look(c);
+        RemoteViews v = new RemoteViews(c.getPackageName(), R.layout.widget_keypad);
+        WidgetData.paint(v, l);
+        String a = WidgetData.prefs(c).getString(K_PAD, "");
+        WidgetData.text(v, R.id.title, "⌨ Quick entry", l.soft, 12, l);
+        WidgetData.text(v, R.id.amount, a.isEmpty() ? "₹ 0" : WidgetData.rupees(Double.parseDouble(a)), l.text, 22, l);
+        WidgetData.text(v, R.id.back, "⌫", l.text, 18, l);
+        v.setOnClickPendingIntent(R.id.back, key(c, "<", 10));
+        for (int d = 0; d < 10; d++) {
+            WidgetData.text(v, PAD_IDS[d], String.valueOf(d), l.text, 20, l);
+            v.setOnClickPendingIntent(PAD_IDS[d], key(c, String.valueOf(d), d));
+        }
+        WidgetData.text(v, R.id.d00, "00", l.text, 18, l);
+        v.setOnClickPendingIntent(R.id.d00, key(c, "00", 11));
+        WidgetData.text(v, R.id.dc, "C", l.soft, 18, l);
+        v.setOnClickPendingIntent(R.id.dc, key(c, "C", 12));
+        int[] xs = { R.id.x1, R.id.x2, R.id.x3, R.id.x4 };
+        for (int i = 0; i < xs.length; i++) {
+            WidgetData.text(v, xs[i], PAD_ACTS[i][0], l.text, 12, l);
+            // Opens the entry form already filled in; the person checks it and presses Save.
+            String say = a.isEmpty() ? PAD_ACTS[i][1].replace(" %s", "") : String.format(PAD_ACTS[i][1], a);
+            String path = "/register?say=" + android.net.Uri.encode(say) + "&from=keypad";
+            v.setOnClickPendingIntent(xs[i], WidgetData.pop(c, path, 540 + i + (a.hashCode() & 0xff) * 4, false));
+        }
+        return v;
+    }
+
+    // ------------------------------------------------------------------ my work (staff)
+    private static final int[] ME_BTN = { R.id.b1, R.id.b2, R.id.b3, R.id.b4, R.id.b5, R.id.b6 };
+    private static final String[][] ME_ACTS = {
+            { "💰\nSale", "/register?open=sale" },
+            { "🧾\nExpense", "/register?open=expense" },
+            { "🌾\nJob-work in", "/?desk=jobwork" },
+            { "⚖\nWeigh barrel", "/barrels?weigh=full" },
+            { "🏭\nProduction", "/?desk=mfg" },
+            { "🎙\nSpeak entry", "/register?open=sale" },
+    };
+
+    static RemoteViews me(Context c) {
+        WidgetData.Look l = WidgetData.look(c);
+        RemoteViews v = new RemoteViews(c.getPackageName(), R.layout.widget_me);
+        WidgetData.paint(v, l);
+        JSONObject j = WidgetData.summary(c);
+        JSONObject me = j.optJSONObject("me");
+        String name = me == null ? "" : me.optString("name");
+        WidgetData.text(v, R.id.title, "👷 " + (name.isEmpty() ? "My work today" : name + " · today"), l.text, 14, l);
+        v.setTextColor(R.id.refresh, l.text);
+        v.setOnClickPendingIntent(R.id.refresh, WidgetData.refresh(c, MeWidget.class));
+        if (me == null) {
+            WidgetData.text(v, R.id.v1, "–", l.text, 20, l); WidgetData.text(v, R.id.k1, "my entries", l.soft, 11, l);
+            WidgetData.text(v, R.id.v2, "–", l.text, 20, l); WidgetData.text(v, R.id.k2, "waiting OK", l.soft, 11, l);
+            WidgetData.text(v, R.id.v3, "–", l.text, 20, l); WidgetData.text(v, R.id.k3, "job-work", l.soft, 11, l);
+            WidgetData.text(v, R.id.line, WidgetData.isOn(c) ? "Tap ⟳ to load" : "Open the app and log in", l.soft, 12, l);
+        } else {
+            int wait = me.optInt("waitingOk");
+            WidgetData.text(v, R.id.v1, String.valueOf(me.optInt("entries")), l.text, 20, l);
+            WidgetData.text(v, R.id.k1, "my entries", l.soft, 11, l);
+            WidgetData.text(v, R.id.v2, String.valueOf(wait), wait > 0 ? Color.parseColor("#ffc46b") : l.text, 20, l);
+            WidgetData.text(v, R.id.k2, "waiting OK", l.soft, 11, l);
+            WidgetData.text(v, R.id.v3, me.optInt("jobWorkLots") + "", l.text, 20, l);
+            WidgetData.text(v, R.id.k3, Math.round(me.optDouble("jobWorkKg")) + " kg job-work", l.soft, 11, l);
+            String last = me.optString("last");
+            WidgetData.text(v, R.id.line, last.isEmpty() ? "Nothing entered yet today" : "Last: " + last, l.soft, 12, l);
+        }
+        v.setOnClickPendingIntent(R.id.body, WidgetData.pop(c, "/register", 87, false));
+        for (int i = 0; i < ME_BTN.length; i++) {
+            WidgetData.text(v, ME_BTN[i], ME_ACTS[i][0], l.text, 12, l);
+            v.setOnClickPendingIntent(ME_BTN[i], WidgetData.pop(c, ME_ACTS[i][1], 560 + i, i == 5));
+        }
+        return v;
     }
 
     private static PendingIntent range(Context c, String r, int code) {
@@ -280,6 +406,21 @@ public final class Widgets {
                 for (int i = 0; i < rows.length; i++) { JSONObject o = a.optJSONObject(i); rows[i] = new String[] { o.optString("icon") + " " + o.optString("text"), "" }; }
                 break;
             }
+            case "approvals": {
+                title = "✅ Waiting for my OK";
+                path = "/register";
+                JSONArray a = j.optJSONArray("approvals");
+                int n = a == null ? 0 : a.length();
+                big = !owner ? "Owner only" : n == 0 ? "✓ Nothing waiting" : n + " waiting";
+                if (n > 0) bigColor = Color.parseColor("#ffc46b");
+                rows = new String[Math.min(5, n)][];
+                for (int i = 0; i < rows.length; i++) {
+                    JSONObject o = a.optJSONObject(i);
+                    String who = o.optString("party");
+                    rows[i] = new String[] { o.optString("kind") + (who.isEmpty() ? "" : " · " + who) + " (" + o.optString("by") + ")", WidgetData.rupees(o.optDouble("amount")) };
+                }
+                break;
+            }
             case "tasks": {
                 title = "📌 Tasks";
                 path = "/chat";
@@ -315,7 +456,7 @@ public final class Widgets {
         }
         v.setTextColor(R.id.refresh, l.text);
         v.setOnClickPendingIntent(R.id.refresh, WidgetData.refresh(c, KINDS.get(kind) == null ? AlertsWidget.class : KINDS.get(kind)));
-        v.setOnClickPendingIntent(R.id.body, WidgetData.pop(c, "/pop?w=" + kind, "udhaar".equals(kind) ? 81 : "jobwork".equals(kind) ? 82 : "stock".equals(kind) ? 83 : "tips".equals(kind) ? 85 : "tasks".equals(kind) ? 86 : 84, false));
+        v.setOnClickPendingIntent(R.id.body, WidgetData.pop(c, "approvals".equals(kind) ? path : "/pop?w=" + kind, "udhaar".equals(kind) ? 81 : "jobwork".equals(kind) ? 82 : "stock".equals(kind) ? 83 : "tips".equals(kind) ? 85 : "tasks".equals(kind) ? 86 : "approvals".equals(kind) ? 88 : 84, false));
         return v;
     }
 
