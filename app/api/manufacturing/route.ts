@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
+import { claimOp, releaseOp } from "@/lib/clientOp";
 import { yieldSnapshotFrom, type BatchSupplier } from "@/lib/mfgCalculations";
 
 export async function GET() {
@@ -68,6 +69,9 @@ export async function POST(req: NextRequest) {
 
   const snapshot = yieldSnapshotFrom(fields);
 
+  // a batch started offline and sent again must not become a second batch
+  if ((await claimOp(body.clientId, "mfg.batch")) === "duplicate") return NextResponse.json({ data: null, duplicate: true, message: "Already saved." }, { status: 200 });
+
   const result = await safeDbCall(() =>
     prisma.mfgBatch.create({
       data: {
@@ -79,6 +83,7 @@ export async function POST(req: NextRequest) {
   );
 
   if (!result.ok) {
+    await releaseOp(body.clientId);
     return NextResponse.json({ error: result.error }, { status: 503 });
   }
   return NextResponse.json({ data: result.data }, { status: 201 });
