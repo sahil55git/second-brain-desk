@@ -151,6 +151,7 @@ export function pagesForPath(pathname: string): PageKey[] | null {
   if (under("/register") || under("/api/register") || under("/cash") || under("/api/expenses") || under("/api/daily-closing")) return ["register"];
   if (under("/stock") || under("/tallies")) return ["stock"];
   if (under("/api/tallies") || under("/api/stock-adjustments") || under("/api/tank")) return ["stock", "register"];
+  if (under("/api/stock-ledger")) return ["stock", "reports"];
   if (under("/sales")) return ["sales"];
   if (under("/api/sales") || under("/api/held-bills")) return ["sales", "register"];
   if (under("/api/parties") || under("/api/udhaar")) return ["parties", "register", "sales", "jobwork"];
