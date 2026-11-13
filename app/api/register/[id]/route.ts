@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, isValidDate } from "@/lib/registerServer";
 import { businessDate, KIND_SIDE, splitInfo, type RegisterKind } from "@/lib/register";
+import { needsApproval, staffLimit } from "@/lib/approval";
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser(req);
@@ -108,6 +109,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const before = { amountInr: e.amountInr, qty: e.qty, rateInr: e.rateInr, paymentMode: e.paymentMode, partyName: e.partyName, date: e.date };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data.details = { ...prevDetails, edits: [...edits, { at: new Date().toISOString(), by: user.name || user.username, before, note: stamp }] } as any;
+    // Staff raising an amount past their limit (or changing an amount the owner already OK'd)
+    // puts the entry back in the owner's queue; otherwise a small entry could be saved and then
+    // edited upwards without anyone being asked.
+    if (!user.isOwner && typeof data.amountInr === "number" && data.amountInr !== e.amountInr) {
+      const lim = await prisma.appSetting.findUnique({ where: { key: "approvals" } }).catch(() => null);
+      if (needsApproval(e.kind, data.amountInr, false, staffLimit(lim?.data))) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        data.details = { ...(data.details as any), approval: "pending" } as any;
+      }
+    }
     if (grouped && partyName !== undefined) {
       const g = splitInfo(e.details);
       if (g) await prisma.registerEntry.updateMany({ where: { details: { path: ["split", "id"], equals: g.id } }, data: { partyName: data.partyName as string | null, partyId: (data.partyId as string | null) ?? null } });

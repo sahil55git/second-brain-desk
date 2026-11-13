@@ -28,6 +28,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data: result.data });
 }
 
+import { needsApproval, staffLimit } from "@/lib/approval";
+import { sendToOwners } from "@/lib/bot/push";
+
 const MODES = ["CASH", "UPI", "BANK", "CREDIT", "OTHER"] as const;
 const UNITS = ["kg", "ltr", "bags", "pcs", "box"];
 
@@ -112,6 +115,14 @@ export async function POST(req: NextRequest) {
   let item: string | null = !totalSale && typeof body.item === "string" ? body.item.slice(0, 60) : null;
   const itemLabel: string | null =
     !totalSale && typeof body.itemLabel === "string" && body.itemLabel.trim() ? body.itemLabel.trim().slice(0, 80) : null;
+
+  // Money out above the staff limit, and any owner draw entered by staff, waits for the owner's OK
+  // (SOP daily closing). The entry is saved and counted in the cash either way.
+  let pendingOk = false;
+  if (!user.isOwner && (kind === "EXPENSE" || kind === "PAYMENT" || kind === "OWNER_DRAW")) {
+    const lim = await safeDbCall(() => prisma.appSetting.findUnique({ where: { key: "approvals" } }));
+    pendingOk = needsApproval(kind, amount, false, staffLimit(lim.ok ? lim.data?.data : null));
+  }
 
   const result = await safeDbCall(async () => {
     // 1. Library: learn a typed "Other" item and remember the rate used.
@@ -264,12 +275,20 @@ export async function POST(req: NextRequest) {
         partyId,
         notes,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        details: (((ownerPhonePe || clientId) ? { ...(details || linkDetails || {}), ...(ownerPhonePe ? { channel: "OWNER_PHONEPE" } : {}), ...(clientId ? { clientId } : {}) } : details || linkDetails) as any) ?? undefined,
+        details: (((ownerPhonePe || clientId || pendingOk) ? { ...(details || linkDetails || {}), ...(ownerPhonePe ? { channel: "OWNER_PHONEPE" } : {}), ...(clientId ? { clientId } : {}), ...(pendingOk ? { approval: "pending" } : {}) } : details || linkDetails) as any) ?? undefined,
         createdByName: user.name || null,
       },
     });
   });
 
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 503 });
-  return NextResponse.json({ data: result.data }, { status: 201 });
+  if (pendingOk) {
+    // tell the owner on Telegram / Discord when linked; never fail the save over a message
+    try {
+      await sendToOwners({ text: `Needs your OK: ${kind === "OWNER_DRAW" ? "Owner draw" : kind === "EXPENSE" ? "Expense" : "Payment"} Rs ${amount.toLocaleString("en-IN")}${partyName ? ` to ${partyName}` : ""}${itemLabel || item ? ` (${itemLabel || item})` : ""}, entered by ${user.name || user.username}.`, open: { path: "/register", label: "Open the register" } });
+    } catch {
+      /* no chat linked */
+    }
+  }
+  return NextResponse.json({ data: result.data, needsOwnerOk: pendingOk }, { status: 201 });
 }
