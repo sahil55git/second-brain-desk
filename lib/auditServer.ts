@@ -3,7 +3,7 @@
 // change and its log line either both happen or neither does.
 import type { Prisma } from "@prisma/client";
 
-export type AuditAction = "CREATE" | "DELETE" | "EDIT" | "SETTLE" | "RESETTLE";
+export type AuditAction = "CREATE" | "DELETE" | "EDIT" | "SETTLE" | "RESETTLE" | "APPROVE" | "REJECT";
 export type AuditEntity =
   | "SalesInvoice"
   | "PurchaseBill"
@@ -12,7 +12,8 @@ export type AuditEntity =
   | "Item"
   | "JobWorkIntake"
   | "JobWorkDayOutput"
-  | "DailyClosing";
+  | "DailyClosing"
+  | "RegisterEntry";
 
 export interface AuditUser {
   name: string;

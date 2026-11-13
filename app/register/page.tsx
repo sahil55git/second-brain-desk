@@ -3,9 +3,15 @@
 // both allowed). Data is loaded client-side from /api/register so the
 // screen can refresh itself after every save.
 import QuickRegister from "@/components/register/QuickRegister";
+import PendingApprovals from "@/components/register/PendingApprovals";
 
 export const dynamic = "force-dynamic";
 
 export default function RegisterPage() {
-  return <QuickRegister />;
+  return (
+    <>
+      <PendingApprovals />
+      <QuickRegister />
+    </>
+  );
 }
