@@ -4,7 +4,7 @@
 // components/android/AndroidPage.tsx.
 import { QUICK_LINKS, visibleLinks } from "@/lib/quickLinks";
 
-export type WidgetKind = "dashboard" | "summary" | "actions" | "barrels" | "cash" | "udhaar" | "jobwork" | "stock" | "alerts" | "note" | "chat" | "tips" | "tasks" | "keypad" | "me" | "approvals";
+export type WidgetKind = "dashboard" | "summary" | "actions" | "barrels" | "cash" | "udhaar" | "jobwork" | "stock" | "alerts" | "note" | "chat" | "tips" | "tasks" | "keypad" | "me" | "approvals" | "staff";
 
 export interface WidgetInfo {
   kind: WidgetKind;
@@ -37,6 +37,7 @@ export const WIDGETS: WidgetInfo[] = [
   { kind: "keypad", icon: "⌨️", name: "Quick entry keypad", what: "Type the amount on the widget, tap Cash sale, UPI, Expense or Udhaar in — the form opens filled, press Save", size: "4×4", interactive: true },
   { kind: "me", icon: "👷", name: "My work (staff)", what: "My entries today, what waits for the owner's OK, job-work lots, plus six form buttons", size: "4×3", interactive: true },
   { kind: "approvals", icon: "✅", name: "Waiting for my OK", what: "Owner: staff payments and expenses waiting for approval", size: "4×2", ownerOnly: true },
+  { kind: "staff", icon: "👥", name: "Staff ledger & attendance", what: "What we owe each employee, and who is in, late or absent today", size: "4×3", ownerOnly: true },
 ];
 
 export const NOTE_COLORS = [

@@ -66,6 +66,7 @@ public final class Widgets {
         KINDS.put("keypad", KeypadWidget.class);
         KINDS.put("me", MeWidget.class);
         KINDS.put("approvals", ApprovalsWidget.class);
+        KINDS.put("staff", StaffWidget.class);
     }
 
     public static RemoteViews views(Context c, String kind) {
@@ -173,10 +174,10 @@ public final class Widgets {
     private static final String[][] ME_ACTS = {
             { "💰\nSale", "/register?open=sale" },
             { "🧾\nExpense", "/register?open=expense" },
-            { "🌾\nJob-work in", "/?desk=jobwork" },
+            { "🌾\nJob-work in", "/?desk=jobwork#inward" },
             { "⚖\nWeigh barrel", "/barrels?weigh=full" },
             { "🏭\nProduction", "/?desk=mfg" },
-            { "🎙\nSpeak entry", "/register?open=sale" },
+            { "🎙\nSpeak entry", "/register?voice=1" },
     };
 
     static RemoteViews me(Context c) {
@@ -406,6 +407,25 @@ public final class Widgets {
                 for (int i = 0; i < rows.length; i++) { JSONObject o = a.optJSONObject(i); rows[i] = new String[] { o.optString("icon") + " " + o.optString("text"), "" }; }
                 break;
             }
+            case "staff": {
+                title = "👥 Staff ledger";
+                path = "/employees";
+                JSONObject st = j.optJSONObject("staff");
+                big = st == null ? "Owner only" : st.optInt("present") + " in · " + st.optInt("absent") + " absent" + (st.optInt("late") > 0 ? " · " + st.optInt("late") + " late" : "") + " · owe " + WidgetData.rupees(st.optDouble("owed"));
+                if (st != null && st.optInt("late") > 0) bigColor = Color.parseColor("#ffc46b");
+                JSONArray a = st == null ? null : st.optJSONArray("list");
+                if (a != null) {
+                    rows = new String[Math.min(5, a.length())][];
+                    for (int i = 0; i < rows.length; i++) {
+                        JSONObject o = a.optJSONObject(i);
+                        String t = o.optString("today", "");
+                        String mark = "A".equals(t) ? "✗ " : "H".equals(t) ? "½ " : "P".equals(t) ? (o.optInt("lateMin") > 0 ? "⏰ " : "✓ ") : "· ";
+                        double bal = o.optDouble("balance");
+                        rows[i] = new String[] { mark + o.optString("name"), bal == 0 ? "settled" : (bal > 0 ? "owe " : "adv ") + WidgetData.rupees(Math.abs(bal)) };
+                    }
+                }
+                break;
+            }
             case "approvals": {
                 title = "✅ Waiting for my OK";
                 path = "/register";
@@ -456,7 +476,7 @@ public final class Widgets {
         }
         v.setTextColor(R.id.refresh, l.text);
         v.setOnClickPendingIntent(R.id.refresh, WidgetData.refresh(c, KINDS.get(kind) == null ? AlertsWidget.class : KINDS.get(kind)));
-        v.setOnClickPendingIntent(R.id.body, WidgetData.pop(c, "approvals".equals(kind) ? path : "/pop?w=" + kind, "udhaar".equals(kind) ? 81 : "jobwork".equals(kind) ? 82 : "stock".equals(kind) ? 83 : "tips".equals(kind) ? 85 : "tasks".equals(kind) ? 86 : "approvals".equals(kind) ? 88 : 84, false));
+        v.setOnClickPendingIntent(R.id.body, WidgetData.pop(c, "approvals".equals(kind) || "staff".equals(kind) ? path : "/pop?w=" + kind, "udhaar".equals(kind) ? 81 : "jobwork".equals(kind) ? 82 : "stock".equals(kind) ? 83 : "tips".equals(kind) ? 85 : "tasks".equals(kind) ? 86 : "approvals".equals(kind) ? 88 : "staff".equals(kind) ? 89 : 84, false));
         return v;
     }
 
