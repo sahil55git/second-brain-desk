@@ -22,6 +22,7 @@ import RateHint from "@/components/smart/RateHint";
 import { cleanAiLines, findItemByCode, matchParty, purchaseChecks } from "@/lib/smartEntry";
 import { addScannedItem, applyFilledLines, blankLine, formSummary, toLite, type DraftLine } from "@/lib/smartLines";
 import { uploadProof } from "@/lib/proofClient";
+import { useAccess } from "@/components/AccessProvider";
 
 const PAYMENT_MODES: PaymentMode[] = ["CASH", "UPI", "BANK", "CREDIT", "OTHER"];
 
@@ -42,6 +43,7 @@ export default function PurchaseDesk({
   settings: BusinessSettingsDTO | null;
   dbConnected: boolean;
 }) {
+  const access = useAccess();
   const [bills, setBills] = useState<PurchaseBillDTO[]>(initialBills);
   // Purchases made in the Quick Register (seed, oil, tins…) — last 90 days
   const [regBuys, setRegBuys] = useState<RegBuy[] | null>(null);
@@ -244,6 +246,11 @@ export default function PurchaseDesk({
 
   return (
     <div className="space-y-4">
+      {access.ready && !access.isOwner && access.perms.hide.rates && (
+        <div className="rounded border border-black/15 dark:border-white/15 px-3 py-2 text-xs opacity-80">
+          Your profile hides rates and costs, so amounts on saved supplier bills are hidden (shown as 0). You can still enter a new bill.
+        </div>
+      )}
       {!dbConnected && (
         <div className="rounded border border-amber-400 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-700 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
           Database not connected — bills won&apos;t save yet.

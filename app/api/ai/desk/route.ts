@@ -5,6 +5,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, isValidDate, loadDay } from "@/lib/registerServer";
+import { accessFor } from "@/lib/accessServer";
+import { BUILTIN_PROFILES, effectivePerms } from "@/lib/access";
 import { businessDate } from "@/lib/register";
 import { registerContext, type RegisterRow } from "@/lib/registerSmart";
 import { runAi } from "@/lib/aiProvider";
@@ -60,7 +62,7 @@ async function registerCtx(date: string): Promise<{ ok: true; text: string } | {
   };
 }
 
-async function contextFor(desk: AskDesk, isOwner: boolean, date: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+async function contextFor(desk: AskDesk, isOwner: boolean, date: string, hideCost = false): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
   if (desk === "register") return registerCtx(date);
   const include = { lineItems: true, party: { select: { name: true } } } as const;
   if (desk === "purchase" || desk === "sales") {
@@ -74,7 +76,8 @@ async function contextFor(desk: AskDesk, isOwner: boolean, date: string): Promis
       return { bills, invoices, lots };
     });
     if (!r.ok) return { ok: false, error: r.error };
-    const bills = json(r.data.bills) as PurchaseBillDTO[];
+    // supplier bills are what the shop pays: the assistant is not given them for a profile with costs hidden
+    const bills = hideCost ? [] : (json(r.data.bills) as PurchaseBillDTO[]);
     if (desk === "sales") return { ok: true, text: salesContext(json(r.data.invoices) as SalesInvoiceDTO[], bills) };
     const now = Date.now();
     const lots = r.data.lots.map((l) => {
@@ -111,7 +114,16 @@ export async function POST(req: NextRequest) {
   const form = typeof body.form === "string" ? body.form.slice(0, 3000) : "";
 
   const date = isValidDate(body.date) ? body.date : businessDate(Date.now());
-  const ctx = await contextFor(desk, user.isOwner, date);
+  let hideCost = false;
+  if (!user.isOwner) {
+    try {
+      const acc = await accessFor(user.username);
+      hideCost = (acc ? acc.perms : effectivePerms(false, BUILTIN_PROFILES[1].perms)).hide.rates;
+    } catch {
+      hideCost = true; // cannot read the profile: do not hand out buying rates
+    }
+  }
+  const ctx = await contextFor(desk, user.isOwner, date, hideCost);
   if (!ctx.ok) return NextResponse.json({ error: ctx.error }, { status: 503 });
 
   const task = preset ? preset.instruction : `Question: ${question}`;
