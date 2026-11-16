@@ -46,7 +46,7 @@ function toKg(w: number, unit?: string): number {
   return w;
 }
 
-export function ScaleBtn({ lang, onUse }: { lang: LangMode; onUse: (kg: number) => void }) {
+export function ScaleBtn({ lang, onUse, big = false }: { lang: LangMode; onUse: (kg: number) => void; /** POS: large live weight */ big?: boolean }) {
   const { connected, selectedReading: r } = useScale();
   const [, tick] = useState(0);
   // A reading goes stale with time, not only when a new one arrives.
@@ -58,12 +58,27 @@ export function ScaleBtn({ lang, onUse }: { lang: LangMode; onUse: (kg: number) 
   const fresh = !!r && Date.now() - r.receivedAt < SCALE_FRESH_MS;
   const kg = r ? toKg(r.weight, r.unit) : NaN;
   const steady = fresh && r!.stable !== false && Number.isFinite(kg) && kg > 0;
+  const kg3 = Math.round(kg * 1000) / 1000;
+  if (big)
+    // POS: a round live dial (like the iScale app) and one big Read button
+    return (
+      <div className="qr-scale-big">
+        <div className={`qr-dial ${fresh ? (steady ? "ok" : "mid") : "bad"}`}>
+          <b>{fresh && Number.isFinite(kg) ? kg3.toFixed(3) : "0.000"}</b>
+          <small>kg</small>
+          <span>{!fresh ? word("scaleNone", lang) : steady ? "STEADY" : word("scaleMoving", lang)}</span>
+        </div>
+        <button type="button" className="qr-scale-use" disabled={!steady} onClick={() => onUse(kg3)}>
+          <G e="⚖️" /> {word("scaleUse", lang)}
+        </button>
+      </div>
+    );
   return (
     <div className="qr-scale">
       <span className={`qr-dot ${fresh ? (steady ? "ok" : "mid") : "bad"}`} aria-hidden />
-      <b>{fresh && Number.isFinite(kg) ? `${Math.round(kg * 100) / 100} kg` : word("scaleNone", lang)}</b>
+      <b>{fresh && Number.isFinite(kg) ? `${kg3.toFixed(3)} kg` : word("scaleNone", lang)}</b>
       {fresh && !steady && <span className="qr-m">{word("scaleMoving", lang)}</span>}
-      <button type="button" className="qr-mini" disabled={!steady} onClick={() => onUse(Math.round(kg * 100) / 100)}>
+      <button type="button" className="qr-mini" disabled={!steady} onClick={() => onUse(kg3)}>
         <G e="⚖️" /> {word("scaleUse", lang)}
       </button>
     </div>

@@ -126,7 +126,21 @@ export default function BluetoothScalePanel() {
             <div className="mt-1 text-xs">
               {!fresh ? <span className="opacity-60">No live weight</span> : live!.steady ? <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-800">STEADY</span> : <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">MOVING</span>}
               {bt.source && <span className="ml-2 font-mono opacity-55">{bt.source}</span>}
+              {bt.tareKg > 0 && <span className="ml-2 rounded bg-sky-100 px-1.5 py-0.5 text-sky-800">Tare {bt.tareKg.toFixed(3)} kg · scale shows {live ? live.grossKg.toFixed(3) : "—"}</span>}
             </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                className="rounded-xl bg-emerald-600 px-6 py-4 text-xl font-bold text-white disabled:opacity-40"
+                disabled={!fresh || !bt.checked}
+                onClick={() => bt.saveNow()}
+              >
+                SAVE WEIGHT
+              </button>
+              <button className={btn} disabled={!fresh || !live || live.grossKg <= 0} onClick={() => live && bt.setTare(live.grossKg)} title="Put the empty tin / barrel / bag on the scale, then press">Tare (take off container)</button>
+              {bt.tareKg > 0 && <button className={btn} onClick={() => bt.setTare(0)}>Clear tare</button>}
+            </div>
+            {bt.saveBlock && <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">{bt.saveBlock}</p>}
+            {bt.lastSaved && <p className="mt-1 text-xs opacity-70">Last saved: {bt.lastSaved.weightKg.toFixed(3)} kg at {timeOf(new Date(bt.lastSaved.at).toISOString())}</p>}
           </div>
           <div className="space-y-1.5 text-sm">
             <label className="flex items-center gap-2">
@@ -137,6 +151,10 @@ export default function BluetoothScalePanel() {
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={bt.autoRecord} onChange={(e) => bt.setAutoRecord(e.target.checked)} disabled={!bt.checked} />
               <span>Save every steady weight to the weighing log</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={bt.beep} onChange={(e) => bt.setBeep(e.target.checked)} />
+              <span>Beep when a weight is saved</span>
             </label>
             {bt.source && bt.checked && selectedScale !== bt.source && (
               <button className={btn} onClick={() => setSelectedScale(bt.source!)}>Use this scale to fill weights in forms</button>
