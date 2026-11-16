@@ -17,6 +17,7 @@ import { businessDate, itemsFor, rateKey, type CatalogItem } from "@/lib/registe
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
 import { addLine, billKg, billSum, changeDue, lineAmount, r2, r3, registerBody, updateLine, type BillAdjust, type CounterLine, type CounterPay } from "@/lib/counterBill";
 import type { HoldData } from "@/lib/counterHold";
+import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
 
 type Lang = "en" | "kn";
 type PadTarget = { kind: "received" | "tare" | "discount" } | { kind: "qty" | "rate"; line: number };
@@ -150,6 +151,13 @@ export default function CounterApp() {
   const [showHolds, setShowHolds] = useState(false);
   const [holdId, setHoldId] = useState<string | null>(null);
   const [device, setDevice] = useState("");
+  const [showBills, setShowBills] = useState(false);
+  const [bFrom, setBFrom] = useState("");
+  const [bTo, setBTo] = useState("");
+  const [bQ, setBQ] = useState("");
+  const [bills, setBills] = useState<SavedBill[]>([]);
+  const [bErr, setBErr] = useState("");
+  const [editing, setEditing] = useState<SavedBill | null>(null);
   const shop = useShop();
   const [vpa, setVpa] = useState<string | null>(null);
   useEffect(() => {
@@ -228,6 +236,84 @@ export default function CounterApp() {
   const rateOf = (key: string) => (day ? day.config.rates[rateKey("SALE", key)] ?? 0 : 0);
   const shown = items.filter((i) => !q.trim() || `${i.en} ${i.kn}`.toLowerCase().includes(q.trim().toLowerCase()));
   const label = (i: CatalogItem) => (lang === "kn" ? i.kn : i.en);
+  const labelOf = (item: string | null, lbl: string | null) => lbl || items.find((i) => i.key === item)?.en || item || "Item";
+
+  // ---- saved bills (records): any device sees the same list
+  const loadBills = async () => {
+    const from = bFrom || date;
+    const to = bTo || from;
+    setBErr("");
+    try {
+      const res = await fetch(`/api/register/range?from=${from}&to=${to}`, { cache: "no-store" });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Could not load bills.");
+      setBills(groupBills(j.data as SaleRow[], labelOf));
+    } catch (e) {
+      setBErr(e instanceof Error ? e.message : "Could not load bills.");
+    }
+  };
+  const shownBills = bills.filter((b) => billMatches(b, bQ));
+  const bSum = billsSummary(shownBills);
+  const modeName = (m: string) => (m === "CREDIT" ? "Udhaar" : m === "UPI" ? "UPI" : m === "CASH" ? "Cash" : m);
+  const billDoc = (b: SavedBill): ReceiptDoc => ({
+    title: "RECEIPT",
+    no: b.no,
+    when: receiptTime(b.createdAt),
+    party: b.party || undefined,
+    rows: b.lines.map((l) => ({ name: l.label, detail: l.qty ? `${l.qty.toFixed(l.unit === "kg" ? 3 : 0)} ${l.unit || ""} × ₹${l.rate ?? ""}` : undefined, amount: rupees(l.amount) })),
+    totals: [{ label: "TOTAL", value: rupees(b.total), strong: true }],
+    notes: [`Mode: ${Object.keys(b.modes).map(modeName).join(" + ")}`, "Re-print"],
+  });
+  const cancelBill = async (b: SavedBill, why?: string) => {
+    const reason = why ?? window.prompt(lang === "kn" ? `ಬಿಲ್ #${b.no} ರದ್ದು ಮಾಡಲು ಕಾರಣ?` : `Reason for cancelling bill #${b.no} (${rupees(b.total)})?`);
+    if (reason == null) return false;
+    if (!reason.trim()) {
+      setBErr(lang === "kn" ? "ಕಾರಣ ಬರೆಯಿರಿ." : "Write a reason to cancel a bill.");
+      return false;
+    }
+    const res = await fetch(`/api/register/${b.firstId}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: `Counter bill #${b.no}: ${reason.trim()}` }) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setBErr(j.error || "Could not cancel the bill.");
+      return false;
+    }
+    void loadBills();
+    void load();
+    return true;
+  };
+  const editBill = async (b: SavedBill) => {
+    if (lines.length && !(await holdBill())) return;
+    setLines(billToLines(b));
+    setParty(b.party || "");
+    setShowParty(!!b.party);
+    const ms = Object.keys(b.modes);
+    setPay(ms.length === 1 && (ms[0] === "UPI" || ms[0] === "CREDIT") ? (ms[0] as CounterPay) : "CASH");
+    setEditing(b);
+    setShowBills(false);
+    openPad({ kind: "received" }, "");
+  };
+  const exportCsv = () => {
+    const rowsCsv = [["Date", "Time", "Bill", "Customer", "Items", "Kg", "Total", "Modes", "By"]];
+    for (const b of shownBills) {
+      rowsCsv.push([
+        b.date,
+        new Date(b.createdAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" }),
+        b.no,
+        b.party || "",
+        b.lines.map((l) => `${l.label} ${l.qty ?? ""}${l.unit ?? ""} @${l.rate ?? ""}`).join("; "),
+        String(b.lines.reduce((a, l) => a + (l.unit === "kg" && l.qty ? l.qty : 0), 0).toFixed(3)),
+        b.total.toFixed(2),
+        Object.entries(b.modes).map(([m, v]) => `${modeName(m)} ${v}`).join(" + "),
+        b.by || "",
+      ]);
+    }
+    const csv = rowsCsv.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv" }));
+    a.download = `counter-bills_${bFrom || date}_${bTo || bFrom || date}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
 
   const setSetting = (k: keyof Settings, v: boolean) => {
     const next = { ...settings, [k]: v };
@@ -306,6 +392,7 @@ export default function CounterApp() {
     setPay("CASH");
     setAdjust({ discount: 0, pct: false });
     setHoldId(null);
+    setEditing(null);
     openPad({ kind: "received" }, "");
   };
 
@@ -383,7 +470,7 @@ export default function CounterApp() {
       openPad({ kind: !(lines[bad].qty > 0) ? "qty" : "rate", line: bad }, "");
       return setMsg({ ok: false, text: lang === "kn" ? `ಸಾಲು ${bad + 1}: ತೂಕ ಮತ್ತು ದರ ಬೇಕು` : `Line ${bad + 1} needs a weight and a rate.` });
     }
-    const r = registerBody(lines, pay, { date, party, adjust: billAdjust });
+    const r = registerBody(lines, pay, { date, party, adjust: billAdjust, notes: editing ? `Replaces bill #${editing.no}` : undefined });
     if ("err" in r) return setMsg({ ok: false, text: r.err });
     setBusy(true);
     try {
@@ -410,6 +497,11 @@ export default function CounterApp() {
         // UPI and udhaar bills carry a QR for the exact amount, with the bill number and items in the payment note
         qr: pay !== "CASH" && settings.upiQr ? upiFor(total, billNote(lines, id ? id.slice(-6).toUpperCase() : undefined)) : undefined,
       };
+      if (editing) {
+        const old = editing;
+        const ok = await cancelBill(old, `edited at the counter, replaced by bill #${id ? id.slice(-6).toUpperCase() : "new"}`);
+        if (!ok) setMsg({ ok: false, text: lang === "kn" ? `ಹೊಸ ಬಿಲ್ ಉಳಿಸಲಾಗಿದೆ, ಆದರೆ ಹಳೆಯ ಬಿಲ್ #${old.no} ಅಳಿಸಲಾಗಲಿಲ್ಲ — ಮಾಲೀಕರಿಗೆ ತಿಳಿಸಿ.` : `New bill saved, but old bill #${old.no} could not be removed (owner only for earlier days). Ask the owner to cancel it.` });
+      }
       if (holdId) void fetch(`/api/register/counter-holds/${holdId}`, { method: "DELETE" }).finally(() => void loadHolds());
       setPrev({ doc, total, received: pay === "CASH" && recvN > 0 ? recvN : null });
       if (print) setRcpt({ doc, auto: true });
@@ -446,6 +538,7 @@ export default function CounterApp() {
         <button type="button" className={`ctr-held${holds.length ? " has" : ""}`} onClick={() => { setShowHolds((v) => !v); void loadHolds(); }}>
           🅿️ {lang === "kn" ? "ಹಿಡಿದ ಬಿಲ್" : "Held"} <b>{holds.length}</b>
         </button>
+        <button type="button" className="ctr-held" onClick={() => { setShowBills(true); void loadBills(); }}>📋 {lang === "kn" ? "ಬಿಲ್‌ಗಳು" : "Bills"}</button>
         <button type="button" className="ctr-lang" onClick={() => setShowSettings((v) => !v)} aria-label="Settings">⚙️</button>
         <label className="ctr-tog">
           <input type="checkbox" checked={autoPrint} onChange={(e) => { setAutoPrint(e.target.checked); write("counterAutoPrint", e.target.checked); }} /> 🖨️ {t("autoPrint", lang)}
@@ -538,6 +631,7 @@ export default function CounterApp() {
           )}
           <div className="ctr-tot">
             <span>
+              {editing && <em className="ctr-heldtag">✏️ {lang === "kn" ? "ತಿದ್ದುಪಡಿ" : "Editing"} #{editing.no}</em>}
               {holdId && <em className="ctr-heldtag">🅿️ {lang === "kn" ? "ಹಿಡಿದ ಬಿಲ್" : "Held bill"}</em>}
               {lines.length} {lang === "kn" ? "ಸಾಲು" : "item(s)"} · {billKg(lines).toFixed(3)} kg
             </span>
@@ -663,6 +757,53 @@ export default function CounterApp() {
                 );
               })}
             </ul>
+          </div>
+        </div>
+      )}
+
+      {showBills && (
+        <div className="ctr-drawer" role="dialog" aria-label="Bills" onClick={() => setShowBills(false)}>
+          <div className="ctr-sheet wide" onClick={(e) => e.stopPropagation()}>
+            <div className="ctr-sheethead">
+              <b>📋 {lang === "kn" ? "ಬಿಲ್‌ಗಳು" : "Bills"}</b>
+              <button type="button" onClick={() => setShowBills(false)} aria-label="Close">✕</button>
+            </div>
+            <div className="ctr-bfilter">
+              <input type="date" value={bFrom || date} max={date} onChange={(e) => setBFrom(e.target.value)} aria-label="From" />
+              <input type="date" value={bTo || bFrom || date} max={date} onChange={(e) => setBTo(e.target.value)} aria-label="To" />
+              <button type="button" onClick={() => void loadBills()}>↻ {lang === "kn" ? "ತೋರಿಸು" : "Show"}</button>
+              <button type="button" onClick={exportCsv} disabled={!shownBills.length}>⬇ Excel</button>
+            </div>
+            <input className="ctr-search" value={bQ} onChange={(e) => setBQ(e.target.value)} placeholder={lang === "kn" ? "🔍 ಬಿಲ್ ಸಂಖ್ಯೆ, ಹೆಸರು, ವಸ್ತು, ಮೊತ್ತ" : "🔍 Bill no, customer, item, amount"} />
+            <div className="ctr-bsum">
+              <span>{bSum.count} {lang === "kn" ? "ಬಿಲ್" : "bills"}</span>
+              <b>{rupees(bSum.total)}</b>
+              <span>{bSum.kg.toFixed(3)} kg</span>
+              {Object.entries(bSum.modes).map(([m, v]) => <span key={m}>{modeName(m)} {rupees(v)}</span>)}
+            </div>
+            {bErr && <p className="ctr-msg bad">{bErr}</p>}
+            <ul className="ctr-holds">
+              {shownBills.map((b) => (
+                <li key={b.key} className="bill">
+                  <div className="open">
+                    <b>#{b.no} · {b.party || (lang === "kn" ? "ನಗದು ಗ್ರಾಹಕ" : "Walk-in")}</b>
+                    <span>{b.lines.map((l) => `${l.label}${l.qty ? ` ${l.qty.toFixed(3)}` : ""}`).join(", ")}</span>
+                    <small>
+                      {b.date} {new Date(b.createdAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" })} · {Object.keys(b.modes).map(modeName).join(" + ")}{b.by ? ` · ${b.by}` : ""}
+                      {b.notes ? ` · ${b.notes}` : ""}
+                    </small>
+                  </div>
+                  <b className="amt">{rupees(b.total)}</b>
+                  <div className="ctr-bact">
+                    <button type="button" onClick={() => setRcpt({ doc: billDoc(b), auto: true })}>🖨️</button>
+                    {b.date === date && <button type="button" onClick={() => void editBill(b)} title="Open this bill in the counter to change it">✏️</button>}
+                    <button type="button" onClick={() => void cancelBill(b)}>✕ {lang === "kn" ? "ರದ್ದು" : "Cancel"}</button>
+                  </div>
+                </li>
+              ))}
+              {!shownBills.length && !bErr && <li className="ctr-empty">{lang === "kn" ? "ಬಿಲ್ ಇಲ್ಲ." : "No bills for these dates."}</li>}
+            </ul>
+            <p className="ctr-hint">{lang === "kn" ? "ಸಿಬ್ಬಂದಿ ಇಂದಿನ ಬಿಲ್ ಮಾತ್ರ ರದ್ದು/ತಿದ್ದುಪಡಿ ಮಾಡಬಹುದು; ಪ್ರತಿ ಬದಲಾವಣೆ ದಾಖಲಾಗುತ್ತದೆ." : "Staff can cancel or edit today's bills only; the owner any day. Every cancel is kept in the Activity log with its reason."}</p>
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 // Quick Register — fix (PATCH) or delete a mistaken entry. Staff may change or delete only
 // today's entries (fixing a typo at the counter); the Owner may change or delete any entry.
 import { NextRequest, NextResponse } from "next/server";
+import { rupees, writeAudit } from "@/lib/auditServer";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, isValidDate } from "@/lib/registerServer";
 import { businessDate, KIND_SIDE, splitInfo, type RegisterKind } from "@/lib/register";
@@ -20,15 +21,30 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       { status: 403 }
     );
   }
+  // Why it was removed (cancelled bill, edited and saved again…): kept in the Activity log.
+  const body = (await req.json().catch(() => null)) as { reason?: unknown } | null;
+  const reason = (typeof body?.reason === "string" ? body.reason : req.nextUrl.searchParams.get("reason") || "").trim().slice(0, 200);
   // A split-payment sale is several linked rows: deleting one removes them all.
   const group = splitInfo(found.data.details);
-  const result = await safeDbCall(async () => {
-    if (group) {
-      await prisma.registerEntry.deleteMany({ where: { details: { path: ["split", "id"], equals: group.id } } });
-    } else {
-      await prisma.registerEntry.delete({ where: { id: params.id } });
-    }
-  });
+  const e = found.data;
+  const result = await safeDbCall(() =>
+    prisma.$transaction(async (tx) => {
+      const rows = group ? await tx.registerEntry.findMany({ where: { details: { path: ["split", "id"], equals: group.id } } }) : [e];
+      if (group) await tx.registerEntry.deleteMany({ where: { details: { path: ["split", "id"], equals: group.id } } });
+      else await tx.registerEntry.delete({ where: { id: e.id } });
+      const total = rows.reduce((a, r) => a + r.amountInr, 0);
+      await writeAudit(
+        tx,
+        user,
+        "DELETE",
+        "RegisterEntry",
+        e.id,
+        `${e.kind} ${rupees(total)}${e.partyName ? " " + e.partyName : ""} of ${e.date}${rows.length > 1 ? ` (${rows.length} rows)` : ""}${reason ? ` — ${reason}` : ""}`,
+        rows.length > 1 ? rows : e,
+        null
+      );
+    })
+  );
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 503 });
   return NextResponse.json({ ok: true });
 }
