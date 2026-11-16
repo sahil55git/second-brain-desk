@@ -358,6 +358,14 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   }, [hasLocalPrefs, day]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [rcpt, setRcpt] = useState<ReceiptDoc | null>(null);
+  // one tap on 🖨️ prints straight to the saved printer; the sheet only stays open if something is wrong
+  const [rcptAuto, setRcptAuto] = useState(false);
+  const [posAutoPrint, setPosAutoPrint] = useState(false);
+  useEffect(() => {
+    try { setPosAutoPrint(window.localStorage.getItem("posAutoPrint") === "1"); } catch { /* storage blocked */ }
+  }, []);
+  /** POS auto print: set when a sale is saved; the first new printable entry after it gets printed */
+  const autoPrintAfter = useRef<string | null>(null);
   const [editing, setEditing] = useState<Entry | null>(null);
   const [waiting, setWaiting] = useState(0);
   useEffect(() => {
@@ -516,6 +524,31 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     return f ? (lang === "kn" ? f.kn : f.en) : u || "";
   };
 
+  const receiptOf = (e: Entry): ReceiptDoc =>
+    entryReceipt({
+      title: e.kind === "UDHAAR_IN" ? "PAYMENT RECEIVED" : e.kind === "SALE" || e.kind === "FRESH_CRUSH" ? "RECEIPT" : "PAYMENT VOUCHER",
+      id: e.id,
+      when: receiptTime(e.createdAt),
+      party: e.partyName,
+      what: [word(e.kind as WordKey, "en"), itemText(e)].filter(Boolean).join(" · "),
+      detail: [e.qty ? `${e.qty} ${unitText(e.unit)}` : "", e.rateInr ? `@ ₹${e.rateInr}` : ""].filter(Boolean).join(" ") || undefined,
+      amountInr: e.amountInr,
+      mode: payLabel(e, "en"),
+      notes: e.notes,
+    });
+
+  const isPrintable = (e: Entry) => e.kind === "SALE" || e.kind === "UDHAAR_IN" || e.kind === "FRESH_CRUSH" || e.kind === "PAYMENT" || e.kind === "PURCHASE" || e.kind === "EXPENSE";
+  useEffect(() => {
+    const after = autoPrintAfter.current;
+    if (!after || !posAutoPrint) return;
+    const e = [...entries].filter((x) => isPrintable(x) && x.createdAt >= after).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
+    if (!e) return;
+    autoPrintAfter.current = null;
+    setRcptAuto(true);
+    setRcpt(receiptOf(e));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries]);
+
   const EntryCard = (e: Entry) => {
     const bits = [
       itemText(e),
@@ -527,7 +560,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
     ]
       .filter(Boolean)
       .join(" · ");
-    const printable = e.kind === "SALE" || e.kind === "UDHAAR_IN" || e.kind === "FRESH_CRUSH" || e.kind === "PAYMENT" || e.kind === "PURCHASE" || e.kind === "EXPENSE";
+    const printable = isPrintable(e);
     const card = (
       <button
         className={`qr-ent ${KIND_SIDE[e.kind]}${e.paymentMode === "CREDIT" ? " udhaar" : KIND_SIDE[e.kind] === "in" ? " paid" : ""}`}
@@ -560,21 +593,10 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
           className="qr-entp"
           title="Print a receipt for this entry"
           aria-label="Print a receipt for this entry"
-          onClick={() =>
-            setRcpt(
-              entryReceipt({
-                title: e.kind === "UDHAAR_IN" ? "PAYMENT RECEIVED" : e.kind === "SALE" || e.kind === "FRESH_CRUSH" ? "RECEIPT" : "PAYMENT VOUCHER",
-                id: e.id,
-                when: receiptTime(e.createdAt),
-                party: e.partyName,
-                what: [word(e.kind as WordKey, "en"), itemText(e)].filter(Boolean).join(" · "),
-                detail: [e.qty ? `${e.qty} ${unitText(e.unit)}` : "", e.rateInr ? `@ ₹${e.rateInr}` : ""].filter(Boolean).join(" ") || undefined,
-                amountInr: e.amountInr,
-                mode: payLabel(e, "en"),
-                notes: e.notes,
-              })
-            )
-          }
+          onClick={() => {
+            setRcptAuto(true);
+            setRcpt(receiptOf(e));
+          }}
         >
           🖨️
         </button>
@@ -1661,10 +1683,17 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
   const sheetEl = acc.win("form") ? sheetElRaw : null;
   const POS_KINDS = (["SALE", "FRESH_CRUSH", "UDHAAR_IN", "PURCHASE", "EXPENSE", "PAYMENT"] as const).filter((k) => acc.fn(kindToFn(k)));
   const posSaved = (msg?: string) => {
+    if (posAutoPrint) autoPrintAfter.current = new Date(Date.now() - 60_000).toISOString();
     celebrate();
     toast(msg || word("saved", lang));
     load();
     setPosKey((k) => k + 1); // fresh form for the next customer
+  };
+  const lastPrintable = () => [...entries].filter(isPrintable).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
+  const printNow = (e: Entry | undefined) => {
+    if (!e) return toast(lang === "kn" ? "ಮುದ್ರಿಸಲು ಬಿಲ್ ಇಲ್ಲ" : "No bill to print yet");
+    setRcptAuto(true);
+    setRcpt(receiptOf(e));
   };
   const posBlock = (
     <div className="pos-desk">
@@ -1695,6 +1724,22 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
               </button>
             );
           })}
+          <span className="pos-print">
+            <button type="button" className="pos-print-btn" onClick={() => printNow(lastPrintable())} title="Print the last bill on the receipt printer (one click)">
+              🖨️ <span>{lang === "kn" ? "ಕೊನೆಯ ಬಿಲ್" : "Print last bill"}</span>
+            </button>
+            <label className="pos-print-auto" title="Print a receipt by itself after every sale">
+              <input
+                type="checkbox"
+                checked={posAutoPrint}
+                onChange={(ev) => {
+                  setPosAutoPrint(ev.target.checked);
+                  try { window.localStorage.setItem("posAutoPrint", ev.target.checked ? "1" : "0"); } catch { /* storage blocked */ }
+                }}
+              />{" "}
+              {lang === "kn" ? "ಸ್ವಯಂ ಮುದ್ರಣ" : "Auto print"}
+            </label>
+          </span>
         </div>
         <SheetModeCtx.Provider value="inline">
           {!day ? (
@@ -1972,7 +2017,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
           </span>
         </div>
       )}
-      {rcpt && <ReceiptSheet doc={rcpt} onClose={() => setRcpt(null)} />}
+      {rcpt && <ReceiptSheet doc={rcpt} autoPrint={rcptAuto} onClose={() => { setRcpt(null); setRcptAuto(false); }} />}
       {waiting > 0 && (
         <button type="button" className="qr-offline" onClick={() => void flushQueue().then((n) => { if (n) { toast(`${n} sent ✓`); load(); } else toast("Still offline — they will go when the internet is back."); })}>
           ⏳ {waiting} entr{waiting === 1 ? "y" : "ies"} saved on this phone · will send when online

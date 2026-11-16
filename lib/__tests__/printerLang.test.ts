@@ -56,9 +56,9 @@ describe("ESC/POS", () => {
     const m = toMono(px(16, 300, (x, y) => (x + y) % 2 === 0), 16, 300);
     const b = buildEscpos(m, { cut: true, feedLines: 4 });
     expect(Array.from(b.subarray(0, 2))).toEqual([0x1b, 0x40]);
-    expect(Array.from(b.subarray(2, 10))).toEqual([0x1d, 0x76, 0x30, 0x00, 2, 0, 128, 0]); // first band: 2 bytes wide, 128 rows
+    expect(Array.from(b.subarray(2, 10))).toEqual([0x1d, 0x76, 0x30, 0x00, 2, 0, 24, 0]); // first band: 2 bytes wide, 24 rows
     const bands = Array.from(b).reduce((n, v, i, a) => n + (v === 0x1d && a[i + 1] === 0x76 && a[i + 2] === 0x30 ? 1 : 0), 0);
-    expect(bands).toBeGreaterThanOrEqual(3); // 300 rows = 128 + 128 + 44
+    expect(bands).toBe(13); // 300 rows = 12 × 24 + 12
     expect(Array.from(b.subarray(b.length - 7))).toEqual([0x1b, 0x64, 4, 0x1d, 0x56, 0x42, 0x00]);
   });
   it("repeats the picture for copies", () => {

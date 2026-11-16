@@ -97,7 +97,9 @@ export interface EscposOpts {
   density?: number;
 }
 export function buildEscpos(m: Mono, o: EscposOpts = {}): Uint8Array {
-  const BAND = 128;
+  // 24 rows (≤1.8 KB at 80 mm): small battery printers (MPT-III, 4 KB buffer) overflow on bigger bands
+  // and then print the rest of the picture as random Chinese characters
+  const BAND = 24;
   const parts: Uint8Array[] = [Uint8Array.of(0x1b, 0x40)]; // ESC @ initialise
   if (o.density != null) parts.push(Uint8Array.of(0x1d, 0x28, 0x4b, 0x02, 0x00, 0x31, Math.max(0, Math.min(8, Math.round(o.density))))); // GS ( K 2 0 49 n
   const one: Uint8Array[] = [];

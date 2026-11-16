@@ -659,8 +659,21 @@ export async function connectNative(id: string, name?: string): Promise<DirectCo
     name: label,
     deviceId: id,
     log: [`Through the phone: ${label} (${kind === "usb" ? "USB" : "Bluetooth"})`],
-    sink: { write: async (chunk) => { await MahadevPrinter.write({ id, base64: toBase64(chunk) }); } },
-    chunk: 16384,
+    sink: {
+      write: async (chunk) => {
+        // never leave "Printing…" spinning: a printer that stops answering fails after 20 s
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([
+            MahadevPrinter.write({ id, base64: toBase64(chunk) }),
+            new Promise((_, rej) => { timer = setTimeout(() => rej(new Error("The printer stopped answering. Check it is on, has paper and is near the tablet, then press Print again.")), 20_000); }),
+          ]);
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
+      },
+    },
+    chunk: 512,
     delay: 0,
     isOpen: () => open,
     close: async () => {

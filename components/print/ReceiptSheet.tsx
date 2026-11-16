@@ -95,7 +95,7 @@ export function ReceiptView({ doc, shop, widthMm }: { doc: ReceiptDoc; shop: Sho
   );
 }
 
-export default function ReceiptSheet({ doc, onClose, onPrinted }: { doc: ReceiptDoc; onClose: () => void; onPrinted?: () => void }) {
+export default function ReceiptSheet({ doc, onClose, onPrinted, autoPrint = false }: { doc: ReceiptDoc; onClose: () => void; onPrinted?: () => void; /** one-click: print at once and close when it worked */ autoPrint?: boolean }) {
   const [saved, save] = useSavedPrint();
   const [mounted, setMounted] = useState(false);
   const shop = useShop();
@@ -134,7 +134,7 @@ export default function ReceiptSheet({ doc, onClose, onPrinted }: { doc: Receipt
               <button key={r.id} type="button" className={`bd-chip${r.id === size.id ? " on" : ""}`} onClick={() => save({ slip: r.id })}>{r.name}</button>
             ))}
           </div>
-          <PrintCenter kind="slip" size={size} selector=".rc-portal .rc-slip" marginMm={lay.margin} count={1} label="Print" name={receiptName(doc)} saved={saved} onSave={save} onDone={onPrinted} />
+          <PrintCenter kind="slip" size={size} selector=".rc-portal .rc-slip" marginMm={lay.margin} count={1} label="Print" name={receiptName(doc)} saved={saved} onSave={save} autoPrint={autoPrint} onDone={() => { onPrinted?.(); if (autoPrint) setTimeout(onClose, 900); }} />
           <div className="bd-row"><ShareButton area=".rc-portal .rc-slip" className="bd-btn" title={receiptName(doc)} url={false} label="📤 Share receipt (WhatsApp, picture…)" /></div>
         </div>
         <div className="rc-preview">
