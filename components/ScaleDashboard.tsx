@@ -37,7 +37,7 @@ export default function ScaleDashboard() {
                 <span className={`rounded-full px-2 py-0.5 text-[10px] ${fresh ? "bg-emerald-100 text-emerald-800" : "bg-black/10 opacity-60"}`}>{fresh ? "LIVE" : "WAITING"}</span>
               </div>
               <div className="mt-1 text-xs opacity-55 font-mono">{source}</div>
-              <div className="mt-4 text-5xl font-bold tabular-nums">{r ? r.weight.toFixed(2) : "0.00"}<span className="ml-2 text-base font-normal">{r?.unit || "kg"}</span></div>
+              <div className="mt-4 text-5xl font-bold tabular-nums">{r ? r.weight.toFixed(source === bt.source ? 3 : 2) : source === bt.source ? "0.000" : "0.00"}<span className="ml-2 text-base font-normal">{r?.unit || "kg"}</span></div>
               {selectedScale === source && <div className="mt-3 text-xs text-[var(--accent-ink)]">{r?.stable === false ? "Monitoring only — automatic entry disabled" : "Selected for automatic entry"}</div>}
             </button>
           );
