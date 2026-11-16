@@ -42,6 +42,22 @@ interface MahadevPrinterPlugin {
   write(o: { id: string; base64: string }): Promise<{ sent: number }>;
   close(): Promise<void>;
 }
+export interface NativeScaleDevice {
+  /** the scale's Bluetooth address */
+  id: string;
+  name: string;
+  /** looks like a scale by its name */
+  scale: boolean;
+}
+/** Classic-Bluetooth (serial port) weighing scales: app 1.3 and newer. */
+interface MahadevScalePlugin {
+  list(): Promise<{ devices: NativeScaleDevice[]; bluetoothOn: boolean }>;
+  /** Connects once (resolves when the link is open). Already open to the same scale: resolves at once. */
+  open(o: { id: string }): Promise<{ name: string }>;
+  close(): Promise<void>;
+  addListener(ev: "scaleBytes", f: (e: { base64: string }) => void): Promise<{ remove: () => void }>;
+  addListener(ev: "scaleClosed", f: (e: { error: string }) => void): Promise<{ remove: () => void }>;
+}
 interface LocalNotificationsPlugin {
   requestPermissions(): Promise<{ display: string }>;
   checkPermissions(): Promise<{ display: string }>;
@@ -56,6 +72,7 @@ interface AppPlugin {
 
 export const MahadevNative = registerPlugin<MahadevNativePlugin>("MahadevNative");
 export const MahadevPrinter = registerPlugin<MahadevPrinterPlugin>("MahadevPrinter");
+export const MahadevScale = registerPlugin<MahadevScalePlugin>("MahadevScale");
 export const LocalNotifications = registerPlugin<LocalNotificationsPlugin>("LocalNotifications");
 export const AppEvents = registerPlugin<AppPlugin>("App");
 
@@ -63,6 +80,15 @@ export const AppEvents = registerPlugin<AppPlugin>("App");
 export function isNative(): boolean {
   try {
     return typeof window !== "undefined" && Capacitor.isNativePlatform() && Capacitor.isPluginAvailable("MahadevNative");
+  } catch {
+    return false;
+  }
+}
+
+/** True inside an Android app new enough to talk to a Bluetooth scale. */
+export function hasNativeScale(): boolean {
+  try {
+    return isNative() && Capacitor.isPluginAvailable("MahadevScale");
   } catch {
     return false;
   }

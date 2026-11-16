@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useScale } from "./ScaleProvider";
+import BluetoothScalePanel from "./scale/BluetoothScalePanel";
 
 const SCALE_NAMES: Record<string, string> = {
   "SI850-KARADI": "Karadi Oil Tank (SI-850)",
 };
 
 export default function ScaleDashboard() {
-  const { readings, connected, socketUrl, selectedScale, setSelectedScale, setSocketUrl, reconnect } = useScale();
+  const { readings, bridgeConnected: connected, bt, socketUrl, selectedScale, setSelectedScale, setSocketUrl, reconnect } = useScale();
   const [draftUrl, setDraftUrl] = useState(socketUrl);
   const cards = useMemo(() => {
     return Object.keys(readings);
@@ -16,6 +17,7 @@ export default function ScaleDashboard() {
 
   return (
     <div className="space-y-4">
+      <BluetoothScalePanel />
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-black/10 dark:border-white/10 p-3">
         <span className={`h-2.5 w-2.5 rounded-full ${connected ? "bg-emerald-500" : "bg-red-500"}`} />
         <strong className="text-sm">{connected ? "Local bridge connected" : "Local bridge offline"}</strong>
@@ -31,7 +33,7 @@ export default function ScaleDashboard() {
           return (
             <button key={source} onClick={() => setSelectedScale(source)} className={`text-left rounded-xl border-2 p-5 transition ${selectedScale === source ? "border-[var(--accent)]" : "border-black/10 dark:border-white/10"}`}>
               <div className="flex items-center justify-between gap-2">
-                <h3 className="font-semibold">{SCALE_NAMES[source] || "Unregistered scale"}</h3>
+                <h3 className="font-semibold">{SCALE_NAMES[source] || (source === bt.source ? bt.config?.name || "Bluetooth scale" : "Unregistered scale")}</h3>
                 <span className={`rounded-full px-2 py-0.5 text-[10px] ${fresh ? "bg-emerald-100 text-emerald-800" : "bg-black/10 opacity-60"}`}>{fresh ? "LIVE" : "WAITING"}</span>
               </div>
               <div className="mt-1 text-xs opacity-55 font-mono">{source}</div>

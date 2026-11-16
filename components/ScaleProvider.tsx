@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useBtScale, type BtScaleApi } from "@/components/scale/useBtScale";
 
 export type ScaleReading = {
   scale_source: string;
@@ -15,7 +16,12 @@ export type ScaleStatus = { state: string; detail: string; receivedAt: number };
 type ScaleContextValue = {
   readings: Record<string, ScaleReading>;
   statuses: Record<string, ScaleStatus>;
+  /** a scale is reachable: the Windows bridge, or this device's own Bluetooth scale */
   connected: boolean;
+  /** the Windows bridge alone (Live Scales page) */
+  bridgeConnected: boolean;
+  /** the Bluetooth scale on this phone / computer */
+  bt: BtScaleApi;
   socketUrl: string;
   selectedScale: string;
   selectedReading: ScaleReading | null;
@@ -31,7 +37,8 @@ const TANK_SOURCE = "SI850-KARADI";
 export function ScaleProvider({ children }: { children: React.ReactNode }) {
   const [readings, setReadings] = useState<Record<string, ScaleReading>>({});
   const [statuses, setStatuses] = useState<Record<string, ScaleStatus>>({});
-  const [connected, setConnected] = useState(false);
+  const [bridgeConnected, setConnected] = useState(false);
+  const bt = useBtScale();
   const [socketUrl, setSocketUrlState] = useState(DEFAULT_URL);
   const [selectedScale, setSelectedScaleState] = useState("");
   const [generation, setGeneration] = useState(0);
@@ -117,10 +124,30 @@ export function ScaleProvider({ children }: { children: React.ReactNode }) {
     window.localStorage.setItem("selectedScaleSource", source);
     setSelectedScaleState(source);
   }, []);
-  const selectedReading = selectedScale ? readings[selectedScale] || null : null;
+  // The Bluetooth scale joins the same list as the bridge's scales, so every desk that fills a
+  // weight from "the selected scale" works with it unchanged. Until the owner has checked it
+  // against the scale's own display it is monitoring only (stable: false = no automatic entry).
+  const btSource = bt.source;
+  const btLive = bt.live;
+  const btChecked = bt.checked;
+  const btOn = bt.state.status === "live";
+  const allReadings = useMemo(() => {
+    if (!btSource || !btLive) return readings;
+    const r: ScaleReading = { scale_source: btSource, weight: btLive.weightKg, unit: "kg", stable: btOn && btChecked && btLive.steady, receivedAt: btLive.at };
+    return { ...readings, [btSource]: r };
+  }, [readings, btSource, btLive, btChecked, btOn]);
+  useEffect(() => {
+    // the first scale seen on a device becomes the selected one (same rule as the bridge's)
+    if (btSource && btLive && !selectedScale) {
+      window.localStorage.setItem("selectedScaleSource", btSource);
+      setSelectedScaleState(btSource);
+    }
+  }, [btSource, btLive, selectedScale]);
+  const connected = bridgeConnected || btOn;
+  const selectedReading = selectedScale ? allReadings[selectedScale] || null : null;
   const value = useMemo(
-    () => ({ readings, statuses, connected, socketUrl, selectedScale, selectedReading, setSocketUrl, setSelectedScale, reconnect: () => setGeneration((v) => v + 1) }),
-    [readings, statuses, connected, socketUrl, selectedScale, selectedReading, setSocketUrl, setSelectedScale]
+    () => ({ readings: allReadings, statuses, connected, bridgeConnected, bt, socketUrl, selectedScale, selectedReading, setSocketUrl, setSelectedScale, reconnect: () => setGeneration((v) => v + 1) }),
+    [allReadings, statuses, connected, bridgeConnected, bt, socketUrl, selectedScale, selectedReading, setSocketUrl, setSelectedScale]
   );
   return <ScaleContext.Provider value={value}>{children}</ScaleContext.Provider>;
 }
