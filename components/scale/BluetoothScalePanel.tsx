@@ -45,6 +45,9 @@ export default function BluetoothScalePanel() {
     return () => clearInterval(t);
   }, []);
 
+  const [cName, setCName] = useState("");
+  const [cKg, setCKg] = useState("");
+  const [cMsg, setCMsg] = useState("");
   const loadLog = useCallback(async () => {
     try {
       const res = await fetch(`/api/scale-ticks/log?date=${date}`);
@@ -138,6 +141,24 @@ export default function BluetoothScalePanel() {
               </button>
               <button className={btn} disabled={!fresh || !live || live.grossKg <= 0} onClick={() => live && bt.setTare(live.grossKg)} title="Put the empty tin / barrel / bag on the scale, then press">Tare (take off container)</button>
               {bt.tareKg > 0 && <button className={btn} onClick={() => bt.setTare(0)}>Clear tare</button>}
+            </div>
+            <div className="mt-3 space-y-2 text-sm">
+              <strong>Containers</strong> <span className="opacity-70">— tap one to take its weight off automatically; it stays until you pick another.</span>
+              <div className="flex flex-wrap gap-2">
+                <button className={!bt.container && !bt.tareKg ? btnMain : btn} onClick={() => bt.pickContainer(null)}>No container</button>
+                {bt.containers.map((c) => (
+                  <span key={c.name} className="inline-flex items-center gap-1">
+                    <button className={bt.container === c.name ? btnMain : btn} onClick={() => bt.pickContainer(c.name)}>{c.name} · {c.kg.toFixed(3)} kg</button>
+                    <button className="text-xs underline opacity-60" onClick={() => { if (window.confirm(`Remove container "${c.name}"?`)) bt.removeContainer(c.name); }}>remove</button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input value={cName} onChange={(e) => setCName(e.target.value)} placeholder="Name, e.g. 15 L tin" className="rounded border border-black/20 dark:border-white/20 bg-transparent px-2 py-1" />
+                <input value={cKg} onChange={(e) => setCKg(e.target.value)} placeholder="kg (blank = scale now)" inputMode="decimal" className="w-40 rounded border border-black/20 dark:border-white/20 bg-transparent px-2 py-1" />
+                <button className={btn} onClick={() => { const err = bt.addContainer(cName, cKg.trim() ? Number(cKg) : undefined); setCMsg(err || `Saved ${cName.trim()}.`); if (!err) { setCName(""); setCKg(""); } }}>Save container</button>
+                {cMsg && <span className="opacity-70">{cMsg}</span>}
+              </div>
             </div>
             {bt.saveBlock && <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">{bt.saveBlock}</p>}
             {bt.lastSaved && <p className="mt-1 text-xs opacity-70">Last saved: {bt.lastSaved.weightKg.toFixed(3)} kg at {timeOf(new Date(bt.lastSaved.at).toISOString())}</p>}

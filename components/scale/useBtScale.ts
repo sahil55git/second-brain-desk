@@ -15,6 +15,9 @@ const K_RECORD = "btScaleAutoRecord";
 const K_QUEUE = "btScaleQueue";
 const K_TARE = "btScaleTare";
 const K_BEEP = "btScaleBeep";
+const K_CONTAINERS = "btScaleContainers";
+const K_CONTAINER = "btScaleContainer";
+export interface Container { name: string; kg: number }
 const K_CHECKED = "btScaleChecked:";
 const QUEUE_MAX = 300;
 const SHOW_EVERY_MS = 250;
@@ -58,6 +61,10 @@ export interface BtScaleApi {
   beep: boolean;
   /** why the last "Save weight" press did nothing, or null */
   saveBlock: string | null;
+  /** saved containers (tin, jar, barrel…) with their empty weight */
+  containers: Container[];
+  /** the container whose weight is being taken off now, or null */
+  container: string | null;
   chooseSerial(): Promise<void>;
   listNative(): Promise<{ devices: NativeScaleDevice[]; bluetoothOn: boolean }>;
   pickNative(d: NativeScaleDevice): void;
@@ -73,6 +80,11 @@ export interface BtScaleApi {
   setBeep(v: boolean): void;
   /** save the weight on the scale now to the weighing log (the big button) */
   saveNow(): boolean;
+  /** remember a container; kg omitted = the weight on the scale now */
+  addContainer(name: string, kg?: number): string | null;
+  removeContainer(name: string): void;
+  /** take this container's weight off every reading (null = no container) */
+  pickContainer(name: string | null): void;
 }
 
 /** A short beep (no sound file needed). */
@@ -127,6 +139,8 @@ export function useBtScale(): BtScaleApi {
   const [tareKg, setTareState] = useState(0);
   const [beep, setBeepState] = useState(true);
   const [saveBlock, setSaveBlock] = useState<string | null>(null);
+  const [containers, setContainers] = useState<Container[]>([]);
+  const [container, setContainerState] = useState<string | null>(null);
   const tareRef = useRef(0);
   const beepRef = useRef(true);
 
@@ -153,6 +167,8 @@ export function useBtScale(): BtScaleApi {
     const t = Number(read<number>(K_TARE, 0)) || 0;
     tareRef.current = t;
     setTareState(t);
+    setContainers(read<Container[]>(K_CONTAINERS, []));
+    setContainerState(read<string | null>(K_CONTAINER, null));
     const b = read<boolean>(K_BEEP, true);
     beepRef.current = b;
     setBeepState(b);
@@ -288,7 +304,7 @@ export function useBtScale(): BtScaleApi {
   const forget = useCallback(() => saveConfig(null, false), [saveConfig]);
   const setChecked = useCallback((v: boolean) => { if (source) write(K_CHECKED + source, v); setCheckedState(v); }, [source]);
   const setAutoRecord = useCallback((v: boolean) => { write(K_RECORD, v); setAutoRecordState(v); }, []);
-  const setTare = useCallback((kg: number) => {
+  const applyTare = useCallback((kg: number) => {
     const t = Number.isFinite(kg) && kg > 0 ? round3(kg) : 0;
     tareRef.current = t;
     write(K_TARE, t);
@@ -299,6 +315,33 @@ export function useBtScale(): BtScaleApi {
       setLive(latest.current);
     }
   }, []);
+  const setTare = useCallback((kg: number) => {
+    write(K_CONTAINER, null);
+    setContainerState(null);
+    applyTare(kg);
+  }, [applyTare]);
+  const pickContainer = useCallback((name: string | null) => {
+    const c = name ? read<Container[]>(K_CONTAINERS, []).find((x) => x.name === name) : null;
+    write(K_CONTAINER, c ? c.name : null);
+    setContainerState(c ? c.name : null);
+    applyTare(c ? c.kg : 0);
+  }, [applyTare]);
+  const addContainer = useCallback((name: string, kg?: number): string | null => {
+    const n = name.trim();
+    if (!n) return "Give the container a name.";
+    const w = kg ?? latest.current?.grossKg ?? NaN;
+    if (!Number.isFinite(w) || w <= 0) return "Put the empty container on the scale first.";
+    const list = [...read<Container[]>(K_CONTAINERS, []).filter((x) => x.name !== n), { name: n, kg: round3(w) }].sort((a, b) => a.name.localeCompare(b.name));
+    write(K_CONTAINERS, list);
+    setContainers(list);
+    return null;
+  }, []);
+  const removeContainer = useCallback((name: string) => {
+    const list = read<Container[]>(K_CONTAINERS, []).filter((x) => x.name !== name);
+    write(K_CONTAINERS, list);
+    setContainers(list);
+    if (read<string | null>(K_CONTAINER, null) === name) { write(K_CONTAINER, null); setContainerState(null); applyTare(0); }
+  }, [applyTare]);
   const setBeep = useCallback((v: boolean) => { beepRef.current = v; write(K_BEEP, v); setBeepState(v); }, []);
   const saveNow = useCallback((): boolean => {
     const g = gate.current;
@@ -306,7 +349,6 @@ export function useBtScale(): BtScaleApi {
     const why = !g.source ? "No scale chosen."
       : !g.checked ? "Tick 'compared and correct' first."
       : state.status !== "live" || !cur || Date.now() - cur.at > 3000 ? "No live weight from the scale."
-      : !cur.steady ? "Weight is still moving. Wait for STEADY."
       : cur.weightKg <= 0 ? "Nothing on the scale."
       : null;
     setSaveBlock(why);
@@ -316,7 +358,7 @@ export function useBtScale(): BtScaleApi {
   }, [state.status, enqueue]);
 
   return useMemo(
-    () => ({ support, config, source, state, live, lines, checked, autoRecord, queued, lastSaved, tareKg, beep, saveBlock, chooseSerial, listNative, pickNative, setBaud, connect, disconnect, retryNow, forget, setChecked, setAutoRecord, setTare, setBeep, saveNow }),
-    [support, config, source, state, live, lines, checked, autoRecord, queued, lastSaved, tareKg, beep, saveBlock, chooseSerial, listNative, pickNative, setBaud, connect, disconnect, retryNow, forget, setChecked, setAutoRecord, setTare, setBeep, saveNow]
+    () => ({ support, config, source, state, live, lines, checked, autoRecord, queued, lastSaved, tareKg, beep, saveBlock, containers, container, chooseSerial, listNative, pickNative, setBaud, connect, disconnect, retryNow, forget, setChecked, setAutoRecord, setTare, setBeep, saveNow, addContainer, removeContainer, pickContainer }),
+    [support, config, source, state, live, lines, checked, autoRecord, queued, lastSaved, tareKg, beep, saveBlock, containers, container, chooseSerial, listNative, pickNative, setBaud, connect, disconnect, retryNow, forget, setChecked, setAutoRecord, setTare, setBeep, saveNow, addContainer, removeContainer, pickContainer]
   );
 }
