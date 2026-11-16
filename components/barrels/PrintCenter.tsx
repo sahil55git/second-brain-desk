@@ -44,6 +44,8 @@ interface Props {
   onDone?: () => void;
   /** show the link to the printer setup page (off on that page itself) */
   setupLink?: boolean;
+  /** one-click: print once to the saved / last printer as soon as the sheet opens */
+  autoPrint?: boolean;
   /** open the "More ways to print" part from the start (the printer setup page) */
   moreOpen?: boolean;
 }
@@ -59,7 +61,7 @@ interface Target {
 type Msg = { ok: boolean; text: string } | null;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export default function PrintCenter({ kind, size, selector, marginMm = 0, count, label, disabled, name = "print", saved, onSave, onDone, setupLink = true, moreOpen = false }: Props) {
+export default function PrintCenter({ kind, size, selector, marginMm = 0, count, label, disabled, name = "print", saved, onSave, onDone, setupLink = true, moreOpen = false, autoPrint = false }: Props) {
   const savedRef = useRef(saved);
   savedRef.current = saved;
   const [mode, setMode] = useState<PrintMode>(printMode(saved.mode));
@@ -484,8 +486,9 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
         cut: false,
       });
       await sendBytes(via.sink, bytes, {
-        chunk: isNativeId(via.deviceId) ? 16384 : Math.min(c.chunk, via.kind === "usb" ? 16384 : c.chunk),
-        delayMs: via.kind === "usb" || isNativeId(via.deviceId) ? 0 : c.delay,
+        // small battery Bluetooth printers (MPT-II/III…) lose data or stall on one huge write: send it in paced pieces
+        chunk: via.kind === "usb" ? 16384 : isNativeId(via.deviceId) ? 512 : c.chunk,
+        delayMs: via.kind === "usb" ? 0 : isNativeId(via.deviceId) ? Math.max(15, c.delay) : c.delay,
         onProgress: (sent, all) => setProg(`Sending ${i + 1} of ${monos.length} · ${Math.round((sent / all) * 100)}%`),
       });
       total++;
@@ -628,7 +631,16 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
     } finally {
       setBusy(false);
     }
-  };
+  };  // one-click: print as soon as a printer is known (the saved one or the one used last); on a problem the sheet stays open
+  const autoFired = useRef(false);
+  useEffect(() => {
+    if (!autoPrint || autoFired.current || !chosen || busy) return;
+    autoFired.current = true;
+    const t = setTimeout(() => void quickPrint(), 400); // let the slip draw first
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPrint, chosen?.key]);
+
 
   const filesFrom = async (list: string[]) =>
     Promise.all(list.map(async (u, i) => new File([await (await fetch(u)).blob()], pictureName(name, kind, size.w, size.h, i + 1, list.length), { type: "image/png" })));
