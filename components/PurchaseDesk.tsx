@@ -22,6 +22,7 @@ import RateHint from "@/components/smart/RateHint";
 import { cleanAiLines, findItemByCode, matchParty, purchaseChecks } from "@/lib/smartEntry";
 import { addScannedItem, applyFilledLines, blankLine, formSummary, toLite, type DraftLine } from "@/lib/smartLines";
 import { uploadProof } from "@/lib/proofClient";
+import PayablesPanel from "@/components/purchases/PayablesPanel";
 
 const PAYMENT_MODES: PaymentMode[] = ["CASH", "UPI", "BANK", "CREDIT", "OTHER"];
 
@@ -244,6 +245,7 @@ export default function PurchaseDesk({
 
   return (
     <div className="space-y-4">
+      <PayablesPanel />
       {!dbConnected && (
         <div className="rounded border border-amber-400 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-700 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
           Database not connected — bills won&apos;t save yet.
