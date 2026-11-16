@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addLine, billKg, billTotal, changeDue, lineAmount, registerBody, updateLine, type CounterLine } from "../counterBill";
+import { addLine, billKg, billSum, billTotal, changeDue, lineAmount, registerBody, updateLine, type CounterLine } from "../counterBill";
 
 const karadi = (qty: number, source: CounterLine["source"] = "steady"): CounterLine => ({ item: "karadi", label: "Karadi", qty, unit: "kg", rate: 260, source });
 
@@ -44,5 +44,23 @@ describe("counter bill", () => {
     expect(registerBody([], "CASH", { date: "2026-11-16" })).toHaveProperty("err");
     const ok = registerBody([karadi(1)], "CREDIT", { date: "2026-11-16", party: " Ramesh " });
     expect("body" in ok && ok.body.partyName).toBe("Ramesh");
+  });
+  it("takes a discount and rounds off, spreading the net over the lines exactly", () => {
+    const b = [karadi(1.8), { ...karadi(0.95), item: "sunflower", label: "Sunflower", rate: 165 }];
+    const s = billSum(b, { discount: 4.75 });
+    expect(s).toMatchObject({ gross: 624.75, discount: 4.75, roundOff: 0, net: 620 });
+    expect(Math.round(s.amounts.reduce((a, x) => a + x, 0) * 100) / 100).toBe(620);
+    const r = billSum(b, { roundOff: true });
+    expect(r).toMatchObject({ net: 625, roundOff: 0.25 });
+    expect(Math.round(r.amounts.reduce((a, x) => a + x, 0) * 100) / 100).toBe(625);
+    expect(billSum(b, { discount: 10, pct: true }).net).toBe(562.27);
+  });
+  it("writes discount and round-off into the saved entry", () => {
+    const r = registerBody([karadi(1.8), karadi(1)], "CASH", { date: "2026-11-16", adjust: { discount: 8, roundOff: true } });
+    if (!("body" in r)) throw new Error(r.err);
+    expect(r.body.amountInr).toBe(720);
+    expect(r.body.notes).toBe("Discount ₹8");
+    const total = (r.body.lines as { amount: number }[]).reduce((a, l) => a + l.amount, 0);
+    expect(Math.round(total * 100) / 100).toBe(720);
   });
 });

@@ -57,11 +57,55 @@ export function updateLine(lines: CounterLine[], i: number, patch: Partial<Pick<
 
 export type CounterPay = "CASH" | "UPI" | "CREDIT";
 
+export interface BillAdjust {
+  /** discount on the whole bill: ₹ amount, or percent when pct is true */
+  discount?: number;
+  pct?: boolean;
+  /** round the bill to the nearest rupee */
+  roundOff?: boolean;
+}
+
+export interface BillSum {
+  gross: number;
+  discount: number;
+  roundOff: number;
+  net: number;
+  /** each line's share of the net, in paise-exact rupees (adds up to net) */
+  amounts: number[];
+}
+
+/** Gross → discount → round-off → net, with the net spread over the lines (each line keeps qty and rate). */
+export function billSum(lines: CounterLine[], a: BillAdjust = {}): BillSum {
+  const gross = billTotal(lines);
+  const raw = Math.max(0, a.discount || 0);
+  const discount = r2(Math.min(gross, a.pct ? (gross * Math.min(raw, 100)) / 100 : raw));
+  const afterDisc = r2(gross - discount);
+  const net = a.roundOff ? Math.round(afterDisc) : afterDisc;
+  const roundOff = r2(net - afterDisc);
+  const base = lines.map(lineAmount);
+  let amounts = base;
+  if (gross > 0 && net !== gross) {
+    // spread the change in paise, by each line's share; the last line takes the rounding remainder
+    const pNet = Math.round(net * 100);
+    const pGross = Math.round(gross * 100);
+    let used = 0;
+    amounts = base.map((b, i) => {
+      if (i === base.length - 1) return (pNet - used) / 100;
+      const p = Math.floor((Math.round(b * 100) * pNet) / pGross);
+      used += p;
+      return p / 100;
+    });
+  }
+  return { gross, discount, roundOff, net: r2(net), amounts };
+}
+
 /** The body for POST /api/register: one SALE with the lines (a single line is saved as the entry's own item). */
 export type RegisterBody = Record<string, unknown> & { amountInr: number; lines?: unknown[]; partyName: string | null; notes: string | null; paymentMode: string };
 
-export function registerBody(lines: CounterLine[], pay: CounterPay, opts: { date: string; party?: string; notes?: string }): { err: string } | { body: RegisterBody } {
-  const amountInr = billTotal(lines);
+export function registerBody(lines: CounterLine[], pay: CounterPay, opts: { date: string; party?: string; notes?: string; adjust?: BillAdjust }): { err: string } | { body: RegisterBody } {
+  const sum = billSum(lines, opts.adjust);
+  const amountInr = sum.net;
+  if (sum.amounts.some((x) => !(x > 0)) && amountInr > 0) return { err: "The discount is bigger than an item's amount. Lower the discount." };
   if (!(amountInr > 0)) return { err: "Add at least one item with a weight and a rate." };
   const party = (opts.party || "").trim();
   if (pay === "CREDIT" && !party) return { err: "Udhaar needs the customer's name." };
@@ -81,9 +125,17 @@ export function registerBody(lines: CounterLine[], pay: CounterPay, opts: { date
       ...(one
         ? { item: one.item, itemLabel: one.item === "other" ? one.label : null, qty: one.qty, unit: one.unit, rateInr: one.rate }
         : { item: null, itemLabel: null, qty: null, unit: null, rateInr: null }),
-      lines: lines.length > 1 ? lines.map((l) => ({ item: l.item, itemLabel: l.item === "other" ? l.label : null, qty: l.qty, unit: l.unit, rate: l.rate, amount: lineAmount(l) })) : undefined,
+      lines: lines.length > 1 ? lines.map((l, i) => ({ item: l.item, itemLabel: l.item === "other" ? l.label : null, qty: l.qty, unit: l.unit, rate: l.rate, amount: sum.amounts[i] })) : undefined,
       partyName: party || null,
-      notes: [opts.notes?.trim(), audit ? `Counter: ${audit}` : ""].filter(Boolean).join(" · ") || null,
+      notes:
+        [
+          opts.notes?.trim(),
+          sum.discount > 0 ? `Discount ₹${sum.discount}` : "",
+          sum.roundOff ? `Round-off ${sum.roundOff > 0 ? "+" : "−"}₹${Math.abs(sum.roundOff)}` : "",
+          audit ? `Counter: ${audit}` : "",
+        ]
+          .filter(Boolean)
+          .join(" · ") || null,
     },
   };
 }
