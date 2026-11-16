@@ -12,6 +12,7 @@ import ShareButton from "@/components/share/ShareButton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, L, rs } from "@/components/barrels/shared";
 import { Dropdown, MenuBtn, MenuHead } from "@/components/barrels/Menus";
+import StaffQuick from "@/components/employees/StaffQuick";
 import { printArea } from "@/components/print/PrintButton";
 import { downloadText } from "@/components/barrels/fleet/types";
 import { ENTRY_TYPES, daysText, earnedForDays, ledgerCsv, monthLabel, payrollNet, TYPE_LABEL, wageAmount, type EntryType, type PayType } from "@/lib/employeeLedger";
@@ -101,6 +102,8 @@ export default function EmployeeDesk() {
           </div>
 
           {emps === null && <div className="bd-m">Loading…</div>}
+
+          {emps && (tab === "staff" || tab === "ledger") && <StaffQuick people={emps} onSaved={(t) => { loadList(); flash(t); }} />}
 
           {tab === "staff" && emps && (
             <>

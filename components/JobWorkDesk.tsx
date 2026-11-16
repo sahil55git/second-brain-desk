@@ -65,6 +65,10 @@ export default function JobWorkDesk({
   const [entries, setEntries] = useState<JobWorkIntakeDTO[]>(initialEntries);
   const [outputs, setOutputs] = useState<JobWorkDayOutputDTO[]>(initialOutputs);
   const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    // from the home-screen "Job-work in" button: /?desk=jobwork#inward lands on the intake form
+    if (window.location.hash === "#inward") setTimeout(() => document.getElementById("inward")?.scrollIntoView({ block: "start" }), 400);
+  }, []);
   const [rcpt, setRcpt] = useState<ReceiptDoc | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { prefs } = useCustomize();
@@ -315,7 +319,7 @@ export default function JobWorkDesk({
       {rcpt && <ReceiptSheet doc={rcpt} onClose={() => setRcpt(null)} />}
       {/* Form panel */}
       <div className="rounded-xl border border-black/10 dark:border-white/10 p-4">
-        <h2 className="font-semibold mb-3">New intake</h2>
+        <h2 id="inward" className="font-semibold mb-3">New intake</h2>
         <AiTerminal desk="jobwork" onFill={handleAiFill} title="AI Terminal — New intake" ask={{ desk: "jobwork", form: () => `Customer: ${customer || "?"}; vehicle ${vehicleNo || "-"}; seed ${seedKg || "?"} kg; cake kept by ${cakeOwnership}` }} />
         <form onSubmit={submitIntake} className="space-y-3 text-sm">
           <div>

@@ -3,6 +3,7 @@
 // only read this summary. A key made by the owner gets the money figures; a staff key gets the
 // barrel counts only.
 import { NextRequest, NextResponse } from "next/server";
+import { cleanSettings, minutesLate } from "@/lib/staffRules";
 import { prisma, safeDbCall } from "@/lib/db";
 import { businessDate } from "@/lib/register";
 import { loadHubData } from "@/lib/hubData";
@@ -34,12 +35,20 @@ export async function GET(req: NextRequest) {
     const from = monthStart < shift(today, -8) ? monthStart : shift(today, -8);
     const data = owner ? await loadHubData(from, today) : null;
     // the phone owner's open tasks (from the chat)
+    // "My work" widget: what this phone's user entered today, and what is waiting (no money for staff)
+    const user = await prisma.user.findUnique({ where: { username: dev.username }, select: { name: true } }).catch(() => null);
+    const myName = user?.name || dev.username;
+    const mine = await prisma.registerEntry.findMany({ where: { date: today, createdByName: myName }, select: { kind: true, amountInr: true, createdAt: true, details: true } }).catch(() => []);
+    const jwOpen = await prisma.jobWorkIntake.findMany({ where: { settled: false }, select: { seedKg: true } }).catch(() => []);
+    const pendingOk = await prisma.registerEntry.findMany({ where: { date: { gte: shift(today, -60) }, details: { path: ["approval"], equals: "pending" } }, orderBy: { createdAt: "desc" }, take: 20, select: { kind: true, amountInr: true, partyName: true, createdByName: true, date: true } }).catch(() => []);
     const tasks = await prisma.task.findMany({ where: { username: dev.username, doneAt: null }, orderBy: [{ due: "asc" }, { createdAt: "asc" }], take: 12 }).catch(() => []);
-    return { dev, barrels, data, today, owner, tasks };
+    // owner's "Staff ledger" widget: what we owe each person, who is in / late / absent today (private: owner only)
+    const staffRows = owner ? await staffBlock(today) : null;
+    return { dev, barrels, data, today, owner, tasks, mine, jwOpen, pendingOk, myName, staffRows };
   });
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 503 });
   if (!r.data) return NextResponse.json({ error: "This widget key is switched off. Turn widgets on again in the app." }, { status: 401 });
-  const { barrels, data, today, owner, dev, tasks } = r.data;
+  const { barrels, data, today, owner, dev, tasks, mine, jwOpen, pendingOk, myName, staffRows } = r.data;
   const b = barrelCounts(barrels, now);
   const s = data ? homeSummary(data as unknown as BizData, now) : null;
   const hourIst = Number(new Date(now).toLocaleString("en-GB", { hour: "2-digit", hour12: false, timeZone: "Asia/Kolkata" }));
@@ -68,6 +77,17 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(
     {
       at: new Date(now).toISOString(),
+      me: {
+        name: myName,
+        entries: mine.length,
+        last: mine.length ? new Date(Math.max(...mine.map((e: { createdAt: Date }) => e.createdAt.getTime()))).toISOString() : null,
+        waitingOk: mine.filter((e: { details: unknown }) => (e.details as { approval?: string } | null)?.approval === "pending").length,
+        jobWorkLots: jwOpen.length,
+        jobWorkKg: Math.round(jwOpen.reduce((a: number, j: { seedKg: number }) => a + j.seedKg, 0)),
+      },
+      // entries waiting for the owner's OK: the owner sees each one, staff only their own count (in "me")
+      approvals: owner ? pendingOk.map((e: { kind: string; amountInr: number; partyName: string | null; createdByName: string | null; date: string }) => ({ kind: e.kind, amount: e.amountInr, party: e.partyName, by: e.createdByName, date: e.date })) : null,
+      staff: staffRows,
       tasks: taskList.map((t) => ({ id: t.id, text: t.text, when: dueText(t.due, t.dueTime, today), late: !!t.due && t.due < today })),
       tips: tipList.map((t) => ({ icon: t.icon, text: t.text, path: t.path })),
       runout: runout.filter((x) => x.stockKg !== null || x.perDay !== null).map((x) => ({ name: x.name, kg: x.stockKg, days: x.daysLeft, level: x.level, last: x.lastBuy ? `${x.lastBuy.party || ""}${x.lastBuy.rate ? ` ₹${x.lastBuy.rate}` : ""}`.trim() : "" })),
@@ -88,4 +108,32 @@ export async function GET(req: NextRequest) {
     },
     { headers: { "Cache-Control": "no-store" } },
   );
+}
+
+/** Per active employee: balance (we owe + / advance −) and today's attendance with lateness. */
+async function staffBlock(today: string) {
+  const [emps, sums, att, rules] = await Promise.all([
+    prisma.employee.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.employeeEntry.groupBy({ by: ["employeeId"], where: { voidedAt: null }, _sum: { creditInr: true, debitInr: true } }),
+    prisma.attendance.findMany({ where: { date: today }, select: { employeeId: true, status: true, inAt: true } }),
+    prisma.appSetting.findUnique({ where: { key: "staffRules" } }),
+  ]);
+  const cfg = cleanSettings(rules?.data);
+  const bal = new Map<string, number>(sums.map((x: { employeeId: string; _sum: { creditInr: number | null; debitInr: number | null } }) => [x.employeeId, (x._sum.creditInr ?? 0) - (x._sum.debitInr ?? 0)]));
+  const at = new Map<string, { status: string; inAt: Date | null }>(att.map((a: { employeeId: string; status: string; inAt: Date | null }) => [a.employeeId, a]));
+  const list = emps.map((e: { id: string; name: string }) => {
+    const a = at.get(e.id);
+    const late = a && a.status !== "A" ? minutesLate(a.inAt ? a.inAt.toISOString() : null, cfg.openTime, cfg.graceMin) : 0;
+    return { name: e.name, balance: Math.round((bal.get(e.id) ?? 0) * 100) / 100, today: a ? a.status : null, inAt: a?.inAt ? a.inAt.toISOString() : null, lateMin: late };
+  });
+  return {
+    count: list.length,
+    owed: Math.round(list.filter((x: { balance: number }) => x.balance > 0).reduce((t: number, x: { balance: number }) => t + x.balance, 0)),
+    advances: Math.round(-list.filter((x: { balance: number }) => x.balance < 0).reduce((t: number, x: { balance: number }) => t + x.balance, 0)),
+    present: list.filter((x: { today: string | null }) => x.today === "P" || x.today === "H").length,
+    absent: list.filter((x: { today: string | null }) => x.today === "A").length,
+    late: list.filter((x: { lateMin: number }) => x.lateMin > 0).length,
+    open: cfg.openTime,
+    list: list.slice(0, 12),
+  };
 }

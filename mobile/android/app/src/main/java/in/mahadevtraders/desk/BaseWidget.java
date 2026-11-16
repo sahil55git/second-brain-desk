@@ -11,8 +11,13 @@ public abstract class BaseWidget extends AppWidgetProvider {
 
     @Override
     public void onUpdate(Context c, AppWidgetManager m, int[] ids) {
-        m.updateAppWidget(ids, Widgets.views(c, kind()));
+        for (int id : ids) Widgets.render(c, m, id, kind());
         RefreshWorker.schedule(c);
+    }
+
+    @Override
+    public void onAppWidgetOptionsChanged(Context c, AppWidgetManager m, int id, android.os.Bundle o) {
+        Widgets.render(c, m, id, kind());
     }
 
     @Override
