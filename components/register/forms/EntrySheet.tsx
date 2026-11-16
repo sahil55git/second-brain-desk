@@ -478,6 +478,7 @@ export default function EntrySheet({
       {showItemwise && hasQty && (
         <ScaleBtn
           lang={lang}
+          big={pos}
           onUse={(w) => {
             setQty(String(w));
             setUnit("kg");

@@ -8,6 +8,8 @@ export type ScaleReading = {
   weight: number;
   unit?: string;
   stable?: boolean;
+  /** checked by a person and live: a weight may be taken by hand even while moving */
+  trusted?: boolean;
   receivedAt: number;
 };
 
@@ -133,7 +135,7 @@ export function ScaleProvider({ children }: { children: React.ReactNode }) {
   const btOn = bt.state.status === "live";
   const allReadings = useMemo(() => {
     if (!btSource || !btLive) return readings;
-    const r: ScaleReading = { scale_source: btSource, weight: btLive.weightKg, unit: "kg", stable: btOn && btChecked && btLive.steady, receivedAt: btLive.at };
+    const r: ScaleReading = { scale_source: btSource, weight: btLive.weightKg, unit: "kg", stable: btOn && btChecked && btLive.steady, trusted: btOn && btChecked, receivedAt: btLive.at };
     return { ...readings, [btSource]: r };
   }, [readings, btSource, btLive, btChecked, btOn]);
   useEffect(() => {

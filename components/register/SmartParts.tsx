@@ -46,8 +46,8 @@ function toKg(w: number, unit?: string): number {
   return w;
 }
 
-export function ScaleBtn({ lang, onUse }: { lang: LangMode; onUse: (kg: number) => void }) {
-  const { connected, selectedReading: r } = useScale();
+export function ScaleBtn({ lang, onUse, big = false }: { lang: LangMode; onUse: (kg: number) => void; /** POS: large live weight */ big?: boolean }) {
+  const { connected, selectedReading: r, bt, selectedScale } = useScale();
   const [, tick] = useState(0);
   // A reading goes stale with time, not only when a new one arrives.
   useEffect(() => {
@@ -58,12 +58,42 @@ export function ScaleBtn({ lang, onUse }: { lang: LangMode; onUse: (kg: number) 
   const fresh = !!r && Date.now() - r.receivedAt < SCALE_FRESH_MS;
   const kg = r ? toKg(r.weight, r.unit) : NaN;
   const steady = fresh && r!.stable !== false && Number.isFinite(kg) && kg > 0;
+  // a checked Bluetooth scale may be read by hand while still moving; other scales wait for steady
+  const usable = steady || (fresh && !!r!.trusted && Number.isFinite(kg) && kg > 0);
+  const kg3 = Math.round(kg * 1000) / 1000;
+  const isBt = !!bt.source && selectedScale === bt.source;
+  if (big)
+    // POS: a round live dial (like the iScale app), container chips and one big Read button
+    return (
+      <div className="qr-scale-big">
+        <div className={`qr-dial ${fresh ? (steady ? "ok" : "mid") : "bad"}`}>
+          <b>{fresh && Number.isFinite(kg) ? kg3.toFixed(3) : "0.000"}</b>
+          <small>kg{isBt && bt.tareKg > 0 ? ` net · ${bt.container || "tare"} ${bt.tareKg.toFixed(3)}` : ""}</small>
+          <span>{!fresh ? word("scaleNone", lang) : steady ? "STEADY" : word("scaleMoving", lang)}</span>
+        </div>
+        <div className="qr-scale-side">
+          {isBt && bt.containers.length > 0 && (
+            <div className="qr-tare-chips">
+              <button type="button" className={!bt.container && !bt.tareKg ? "on" : ""} onClick={() => bt.pickContainer(null)}>No container</button>
+              {bt.containers.map((c) => (
+                <button type="button" key={c.name} className={bt.container === c.name ? "on" : ""} onClick={() => bt.pickContainer(c.name)}>
+                  {c.name} <small>{c.kg.toFixed(3)}</small>
+                </button>
+              ))}
+            </div>
+          )}
+          <button type="button" className="qr-scale-use" disabled={!usable} onClick={() => onUse(kg3)}>
+            <G e="⚖️" /> {word("scaleUse", lang)}
+          </button>
+        </div>
+      </div>
+    );
   return (
     <div className="qr-scale">
       <span className={`qr-dot ${fresh ? (steady ? "ok" : "mid") : "bad"}`} aria-hidden />
-      <b>{fresh && Number.isFinite(kg) ? `${Math.round(kg * 100) / 100} kg` : word("scaleNone", lang)}</b>
+      <b>{fresh && Number.isFinite(kg) ? `${kg3.toFixed(3)} kg` : word("scaleNone", lang)}</b>
       {fresh && !steady && <span className="qr-m">{word("scaleMoving", lang)}</span>}
-      <button type="button" className="qr-mini" disabled={!steady} onClick={() => onUse(Math.round(kg * 100) / 100)}>
+      <button type="button" className="qr-mini" disabled={!usable} onClick={() => onUse(kg3)}>
         <G e="⚖️" /> {word("scaleUse", lang)}
       </button>
     </div>
