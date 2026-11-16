@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BUILTIN_PROFILES, OWNER_PERMS, canFn, canPage, effectivePerms, kindToFn, normalizePerms, pagesForPath, pathAllowed, visibleEntries } from "../access";
+import { BUILTIN_PROFILES, OWNER_PERMS, canFn, canPage, effectivePerms, kindToFn, normalizePerms, pagesForPath, pathAllowed, visibleEntries, billsFor, withoutCostRates } from "../access";
 
 const by = (id: string) => BUILTIN_PROFILES.find((p) => p.id === id)!.perms;
 
@@ -49,11 +49,27 @@ describe("access", () => {
     expect(pathAllowed(by("godown"), "/api/parties")).toBe(true);
     expect(pathAllowed(by("godown"), "/sales")).toBe(false);
   });
-  it("hides other users' entries and rates", () => {
-    const rows = [{ id: 1, createdByName: "Ravi", rateInr: 168 }, { id: 2, createdByName: "Manjula", rateInr: 214 }];
+  it("hides other users' entries, and buying rates but not selling rates", () => {
+    const rows = [{ id: 1, kind: "SALE", createdByName: "Ravi", rateInr: 168 }, { id: 2, kind: "SALE", createdByName: "Manjula", rateInr: 214 }, { id: 3, kind: "PURCHASE", createdByName: "Ravi", rateInr: 140 }];
     const p = by("counter");
-    expect(visibleEntries(rows, p, "ravi")).toEqual([{ id: 1, createdByName: "Ravi", rateInr: null }]);
-    expect(visibleEntries(rows, by("manager"), "ravi")).toHaveLength(2);
+    expect(visibleEntries(rows, p, "ravi")).toEqual([{ id: 1, kind: "SALE", createdByName: "Ravi", rateInr: 168 }, { id: 3, kind: "PURCHASE", createdByName: "Ravi", rateInr: null }]);
+    expect(visibleEntries(rows, by("manager"), "ravi")[2].rateInr).toBe(140);
+    expect(visibleEntries(rows, by("manager"), "ravi")).toHaveLength(3);
     expect(visibleEntries(rows, by("manager"), "ravi")[0].rateInr).toBe(168);
+  });
+  it("with costs hidden: no remembered buying rates and no supplier bills, selling rates kept", () => {
+    const rates = { "SALE:sunflower": 168, "PURCHASE:sunflower": 140, "FRESH_CRUSH:karadi:kg": 300, "PURCHASE:_": 5 };
+    expect(withoutCostRates(rates, by("counter"))).toEqual({ "SALE:sunflower": 168, "FRESH_CRUSH:karadi:kg": 300 });
+    expect(withoutCostRates(rates, by("manager"))).toEqual(rates);
+    expect(withoutCostRates(rates, OWNER_PERMS)).toEqual(rates);
+    expect(withoutCostRates(null, by("counter"))).toEqual({});
+    const bills = [{ id: "b1", billNo: "A-1", date: "2026-11-01", partyId: "p1", subtotalInr: 1000, cgstInr: 25, sgstInr: 25, igstInr: 0, totalInr: 1050, notes: "paid 1050", lineItems: [{ itemId: "i1", name: "Seed", qty: 40, unit: "kg", rateInr: 25, gstRatePct: 5, lineSubtotalInr: 1000, lineTaxInr: 50, lineTotalInr: 1050 }] }];
+    const hidden = billsFor(bills, by("counter"));
+    expect(hidden).toEqual([{ id: "b1", billNo: "A-1", date: "2026-11-01", partyId: "p1", subtotalInr: 0, cgstInr: 0, sgstInr: 0, igstInr: 0, totalInr: 0, notes: null, costHidden: true, lineItems: [{ itemId: "i1", name: "Seed", qty: 40, unit: "kg", rateInr: 0, gstRatePct: 5, lineSubtotalInr: 0, lineTaxInr: 0, lineTotalInr: 0 }] }]);
+    expect(JSON.stringify(hidden)).not.toMatch(/1050|1000|"rateInr":25/); // quantities stay, no rupee figure survives
+    expect(bills[0].totalInr).toBe(1050); // the original is untouched
+    expect(billsFor(bills, by("godown"))[0]).toMatchObject({ costHidden: true, totalInr: 0 });
+    expect(billsFor(bills, by("manager"))).toBe(bills);
+    expect(billsFor(bills, OWNER_PERMS)).toBe(bills);
   });
 });

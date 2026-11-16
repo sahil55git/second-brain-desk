@@ -1,6 +1,7 @@
 "use client";
 
 import PrintButton from "@/components/print/PrintButton";
+import { businessDate } from "@/lib/register";
 import React, { useEffect, useMemo, useState } from "react";
 import type { MfgBatchDTO, BatchSupplierDTO } from "@/lib/types";
 import {
@@ -15,6 +16,7 @@ import { useCustomize, visibleOrderedIds } from "@/lib/customize";
 import { WIDGET_DEFS, COLUMN_DEFS } from "@/lib/desksConfig";
 import { useScale } from "@/components/ScaleProvider";
 import MillTransferPanel from "@/components/mfg/MillTransferPanel";
+import { outboxSend } from "@/lib/outbox";
 
 const MFG_WIDGET_IDS = WIDGET_DEFS.mfg.map((w) => w.id);
 const MFG_COLUMN_IDS = COLUMN_DEFS.mfg.map((c) => c.id);
@@ -44,7 +46,7 @@ function nowTime() {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return businessDate(Date.now()); // India date, not UTC (UTC is still yesterday until 5:30 am)
 }
 
 function batchToInput(b: MfgBatchDTO): BarrelBatchInput {
@@ -105,6 +107,14 @@ function ManufacturingDeskMain({
   const visibleColIds = visibleOrderedIds(MFG_COLUMN_IDS, prefs.columns.mfg);
   const totalCols = visibleColIds.length;
 
+  // entries kept offline were just sent: show them
+  useEffect(() => {
+    const on = () => void refetch();
+    window.addEventListener("outbox-sent", on);
+    return () => window.removeEventListener("outbox-sent", on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function refetch() {
     try {
       const res = await fetch("/api/manufacturing");
@@ -159,10 +169,11 @@ function ManufacturingDeskMain({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/manufacturing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const r = await outboxSend<{ data: MfgBatchDTO | null }>({
+        desk: "mfg",
+        label: `New batch: barrel ${barrel.trim()}, ${date}`,
+        url: "/api/manufacturing",
+        json: {
           mill: mill || null,
           barrel: barrel.trim(),
           productItem: productItem === "Other" ? customItem || "Other" : productItem,
@@ -174,14 +185,12 @@ function ManufacturingDeskMain({
           systemOilKgOverride: systemOilOverride === "" ? null : parseFloat(systemOilOverride),
           moisturePct: moisturePct === "" ? null : parseFloat(moisturePct),
           notes: notes || null,
-        }),
+        },
       });
-      const json = await res.json();
-      if (!res.ok) setError(json.error || "Failed to start batch");
-      else {
-        setBatches((prev) => [json.data, ...prev]);
-        resetStartForm();
-      }
+      const saved = r.queued ? null : r.data.data;
+      if (r.queued) setError("Saved on this device. It will be sent when the internet is back. The batch will appear in the list after that.");
+      if (saved) setBatches((prev) => [saved, ...prev]);
+      resetStartForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start batch");
     } finally {
@@ -313,10 +322,12 @@ function ManufacturingDeskMain({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/manufacturing/${selBatchId}`, {
+      const r = await outboxSend<{ data: MfgBatchDTO | null }>({
+        desk: "mfg",
+        label: `Batch steps: ${batches.find((b) => b.id === selBatchId)?.barrel ?? "batch"}`,
+        url: `/api/manufacturing/${selBatchId}`,
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        json: {
           step2Kg: uStep2 === "" ? null : parseFloat(uStep2),
           step2Date: uStep2Date || null,
           step2Time: uStep2Time || null,
@@ -326,13 +337,11 @@ function ManufacturingDeskMain({
           step4Kg: uStep4 === "" ? null : parseFloat(uStep4),
           step4Date: uStep4Date || null,
           step4Time: uStep4Time || null,
-        }),
+        },
       });
-      const json = await res.json();
-      if (!res.ok) setError(json.error || "Failed to update batch");
-      else {
-        setBatches((prev) => prev.map((b) => (b.id === selBatchId ? json.data : b)));
-      }
+      const saved = r.queued ? null : r.data.data;
+      if (r.queued) setError("Saved on this device. It will be sent when the internet is back. The batch shows the old weights until then.");
+      if (saved) setBatches((prev) => prev.map((b) => (b.id === selBatchId ? saved : b)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update batch");
     } finally {

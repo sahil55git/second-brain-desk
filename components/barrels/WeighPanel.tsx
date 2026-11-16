@@ -14,6 +14,7 @@ import { findBarrelCode, tickFresh, type Phase } from "@/lib/barrels";
 import { useScale } from "@/components/ScaleProvider";
 import BarcodeScanner, { cameraScanSupported } from "@/components/barrels/BarcodeScanner";
 import { api, kg, L, pad, when, whenFull, type BarrelRow, type Lot, type Tick } from "@/components/barrels/shared";
+import { outboxSend } from "@/lib/outbox";
 
 interface Saved {
   ok: boolean;
@@ -172,19 +173,36 @@ export default function WeighPanel({
     setBusy(true);
     setMsg(null);
     try {
-      const j = await api<{ data: Lot; barrel: BarrelRow; kg: number }>("/api/barrels/weigh", {
-        method: "POST",
-        json: {
-          code: target.code,
-          phase,
-          source: viaManual ? "MANUAL" : "SCALE",
-          tickId: viaManual ? undefined : usable?.id,
-          kg: viaManual ? toNum(manualKg) : undefined,
-          weighedAt: viaManual && manualAt ? new Date(manualAt).toISOString() : undefined,
-          note: viaManual ? manualNote : reweigh ? why : undefined,
-          reweigh,
-        },
-      });
+      const payload = {
+        code: target.code,
+        phase,
+        source: viaManual ? "MANUAL" : "SCALE",
+        tickId: viaManual ? undefined : usable?.id,
+        kg: viaManual ? toNum(manualKg) : undefined,
+        weighedAt: viaManual && manualAt ? new Date(manualAt).toISOString() : undefined,
+        note: viaManual ? manualNote : reweigh ? why : undefined,
+        reweigh,
+      };
+      // A weight typed by hand can wait for the internet (it carries its own time and reason).
+      // A scale reading cannot: the server has to check it while it is fresh.
+      let j: { data: Lot; barrel: BarrelRow; kg: number };
+      if (viaManual) {
+        const r = await outboxSend<{ data: Lot | null; barrel: BarrelRow; kg: number }>({ desk: "barrels", label: `Barrel ${pad(target.seq)} ${phase === "GROSS" ? "full" : "empty"}: ${toNum(manualKg)} kg (typed)`, url: "/api/barrels/weigh", json: payload });
+        if (r.queued || !r.data.data) {
+          setMsg({ ok: true, text: r.queued ? `Barrel ${pad(target.seq)}: ${kg(toNum(manualKg))} kg saved on this device. It will be sent when the internet is back.` : `Barrel ${pad(target.seq)}: already saved.` });
+          setCodeText("");
+          setManualKg("");
+          setManualWhy("");
+          setManualReason(MANUAL_REASONS[0]);
+          setManualAt(localNow());
+          setManual(false);
+          codeRef.current?.focus();
+          return;
+        }
+        j = r.data as { data: Lot; barrel: BarrelRow; kg: number };
+      } else {
+        j = await api<{ data: Lot; barrel: BarrelRow; kg: number }>("/api/barrels/weigh", { method: "POST", json: payload });
+      }
       onSaved(j.data);
       const b = j.barrel;
       const n = pad(target.seq);

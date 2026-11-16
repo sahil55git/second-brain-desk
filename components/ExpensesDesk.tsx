@@ -3,6 +3,7 @@
 // Expense recording (erp-architecture-plan.md, Phase 2). Simple dated
 // category/amount log, optionally linked to a party (transporter, landlord).
 import PrintButton from "@/components/print/PrintButton";
+import { businessDate } from "@/lib/register";
 import { useMemo, useState } from "react";
 import type { ExpenseDTO, PartyDTO, PaymentMode } from "@/lib/types";
 import AiTerminal, { type FillMeta } from "@/components/AiTerminal";
@@ -25,7 +26,7 @@ const CATEGORY_SUGGESTIONS = [
 ];
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return businessDate(Date.now()); // India date, not UTC
 }
 
 export default function ExpensesDesk({

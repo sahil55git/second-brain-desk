@@ -5,6 +5,7 @@
 // update live as you type, save it (server allocates the invoice number and
 // re-computes GST authoritatively), and print a clean invoice.
 import { useFeatures } from "@/lib/useFeatures";
+import { businessDate } from "@/lib/register";
 import PrintButton from "@/components/print/PrintButton";
 import { useEffect, useMemo, useState } from "react";
 import type {
@@ -35,7 +36,7 @@ const PAYMENT_MODES: PaymentMode[] = ["CASH", "UPI", "BANK", "CREDIT", "OTHER"];
 
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return businessDate(Date.now()); // India date, not UTC
 }
 
 export default function SalesDesk({

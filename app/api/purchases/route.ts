@@ -5,6 +5,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
 import { computeLine, computeTotals, gstTreatment, type GstLineInput } from "@/lib/gst";
+import { getUser } from "@/lib/registerServer";
+import { accessFor } from "@/lib/accessServer";
+import { BUILTIN_PROFILES, effectivePerms, stripBillCost } from "@/lib/access";
 
 const SETTINGS_ID = "singleton";
 
@@ -18,7 +21,16 @@ interface IncomingLine {
   gstRatePct?: number | string;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // A profile with "rates and costs" hidden gets the bills with every rupee figure removed.
+  const user = await getUser(req);
+  if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  let hideCost = false;
+  if (!user.isOwner) {
+    const acc = await accessFor(user.username);
+    const perms = acc ? acc.perms : effectivePerms(false, BUILTIN_PROFILES[1].perms);
+    hideCost = perms.hide.rates;
+  }
   const result = await safeDbCall(() =>
     prisma.purchaseBill.findMany({
       orderBy: { createdAt: "desc" },
@@ -28,7 +40,7 @@ export async function GET() {
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 503 });
   }
-  return NextResponse.json({ data: result.data });
+  return NextResponse.json({ data: hideCost ? stripBillCost(JSON.parse(JSON.stringify(result.data)) as object[]) : result.data });
 }
 
 export async function POST(req: NextRequest) {

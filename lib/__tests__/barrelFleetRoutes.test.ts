@@ -193,7 +193,7 @@ describe("weigh", () => {
     await w({ code: "BRL-01", phase: "EMPTY", tickId: "a" });
     tick("b", 192.4);
     await w({ code: "BRL-01", phase: "GROSS", tickId: "b", product: "Sunflower oil" });
-    tick("c", 13.9);
+    tick("c", 13.9, 5); // settled after the weighing that set the tare (two ticks made in the same millisecond used to tie)
     const j = await (await w({ code: "BRL-01", phase: "EMPTY", tickId: "c" })).json();
     expect(j.net).toBe(178.5); // 192.4 − 13.9 poured
     expect(db.events.at(-1)!.detail).toMatchObject({ driftKg: 1.5, pouredKg: 178.5, setsTare: false });

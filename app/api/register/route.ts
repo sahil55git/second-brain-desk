@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, isValidDate, loadConfig, loadDay, saveConfig } from "@/lib/registerServer";
 import { accessFor } from "@/lib/accessServer";
-import { BUILTIN_PROFILES, canFn, effectivePerms, kindToFn, visibleEntries } from "@/lib/access";
+import { BUILTIN_PROFILES, canFn, effectivePerms, kindToFn, visibleEntries, withoutCostRates } from "@/lib/access";
 import { ALL_KINDS, KIND_SIDE, allocateBill, channelToMode, learnItem, normalizeBillLines, normalizeFreshCrush, normalizeSplit, rateKey, type BillLine, type RegisterKind } from "@/lib/register";
 
 export const dynamic = "force-dynamic";
@@ -21,9 +21,10 @@ export async function GET(req: NextRequest) {
   // Staff: what the profile hides (other users' entries, rates) is removed here, not on screen.
   const acc = await accessFor(user.username);
   const perms = acc ? acc.perms : effectivePerms(false, BUILTIN_PROFILES[1].perms);
-  const data = result.data as { entries?: Array<Record<string, unknown>> };
+  const data = result.data as { entries?: Array<Record<string, unknown>>; config?: { rates?: Record<string, number> } };
   if (Array.isArray(data.entries)) {
-    return NextResponse.json({ data: { ...data, entries: visibleEntries(data.entries, perms, user.name) } });
+    const config = data.config ? { ...data.config, rates: withoutCostRates(data.config.rates, perms) } : data.config;
+    return NextResponse.json({ data: { ...data, config, entries: visibleEntries(data.entries, perms, user.name) } });
   }
   return NextResponse.json({ data: result.data });
 }

@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma, safeDbCall } from "@/lib/db";
 import { accessFor } from "@/lib/accessServer";
-import { BUILTIN_PROFILES, OWNER_PERMS, effectivePerms } from "@/lib/access";
+import { BUILTIN_PROFILES, OWNER_PERMS, billsFor, effectivePerms } from "@/lib/access";
 import DeskTabs from "@/components/DeskTabs";
 import CustomizeButton from "@/components/CustomizeButton";
 import SignOutButton from "@/components/SignOutButton";
@@ -120,7 +120,8 @@ export default async function Home() {
   const parties = mayParties ? s<PartyDTO>(partiesResult) : [];
   const items = s<ItemDTO>(itemsResult);
   const sales = maySales ? s<SalesInvoiceDTO>(salesResult) : [];
-  const purchases = mayBuy ? s<PurchaseBillDTO>(purchasesResult) : [];
+  // supplier bills show what the shop pays: none for a profile with costs hidden (lib/access billsFor)
+  const purchases = mayBuy ? billsFor(s<PurchaseBillDTO>(purchasesResult), perms) : [];
   const expenses = pg.register ? s<ExpenseDTO>(expensesResult) : [];
   const settings: BusinessSettingsDTO | null =
     settingsResult.ok && settingsResult.data

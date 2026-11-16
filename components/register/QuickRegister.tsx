@@ -6,6 +6,7 @@
 // Second Brain Desk.
 
 import EditEntry from "@/components/register/EditEntry";
+import { verdict } from "@/lib/outbox";
 import ShareButton from "@/components/share/ShareButton";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -152,9 +153,13 @@ export async function flushQueue(): Promise<number> {
       } catch {
         break; // still offline
       }
-      // sent (or refused for good, e.g. a mistake in it): either way it leaves the queue
+      // Only a clear answer takes it out of the queue: saved, or refused because the entry itself
+      // is wrong. A server problem or an expired login keeps it here for the next try
+      // (it used to be dropped, losing the entry).
+      const v = verdict(res.status);
+      if (v === "wait") break;
       setQueue(offlineQueue().slice(1));
-      if (res.ok) sent++;
+      if (v === "sent") sent++;
       else window.dispatchEvent(new CustomEvent("qr-queue-fail", { detail: (await res.json().catch(() => ({}))).error || `HTTP ${res.status}` }));
     }
   } finally {

@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
+import { claimOp, releaseOp } from "@/lib/clientOp";
 import { TABLE_HINT, missingTable } from "@/lib/attachmentServer";
 import { checkWeighedAt, tickFresh, validKg } from "@/lib/barrels";
 import { checkFleetWeigh, emptyOutcome, findFleetCode, grossOutcome, type FleetPhase } from "@/lib/barrelFleet";
@@ -37,6 +38,9 @@ export async function POST(req: NextRequest) {
   const product = phase === "GROSS" ? str(body.product, 40) : null;
   if (source === "MANUAL" && (!note || note.length < 3)) return NextResponse.json({ error: "Typing a weight by hand needs a reason (for example: scale not working)." }, { status: 400 });
   if (phase === "GROSS" && !product) return NextResponse.json({ error: "Choose which oil is in the barrel." }, { status: 400 });
+
+  // a typed weight kept offline and sent again must not be saved as a second weighing
+  if ((await claimOp(body.clientId, "barrel.weigh")) === "duplicate") return NextResponse.json({ data: null, duplicate: true, message: "Already saved." }, { status: 200 });
 
   const result = await safeDbCall(async () => {
     const barrel = await prisma.fleetBarrel.findUnique({ where: { code: parsed.code } });
@@ -111,6 +115,7 @@ export async function POST(req: NextRequest) {
     return { b: saved.b, eventId: saved.event.id, kg, netKg, setsTare: phase === "EMPTY" && !!(ev?.detail as { setsTare?: boolean }).setsTare } as const;
   });
 
+  if (!result.ok || "error" in result.data) await releaseOp(body.clientId);
   if (!result.ok) return NextResponse.json({ error: missingTable(result.error) ? TABLE_HINT : result.error }, { status: 503 });
   const d = result.data;
   if ("error" in d) return NextResponse.json({ error: d.error }, { status: d.status });

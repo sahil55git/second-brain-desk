@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
+import { claimOp, releaseOp } from "@/lib/clientOp";
 
 export async function GET() {
   const result = await safeDbCall(() =>
@@ -35,6 +36,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "seedKg must be a positive number" }, { status: 400 });
   }
 
+  // an intake kept offline and sent again must not become a second intake (phantom seed on the books)
+  if ((await claimOp(body.clientId, "jobwork.intake")) === "duplicate") return NextResponse.json({ data: null, duplicate: true, message: "Already saved." }, { status: 200 });
+
   const result = await safeDbCall(() =>
     prisma.jobWorkIntake.create({
       data: {
@@ -52,6 +56,7 @@ export async function POST(req: NextRequest) {
   );
 
   if (!result.ok) {
+    await releaseOp(body.clientId);
     return NextResponse.json({ error: result.error }, { status: 503 });
   }
   return NextResponse.json({ data: result.data }, { status: 201 });
