@@ -197,7 +197,7 @@ export default function BluetoothScalePanel() {
           <input type="date" value={date} max={businessDate(Date.now())} onChange={(e) => e.target.value && setDate(e.target.value)} className="rounded border border-black/20 dark:border-white/20 bg-transparent px-2 py-1" />
           <button className={btn} onClick={() => void loadLog()}>Refresh</button>
           {!!ticks.length && <button className={btn} onClick={csv}>⬇ CSV</button>}
-          <span className="opacity-70">{ticks.length} weighing(s) · {total.toFixed(2)} kg</span>
+          <span className="opacity-70">{ticks.length} weighing(s) · {total.toFixed(3)} kg</span>
         </div>
         {logErr && <p className="mt-1 text-sm text-red-700 dark:text-red-300">{logErr}</p>}
         {!!ticks.length && (
