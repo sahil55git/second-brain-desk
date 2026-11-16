@@ -9,7 +9,9 @@ import "./counter.css";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useScale } from "@/components/ScaleProvider";
-import ReceiptSheet from "@/components/print/ReceiptSheet";
+import ReceiptSheet, { useShop } from "@/components/print/ReceiptSheet";
+import QrCode from "@/components/barrels/QrCode";
+import { upiPay, validVpa } from "@/lib/money";
 import { api, type DayBundle } from "@/components/register/forms/shared";
 import { businessDate, itemsFor, rateKey, type CatalogItem } from "@/lib/register";
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
@@ -88,6 +90,14 @@ export default function CounterApp() {
   const [prev, setPrev] = useState<{ doc: ReceiptDoc; total: number; received: number | null } | null>(null);
   const [rcpt, setRcpt] = useState<{ doc: ReceiptDoc; auto: boolean } | null>(null);
   const [, tick] = useState(0);
+  const shop = useShop();
+  const [vpa, setVpa] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/settings/app?key=shop")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => setVpa(validVpa(j?.data?.upi) ? String(j.data.upi).trim() : null))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     setLang(read<Lang>("counterLang", "en"));
@@ -138,6 +148,10 @@ export default function CounterApp() {
   const label = (i: CatalogItem) => (lang === "kn" ? i.kn : i.en);
 
   const total = billTotal(lines);
+  /** UPI link for the exact bill amount (amount + bill note filled in on the customer's phone) */
+  const upiFor = (amount: number, note: string) => (vpa && amount > 0 ? upiPay(vpa, shop.name || "Mahadev Traders", amount, note) : undefined);
+  const billNote = (ls: CounterLine[], no?: string) =>
+    [no ? `Bill ${no}` : "Bill", ls.map((l) => `${l.label} ${l.qty.toFixed(3)}kg`).join(", ")].join(" · ");
   const recvN = parseFloat(received) || 0;
   const change = pay === "CASH" && recvN > 0 ? changeDue(total, recvN) : null;
 
@@ -216,7 +230,12 @@ export default function CounterApp() {
           { label: "TOTAL", value: rupees(total), strong: true },
           ...(change != null && change >= 0 ? [{ label: "Received", value: rupees(recvN) }, { label: "Change", value: rupees(change) }] : []),
         ],
-        notes: [`Mode: ${pay === "CREDIT" ? "Udhaar" : pay === "UPI" ? "UPI" : "Cash"}`],
+        notes: [
+          `Mode: ${pay === "CREDIT" ? "Udhaar" : pay === "UPI" ? "UPI" : "Cash"}`,
+          ...(pay !== "CASH" && vpa ? [`Scan to pay ${rupees(total)} by UPI · ${vpa}`] : []),
+        ],
+        // UPI and udhaar bills carry a QR for the exact amount, with the bill number and items in the payment note
+        qr: pay !== "CASH" ? upiFor(total, billNote(lines, id ? id.slice(-6).toUpperCase() : undefined)) : undefined,
       };
       setPrev({ doc, total, received: pay === "CASH" && recvN > 0 ? recvN : null });
       if (print) setRcpt({ doc, auto: true });
@@ -328,6 +347,22 @@ export default function CounterApp() {
               </button>
             ))}
           </div>
+          {pay === "UPI" && total > 0 && (
+            <div className="ctr-upi">
+              {vpa ? (
+                <>
+                  <QrCode value={upiFor(total, billNote(lines)) || ""} moduleSize={4} />
+                  <div>
+                    <b>{rupees(total)}</b>
+                    <small>{lang === "kn" ? "ಗ್ರಾಹಕರು ಸ್ಕ್ಯಾನ್ ಮಾಡಿ ಪಾವತಿಸಲಿ — ಮೊತ್ತ ತಾನಾಗಿ ತುಂಬುತ್ತದೆ" : "Customer scans: the exact amount fills in by itself"}</small>
+                    <small>{vpa}</small>
+                  </div>
+                </>
+              ) : (
+                <small>{lang === "kn" ? "UPI QR ಗೆ ಸೆಟ್ಟಿಂಗ್ಸ್‌ನಲ್ಲಿ UPI ID ಸೇರಿಸಿ" : "Add the shop's UPI ID in Settings → Shop to show a pay QR here."}</small>
+              )}
+            </div>
+          )}
           {(pay === "CREDIT" || showParty) && (
             <input className="ctr-party" value={party} onChange={(e) => setParty(e.target.value)} placeholder={t("customer", lang)} list="ctr-parties" />
           )}

@@ -82,6 +82,11 @@
 .ctr-pay { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .ctr-pay button { border: 2px solid var(--c-line); background: var(--c-bg); border-radius: 10px; padding: 10px 6px; font-weight: 700; font-size: 16px; }
 .ctr-pay button.on { border-color: var(--c-ok); background: color-mix(in srgb, var(--c-ok) 12%, var(--c-card)); }
+.ctr-upi { display: flex; gap: 12px; align-items: center; background: #fff; color: #17202a; border: 2px solid var(--c-ok); border-radius: 12px; padding: 8px; }
+.ctr-upi svg { width: 150px; height: 150px; }
+.ctr-upi div { display: flex; flex-direction: column; gap: 2px; }
+.ctr-upi b { font-size: 26px; }
+.ctr-upi small { color: #555; }
 .ctr-party { border: 2px solid var(--c-line); border-radius: 10px; padding: 10px; font: inherit; font-size: 16px; background: var(--c-bg); color: var(--c-ink); }
 .ctr-addparty { border: 0; background: transparent; color: var(--c-soft); text-align: left; padding: 2px; }
 
