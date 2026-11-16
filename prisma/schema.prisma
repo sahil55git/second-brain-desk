@@ -1311,3 +1311,13 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([at])
 }
+
+// Wrong-password tries on the login screen (lib/loginGuard.ts): five for one username inside
+// fifteen minutes locks that username for a while. Rows older than a day are removed.
+model LoginAttempt {
+  id       String   @id @default(cuid())
+  username String
+  at       DateTime @default(now())
+
+  @@index([username, at])
+}

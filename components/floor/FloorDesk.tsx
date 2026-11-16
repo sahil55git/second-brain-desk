@@ -9,6 +9,7 @@ import { businessDate } from "@/lib/register";
 import { TANKS } from "@/lib/stockTanks";
 import { STOCK_PRODUCTS } from "@/lib/calculations";
 import { bomCosts, cycleItems, cycleResults, cylinderKg, dipToKg, godownStacks, maintenanceDue, packingStock, settlingStatus, sparesStock, type OpsRec } from "@/lib/stockOps";
+import { nextLot, packRuns } from "@/lib/packLot";
 import { FeatureGate } from "@/lib/useFeatures";
 
 export type FloorTab = "godown" | "packing" | "dip" | "count" | "maintenance" | "settling";
@@ -140,6 +141,7 @@ function Packing() {
   const owner = (session?.user as any)?.role === "OWNER";
   const stock = useMemo(() => packingStock(recs, today), [recs, today]);
   const boms = useMemo(() => bomCosts(recs), [recs]);
+  const runs = useMemo(() => packRuns(recs.filter((r) => r.kind === "pack_run")), [recs]);
   return (
     <>
       {stock.filter((s) => s.low).map((s) => <div key={s.name} className="hub-banner">🟠 <b>{s.name}</b> is low: {s.stock} {s.unit} left{s.daysLeft != null ? ` (~${s.daysLeft} days)` : ""} — reorder.</div>)}
@@ -149,9 +151,16 @@ function Packing() {
       </table></div>
       <datalist id="dl-name">{stock.map((s) => <option key={s.name} value={s.name} />)}</datalist>
       <datalist id="dl-sku">{boms.map((b) => <option key={b.sku} value={b.sku} />)}</datalist>
-      <section className="hub-card"><h3>📦 Packed today (deducts the BOM)</h3>
-        <Form fields={[{ k: "sku", label: "Product / SKU", ph: "Ekatva 1L" }, { k: "units", label: "Units packed", type: "number" }]}
-          onSave={(v) => (!v.sku || !n(v.units || "") ? Promise.resolve("SKU and units needed.") : add("pack_run", { sku: v.sku, units: n(v.units) }, v.sku))} />
+      <section className="hub-card"><h3>📦 Packed today (deducts the BOM, gives a lot number)</h3>
+        <Form fields={[{ k: "sku", label: "Product / SKU", ph: "Karadi 1L" }, { k: "units", label: "Units packed", type: "number" }, { k: "oilKg", label: "Oil used (kg)", type: "number" }, { k: "fromTank", label: "Oil taken from", options: TANKS.map((t) => t.name) }]}
+          onSave={(v) => (!v.sku || !n(v.units || "") ? Promise.resolve("SKU and units needed.") : add("pack_run", { sku: v.sku, units: n(v.units), lot: nextLot(v.sku, today, runs.map((r) => r.lot)), oilKg: n(v.oilKg || "") ?? null, fromTank: v.fromTank || null }, v.sku))} />
+        {runs.length > 0 && (
+          <div className="fl-tbl"><table>
+            <thead><tr><th>Date</th><th>Lot</th><th>Product</th><th className="r">Units</th><th className="r">Oil kg</th><th>From</th></tr></thead>
+            <tbody>{runs.slice(0, 30).map((r) => <tr key={r.id}><td>{r.date}</td><td><b>{r.lot ?? "–"}</b></td><td>{r.sku}</td><td className="r">{r.units}</td><td className="r">{r.oilKg ?? "–"}</td><td>{r.fromTank ?? "–"}</td></tr>)}</tbody>
+          </table></div>
+        )}
+        <small className="hub-m">Write the lot number on the carton or label. It ties each pack to the day, the oil used and the tank it came from.</small>
       </section>
       <section className="hub-card"><h3>🔄 Material in / out</h3>
         <Form fields={[{ k: "name", label: "Item" }, { k: "qty", label: "Qty (+ in, − out)", type: "number" }, { k: "note", label: "Note" }]}
