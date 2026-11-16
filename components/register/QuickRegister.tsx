@@ -1725,6 +1725,9 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
             );
           })}
           <span className="pos-print">
+            <a className="pos-print-btn" href="/register/counter" title="Full-screen counter for selling by weight">
+              ⚖️ <span>{lang === "kn" ? "ತೂಕ & ಬಿಲ್" : "Weigh & Bill"}</span>
+            </a>
             <button type="button" className="pos-print-btn" onClick={() => printNow(lastPrintable())} title="Print the last bill on the receipt printer (one click)">
               🖨️ <span>{lang === "kn" ? "ಕೊನೆಯ ಬಿಲ್" : "Print last bill"}</span>
             </button>
