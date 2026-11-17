@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addLine, billKg, billSum, cashReturn, lineDisc, billTotal, changeDue, lineAmount, registerBody, updateLine, type CounterLine } from "../counterBill";
+import { addLine, billKg, billSum, cashReturn, lineDisc, billTotal, changeDue, lineAmount, registerBody, totalDiscPct, updateLine, type CounterLine } from "../counterBill";
 
 const karadi = (qty: number, source: CounterLine["source"] = "steady"): CounterLine => ({ item: "karadi", label: "Karadi", qty, unit: "kg", rate: 260, source });
 
@@ -89,5 +89,15 @@ describe("counter bill", () => {
   it("works out cash to return", () => {
     expect(cashReturn(468, 500)).toBe(32);
     expect(cashReturn(468, 400)).toBe(0);
+  });
+});
+
+describe("staff discount percentage", () => {
+  it("counts item and bill discount together against the undiscounted bill", () => {
+    const l: CounterLine[] = [{ ...karadi(1), disc: 10, discPct: true }, { ...karadi(1) }];
+    // 520 before discount; item 26; bill 5% of 494 = 24.7 -> 50.7 / 520
+    expect(totalDiscPct(l, { discount: 5, pct: true })).toBe(9.75);
+    expect(totalDiscPct(l)).toBe(5);
+    expect(totalDiscPct([], { discount: 50 })).toBe(0);
   });
 });

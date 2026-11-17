@@ -17,7 +17,7 @@ import { api, type DayBundle } from "@/components/register/forms/shared";
 import { businessDate, itemsFor, rateKey } from "@/lib/register";
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
 import {
-  addLine, billKg, billSum, cashReturn, lineAmount, lineDisc, lineGross, r2, r3, registerBody, updateLine,
+  addLine, billKg, billSum, cashReturn, lineAmount, lineDisc, lineGross, r2, r3, registerBody, totalDiscPct, updateLine,
   type BillAdjust, type CounterLine, type CounterPay, type SplitParts,
 } from "@/lib/counterBill";
 import type { HoldData } from "@/lib/counterHold";
@@ -455,6 +455,10 @@ export default function CounterApp() {
       return setMsg({ ok: false, text: k(`Line ${bad + 1} needs a quantity and a rate.`, `ಸಾಲು ${bad + 1}: ಪ್ರಮಾಣ ಮತ್ತು ದರ ಬೇಕು.`) });
     }
     if ((pay === "CREDIT" || (pay === "SPLIT" && (split.CREDIT || 0) > 0)) && !can("udhaar")) return setMsg({ ok: false, text: k("Udhaar is locked for staff.", "ಉದ್ರಿ ಸಿಬ್ಬಂದಿಗೆ ಲಾಕ್ ಆಗಿದೆ.") });
+    const dpct = totalDiscPct(lines, billAdjust);
+    if (!isOwner && dpct > cfg.staffDiscMaxPct + 0.005) {
+      return setMsg({ ok: false, text: k(`Staff can give at most ${cfg.staffDiscMaxPct}% discount (this bill has ${dpct}%). Reduce it or ask the owner.`, `ಸಿಬ್ಬಂದಿ ಗರಿಷ್ಠ ${cfg.staffDiscMaxPct}% ರಿಯಾಯಿತಿ ಮಾತ್ರ ಕೊಡಬಹುದು (ಈ ಬಿಲ್‌ನಲ್ಲಿ ${dpct}%). ಕಡಿಮೆ ಮಾಡಿ ಅಥವಾ ಮಾಲೀಕರನ್ನು ಕೇಳಿ.`) });
+    }
     const r = registerBody(lines, pay, { date, party, adjust: billAdjust, split, notes: editing ? `Replaces bill #${editing.no}` : undefined });
     if ("err" in r) return setMsg({ ok: false, text: r.err });
     setBusy(true);
@@ -558,8 +562,8 @@ export default function CounterApp() {
     setDraftLocks(cfg.staffLocks);
     setPanel("items");
   };
-  const saveCfg = async (items: CounterItem[], staffLocks: StaffLock[]) => {
-    const res = await fetch("/api/settings/app", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: "counter", data: { items, staffLocks } }) });
+  const saveCfg = async (items: CounterItem[], staffLocks: StaffLock[], staffDiscMaxPct: number = cfg.staffDiscMaxPct) => {
+    const res = await fetch("/api/settings/app", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: "counter", data: { items, staffLocks, staffDiscMaxPct } }) });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
       setMsg({ ok: false, text: j.error || k("Could not save the set-up.", "ಸೆಟಪ್ ಉಳಿಸಲು ಆಗಲಿಲ್ಲ.") });
@@ -1016,6 +1020,22 @@ export default function CounterApp() {
                     <span>{k(STAFF_LOCKS[lk][0], STAFF_LOCKS[lk][1])}</span>
                   </label>
                 ))}
+                <label className="ctr-set">
+                  <span>{k("Staff discount limit (% of bill)", "ಸಿಬ್ಬಂದಿ ರಿಯಾಯಿತಿ ಮಿತಿ (ಬಿಲ್‌ನ %)")}</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    max={100}
+                    step="0.5"
+                    defaultValue={cfg.staffDiscMaxPct}
+                    style={{ width: 70, marginLeft: 8 }}
+                    onBlur={(e) => {
+                      const v = Number(e.target.value);
+                      if (Number.isFinite(v) && v >= 0 && v <= 100 && v !== cfg.staffDiscMaxPct) void saveCfg(cfg.items, cfg.staffLocks, v);
+                    }}
+                  />
+                </label>
                 <button type="button" className="ctr-plu" onClick={openItems}>✏️ {k("Items, PLU numbers and Kannada names", "ವಸ್ತುಗಳು, PLU ಸಂಖ್ಯೆ, ಕನ್ನಡ ಹೆಸರು")}</button>
               </>
             )}
