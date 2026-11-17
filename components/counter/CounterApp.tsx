@@ -71,6 +71,15 @@ interface Hold {
   createdAt: string;
 }
 
+type UiSize = "auto" | "s" | "m" | "l";
+const UI_NEXT: Record<UiSize, UiSize> = { auto: "s", s: "m", m: "l", l: "auto" };
+/** Auto: phones and tablets show at 100%, a big monitor is zoomed up so the keys stay finger-sized. */
+function uiZoom(s: UiSize, vw: number): number {
+  if (s === "s") return 0.88;
+  if (s === "m") return 1;
+  if (s === "l") return 1.18;
+  return vw >= 1700 ? 1.25 : vw >= 1400 ? 1.12 : 1;
+}
 const read = <V,>(k: string, d: V): V => {
   try {
     const v = window.localStorage.getItem(k);
@@ -114,6 +123,17 @@ export default function CounterApp() {
   const { isOwner } = useAccess();
   const shop = useShop();
   const [lang, setLang] = useState<Lang>("en");
+  // Screen size: Auto fits the device (phone stacks, tablet splits, big monitors zoom up); the A± button nudges it
+  const [uiSize, setUiSize] = useState<UiSize>("auto");
+  const [vw, setVw] = useState(1024);
+  useEffect(() => {
+    setUiSize(read<UiSize>("counterUi", "auto"));
+    const on = () => setVw(window.innerWidth);
+    on();
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  const zoom = uiZoom(uiSize, vw);
   const k = (en: string, kn: string) => (lang === "kn" ? kn : en);
 
   const [day, setDay] = useState<DayBundle | null>(null);
@@ -743,7 +763,7 @@ export default function CounterApp() {
 
   // ======================================================================================
   return (
-    <div className="ctr" lang={lang}>
+    <div className="ctr" lang={lang} style={{ ["--u" as string]: zoom }}>
       {/* ---------- top bar ---------- */}
       <header className="ctr-top">
         {!kiosk?.on && <Link href="/register/pos" className="ctr-back">← {k("Desk", "ಡೆಸ್ಕ್")}</Link>}
@@ -756,6 +776,9 @@ export default function CounterApp() {
         </button>
         <button type="button" className="ctr-tbtn" onClick={() => { setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}</button>
         {can("settings") && <button type="button" className="ctr-tbtn" onClick={() => setPanel("settings")} aria-label={k("Settings", "ಸೆಟ್ಟಿಂಗ್ಸ್")}>⚙️</button>}
+        <button type="button" className="ctr-tbtn" onClick={() => { const u = UI_NEXT[uiSize]; setUiSize(u); write("counterUi", u); }} aria-label={k("Screen size", "ಪರದೆ ಗಾತ್ರ")} title={k("Screen size: Auto / Small / Normal / Large", "ಪರದೆ ಗಾತ್ರ: ಸ್ವಯಂ / ಸಣ್ಣ / ಸಾಮಾನ್ಯ / ದೊಡ್ಡ")}>
+          A± <small>{uiSize === "auto" ? k("Auto", "ಸ್ವಯಂ") : uiSize === "s" ? k("Small", "ಸಣ್ಣ") : uiSize === "m" ? k("Normal", "ಸಾಮಾನ್ಯ") : k("Large", "ದೊಡ್ಡ")}</small>
+        </button>
         <button type="button" className="ctr-tbtn" onClick={() => { const l = lang === "en" ? "kn" : "en"; setLang(l); write("counterLang", l); }}>
           {lang === "en" ? "ಕನ್ನಡ" : "English"}
         </button>
@@ -820,7 +843,7 @@ export default function CounterApp() {
 
       <main className="ctr-main">
         {/* ---------- bill ---------- */}
-        <section className="ctr-bill" aria-label={k("Bill", "ಬಿಲ್")}>
+        <section className="ctr-bill" id="ctr-bill" aria-label={k("Bill", "ಬಿಲ್")}>
           {prev && !lines.length && (
             <div className="ctr-prev">
               <div>
@@ -995,6 +1018,15 @@ export default function CounterApp() {
           </div>
         </section>
       </main>
+
+      {/* phone only: always-visible total, jumps to the bill and its pay buttons */}
+      {lines.length > 0 && (
+        <a className="ctr-sticky" href="#ctr-bill">
+          <span>{lines.length} {k("item(s)", "ವಸ್ತು")} · {billKg(lines).toFixed(3)} kg</span>
+          <b>{rupees(total)}</b>
+          <span>{k("Pay", "ಪಾವತಿ")} ↓</span>
+        </a>
+      )}
 
       {/* ---------- pop-up keypad ---------- */}
       {ret && (

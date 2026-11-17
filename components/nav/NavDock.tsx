@@ -58,7 +58,7 @@ export default function NavDock() {
   useEffect(() => { setOpen(false); setQ(""); }, [path]);
 
   const hits = useMemo<NavHit[]>(() => (open ? navSearch(q, isOwner, 10) : []), [q, isOwner, open]);
-  const hidden = embedded || status !== "authenticated" || path.startsWith("/login") || path.startsWith("/setup");
+  const hidden = embedded || status !== "authenticated" || path.startsWith("/login") || path.startsWith("/setup") || path.startsWith("/register/counter"); // the counter is its own full screen (it has its own Desk link)
   if (hidden) return null;
 
   const go = (h: NavHit) => {
