@@ -764,7 +764,7 @@ export default function CounterApp() {
       {/* ---------- weight strip ---------- */}
       <section className="ctr-weigh">
         <div className={`ctr-lcd ${frozen != null ? "ok" : !fresh ? "off" : steady ? "ok" : "mid"}`} aria-live="polite">
-          <small>{frozen != null ? "🧊 " : ""}{k("Weight", "ತೂಕ")} (kg){isBt && bt.tareKg > 0 ? ` · ${k("net", "ನಿವ್ವಳ")}` : ""}</small>
+          <small>{frozen != null ? "📖 " : ""}{k("Weight", "ತೂಕ")} (kg){isBt && bt.tareKg > 0 ? ` · ${k("net", "ನಿವ್ವಳ")}` : ""}</small>
           <span>{fresh || frozen != null ? kg.toFixed(3) : "0.000"}</span>
         </div>
         <div className={`ctr-tarewin${bt.tareKg > 0 ? " on" : ""}`}>
@@ -777,8 +777,8 @@ export default function CounterApp() {
           <span>{total.toFixed(2)}</span>
         </div>
         <div className="ctr-tare">
-          <button type="button" className={frozen != null ? "on" : ""} disabled={frozen == null && !(fresh && kgLive > 0)} onClick={() => setFrozen(frozen != null ? null : kgLive)}>
-            🧊 {frozen != null ? k("Unfreeze", "ಬಿಡಿ") : k("Freeze", "ಹಿಡಿ ತೂಕ")}
+          <button type="button" className={`big${frozen != null ? " on" : ""}`} disabled={frozen == null && !(fresh && kgLive > 0)} onClick={() => setFrozen(frozen != null ? null : kgLive)} title={k("Reads the weight now, even if the scale is still moving. Tap an item to bill it, or tap again to let go.", "ತೂಕ ಚಲಿಸುತ್ತಿದ್ದರೂ ಈಗಲೇ ಓದುತ್ತದೆ. ವಸ್ತು ಒತ್ತಿ ಬಿಲ್ ಮಾಡಿ, ಅಥವಾ ಮತ್ತೆ ಒತ್ತಿ ಬಿಡಿ.")}>
+            📖 {frozen != null ? `${k("Let go", "ಬಿಡಿ")} · ${frozen.toFixed(3)}` : k("Read weight", "ತೂಕ ಓದಿ")}
           </button>
           <button type="button" className={fill ? "on" : ""} onClick={() => (fill ? setFill(null) : openPad({ kind: "amount" }))}>
             ₹→kg {fill ? `₹${fill.amount} ✕` : k("By amount", "ಮೊತ್ತದಿಂದ")}
@@ -909,9 +909,6 @@ export default function CounterApp() {
               </button>
               <div className="quick">
                 <button type="button" onClick={() => setReceived(cashDue)}>{k("Exact", "ಸರಿಯಾಗಿ")}</button>
-                {[100, 200, 500, 2000].filter((n) => n >= cashDue).slice(0, 3).map((n) => (
-                  <button key={n} type="button" onClick={() => setReceived(n)}>₹{n}</button>
-                ))}
               </div>
               {back > 0 && <div className="ctr-back-cash">{k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")} <b>{rupees(back)}</b></div>}
               {shortBy > 0 && <div className="ctr-short">{k("Still to collect", "ಇನ್ನೂ ಪಡೆಯಬೇಕು")} <b>{rupees(shortBy)}</b></div>}
@@ -1217,6 +1214,13 @@ export default function CounterApp() {
               </label>
             ))}
 
+            <h4>{k("Install on another device", "ಬೇರೆ ಸಾಧನದಲ್ಲಿ ಇನ್‌ಸ್ಟಾಲ್")}</h4>
+            <p className="ctr-hint">
+              {k(
+                "Open this page in Chrome on that device, then menu ⋮ → Install app (or Add to Home screen). It becomes its own “Weigh & Bill” icon that opens only the counter. Then turn on Counter-only mode below on that device.",
+                "ಆ ಸಾಧನದ Chrome ನಲ್ಲಿ ಈ ಪುಟ ತೆರೆಯಿರಿ; ಮೆನು ⋮ → Install app (ಅಥವಾ Add to Home screen). “ತೂಕ & ಬಿಲ್” ಎಂಬ ಪ್ರತ್ಯೇಕ ಐಕಾನ್ ಆಗುತ್ತದೆ. ನಂತರ ಆ ಸಾಧನದಲ್ಲಿ ಕೆಳಗಿನ ಕೌಂಟರ್-ಮಾತ್ರ ಮೋಡ್ ಆನ್ ಮಾಡಿ."
+              )}
+            </p>
             <h4>{k("Counter-only mode (this device)", "ಕೌಂಟರ್-ಮಾತ್ರ ಮೋಡ್ (ಈ ಸಾಧನ)")}</h4>
             <p className="ctr-hint">
               {k(

@@ -4,7 +4,12 @@ import type { Metadata } from "next";
 import CounterApp from "@/components/counter/CounterApp";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Weigh & Bill — Mahadev Traders" };
+export const metadata: Metadata = {
+  title: "Weigh & Bill — Mahadev Traders",
+  // its own installable app on another device: Chrome ⋮ → Install app opens only the counter
+  manifest: "/counter.webmanifest",
+  appleWebApp: { capable: true, title: "Weigh & Bill" },
+};
 
 export default function CounterPage() {
   return <CounterApp />;

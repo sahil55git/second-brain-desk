@@ -20,6 +20,7 @@ export default function manifest(): MetadataRoute.Manifest {
     shortcuts: [
       { name: "Quick card", url: "/quick" },
       { name: "Weigh full barrel", url: "/barrels?weigh=full" },
+      { name: "Weigh & Bill", url: "/register/counter" },
       { name: "POS counter", url: "/register/pos" },
       { name: "Sale", url: "/register?open=sale" },
       { name: "Expense", url: "/register?open=expense" },
