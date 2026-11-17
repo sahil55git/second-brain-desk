@@ -13,7 +13,9 @@
   --c-hold: #f4d35e;
   --c-lcd: #101820;
   --c-lcd-ink: #8ef0a2;
-  min-height: 100dvh;
+  /* Screen size: --u is the zoom (Auto picks it from the screen width; the A± button overrides) */
+  zoom: var(--u, 1);
+  min-height: calc(100dvh / var(--u, 1));
   display: flex;
   flex-direction: column;
   background: var(--c-bg);
@@ -220,3 +222,41 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr-bact button.on { background: var(--c-acc); color: #fff; border-color: var(--c-acc); }
 
 .ctr-gst { display: flex; flex-direction: column; gap: 6px; }
+
+/* ---------- autofit ---------- */
+.ctr-main > *, .ctr-items, .ctr-bill { min-width: 0; }
+.ctr-itemhead { flex-wrap: wrap; }
+.ctr-key b, .ctr-key small, .ctr-key .nm { overflow-wrap: anywhere; text-align: center; }
+.ctr-sticky { display: none; }
+
+/* tablet / desktop: the page itself never scrolls; each panel scrolls inside, so the top strip and the Pay buttons stay on screen */
+@media (min-width: 821px) {
+  .ctr { height: calc(100dvh / var(--u, 1)); min-height: 0; overflow: hidden; }
+  .ctr-main { overflow: hidden; }
+  .ctr-bill, .ctr-items { overflow: auto; }
+  .ctr-lines { max-height: 30vh; overflow: auto; }
+}
+/* medium tablets in portrait */
+@media (min-width: 821px) and (max-width: 1100px) {
+  .ctr-main { grid-template-columns: minmax(330px, 1fr) 1fr; }
+  .ctr-lcd span { font-size: 46px; }
+}
+
+/* phones */
+@media (max-width: 820px) {
+  .ctr-top { flex-wrap: nowrap; overflow-x: auto; gap: 6px; padding: 6px 8px; scrollbar-width: none; }
+  .ctr-top > * { flex: 0 0 auto; white-space: nowrap; }
+  .ctr-title { font-size: 16px; }
+  .ctr-tbtn { padding: 6px 9px; }
+  .ctr-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .ctr-key b { font-size: 14px; }
+  .ctr-tare { min-width: 0; }
+  .ctr-tare button { padding: 8px 10px; }
+  .ctr-tare button.big { font-size: 16px; padding: 10px 14px; }
+  .ctr-sticky { display: flex; align-items: center; justify-content: space-between; gap: 10px; position: sticky; bottom: 0; z-index: 5; background: var(--c-acc); color: #fff; padding: 12px 16px; text-decoration: none; font-weight: 600; }
+  .ctr-sticky b { font-size: 20px; }
+}
+@media (max-width: 380px) {
+  .ctr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ctr-lcd span { font-size: 34px; }
+}
