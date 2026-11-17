@@ -7,7 +7,7 @@
 // Item keys, PLU numbers, Kannada names and staff locks are shared by every device (setting "counter").
 import "./counter.css";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useScale } from "@/components/ScaleProvider";
 import { useAccess } from "@/components/AccessProvider";
 import ReceiptSheet, { useShop } from "@/components/print/ReceiptSheet";
@@ -21,6 +21,8 @@ import {
   type BillAdjust, type CounterLine, type CounterPay, type SplitParts,
 } from "@/lib/counterBill";
 import type { HoldData } from "@/lib/counterHold";
+import { billText, daySummaryDoc, mobileOf, whatsappLink } from "@/lib/counterShare";
+import { DEFAULT_GST_PCT, DEFAULT_HSN, taxInvoiceDoc, validGstin } from "@/lib/counterGst";
 import { defaultRefundMode, refundFor, returnBody, returnables, returnedByBill, type RefundMode, type ReturnItem, type ReturnedSoFar } from "@/lib/counterReturn";
 import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
@@ -32,7 +34,8 @@ type PadTarget =
   | { kind: "received" | "tare" | "discount" | "plu" }
   | { kind: "qty" | "rate" | "ldisc"; line: number }
   | { kind: "split"; chan: Chan }
-  | { kind: "retqty"; key: string };
+  | { kind: "retqty"; key: string }
+  | { kind: "amount" };
 
 interface Settings {
   showTare: boolean;
@@ -121,6 +124,7 @@ export default function CounterApp() {
   const [split, setSplit] = useState<SplitParts>({});
   const [party, setParty] = useState("");
   const [showParty, setShowParty] = useState(false);
+  const [taxInv, setTaxInv] = useState<{ on: boolean; gstin: string; igst: boolean }>({ on: false, gstin: "", igst: false });
   const [received, setReceived] = useState(0);
   const [adjust, setAdjust] = useState<{ discount: number; pct: boolean }>({ discount: 0, pct: false });
   const [pad, setPad] = useState<PadTarget | null>(null);
@@ -233,9 +237,15 @@ export default function CounterApp() {
 
   // ---- the scale
   const fresh = !!reading && Date.now() - reading.receivedAt < 10_000;
-  const kg = fresh && reading ? r3(reading.unit === "g" ? reading.weight / 1000 : reading.weight) : 0;
-  const steady = fresh && reading?.stable !== false;
-  const usable = fresh && kg > 0 && (steady || !!reading?.trusted);
+  const kgLive = fresh && reading ? r3(reading.unit === "g" ? reading.weight / 1000 : reading.weight) : 0;
+  // Freeze: hold the shown weight (e.g. while pouring or the scale swings) until it is let go
+  const [frozen, setFrozen] = useState<number | null>(null);
+  const kg = frozen ?? kgLive;
+  const steady = frozen != null || (fresh && reading?.stable !== false);
+  const usable = frozen != null || (fresh && kgLive > 0 && (steady || !!reading?.trusted));
+  // Sell by amount: "₹100 of oil" → the kg to pour, with a beep when the scale gets there
+  const [fill, setFill] = useState<{ amount: number; item?: CounterItem } | null>(null);
+  const fillBeeped = useRef(false);
   const isBt = !!bt.source && reading?.scale_source === bt.source;
 
   // ---- totals
@@ -262,6 +272,11 @@ export default function CounterApp() {
   const addItem = (ci: CounterItem) => {
     setMsg(null);
     const rate = rateOf(ci);
+    if (fill && !fill.item) {
+      if (ci.unit !== "kg" || !(rate > 0)) return setMsg({ ok: false, text: k("Sell by amount needs an item sold by kg with a rate.", "ಮೊತ್ತದ ಮೇಲೆ ಮಾರಾಟಕ್ಕೆ kg ವಸ್ತು ಮತ್ತು ದರ ಬೇಕು.") });
+      fillBeeped.current = false;
+      return setFill({ ...fill, item: ci });
+    }
     const ri = registerItem(ci);
     const base = { item: ri.item, label: ri.label, unit: ci.unit, rate };
     let next: CounterLine[];
@@ -274,6 +289,7 @@ export default function CounterApp() {
       next = [...lines, { ...base, qty: ci.unit === "pcs" ? 1 : 0, source: "typed" as const }];
     }
     setLines(next);
+    setFrozen(null);
     if (settings.beep) beepNow();
     const i = next.length - 1;
     if (!(next[i].qty > 0)) openPad({ kind: "qty", line: i });
@@ -281,6 +297,31 @@ export default function CounterApp() {
       if (can("rate")) openPad({ kind: "rate", line: i });
       else setMsg({ ok: false, text: k(`${ci.en} has no rate. Ask the owner to set it.`, `${nameOf(ci)} ಗೆ ದರ ಇಲ್ಲ. ಮಾಲೀಕರಿಗೆ ತಿಳಿಸಿ.`) });
     }
+  };
+
+  const fillRate = fill?.item ? rateOf(fill.item) : 0;
+  const fillKg = fill?.item && fillRate > 0 ? r3(fill.amount / fillRate) : 0;
+  useEffect(() => {
+    if (!fill?.item || !(fillKg > 0) || !fresh) return;
+    if (kgLive >= fillKg - 0.0005 && !fillBeeped.current) {
+      fillBeeped.current = true;
+      beepNow();
+    }
+    if (kgLive < fillKg - 0.05) fillBeeped.current = false;
+  }, [kgLive, fillKg, fill, fresh]);
+  const addFill = () => {
+    if (!fill?.item || !(fillKg > 0)) return;
+    const ci = fill.item;
+    const base = { item: registerItem(ci).item, label: registerItem(ci).label, unit: ci.unit, rate: fillRate };
+    // within 10 g of the target counts as the target, so the bill is the exact ₹ the customer asked for
+    const near = usable && Math.abs(kg - fillKg) <= 0.01;
+    const qty = near || !usable ? fillKg : kg;
+    const live = isBt ? bt.live : null;
+    setLines(addLine(lines, { ...base, qty, source: !usable ? "typed" : steady ? "steady" : "moving", ...(live && bt.tareKg > 0 && !near ? { grossKg: live.grossKg, tareKg: bt.tareKg } : {}) }));
+    if (usable && !near) setMsg({ ok: true, text: k(`Weighed ${kg.toFixed(3)} kg, not the ${fillKg.toFixed(3)} kg for ₹${fill.amount}. The bill has the weighed amount.`, `ತೂಕ ${kg.toFixed(3)} kg (ಗುರಿ ${fillKg.toFixed(3)} kg). ಬಿಲ್‌ನಲ್ಲಿ ತೂಗಿದ ಮೊತ್ತ.`) });
+    setFill(null);
+    setFrozen(null);
+    if (settings.beep) beepNow();
   };
 
   // ---- the pop-up keypad
@@ -301,7 +342,8 @@ export default function CounterApp() {
     const v = Number.isFinite(n) ? n : 0;
     const p = pad;
     setPad(null);
-    if (p.kind === "received") setReceived(v);
+    if (p.kind === "amount") { if (v > 0) { fillBeeped.current = false; setFill({ amount: r2(v) }); } }
+    else if (p.kind === "received") setReceived(v);
     else if (p.kind === "tare") bt.setTare(v);
     else if (p.kind === "discount") setAdjust({ discount: v, pct: padPct });
     else if (p.kind === "split") setSplit((s) => ({ ...s, [p.chan]: r2(v) }));
@@ -318,6 +360,7 @@ export default function CounterApp() {
   };
   const padTitle = (p: PadTarget): string => {
     switch (p.kind) {
+      case "amount": return k("Sell by amount: how many ₹ of oil?", "ಮೊತ್ತದ ಮೇಲೆ ಮಾರಾಟ: ಎಷ್ಟು ₹ ಎಣ್ಣೆ?");
       case "received": return k(`Cash received from customer (bill cash ${rupees(cashDue)})`, `ಗ್ರಾಹಕರಿಂದ ಪಡೆದ ನಗದು (ಬಿಲ್ ${rupees(cashDue)})`);
       case "tare": return k("Tare: container weight in kg", "ಟೇರ್: ಡಬ್ಬಿಯ ತೂಕ kg");
       case "discount": return k("Discount on the whole bill", "ಇಡೀ ಬಿಲ್‌ಗೆ ರಿಯಾಯಿತಿ");
@@ -335,6 +378,7 @@ export default function CounterApp() {
     setLines([]);
     setParty("");
     setShowParty(false);
+    setTaxInv({ on: false, gstin: "", igst: false });
     setReceived(0);
     setPay("CASH");
     setSplit({});
@@ -342,6 +386,8 @@ export default function CounterApp() {
     setHoldId(null);
     setEditing(null);
     setPad(null);
+    setFill(null);
+    setFrozen(null);
   };
   const removeLine = (i: number) => setLines((ls) => ls.filter((_, j) => j !== i));
   const clearBill = () => {
@@ -507,11 +553,12 @@ export default function CounterApp() {
       return setMsg({ ok: false, text: k(`Line ${bad + 1} needs a quantity and a rate.`, `ಸಾಲು ${bad + 1}: ಪ್ರಮಾಣ ಮತ್ತು ದರ ಬೇಕು.`) });
     }
     if ((pay === "CREDIT" || (pay === "SPLIT" && (split.CREDIT || 0) > 0)) && !can("udhaar")) return setMsg({ ok: false, text: k("Udhaar is locked for staff.", "ಉದ್ರಿ ಸಿಬ್ಬಂದಿಗೆ ಲಾಕ್ ಆಗಿದೆ.") });
+    if (taxInv.on && taxInv.gstin.trim() && !validGstin(taxInv.gstin)) return setMsg({ ok: false, text: k("The customer's GSTIN does not look right (15 characters). Fix it or clear it.", "ಗ್ರಾಹಕರ GSTIN ಸರಿಯಿಲ್ಲ (15 ಅಕ್ಷರ). ಸರಿಪಡಿಸಿ ಅಥವಾ ಅಳಿಸಿ.") });
     const dpct = totalDiscPct(lines, billAdjust);
     if (!isOwner && dpct > cfg.staffDiscMaxPct + 0.005) {
       return setMsg({ ok: false, text: k(`Staff can give at most ${cfg.staffDiscMaxPct}% discount (this bill has ${dpct}%). Reduce it or ask the owner.`, `ಸಿಬ್ಬಂದಿ ಗರಿಷ್ಠ ${cfg.staffDiscMaxPct}% ರಿಯಾಯಿತಿ ಮಾತ್ರ ಕೊಡಬಹುದು (ಈ ಬಿಲ್‌ನಲ್ಲಿ ${dpct}%). ಕಡಿಮೆ ಮಾಡಿ ಅಥವಾ ಮಾಲೀಕರನ್ನು ಕೇಳಿ.`) });
     }
-    const r = registerBody(lines, pay, { date, party, adjust: billAdjust, split, notes: editing ? `Replaces bill #${editing.no}` : undefined });
+    const r = registerBody(lines, pay, { date, party, adjust: billAdjust, split, notes: [editing ? `Replaces bill #${editing.no}` : "", taxInv.on ? `GST invoice${taxInv.gstin.trim() ? ` · GSTIN ${taxInv.gstin.trim().toUpperCase()}` : ""}${taxInv.igst ? " · IGST" : ""}` : ""].filter(Boolean).join(" · ") || undefined });
     if ("err" in r) return setMsg({ ok: false, text: r.err });
     setBusy(true);
     try {
@@ -520,7 +567,7 @@ export default function CounterApp() {
       const no = billNo ? String(billNo) : k("(saved offline)", "(ಆಫ್‌ಲೈನ್)");
       const modes: [string, number][] =
         pay === "SPLIT" ? (["CASH", "UPI", "CREDIT"] as Chan[]).filter((c) => (split[c] || 0) > 0).map((c) => [CHAN_TEXT[c][0], split[c] || 0]) : [[CHAN_TEXT[pay as Chan][0], total]];
-      const doc: ReceiptDoc = {
+      const plainDoc: ReceiptDoc = {
         title: "RECEIPT",
         no,
         when: receiptTime(Date.now()),
@@ -539,6 +586,28 @@ export default function CounterApp() {
         notes: [`Mode: ${modes.map(([m]) => m).join(" + ")}`, ...(upiDue > 0 && vpa && settings.upiQr ? [`Scan to pay ${rupees(upiDue)} by UPI · ${vpa}`] : [])],
         qr: pay !== "CASH" && settings.upiQr ? upiFor(pay === "SPLIT" ? (split.UPI || 0) + (split.CREDIT || 0) : total, `Bill ${no} · ${itemsNote(lines)}`) : undefined,
       };
+      // GST tax invoice instead of the plain receipt: same lines and amounts, GST taken out of each price
+      const doc: ReceiptDoc = taxInv.on
+        ? taxInvoiceDoc({
+            no,
+            when: receiptTime(Date.now()),
+            party: party.trim() || undefined,
+            gstin: taxInv.gstin.trim() || undefined,
+            igst: taxInv.igst,
+            lines: lines.map((l, i) => ({ name: l.label, hsn: gstOf(l.item).hsn, pct: gstOf(l.item).pct, amount: sum.amounts[i], detail: lineDetail(l) })),
+            notes: [
+              ...(itemDisc > 0 ? [`Item discount −${rupees(itemDisc)}`] : []),
+              ...(sum.discount ? [`${adjust.pct ? `Discount ${adjust.discount}%` : "Discount"} −${rupees(sum.discount)}`] : []),
+              ...(sum.roundOff ? [`Round-off ${sum.roundOff > 0 ? "+" : "−"}${rupees(Math.abs(sum.roundOff))}`] : []),
+              ...(plainDoc.notes || []),
+            ],
+            after: [
+              ...(modes.length > 1 ? modes.map(([m, v]) => ({ label: m, value: rupees(v) })) : []),
+              ...(cashDue > 0 && received > 0 ? [{ label: "Cash received", value: rupees(received) }, ...(back > 0 ? [{ label: "Return to customer", value: rupees(back), strong: true }] : [])] : []),
+            ],
+            qr: plainDoc.qr,
+          })
+        : plainDoc;
       if (editing) {
         const ok = await cancelBill(editing, `edited at the counter, replaced by bill #${no}`);
         if (!ok) setMsg({ ok: false, text: k(`New bill saved, but old bill #${editing.no} could not be removed. Ask the owner to cancel it.`, `ಹೊಸ ಬಿಲ್ ಉಳಿಸಲಾಗಿದೆ, ಹಳೆಯ ಬಿಲ್ #${editing.no} ಅಳಿಸಲಾಗಲಿಲ್ಲ — ಮಾಲೀಕರಿಗೆ ತಿಳಿಸಿ.`) });
@@ -563,7 +632,25 @@ export default function CounterApp() {
   const shownBills = bills.filter((b) => billMatches(b, bQ));
   const bSum = billsSummary(shownBills);
   const modeName = (m: string) => (m === "CREDIT" ? k("Udhaar", "ಉದ್ರಿ") : m === "UPI" ? "UPI" : m === "CASH" ? k("Cash", "ನಗದು") : m);
-  const billDoc = (b: SavedBill): ReceiptDoc => ({
+  /** HSN code and GST % of a counter item (the owner's value, else the shop default). */
+  function gstOf(itemKey: string | null): { hsn: string; pct: number } {
+    const it = cfg.items.find((i) => i.key === itemKey);
+    return { hsn: it?.hsn ?? DEFAULT_HSN[itemKey || ""] ?? "", pct: it?.gst ?? DEFAULT_GST_PCT };
+  }
+  const billDoc = (b: SavedBill): ReceiptDoc =>
+    /GST invoice/.test(b.notes || "")
+      ? taxInvoiceDoc({
+          no: b.no,
+          when: receiptTime(b.createdAt),
+          party: b.party || undefined,
+          gstin: /GSTIN ([0-9A-Z]{15})/.exec(b.notes || "")?.[1],
+          igst: /\bIGST\b/.test(b.notes || ""),
+          lines: b.lines.map((l) => ({ name: l.label, hsn: gstOf(l.item).hsn, pct: gstOf(l.item).pct, amount: l.amount, detail: l.qty ? `${l.qty.toFixed(l.unit === "pcs" ? 0 : 3)} ${l.unit || ""} × ₹${l.rate ?? ""}` : undefined })),
+          after: Object.keys(b.modes).length > 1 ? Object.entries(b.modes).map(([m, v]) => ({ label: modeName(m), value: rupees(v) })) : [],
+          notes: [`Mode: ${Object.keys(b.modes).map(modeName).join(" + ")}`, "Re-print"],
+        })
+      : plainBillDoc(b);
+  const plainBillDoc = (b: SavedBill): ReceiptDoc => ({
     title: "RECEIPT",
     no: b.no,
     when: receiptTime(b.createdAt),
@@ -572,6 +659,9 @@ export default function CounterApp() {
     totals: [{ label: "TOTAL", value: rupees(b.total), strong: true }, ...(Object.keys(b.modes).length > 1 ? Object.entries(b.modes).map(([m, v]) => ({ label: modeName(m), value: rupees(v) })) : [])],
     notes: [`Mode: ${Object.keys(b.modes).map(modeName).join(" + ")}`, "Re-print"],
   });
+  const shareWhatsapp = (doc: ReceiptDoc, who?: string | null) => window.open(whatsappLink(billText(doc, shop.name || "Mahadev Traders"), mobileOf(who || "")), "_blank");
+  const printSummary = () =>
+    setRcpt({ doc: daySummaryDoc({ when: receiptTime(Date.now()), from: bFrom || date, to: bTo || bFrom || date, count: bSum.count, total: bSum.total, kg: bSum.kg, modes: Object.fromEntries(Object.entries(bSum.modes).map(([m, v]) => [modeName(m), v])), returned: retTotal }), auto: true });
   const editBill = async (b: SavedBill) => {
     if (lines.length && !(await holdBill())) return;
     setLines(billToLines(b));
@@ -673,9 +763,9 @@ export default function CounterApp() {
 
       {/* ---------- weight strip ---------- */}
       <section className="ctr-weigh">
-        <div className={`ctr-lcd ${!fresh ? "off" : steady ? "ok" : "mid"}`} aria-live="polite">
-          <small>{k("Weight", "ತೂಕ")} (kg){isBt && bt.tareKg > 0 ? ` · ${k("net", "ನಿವ್ವಳ")}` : ""}</small>
-          <span>{fresh ? kg.toFixed(3) : "0.000"}</span>
+        <div className={`ctr-lcd ${frozen != null ? "ok" : !fresh ? "off" : steady ? "ok" : "mid"}`} aria-live="polite">
+          <small>{frozen != null ? "🧊 " : ""}{k("Weight", "ತೂಕ")} (kg){isBt && bt.tareKg > 0 ? ` · ${k("net", "ನಿವ್ವಳ")}` : ""}</small>
+          <span>{fresh || frozen != null ? kg.toFixed(3) : "0.000"}</span>
         </div>
         <div className={`ctr-tarewin${bt.tareKg > 0 ? " on" : ""}`}>
           <small>{k("Tare", "ಟೇರ್")} (kg)</small>
@@ -687,6 +777,12 @@ export default function CounterApp() {
           <span>{total.toFixed(2)}</span>
         </div>
         <div className="ctr-tare">
+          <button type="button" className={frozen != null ? "on" : ""} disabled={frozen == null && !(fresh && kgLive > 0)} onClick={() => setFrozen(frozen != null ? null : kgLive)}>
+            🧊 {frozen != null ? k("Unfreeze", "ಬಿಡಿ") : k("Freeze", "ಹಿಡಿ ತೂಕ")}
+          </button>
+          <button type="button" className={fill ? "on" : ""} onClick={() => (fill ? setFill(null) : openPad({ kind: "amount" }))}>
+            ₹→kg {fill ? `₹${fill.amount} ✕` : k("By amount", "ಮೊತ್ತದಿಂದ")}
+          </button>
           {isBt ? (
             <>
               <button type="button" className="big" disabled={!bt.live || bt.live.grossKg <= 0} onClick={() => bt.live && bt.setTare(bt.live.grossKg)} title={k("Put the empty container on the scale, then press", "ಖಾಲಿ ಡಬ್ಬಿ ಇಟ್ಟು ಒತ್ತಿ")}>
@@ -705,6 +801,23 @@ export default function CounterApp() {
         </div>
       </section>
 
+      {fill && (
+        <div className="ctr-banner ctr-fill">
+          {!fill.item ? (
+            <span>₹{fill.amount}: {k("tap the item to sell", "ಮಾರಬೇಕಾದ ವಸ್ತು ಒತ್ತಿ")}</span>
+          ) : (
+            <>
+              <span>
+                {nameOf(fill.item)} · ₹{fill.amount} @ ₹{fillRate} = <b>{fillKg.toFixed(3)} kg</b> · {k("now", "ಈಗ")} {kg.toFixed(3)} kg
+                {usable && kg >= fillKg - 0.0005 ? " ✓" : usable ? ` · ${k("pour", "ಇನ್ನೂ")} ${Math.max(0, r3(fillKg - kg)).toFixed(3)}` : ""}
+              </span>
+              <button type="button" onClick={addFill}>＋ {k("Add to bill", "ಬಿಲ್‌ಗೆ ಸೇರಿಸಿ")}</button>
+            </>
+          )}
+          <button type="button" onClick={() => setFill(null)} aria-label="Cancel">✕</button>
+        </div>
+      )}
+
       <main className="ctr-main">
         {/* ---------- bill ---------- */}
         <section className="ctr-bill" aria-label={k("Bill", "ಬಿಲ್")}>
@@ -715,6 +828,7 @@ export default function CounterApp() {
                 <div>{rupees(prev.total)}{prev.back > 0 ? ` · ${k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")} ${rupees(prev.back)}` : ""}</div>
               </div>
               <button type="button" onClick={() => setRcpt({ doc: prev.doc, auto: true })}>🖨️ {k("Re-print", "ಮತ್ತೆ ಮುದ್ರಿಸಿ")}</button>
+              <button type="button" onClick={() => shareWhatsapp(prev.doc, prev.doc.party)}>💬 WhatsApp</button>
               <button type="button" className="x" onClick={() => setPrev(null)} aria-label="Close">✕</button>
             </div>
           )}
@@ -826,6 +940,23 @@ export default function CounterApp() {
           ) : (
             <button type="button" className="ctr-addparty" onClick={() => setShowParty(true)}>＋ {k("Customer name / mobile", "ಗ್ರಾಹಕರ ಹೆಸರು / ಮೊಬೈಲ್")}</button>
           )}
+          {shop.gstin && (
+            <div className="ctr-gst">
+              <label className="ctr-set">
+                <input type="checkbox" checked={taxInv.on} onChange={(e) => setTaxInv({ ...taxInv, on: e.target.checked })} />
+                <span>🧾 {k("GST tax invoice", "GST ತೆರಿಗೆ ಇನ್ವಾಯ್ಸ್")}</span>
+              </label>
+              {taxInv.on && (
+                <>
+                  <input className="ctr-party" value={taxInv.gstin} onChange={(e) => setTaxInv({ ...taxInv, gstin: e.target.value.toUpperCase().slice(0, 15) })} placeholder={k("Customer GSTIN (optional)", "ಗ್ರಾಹಕರ GSTIN (ಐಚ್ಛಿಕ)")} />
+                  <label className="ctr-set">
+                    <input type="checkbox" checked={taxInv.igst} onChange={(e) => setTaxInv({ ...taxInv, igst: e.target.checked })} />
+                    <span>{k("Other state (IGST)", "ಬೇರೆ ರಾಜ್ಯ (IGST)")}</span>
+                  </label>
+                </>
+              )}
+            </div>
+          )}
           <datalist id="ctr-parties">{(day?.allParties || []).slice(0, 300).map((p) => <option key={p} value={p} />)}</datalist>
 
           {msg && <p className={`ctr-msg ${msg.ok ? "ok" : "bad"}`}>{msg.text}</p>}
@@ -918,7 +1049,7 @@ export default function CounterApp() {
           <div className="ctr-padbox" onClick={(e) => e.stopPropagation()}>
             <p className="ttl">{padTitle(pad)}</p>
             <div className="val">
-              {pad.kind === "split" || pad.kind === "received" || pad.kind === "rate" ? "₹" : ""}
+              {pad.kind === "split" || pad.kind === "received" || pad.kind === "rate" || pad.kind === "amount" ? "₹" : ""}
               {padText || "0"}
               {(pad.kind === "discount" || pad.kind === "ldisc") && (padPct ? " %" : " ₹")}
             </div>
@@ -987,6 +1118,7 @@ export default function CounterApp() {
               <input type="date" value={bTo || bFrom || date} max={date} onChange={(e) => setBTo(e.target.value)} aria-label={k("To", "ವರೆಗೆ")} />
               <button type="button" onClick={() => void loadBills()}>↻ {k("Show", "ತೋರಿಸು")}</button>
               <button type="button" onClick={exportCsv} disabled={!shownBills.length}>⬇ Excel</button>
+              <button type="button" onClick={printSummary} disabled={!shownBills.length}>🖨️ {k("Summary", "ಸಾರಾಂಶ")}</button>
             </div>
             <input className="ctr-search" value={bQ} onChange={(e) => setBQ(e.target.value)} placeholder={k("🔍 Bill no, customer, item, amount", "🔍 ಬಿಲ್ ಸಂಖ್ಯೆ, ಹೆಸರು, ವಸ್ತು, ಮೊತ್ತ")} />
             <div className="ctr-bsum">
@@ -1008,6 +1140,7 @@ export default function CounterApp() {
                   <b className="amt">{rupees(b.total)}</b>
                   <div className="ctr-bact">
                     <button type="button" onClick={() => setRcpt({ doc: billDoc(b), auto: true })} aria-label={k("Re-print", "ಮತ್ತೆ ಮುದ್ರಿಸಿ")}>🖨️</button>
+                    <button type="button" onClick={() => shareWhatsapp(billDoc(b), b.party)} aria-label="WhatsApp">💬</button>
                     <button type="button" onClick={() => void openReturn(b)} aria-label={k("Return items", "ವಸ್ತು ಹಿಂತಿರುಗಿಸಿ")}>↩️ {k("Return", "ರಿಟರ್ನ್")}</button>
                     {b.date === date && can("cancel") && <button type="button" onClick={() => void editBill(b)} aria-label={k("Edit", "ತಿದ್ದು")}>✏️</button>}
                     {can("cancel") && <button type="button" onClick={() => void cancelBill(b)}>✕ {k("Cancel", "ರದ್ದು")}</button>}
@@ -1031,7 +1164,7 @@ export default function CounterApp() {
             </div>
             <p className="ctr-hint">{k("PLU is the number staff can type. Rate empty = use the last rate from the register. Hidden items stay in old bills.", "PLU ಸಿಬ್ಬಂದಿ ಟೈಪ್ ಮಾಡುವ ಸಂಖ್ಯೆ. ದರ ಖಾಲಿ = ರಿಜಿಸ್ಟರ್‌ನ ಕೊನೆಯ ದರ.")}</p>
             <div className="ctr-itemtable">
-              <div className="hd"><span>PLU</span><span>{k("Icon", "ಚಿಹ್ನೆ")}</span><span>English</span><span>ಕನ್ನಡ</span><span>{k("Unit", "ಘಟಕ")}</span><span>₹</span><span>{k("Hide", "ಮರೆ")}</span><span /></div>
+              <div className="hd"><span>PLU</span><span>{k("Icon", "ಚಿಹ್ನೆ")}</span><span>English</span><span>ಕನ್ನಡ</span><span>{k("Unit", "ಘಟಕ")}</span><span>₹</span><span>HSN</span><span>GST%</span><span>{k("Hide", "ಮರೆ")}</span><span /></div>
               {draftItems.map((it, i) => (
                 <div key={i} className="rw">
                   <input inputMode="numeric" value={it.plu || ""} onChange={(e) => patchDraft(i, { plu: parseInt(e.target.value, 10) || 0 })} aria-label="PLU" />
@@ -1044,6 +1177,8 @@ export default function CounterApp() {
                     <option value="pcs">pcs</option>
                   </select>
                   <input inputMode="decimal" value={it.rate || ""} placeholder="—" onChange={(e) => patchDraft(i, { rate: parseFloat(e.target.value) || 0 })} aria-label="Rate" />
+                  <input inputMode="numeric" value={it.hsn ?? DEFAULT_HSN[it.key] ?? ""} placeholder="HSN" onChange={(e) => patchDraft(i, { hsn: e.target.value.replace(/\D/g, "").slice(0, 8) })} aria-label="HSN" />
+                  <input inputMode="decimal" value={it.gst ?? DEFAULT_GST_PCT} onChange={(e) => patchDraft(i, { gst: Math.min(28, Math.max(0, parseFloat(e.target.value) || 0)) })} aria-label="GST %" />
                   <input type="checkbox" checked={!!it.hidden} onChange={(e) => patchDraft(i, { hidden: e.target.checked })} aria-label={k("Hide", "ಮರೆಮಾಡು")} />
                   <button type="button" onClick={() => setDraftItems((d) => d.filter((_, j) => j !== i))} aria-label={k("Remove", "ತೆಗೆ")}>🗑️</button>
                 </div>

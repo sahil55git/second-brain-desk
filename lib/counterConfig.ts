@@ -12,6 +12,9 @@ export interface CounterItem {
   unit: "kg" | "L" | "pcs";
   /** counter's own rate; 0 = use the register's last rate */
   rate: number;
+  /** for the GST tax invoice: HSN code and GST % (empty / unset = the shop default for that item) */
+  hsn?: string;
+  gst?: number;
   hidden?: boolean;
 }
 
@@ -72,6 +75,8 @@ export function parseCounterConfig(raw: unknown, catalog: CatalogItem[]): Counte
         icon: typeof x.icon === "string" && x.icon.trim() ? x.icon.trim().slice(0, 4) : "🛢️",
         unit: UNITS.includes(x.unit as (typeof UNITS)[number]) ? (x.unit as CounterItem["unit"]) : "kg",
         rate: Number.isFinite(rate) && rate > 0 ? Math.round(rate * 100) / 100 : 0,
+        ...(typeof x.hsn === "string" && /^\d{2,8}$/.test(x.hsn.trim()) ? { hsn: x.hsn.trim() } : {}),
+        ...(Number.isFinite(Number(x.gst)) && x.gst !== "" && x.gst !== null && Number(x.gst) >= 0 && Number(x.gst) <= 28 ? { gst: Math.round(Number(x.gst) * 100) / 100 } : {}),
         ...(x.hidden === true ? { hidden: true } : {}),
       });
     }
