@@ -153,6 +153,8 @@ export async function POST(req: NextRequest) {
     if (!seq.ok) return NextResponse.json({ error: seq.error }, { status: 503 });
     billNo = seq.data;
   }
+  // Counter bills may carry a goods hand-over mark (given now / held until the money is checked).
+  const trackInit = body.counterBill === true && kind === "SALE" && (body.handover === "HELD" || body.handover === "GIVEN") ? { handover: body.handover as string, handedAt: body.handover === "GIVEN" ? new Date().toISOString() : undefined } : null;
   const result = await safeDbCall(async () => {
     // 1. Library: learn a typed "Other" item and remember the rate used.
     let cfg = await loadConfig();
@@ -239,6 +241,7 @@ export async function POST(req: NextRequest) {
               details: {
                 ...(clientId && idx === 0 ? { clientId } : {}),
                 ...(billNo && idx === 0 ? { billNo } : {}),
+                ...(trackInit && idx === 0 ? { track: trackInit } : {}),
                 ...(returnOf ? { returnOf } : {}),
                 split: { id: gid, i: idx + 1, n, total: amount },
                 bill: { line: r.line + 1, lines: lines.length },
@@ -279,6 +282,7 @@ export async function POST(req: NextRequest) {
                 ...(idx === 0 && details ? details : {}),
                 ...(clientId && idx === 0 ? { clientId } : {}),
                 ...(billNo && idx === 0 ? { billNo } : {}),
+                ...(trackInit && idx === 0 ? { track: trackInit } : {}),
                 split: { id: gid, i: idx + 1, n, total: amount },
                 ...(p.channel === "OWNER_PHONEPE" ? { channel: "OWNER_PHONEPE" } : {}),
               },
@@ -307,7 +311,7 @@ export async function POST(req: NextRequest) {
         partyId,
         notes,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        details: (((ownerPhonePe || clientId || pendingOk || billNo || returnOf) ? { ...(details || linkDetails || {}), ...(returnOf ? { returnOf } : {}), ...(ownerPhonePe ? { channel: "OWNER_PHONEPE" } : {}), ...(clientId ? { clientId } : {}), ...(billNo ? { billNo } : {}), ...(pendingOk ? { approval: "pending" } : {}) } : details || linkDetails) as any) ?? undefined,
+        details: (((ownerPhonePe || clientId || pendingOk || billNo || returnOf || trackInit) ? { ...(details || linkDetails || {}), ...(returnOf ? { returnOf } : {}), ...(ownerPhonePe ? { channel: "OWNER_PHONEPE" } : {}), ...(clientId ? { clientId } : {}), ...(billNo ? { billNo } : {}), ...(trackInit ? { track: trackInit } : {}), ...(pendingOk ? { approval: "pending" } : {}) } : details || linkDetails) as any) ?? undefined,
         createdByName: user.name || null,
       },
     });

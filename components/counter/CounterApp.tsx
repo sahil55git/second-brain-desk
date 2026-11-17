@@ -27,6 +27,7 @@ import { defaultRefundMode, refundFor, returnBody, returnables, returnedByBill, 
 import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
 import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
+import { defaultHandover, handoverOf, isTracked, payStatus, type Handover } from "@/lib/counterTrack";
 import { hashPin, KIOSK_EXTRAS, KIOSK_KEY, readKiosk, type KioskExtra, type KioskState } from "@/lib/counterKiosk";
 
 type Lang = "en" | "kn";
@@ -287,6 +288,10 @@ export default function CounterApp() {
   const splitLeft = r2(total - splitSum);
   const cashDue = pay === "CASH" ? total : pay === "SPLIT" ? split.CASH || 0 : 0;
   const upiDue = pay === "UPI" ? total : pay === "SPLIT" ? split.UPI || 0 : 0;
+  const creditDue = pay === "CREDIT" ? total : pay === "SPLIT" ? split.CREDIT || 0 : 0;
+  // goods: given at once for cash; held until the UPI is checked; udhaar customers get the goods (change it if needed)
+  const [handPick, setHandPick] = useState<Handover | null>(null);
+  const hand: Handover = handPick ?? defaultHandover({ CASH: cashDue, UPI: upiDue, CREDIT: creditDue });
   const back = cashDue > 0 && received > 0 ? cashReturn(cashDue, received) : 0;
   const shortBy = cashDue > 0 && received > 0 && received < cashDue ? r2(cashDue - received) : 0;
   const upiFor = (amount: number, note: string) => (vpa && amount > 0 ? upiPay(vpa, shop.name || "Mahadev Traders", amount, note) : undefined);
@@ -404,6 +409,7 @@ export default function CounterApp() {
     setShowParty(false);
     setTaxInv({ on: false, gstin: "", igst: false });
     setReceived(0);
+    setHandPick(null);
     setPay("CASH");
     setSplit({});
     setAdjust({ discount: 0, pct: false });
@@ -584,6 +590,7 @@ export default function CounterApp() {
     }
     const r = registerBody(lines, pay, { date, party, adjust: billAdjust, split, notes: [editing ? `Replaces bill #${editing.no}` : "", taxInv.on ? `GST invoice${taxInv.gstin.trim() ? ` · GSTIN ${taxInv.gstin.trim().toUpperCase()}` : ""}${taxInv.igst ? " · IGST" : ""}` : ""].filter(Boolean).join(" · ") || undefined });
     if ("err" in r) return setMsg({ ok: false, text: r.err });
+    (r.body as unknown as Record<string, unknown>).handover = hand;
     setBusy(true);
     try {
       const res = await api<{ data?: { id?: string; queued?: boolean; details?: { billNo?: number } } }>("/api/register", { method: "POST", body: JSON.stringify(r.body) });
@@ -642,7 +649,7 @@ export default function CounterApp() {
       if (!editing)
         setMsg({
           ok: true,
-          text: `${k("Saved", "ಉಳಿಸಲಾಗಿದೆ")} #${no} · ${rupees(total)}${back > 0 ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(back)}` : ""}${res?.data?.queued ? k(" · no internet: kept on this tablet", " · ಇಂಟರ್ನೆಟ್ ಇಲ್ಲ: ಈ ಟ್ಯಾಬ್ಲೆಟ್‌ನಲ್ಲಿ ಇಡಲಾಗಿದೆ") : ""}`,
+          text: `${k("Saved", "ಉಳಿಸಲಾಗಿದೆ")} #${no} · ${rupees(total)}${back > 0 ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(back)}` : ""}${hand === "HELD" && (upiDue > 0 || creditDue > 0) ? ` · 🔒 ${k("goods held till payment", "ಹಣ ಬರುವವರೆಗೆ ಸರಕು ಹಿಡಿಯಿರಿ")}` : ""}${res?.data?.queued ? k(" · no internet: kept on this tablet", " · ಇಂಟರ್ನೆಟ್ ಇಲ್ಲ: ಈ ಟ್ಯಾಬ್ಲೆಟ್‌ನಲ್ಲಿ ಇಡಲಾಗಿದೆ") : ""}`,
         });
       reset();
       void load();
@@ -653,7 +660,28 @@ export default function CounterApp() {
     }
   };
 
-  const shownBills = bills.filter((b) => billMatches(b, bQ));
+  const [bFilter, setBFilter] = useState<"all" | "open" | "held">("all");
+  const [armed, setArmed] = useState<string | null>(null);
+  const openN = bills.filter((b) => isTracked(b.track) && payStatus(b.modes, b.track).state !== "PAID").length;
+  const heldN = bills.filter((b) => isTracked(b.track) && handoverOf(b.track) === "HELD").length;
+  const shownBills = bills
+    .filter((b) => billMatches(b, bQ))
+    .filter((b) => bFilter === "all" || (isTracked(b.track) && (bFilter === "open" ? payStatus(b.modes, b.track).state !== "PAID" : handoverOf(b.track) === "HELD")));
+  // mark UPI received / collect the udhaar money / give or hold the goods
+  const trackAct = async (b: SavedBill, action: "handover" | "upiOk" | "paidLater", extra: Record<string, unknown> = {}) => {
+    setBErr("");
+    setArmed(null);
+    try {
+      const res = await fetch("/api/register/bill-track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: b.ids, action, ...extra }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || "Could not update the bill.");
+      await loadBills();
+    } catch (e) {
+      setBErr(e instanceof Error ? e.message : "Could not update the bill.");
+    }
+  };
+  useEffect(() => { if (date) void loadBills(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
   const bSum = billsSummary(shownBills);
   const modeName = (m: string) => (m === "CREDIT" ? k("Udhaar", "ಉದ್ರಿ") : m === "UPI" ? "UPI" : m === "CASH" ? k("Cash", "ನಗದು") : m);
   /** HSN code and GST % of a counter item (the owner's value, else the shop default). */
@@ -778,7 +806,8 @@ export default function CounterApp() {
         <button type="button" className={`ctr-tbtn${holds.length ? " has" : ""}`} onClick={() => { setPanel("holds"); void loadHolds(); }}>
           🅿️ {k("Held", "ಹಿಡಿದ")} <b>{holds.length}</b>
         </button>
-        <button type="button" className="ctr-tbtn" onClick={() => { setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}</button>
+        <button type="button" className="ctr-tbtn" onClick={() => { setBFilter("all"); setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}{openN > 0 && <b>{openN}</b>}</button>
+        {heldN > 0 && <button type="button" className="ctr-tbtn has" onClick={() => { setBFilter("held"); setPanel("bills"); void loadBills(); }} title={k("Goods held till payment", "ಹಣ ಬರುವವರೆಗೆ ಹಿಡಿದ ಸರಕು")}>🔒 {heldN}</button>}
         <button type="button" className="ctr-tbtn" onClick={() => setPanel("look")} aria-label={k("Colours and layout", "ಬಣ್ಣ ಮತ್ತು ವಿನ್ಯಾಸ")}>🎨</button>
         {can("settings") && <button type="button" className="ctr-tbtn" onClick={() => setPanel("settings")} aria-label={k("Settings", "ಸೆಟ್ಟಿಂಗ್ಸ್")}>⚙️</button>}
         <button type="button" className="ctr-tbtn" onClick={() => { const u = UI_NEXT[uiSize]; setUiSize(u); write("counterUi", u); }} aria-label={k("Screen size", "ಪರದೆ ಗಾತ್ರ")} title={k("Screen size: Auto / Small / Normal / Large", "ಪರದೆ ಗಾತ್ರ: ಸ್ವಯಂ / ಸಣ್ಣ / ಸಾಮಾನ್ಯ / ದೊಡ್ಡ")}>
@@ -911,7 +940,7 @@ export default function CounterApp() {
 
           <div className="ctr-pay" role="radiogroup">
             {(["CASH", "UPI", "CREDIT", "SPLIT"] as CounterPay[]).filter((p) => p !== "CREDIT" || can("udhaar")).map((p) => (
-              <button key={p} type="button" role="radio" aria-checked={pay === p} className={pay === p ? "on" : ""} onClick={() => { setPay(p); setReceived(0); }}>
+              <button key={p} type="button" role="radio" aria-checked={pay === p} className={pay === p ? "on" : ""} onClick={() => { setPay(p); setReceived(0); setHandPick(null); }}>
                 {p === "SPLIT" ? `➗ ${k("Split", "ಹಂಚಿಕೆ")}` : `${CHAN_TEXT[p as Chan][2]} ${k(CHAN_TEXT[p as Chan][0], CHAN_TEXT[p as Chan][1])}`}
               </button>
             ))}
@@ -935,9 +964,7 @@ export default function CounterApp() {
               <button type="button" className="recv" onClick={() => openPad({ kind: "received" })}>
                 {k("Cash received", "ಪಡೆದ ನಗದು")}: <b>{received > 0 ? rupees(received) : "—"}</b>
               </button>
-              <div className="quick">
-                <button type="button" onClick={() => setReceived(cashDue)}>{k("Exact", "ಸರಿಯಾಗಿ")}</button>
-              </div>
+              {!(received > 0) && <small className="ctr-hint">{k("Not typed = exact amount. Type it only if the customer gives more.", "ಟೈಪ್ ಮಾಡದಿದ್ದರೆ ಸರಿಯಾದ ಮೊತ್ತ. ಹೆಚ್ಚು ಕೊಟ್ಟರೆ ಮಾತ್ರ ಟೈಪ್ ಮಾಡಿ.")}</small>}
               {back > 0 && <div className="ctr-back-cash">{k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")} <b>{rupees(back)}</b></div>}
               {shortBy > 0 && <div className="ctr-short">{k("Still to collect", "ಇನ್ನೂ ಪಡೆಯಬೇಕು")} <b>{rupees(shortBy)}</b></div>}
             </div>
@@ -987,6 +1014,13 @@ export default function CounterApp() {
           {msg && <p className={`ctr-msg ${msg.ok ? "ok" : "bad"}`}>{msg.text}</p>}
           {loadErr && <p className="ctr-msg bad">{loadErr}</p>}
 
+          {(upiDue > 0 || creditDue > 0) && lines.length > 0 && (
+            <div className="ctr-hand" role="radiogroup" aria-label={k("Goods", "ಸರಕು")}>
+              <span>📦 {k("Goods", "ಸರಕು")}</span>
+              <button type="button" role="radio" aria-checked={hand === "GIVEN"} className={hand === "GIVEN" ? "on" : ""} onClick={() => setHandPick("GIVEN")}>✅ {k("Give now", "ಈಗ ಕೊಡಿ")}</button>
+              <button type="button" role="radio" aria-checked={hand === "HELD"} className={hand === "HELD" ? "on hold" : ""} onClick={() => setHandPick("HELD")}>🔒 {k("Hold till paid", "ಹಣ ಬರುವವರೆಗೆ ಹಿಡಿಯಿರಿ")}</button>
+            </div>
+          )}
           <div className="ctr-act">
             <button type="button" className="clr" onClick={clearBill} disabled={busy || !lines.length}>{holdId ? k("Close", "ಮುಚ್ಚು") : k("Clear", "ಅಳಿಸಿ")}</button>
             <button type="button" className="hold" onClick={() => void holdBill()} disabled={busy || !lines.length}>🅿️ {k("Hold", "ಹಿಡಿ")}</button>
@@ -1155,6 +1189,11 @@ export default function CounterApp() {
               <button type="button" onClick={printSummary} disabled={!shownBills.length}>🖨️ {k("Summary", "ಸಾರಾಂಶ")}</button>
             </div>
             <input className="ctr-search" value={bQ} onChange={(e) => setBQ(e.target.value)} placeholder={k("🔍 Bill no, customer, item, amount", "🔍 ಬಿಲ್ ಸಂಖ್ಯೆ, ಹೆಸರು, ವಸ್ತು, ಮೊತ್ತ")} />
+            <div className="ctr-seg">
+              <button type="button" className={bFilter === "all" ? "on" : ""} onClick={() => setBFilter("all")}>{k("All", "ಎಲ್ಲಾ")}</button>
+              <button type="button" className={bFilter === "open" ? "on" : ""} onClick={() => setBFilter("open")}>⏳ {k("Payment pending", "ಹಣ ಬಾಕಿ")} {openN > 0 ? `(${openN})` : ""}</button>
+              <button type="button" className={bFilter === "held" ? "on" : ""} onClick={() => setBFilter("held")}>🔒 {k("Goods held", "ಸರಕು ಹಿಡಿದಿದೆ")} {heldN > 0 ? `(${heldN})` : ""}</button>
+            </div>
             <div className="ctr-bsum">
               <span>{bSum.count} {k("bills", "ಬಿಲ್")}</span>
               <b>{rupees(bSum.total)}</b>
@@ -1170,9 +1209,32 @@ export default function CounterApp() {
                     <b>#{b.no} · {b.party || k("Walk-in", "ನಗದು ಗ್ರಾಹಕ")}</b>
                     <span>{b.lines.map((l) => `${l.label}${l.qty ? ` ${l.qty.toFixed(3)}` : ""}`).join(", ")}</span>
                     <small>{b.date} {timeOf(b.createdAt)} · {Object.keys(b.modes).map(modeName).join(" + ")}{b.by ? ` · ${b.by}` : ""}{b.notes ? ` · ${b.notes}` : ""}</small>
+                    {isTracked(b.track) && (() => {
+                      const ps = payStatus(b.modes, b.track);
+                      const ho = handoverOf(b.track);
+                      return (
+                        <span className="ctr-tags">
+                          <span className={`tag ${ps.state.toLowerCase()}`}>
+                            {ps.state === "PAID" ? `✅ ${k("Paid", "ಪಾವತಿ")}` : ps.state === "PENDING" ? `⏳ ${k("UPI to check", "UPI ಪರಿಶೀಲಿಸಿ")} ${rupees(ps.due)}` : ps.state === "UNPAID" ? `❌ ${k("Unpaid", "ಪಾವತಿ ಇಲ್ಲ")} ${rupees(ps.due)}` : `◐ ${k("Part paid · due", "ಭಾಗಶಃ · ಬಾಕಿ")} ${rupees(ps.due)}`}
+                          </span>
+                          <span className={`tag ${ho === "HELD" ? "held" : "given"}`}>{ho === "HELD" ? `🔒 ${k("Goods held", "ಸರಕು ಹಿಡಿದಿದೆ")}` : `📦 ${k("Given", "ಕೊಟ್ಟಿದೆ")}`}</span>
+                        </span>
+                      );
+                    })()}
                   </div>
                   <b className="amt">{rupees(b.total)}</b>
                   <div className="ctr-bact">
+                    {isTracked(b.track) && payStatus(b.modes, b.track).upiDue > 0 && (
+                      <button type="button" className={armed === `${b.key}:upi` ? "on" : ""} onClick={() => (armed === `${b.key}:upi` ? void trackAct(b, "upiOk") : setArmed(`${b.key}:upi`))}>
+                        {armed === `${b.key}:upi` ? k("Tap again: UPI received", "ಮತ್ತೆ ಒತ್ತಿ: UPI ಬಂದಿದೆ") : `✓ ${k("UPI received", "UPI ಬಂದಿದೆ")}`}
+                      </button>
+                    )}
+                    {isTracked(b.track) && payStatus(b.modes, b.track).creditDue > 0 && (["CASH", "UPI"] as const).map((m) => (
+                      <button key={m} type="button" className={armed === `${b.key}:${m}` ? "on" : ""} onClick={() => (armed === `${b.key}:${m}` ? void trackAct(b, "paidLater", { mode: m }) : setArmed(`${b.key}:${m}`))}>
+                        {armed === `${b.key}:${m}` ? k("Tap again to confirm", "ಖಚಿತಪಡಿಸಲು ಮತ್ತೆ ಒತ್ತಿ") : m === "CASH" ? `💵 ${k("Paid cash", "ನಗದು ಬಂದಿದೆ")}` : `📲 ${k("Paid UPI", "UPI ಬಂದಿದೆ")}`}
+                      </button>
+                    ))}
+                    {isTracked(b.track) && handoverOf(b.track) === "HELD" && <button type="button" onClick={() => void trackAct(b, "handover", { value: "GIVEN" })}>📦 {k("Hand over", "ಕೊಡಿ")}</button>}
                     <button type="button" onClick={() => setRcpt({ doc: billDoc(b), auto: true })} aria-label={k("Re-print", "ಮತ್ತೆ ಮುದ್ರಿಸಿ")}>🖨️</button>
                     <button type="button" onClick={() => shareWhatsapp(billDoc(b), b.party)} aria-label="WhatsApp">💬</button>
                     <button type="button" onClick={() => void openReturn(b)} aria-label={k("Return items", "ವಸ್ತು ಹಿಂತಿರುಗಿಸಿ")}>↩️ {k("Return", "ರಿಟರ್ನ್")}</button>

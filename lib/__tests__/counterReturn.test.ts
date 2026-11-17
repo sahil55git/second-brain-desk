@@ -4,7 +4,7 @@ import type { SaleRow, SavedBill } from "../counterRecords";
 
 const bill: SavedBill = {
   key: "k", ids: ["a"], firstId: "a", no: "12", date: "2026-11-17", createdAt: "2026-11-17T05:00:00Z", party: null, by: null, notes: null,
-  total: 700, modes: { CASH: 700 },
+  total: 700, modes: { CASH: 700 }, track: {},
   lines: [
     { item: "karadi", label: "Karadi", qty: 2, unit: "kg", rate: 260, amount: 500 },
     { item: "karadi", label: "Karadi", qty: 1, unit: "kg", rate: 260, amount: 200 }, // discounted: 3 kg for ₹700 → ₹233.33/kg

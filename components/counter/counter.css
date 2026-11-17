@@ -314,3 +314,15 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr-sw input[type="color"] { width: 44px; height: 38px; padding: 0; border: 2px solid var(--c-line); border-radius: 10px; background: transparent; }
 .ctr-range { width: 100%; }
 .ctr-look-note { color: var(--c-soft); font-size: 13px; margin: 0; }
+
+/* payment tags and goods hold */
+.ctr-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
+.ctr-tags .tag { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; border: 1px solid currentColor; }
+.ctr-tags .paid, .ctr-tags .given { color: var(--c-ok); }
+.ctr-tags .pending, .ctr-tags .partly { color: var(--c-mid); }
+.ctr-tags .unpaid, .ctr-tags .held { color: var(--c-bad); }
+.ctr-hand { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ctr-hand span { font-weight: 700; font-size: 14px; }
+.ctr-hand button { flex: 1; border: 2px solid var(--c-line); background: var(--c-bg); border-radius: var(--r2, 12px); padding: 9px 6px; font-weight: 700; }
+.ctr-hand button.on { border-color: var(--c-ok); color: var(--c-ok); background: color-mix(in srgb, var(--c-ok) 12%, transparent); }
+.ctr-hand button.on.hold { border-color: var(--c-bad); color: var(--c-bad); background: color-mix(in srgb, var(--c-bad) 10%, transparent); }
