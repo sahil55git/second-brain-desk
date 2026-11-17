@@ -1,6 +1,7 @@
 // Saved counter / register sales seen as BILLS: a multi-item or split-payment sale is several
 // linked register rows (details.split.id); this puts them back together (pure, tested).
 import type { CounterLine } from "./counterBill";
+import { trackOf, type BillTrack } from "./counterTrack";
 
 export interface SaleRow {
   id: string;
@@ -45,6 +46,8 @@ export interface SavedBill {
   /** amount per payment mode, e.g. { CASH: 400, UPI: 220 } */
   modes: Record<string, number>;
   lines: BillLineView[];
+  /** payment check and goods hand-over marks (first row) */
+  track: BillTrack;
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -105,6 +108,7 @@ export function groupBills(rows: SaleRow[], labelOf: (item: string | null, label
       notes: first.notes,
       total: r2(g.reduce((a, r) => a + r.amountInr, 0)),
       modes,
+      track: trackOf(first.details),
       lines: Array.from(byLine.entries()).sort((a, b) => a[0] - b[0]).map(([, v]) => v),
     });
   }
