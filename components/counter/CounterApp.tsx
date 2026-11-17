@@ -26,6 +26,7 @@ import { DEFAULT_GST_PCT, DEFAULT_HSN, taxInvoiceDoc, validGstin } from "@/lib/c
 import { defaultRefundMode, refundFor, returnBody, returnables, returnedByBill, type RefundMode, type ReturnItem, type ReturnedSoFar } from "@/lib/counterReturn";
 import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
+import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
 import { hashPin, KIOSK_EXTRAS, KIOSK_KEY, readKiosk, type KioskExtra, type KioskState } from "@/lib/counterKiosk";
 
 type Lang = "en" | "kn";
@@ -134,6 +135,9 @@ export default function CounterApp() {
     return () => window.removeEventListener("resize", on);
   }, []);
   const zoom = uiZoom(uiSize, vw);
+  const [theme, setTheme] = useState<CounterTheme>(DEFAULT_THEME);
+  useEffect(() => { setTheme(parseTheme(read<unknown>("counterTheme", null))); }, []);
+  const setLook = (p: Partial<CounterTheme>) => setTheme((t) => { const n = { ...t, ...p }; write("counterTheme", n); return n; });
   const k = (en: string, kn: string) => (lang === "kn" ? kn : en);
 
   const [day, setDay] = useState<DayBundle | null>(null);
@@ -155,7 +159,7 @@ export default function CounterApp() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [autoPrint, setAutoPrint] = useState(true);
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
-  const [panel, setPanel] = useState<null | "settings" | "items" | "holds" | "bills">(null);
+  const [panel, setPanel] = useState<null | "settings" | "items" | "holds" | "bills" | "look">(null);
   const [prev, setPrev] = useState<{ doc: ReceiptDoc; no: string; total: number; back: number } | null>(null);
   const [rcpt, setRcpt] = useState<{ doc: ReceiptDoc; auto: boolean } | null>(null);
   const [vpa, setVpa] = useState<string | null>(null);
@@ -763,7 +767,7 @@ export default function CounterApp() {
 
   // ======================================================================================
   return (
-    <div className="ctr" lang={lang} style={{ ["--u" as string]: zoom }}>
+    <div className={`ctr ${themeClass(theme)}`} lang={lang} style={{ ["--u" as string]: zoom, ...themeStyle(theme) } as React.CSSProperties}>
       {/* ---------- top bar ---------- */}
       <header className="ctr-top">
         {!kiosk?.on && <Link href="/register/pos" className="ctr-back">← {k("Desk", "ಡೆಸ್ಕ್")}</Link>}
@@ -775,6 +779,7 @@ export default function CounterApp() {
           🅿️ {k("Held", "ಹಿಡಿದ")} <b>{holds.length}</b>
         </button>
         <button type="button" className="ctr-tbtn" onClick={() => { setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}</button>
+        <button type="button" className="ctr-tbtn" onClick={() => setPanel("look")} aria-label={k("Colours and layout", "ಬಣ್ಣ ಮತ್ತು ವಿನ್ಯಾಸ")}>🎨</button>
         {can("settings") && <button type="button" className="ctr-tbtn" onClick={() => setPanel("settings")} aria-label={k("Settings", "ಸೆಟ್ಟಿಂಗ್ಸ್")}>⚙️</button>}
         <button type="button" className="ctr-tbtn" onClick={() => { const u = UI_NEXT[uiSize]; setUiSize(u); write("counterUi", u); }} aria-label={k("Screen size", "ಪರದೆ ಗಾತ್ರ")} title={k("Screen size: Auto / Small / Normal / Large", "ಪರದೆ ಗಾತ್ರ: ಸ್ವಯಂ / ಸಣ್ಣ / ಸಾಮಾನ್ಯ / ದೊಡ್ಡ")}>
           A± <small>{uiSize === "auto" ? k("Auto", "ಸ್ವಯಂ") : uiSize === "s" ? k("Small", "ಸಣ್ಣ") : uiSize === "m" ? k("Normal", "ಸಾಮಾನ್ಯ") : k("Large", "ದೊಡ್ಡ")}</small>
@@ -1222,6 +1227,71 @@ export default function CounterApp() {
                 ✓ {k("Save items", "ವಸ್ತುಗಳನ್ನು ಉಳಿಸಿ")}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- look & feel ---------- */}
+      {panel === "look" && (
+        <div className="ctr-drawer" role="dialog" aria-label="Colours and layout" onClick={() => setPanel(null)}>
+          <div className="ctr-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="ctr-sheethead">
+              <b>🎨 {k("Colours & layout", "ಬಣ್ಣ ಮತ್ತು ವಿನ್ಯಾಸ")}</b>
+              <button type="button" onClick={() => setPanel(null)} aria-label="Close">✕</button>
+            </div>
+            <p className="ctr-look-note">{k("Saved on this device only; the changes show straight away.", "ಈ ಸಾಧನದಲ್ಲಿ ಮಾತ್ರ ಉಳಿಯುತ್ತದೆ; ತಕ್ಷಣ ಕಾಣುತ್ತದೆ.")}</p>
+            <h4>{k("Main colour", "ಮುಖ್ಯ ಬಣ್ಣ")}</h4>
+            <div className="ctr-sw">
+              {PRESETS.map((p) => (
+                <button key={p.id} type="button" title={k(p.en, p.kn)} aria-label={p.en} className={theme.preset === p.id ? "on" : ""} style={{ background: p.hex }} onClick={() => setLook({ preset: p.id })} />
+              ))}
+              <input type="color" aria-label={k("Pick any colour", "ಯಾವುದೇ ಬಣ್ಣ ಆರಿಸಿ")} value={accentOf(theme)} onChange={(e) => validHex(e.target.value) && setLook({ preset: "custom", custom: e.target.value })} />
+            </div>
+            <h4>{k("Light or dark", "ಬೆಳಕು / ಕತ್ತಲೆ")}</h4>
+            <div className="ctr-seg">
+              {([["auto", "Auto", "ಸ್ವಯಂ"], ["light", "Light", "ಬೆಳಕು"], ["dark", "Dark", "ಕತ್ತಲೆ"], ["black", "Black", "ಕಪ್ಪು"]] as const).map(([v, en, kn]) => (
+                <button key={v} type="button" className={theme.mode === v ? "on" : ""} onClick={() => setLook({ mode: v })}>{k(en, kn)}</button>
+              ))}
+            </div>
+            <h4>{k("Panel see-through", "ಪ್ಯಾನೆಲ್ ಪಾರದರ್ಶಕತೆ")} · {theme.opacity}%</h4>
+            <input className="ctr-range" type="range" min={40} max={100} step={5} value={theme.opacity} onChange={(e) => setLook({ opacity: Number(e.target.value) })} />
+            <h4>{k("Background", "ಹಿನ್ನೆಲೆ")}</h4>
+            <div className="ctr-seg">
+              {([["plain", "Plain", "ಸರಳ"], ["tint", "Colour glow", "ಬಣ್ಣದ ಹೊಳಪು"]] as const).map(([v, en, kn]) => (
+                <button key={v} type="button" className={theme.backdrop === v ? "on" : ""} onClick={() => setLook({ backdrop: v })}>{k(en, kn)}</button>
+              ))}
+            </div>
+            <h4>{k("Corners", "ಮೂಲೆಗಳು")}</h4>
+            <div className="ctr-seg">
+              {([["sq", "Square", "ಚೌಕ"], ["md", "Normal", "ಸಾಮಾನ್ಯ"], ["rd", "Round", "ದುಂಡು"]] as const).map(([v, en, kn]) => (
+                <button key={v} type="button" className={theme.corner === v ? "on" : ""} onClick={() => setLook({ corner: v })}>{k(en, kn)}</button>
+              ))}
+            </div>
+            <h4>{k("Spacing", "ಅಂತರ")}</h4>
+            <div className="ctr-seg">
+              {([["compact", "Compact", "ಬಿಗಿ"], ["normal", "Normal", "ಸಾಮಾನ್ಯ"], ["roomy", "Roomy", "ವಿಶಾಲ"]] as const).map(([v, en, kn]) => (
+                <button key={v} type="button" className={theme.density === v ? "on" : ""} onClick={() => setLook({ density: v })}>{k(en, kn)}</button>
+              ))}
+            </div>
+            <h4>{k("Item key size", "ವಸ್ತು ಕೀ ಗಾತ್ರ")}</h4>
+            <div className="ctr-seg">
+              {([["s", "Small", "ಸಣ್ಣ"], ["m", "Medium", "ಮಧ್ಯಮ"], ["l", "Large", "ದೊಡ್ಡ"]] as const).map(([v, en, kn]) => (
+                <button key={v} type="button" className={theme.keySize === v ? "on" : ""} onClick={() => setLook({ keySize: v })}>{k(en, kn)}</button>
+              ))}
+            </div>
+            <h4>{k("Weight display colour", "ತೂಕ ಪರದೆ ಬಣ್ಣ")}</h4>
+            <div className="ctr-sw">
+              {([["green", "#8ef0a2"], ["amber", "#ffc857"], ["white", "#f5f5f5"], ["cyan", "#7dd3fc"]] as const).map(([v, hex]) => (
+                <button key={v} type="button" aria-label={v} className={theme.lcd === v ? "on" : ""} style={{ background: hex }} onClick={() => setLook({ lcd: v })} />
+              ))}
+            </div>
+            <h4>{k("Screen size", "ಪರದೆ ಗಾತ್ರ")}</h4>
+            <div className="ctr-seg">
+              {([["auto", "Auto", "ಸ್ವಯಂ"], ["s", "Small", "ಸಣ್ಣ"], ["m", "Normal", "ಸಾಮಾನ್ಯ"], ["l", "Large", "ದೊಡ್ಡ"]] as const).map(([v, en, kn]) => (
+                <button key={v} type="button" className={uiSize === v ? "on" : ""} onClick={() => { setUiSize(v); write("counterUi", v); }}>{k(en, kn)}</button>
+              ))}
+            </div>
+            <button type="button" className="ctr-tbtn" onClick={() => { setTheme(DEFAULT_THEME); write("counterTheme", DEFAULT_THEME); setUiSize("auto"); write("counterUi", "auto"); }}>↺ {k("Back to the standard look", "ಮೊದಲಿನ ರೂಪಕ್ಕೆ ಮರಳಿ")}</button>
           </div>
         </div>
       )}
