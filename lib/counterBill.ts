@@ -17,12 +17,24 @@ export interface CounterLine {
   /** gross scale reading and container weight taken off, when it came from the scale */
   grossKg?: number;
   tareKg?: number;
+  /** item-wise discount: ₹ off this line, or percent when discPct */
+  disc?: number;
+  discPct?: boolean;
 }
 
 export const r2 = (n: number) => Math.round(n * 100) / 100;
 export const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
-export const lineAmount = (l: Pick<CounterLine, "qty" | "rate">) => r2(Math.max(0, l.qty) * Math.max(0, l.rate));
+/** qty × rate, before any discount */
+export const lineGross = (l: Pick<CounterLine, "qty" | "rate">) => r2(Math.max(0, l.qty) * Math.max(0, l.rate));
+/** the ₹ taken off this line by its own discount */
+export const lineDisc = (l: Pick<CounterLine, "qty" | "rate" | "disc" | "discPct">) => {
+  const g = lineGross(l);
+  const d = Math.max(0, l.disc || 0);
+  return r2(Math.min(g, l.discPct ? (g * Math.min(d, 100)) / 100 : d));
+};
+/** what the line costs after its own discount */
+export const lineAmount = (l: Pick<CounterLine, "qty" | "rate" | "disc" | "discPct">) => r2(lineGross(l) - lineDisc(l));
 
 export function billTotal(lines: CounterLine[]): number {
   return r2(lines.reduce((a, l) => a + lineAmount(l), 0));
@@ -43,7 +55,7 @@ export function addLine(lines: CounterLine[], l: CounterLine): CounterLine[] {
   return [...lines, { ...l, qty: r3(l.qty), rate: r2(l.rate) }];
 }
 
-export function updateLine(lines: CounterLine[], i: number, patch: Partial<Pick<CounterLine, "qty" | "rate">>): CounterLine[] {
+export function updateLine(lines: CounterLine[], i: number, patch: Partial<Pick<CounterLine, "qty" | "rate" | "disc" | "discPct">>): CounterLine[] {
   return lines.map((l, j) => {
     if (j !== i) return l;
     const next = { ...l, ...patch };
@@ -51,11 +63,23 @@ export function updateLine(lines: CounterLine[], i: number, patch: Partial<Pick<
     if (patch.qty != null && patch.qty !== l.qty) next.source = "typed";
     next.qty = r3(Math.max(0, next.qty));
     next.rate = r2(Math.max(0, next.rate));
+    if (next.disc != null) next.disc = r2(Math.max(0, next.disc));
+    if (!next.disc) {
+      delete next.disc;
+      delete next.discPct;
+    }
     return next;
   });
 }
 
-export type CounterPay = "CASH" | "UPI" | "CREDIT";
+export type CounterPay = "CASH" | "UPI" | "CREDIT" | "SPLIT";
+/** amounts per channel when the bill is paid partly by cash, UPI and udhaar */
+export type SplitParts = Partial<Record<"CASH" | "UPI" | "CREDIT", number>>;
+
+/** Cash handed back: received minus the cash part of the bill (never below zero). */
+export function cashReturn(cashDue: number, received: number): number {
+  return received > cashDue ? r2(received - cashDue) : 0;
+}
 
 export interface BillAdjust {
   /** discount on the whole bill: ₹ amount, or percent when pct is true */
@@ -102,13 +126,26 @@ export function billSum(lines: CounterLine[], a: BillAdjust = {}): BillSum {
 /** The body for POST /api/register: one SALE with the lines (a single line is saved as the entry's own item). */
 export type RegisterBody = Record<string, unknown> & { amountInr: number; lines?: unknown[]; partyName: string | null; notes: string | null; paymentMode: string };
 
-export function registerBody(lines: CounterLine[], pay: CounterPay, opts: { date: string; party?: string; notes?: string; adjust?: BillAdjust }): { err: string } | { body: RegisterBody } {
+export function registerBody(
+  lines: CounterLine[],
+  pay: CounterPay,
+  opts: { date: string; party?: string; notes?: string; adjust?: BillAdjust; split?: SplitParts }
+): { err: string } | { body: RegisterBody } {
   const sum = billSum(lines, opts.adjust);
   const amountInr = sum.net;
   if (sum.amounts.some((x) => !(x > 0)) && amountInr > 0) return { err: "The discount is bigger than an item's amount. Lower the discount." };
   if (!(amountInr > 0)) return { err: "Add at least one item with a weight and a rate." };
   const party = (opts.party || "").trim();
   if (pay === "CREDIT" && !party) return { err: "Udhaar needs the customer's name." };
+  let splits: { channel: string; amount: number }[] | null = null;
+  if (pay === "SPLIT") {
+    splits = (["CASH", "UPI", "CREDIT"] as const).map((c) => ({ channel: c, amount: r2(opts.split?.[c] || 0) })).filter((x) => x.amount > 0);
+    const sum = r2(splits.reduce((a, x) => a + x.amount, 0));
+    if (Math.abs(sum - amountInr) > 0.01) return { err: `Split adds up to ₹${sum}, the bill is ₹${amountInr}.` };
+    if (splits.some((x) => x.channel === "CREDIT") && !party) return { err: "Udhaar needs the customer's name." };
+    if (splits.length < 2) splits = null;
+  }
+  const single = pay === "SPLIT" ? (["CASH", "UPI", "CREDIT"] as const).find((c) => (opts.split?.[c] || 0) > 0) || "CASH" : pay;
   const one = lines.length === 1 ? lines[0] : null;
   const audit = lines
     .map((l, i) => (l.source === "typed" ? `#${i + 1} typed` : l.source === "moving" ? `#${i + 1} read while moving` : ""))
@@ -119,9 +156,9 @@ export function registerBody(lines: CounterLine[], pay: CounterPay, opts: { date
       date: opts.date,
       kind: "SALE",
       amountInr,
-      paymentMode: pay === "UPI" ? "UPI" : pay === "CREDIT" ? "CREDIT" : "CASH",
-      payChannel: pay,
+      ...(splits ? { paymentMode: "CASH", splits } : { paymentMode: single, payChannel: single }),
       totalSale: false,
+      counterBill: true,
       ...(one
         ? { item: one.item, itemLabel: one.item === "other" ? one.label : null, qty: one.qty, unit: one.unit, rateInr: one.rate }
         : { item: null, itemLabel: null, qty: null, unit: null, rateInr: null }),
@@ -130,6 +167,7 @@ export function registerBody(lines: CounterLine[], pay: CounterPay, opts: { date
       notes:
         [
           opts.notes?.trim(),
+          lines.some((l) => lineDisc(l) > 0) ? `Item discount ₹${r2(lines.reduce((a, l) => a + lineDisc(l), 0))}` : "",
           sum.discount > 0 ? `Discount ₹${sum.discount}` : "",
           sum.roundOff ? `Round-off ${sum.roundOff > 0 ? "+" : "−"}₹${Math.abs(sum.roundOff)}` : "",
           audit ? `Counter: ${audit}` : "",

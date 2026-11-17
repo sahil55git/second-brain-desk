@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addLine, billKg, billSum, billTotal, changeDue, lineAmount, registerBody, updateLine, type CounterLine } from "../counterBill";
+import { addLine, billKg, billSum, cashReturn, lineDisc, billTotal, changeDue, lineAmount, registerBody, updateLine, type CounterLine } from "../counterBill";
 
 const karadi = (qty: number, source: CounterLine["source"] = "steady"): CounterLine => ({ item: "karadi", label: "Karadi", qty, unit: "kg", rate: 260, source });
 
@@ -62,5 +62,32 @@ describe("counter bill", () => {
     expect(r.body.notes).toBe("Discount ₹8");
     const total = (r.body.lines as { amount: number }[]).reduce((a, l) => a + l.amount, 0);
     expect(Math.round(total * 100) / 100).toBe(720);
+  });
+  it("takes an item-wise discount off that line only", () => {
+    const l = { ...karadi(2), disc: 10, discPct: true };
+    expect(lineDisc(l)).toBe(52);
+    expect(lineAmount(l)).toBe(468);
+    expect(lineAmount({ ...karadi(1), disc: 500 })).toBe(0);
+    const b = updateLine([karadi(2)], 0, { disc: 20 });
+    expect(billTotal(b)).toBe(500);
+    expect(updateLine(b, 0, { disc: 0 })[0]).not.toHaveProperty("disc");
+    const r = registerBody([karadi(2), { ...karadi(1), disc: 10 }], "CASH", { date: "2026-11-17" });
+    if (!("body" in r)) throw new Error(r.err);
+    expect(r.body.amountInr).toBe(770);
+    expect(r.body.notes).toBe("Item discount ₹10");
+  });
+  it("splits a bill between cash, UPI and udhaar", () => {
+    const lines = [karadi(2)];
+    const ok = registerBody(lines, "SPLIT", { date: "2026-11-17", party: "Ramesh", split: { CASH: 200, UPI: 220, CREDIT: 100 } });
+    if (!("body" in ok)) throw new Error(ok.err);
+    expect(ok.body).toMatchObject({ paymentMode: "CASH", splits: [{ channel: "CASH", amount: 200 }, { channel: "UPI", amount: 220 }, { channel: "CREDIT", amount: 100 }], counterBill: true });
+    expect(registerBody(lines, "SPLIT", { date: "2026-11-17", split: { CASH: 200, UPI: 200 } })).toHaveProperty("err");
+    expect(registerBody(lines, "SPLIT", { date: "2026-11-17", split: { CASH: 420, CREDIT: 100 } })).toHaveProperty("err");
+    const one = registerBody(lines, "SPLIT", { date: "2026-11-17", split: { UPI: 520 } });
+    expect("body" in one && one.body).toMatchObject({ paymentMode: "UPI", payChannel: "UPI" });
+  });
+  it("works out cash to return", () => {
+    expect(cashReturn(468, 500)).toBe(32);
+    expect(cashReturn(468, 400)).toBe(0);
   });
 });

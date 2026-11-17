@@ -36,4 +36,9 @@ describe("counter records", () => {
     expect(billMatches(b, "260")).toBe(true);
     expect(billMatches(b, "sunflower")).toBe(false);
   });
+  it("uses the counter's plain bill number when there is one", () => {
+    const [b] = groupBills([row({ id: "qq1", amountInr: 10, details: { billNo: 42 } })], lab);
+    expect(b.no).toBe("42");
+    expect(billMatches(b, "42")).toBe(true);
+  });
 });

@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, isValidDate, loadConfig, loadDay, saveConfig } from "@/lib/registerServer";
+import { nextBillNo } from "@/lib/counterSeq";
 import { accessFor } from "@/lib/accessServer";
 import { BUILTIN_PROFILES, canFn, effectivePerms, kindToFn, visibleEntries, withoutCostRates } from "@/lib/access";
 import { ALL_KINDS, KIND_SIDE, allocateBill, channelToMode, learnItem, normalizeBillLines, normalizeFreshCrush, normalizeSplit, rateKey, type BillLine, type RegisterKind } from "@/lib/register";
@@ -125,6 +126,13 @@ export async function POST(req: NextRequest) {
     pendingOk = needsApproval(kind, amount, false, staffLimit(lim.ok ? lim.data?.data : null));
   }
 
+  // Weigh & Bill counter bills get the next plain bill number (1, 2, 3 …); a failed save may leave a gap.
+  let billNo: number | null = null;
+  if (body.counterBill === true && kind === "SALE") {
+    const seq = await safeDbCall(() => nextBillNo());
+    if (!seq.ok) return NextResponse.json({ error: seq.error }, { status: 503 });
+    billNo = seq.data;
+  }
   const result = await safeDbCall(async () => {
     // 1. Library: learn a typed "Other" item and remember the rate used.
     let cfg = await loadConfig();
@@ -210,6 +218,7 @@ export async function POST(req: NextRequest) {
               notes,
               details: {
                 ...(clientId && idx === 0 ? { clientId } : {}),
+                ...(billNo && idx === 0 ? { billNo } : {}),
                 split: { id: gid, i: idx + 1, n, total: amount },
                 bill: { line: r.line + 1, lines: lines.length },
                 ...(r.channel === "OWNER_PHONEPE" ? { channel: "OWNER_PHONEPE" } : {}),
@@ -248,6 +257,7 @@ export async function POST(req: NextRequest) {
                 // fresh-crush production numbers live on the first row only
                 ...(idx === 0 && details ? details : {}),
                 ...(clientId && idx === 0 ? { clientId } : {}),
+                ...(billNo && idx === 0 ? { billNo } : {}),
                 split: { id: gid, i: idx + 1, n, total: amount },
                 ...(p.channel === "OWNER_PHONEPE" ? { channel: "OWNER_PHONEPE" } : {}),
               },
@@ -276,7 +286,7 @@ export async function POST(req: NextRequest) {
         partyId,
         notes,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        details: (((ownerPhonePe || clientId || pendingOk) ? { ...(details || linkDetails || {}), ...(ownerPhonePe ? { channel: "OWNER_PHONEPE" } : {}), ...(clientId ? { clientId } : {}), ...(pendingOk ? { approval: "pending" } : {}) } : details || linkDetails) as any) ?? undefined,
+        details: (((ownerPhonePe || clientId || pendingOk || billNo) ? { ...(details || linkDetails || {}), ...(ownerPhonePe ? { channel: "OWNER_PHONEPE" } : {}), ...(clientId ? { clientId } : {}), ...(billNo ? { billNo } : {}), ...(pendingOk ? { approval: "pending" } : {}) } : details || linkDetails) as any) ?? undefined,
         createdByName: user.name || null,
       },
     });
