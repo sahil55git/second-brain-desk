@@ -28,6 +28,9 @@ import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type 
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
 import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
 import { defaultHandover, handoverOf, isTracked, payStatus, type Handover } from "@/lib/counterTrack";
+import { matchUpi, parseUpi, type UpiEvent } from "@/lib/upiNotify";
+import { hasNativeUpi, MahadevUpi } from "@/lib/native";
+import { parseShow, SHOW_ALL, SHOW_KEYS, SHOW_LABELS, SHOW_SIMPLE, type ShowCfg } from "@/lib/counterShow";
 import { hashPin, KIOSK_EXTRAS, KIOSK_KEY, readKiosk, type KioskExtra, type KioskState } from "@/lib/counterKiosk";
 
 type Lang = "en" | "kn";
@@ -138,6 +141,9 @@ export default function CounterApp() {
   const zoom = uiZoom(uiSize, vw);
   const [theme, setTheme] = useState<CounterTheme>(DEFAULT_THEME);
   useEffect(() => { setTheme(parseTheme(read<unknown>("counterTheme", null))); }, []);
+  const [show, setShow] = useState<ShowCfg>(SHOW_ALL);
+  useEffect(() => { setShow(parseShow(read<unknown>("counterShow", null))); }, []);
+  const setShowCfg = (n: ShowCfg) => { setShow(n); write("counterShow", n); };
   const setLook = (p: Partial<CounterTheme>) => setTheme((t) => { const n = { ...t, ...p }; write("counterTheme", n); return n; });
   const k = (en: string, kn: string) => (lang === "kn" ? kn : en);
 
@@ -682,6 +688,63 @@ export default function CounterApp() {
   };
   useEffect(() => { if (date) void loadBills(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
+
+  const upiWaiting = bills.some((b) => isTracked(b.track) && payStatus(b.modes, b.track).upiDue > 0 && b.date === date);
+  useEffect(() => {
+    if (!upiWaiting || !hasNativeUpi()) return;
+    const t = setInterval(() => void loadBills(), 15000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upiWaiting]);
+
+  // ---- UPI payments seen by the UPI app on this device (Android app, Notification access allowed)
+  const [upiAuto, setUpiAuto] = useState(true);
+  const [upiAccess, setUpiAccess] = useState<"unknown" | "on" | "off">("unknown");
+  const [upiSeen, setUpiSeen] = useState<(UpiEvent & { pkg: string; raw: string })[]>([]);
+  const upiUsed = useRef<Set<string>>(new Set());
+  const upiLast = useRef(0);
+  useEffect(() => {
+    setUpiAuto(read<boolean>("counterUpiAuto", true));
+    upiUsed.current = new Set(read<string[]>("counterUpiUsed", []));
+  }, []);
+  useEffect(() => {
+    if (!hasNativeUpi() || !upiAuto) return;
+    let stop = false;
+    const tick = async () => {
+      try {
+        const [st, ev] = await Promise.all([MahadevUpi.status(), MahadevUpi.events({ since: upiLast.current })]);
+        if (stop) return;
+        setUpiAccess(st.enabled ? "on" : "off");
+        if (!ev.events.length) return;
+        upiLast.current = Math.max(upiLast.current, ...ev.events.map((e) => e.at));
+        const got = ev.events.map((e) => {
+          const h = parseUpi(e.title, e.text);
+          return h ? { id: e.id, at: e.at, amount: h.amount, payer: h.payer, pkg: e.pkg, raw: `${e.title} ${e.text}`.trim() } : null;
+        }).filter((x): x is UpiEvent & { pkg: string; raw: string } => !!x);
+        if (got.length) setUpiSeen((s) => [...s, ...got.filter((g) => !s.some((x) => x.id === g.id))].slice(-30));
+      } catch { /* the plugin is not in this app version: nothing to do */ }
+    };
+    void tick();
+    const t = setInterval(() => void tick(), 4000);
+    return () => { stop = true; clearInterval(t); };
+  }, [upiAuto]);
+  useEffect(() => {
+    if (!upiSeen.length || !bills.length) return;
+    const waiting = bills
+      .filter((b) => isTracked(b.track) && payStatus(b.modes, b.track).upiDue > 0 && b.date === date)
+      .map((b) => ({ key: b.key, at: new Date(b.createdAt).getTime(), due: payStatus(b.modes, b.track).upiDue }));
+    for (const m of matchUpi(upiSeen, waiting, upiUsed.current)) {
+      const b = bills.find((x) => x.key === m.billKey);
+      const e = upiSeen.find((x) => x.id === m.eventId);
+      if (!b || !e) continue;
+      upiUsed.current.add(e.id);
+      write("counterUpiUsed", Array.from(upiUsed.current).slice(-200));
+      void trackAct(b, "upiOk", { via: "auto from UPI app" }).then(() =>
+        setMsg({ ok: true, text: k(`✅ UPI ${rupees(e.amount)}${e.payer ? ` from ${e.payer}` : ""} received for bill #${b.no}${handoverOf(b.track) === "HELD" ? " — you can hand over the goods now" : ""}`, `✅ UPI ${rupees(e.amount)} ಬಂದಿದೆ — ಬಿಲ್ #${b.no}${handoverOf(b.track) === "HELD" ? " — ಸರಕು ಕೊಡಬಹುದು" : ""}`) })
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upiSeen, bills]);
   const bSum = billsSummary(shownBills);
   const modeName = (m: string) => (m === "CREDIT" ? k("Udhaar", "ಉದ್ರಿ") : m === "UPI" ? "UPI" : m === "CASH" ? k("Cash", "ನಗದು") : m);
   /** HSN code and GST % of a counter item (the owner's value, else the shop default). */
@@ -803,19 +866,21 @@ export default function CounterApp() {
         <span className={`ctr-chip ${connected ? (fresh ? "ok" : "mid") : "bad"}`}>{connected ? bt.config?.name || reading?.scale_source || k("Scale", "ತಕ್ಕಡಿ") : k("No scale", "ತಕ್ಕಡಿ ಇಲ್ಲ")}</span>
         {!connected && !kiosk?.on && <Link href="/?desk=scales" className="ctr-link">{k("Set up scale", "ತಕ್ಕಡಿ ಹೊಂದಿಸಿ")}</Link>}
         <span className="ctr-sp" />
-        <button type="button" className={`ctr-tbtn${holds.length ? " has" : ""}`} onClick={() => { setPanel("holds"); void loadHolds(); }}>
-          🅿️ {k("Held", "ಹಿಡಿದ")} <b>{holds.length}</b>
-        </button>
-        <button type="button" className="ctr-tbtn" onClick={() => { setBFilter("all"); setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}{openN > 0 && <b>{openN}</b>}</button>
+        {(show.held || holds.length > 0) && (
+          <button type="button" className={`ctr-tbtn${holds.length ? " has" : ""}`} onClick={() => { setPanel("holds"); void loadHolds(); }}>
+            🅿️ {k("Held", "ಹಿಡಿದ")} <b>{holds.length}</b>
+          </button>
+        )}
+        {show.bills && <button type="button" className="ctr-tbtn" onClick={() => { setBFilter("all"); setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}{openN > 0 && <b>{openN}</b>}</button>}
         {heldN > 0 && <button type="button" className="ctr-tbtn has" onClick={() => { setBFilter("held"); setPanel("bills"); void loadBills(); }} title={k("Goods held till payment", "ಹಣ ಬರುವವರೆಗೆ ಹಿಡಿದ ಸರಕು")}>🔒 {heldN}</button>}
         <button type="button" className="ctr-tbtn" onClick={() => setPanel("look")} aria-label={k("Colours and layout", "ಬಣ್ಣ ಮತ್ತು ವಿನ್ಯಾಸ")}>🎨</button>
         {can("settings") && <button type="button" className="ctr-tbtn" onClick={() => setPanel("settings")} aria-label={k("Settings", "ಸೆಟ್ಟಿಂಗ್ಸ್")}>⚙️</button>}
-        <button type="button" className="ctr-tbtn" onClick={() => { const u = UI_NEXT[uiSize]; setUiSize(u); write("counterUi", u); }} aria-label={k("Screen size", "ಪರದೆ ಗಾತ್ರ")} title={k("Screen size: Auto / Small / Normal / Large", "ಪರದೆ ಗಾತ್ರ: ಸ್ವಯಂ / ಸಣ್ಣ / ಸಾಮಾನ್ಯ / ದೊಡ್ಡ")}>
+        {show.size && <button type="button" className="ctr-tbtn" onClick={() => { const u = UI_NEXT[uiSize]; setUiSize(u); write("counterUi", u); }} aria-label={k("Screen size", "ಪರದೆ ಗಾತ್ರ")} title={k("Screen size: Auto / Small / Normal / Large", "ಪರದೆ ಗಾತ್ರ: ಸ್ವಯಂ / ಸಣ್ಣ / ಸಾಮಾನ್ಯ / ದೊಡ್ಡ")}>
           A± <small>{uiSize === "auto" ? k("Auto", "ಸ್ವಯಂ") : uiSize === "s" ? k("Small", "ಸಣ್ಣ") : uiSize === "m" ? k("Normal", "ಸಾಮಾನ್ಯ") : k("Large", "ದೊಡ್ಡ")}</small>
-        </button>
-        <button type="button" className="ctr-tbtn" onClick={() => { const l = lang === "en" ? "kn" : "en"; setLang(l); write("counterLang", l); }}>
+        </button>}
+        {show.lang && <button type="button" className="ctr-tbtn" onClick={() => { const l = lang === "en" ? "kn" : "en"; setLang(l); write("counterLang", l); }}>
           {lang === "en" ? "ಕನ್ನಡ" : "English"}
-        </button>
+        </button>}
       </header>
 
       {/* ---------- weight strip ---------- */}
@@ -824,23 +889,27 @@ export default function CounterApp() {
           <small>{frozen != null ? "📖 " : ""}{k("Weight", "ತೂಕ")} (kg){isBt && bt.tareKg > 0 ? ` · ${k("net", "ನಿವ್ವಳ")}` : ""}</small>
           <span>{fresh || frozen != null ? kg.toFixed(3) : "0.000"}</span>
         </div>
-        <div className={`ctr-tarewin${bt.tareKg > 0 ? " on" : ""}`}>
+        {show.tare && <div className={`ctr-tarewin${bt.tareKg > 0 ? " on" : ""}`}>
           <small>{k("Tare", "ಟೇರ್")} (kg)</small>
           <b>{bt.tareKg > 0 ? bt.tareKg.toFixed(3) : "0.000"}</b>
           <small className="nm">{bt.container || (bt.tareKg > 0 ? k("manual", "ಕೈಯಿಂದ") : k("none", "ಇಲ್ಲ"))}</small>
-        </div>
-        <div className="ctr-lcd small">
+        </div>}
+        {show.totalBox && <div className="ctr-lcd small">
           <small>{k("Total", "ಒಟ್ಟು")} ₹</small>
           <span>{total.toFixed(2)}</span>
-        </div>
+        </div>}
         <div className="ctr-tare">
-          <button type="button" className={`big${frozen != null ? " on" : ""}`} disabled={frozen == null && !(fresh && kgLive > 0)} onClick={() => setFrozen(frozen != null ? null : kgLive)} title={k("Reads the weight now, even if the scale is still moving. Tap an item to bill it, or tap again to let go.", "ತೂಕ ಚಲಿಸುತ್ತಿದ್ದರೂ ಈಗಲೇ ಓದುತ್ತದೆ. ವಸ್ತು ಒತ್ತಿ ಬಿಲ್ ಮಾಡಿ, ಅಥವಾ ಮತ್ತೆ ಒತ್ತಿ ಬಿಡಿ.")}>
+          {show.readWeight && (
+            <button type="button" className={`big${frozen != null ? " on" : ""}`} disabled={frozen == null && !(fresh && kgLive > 0)} onClick={() => setFrozen(frozen != null ? null : kgLive)} title={k("Reads the weight now, even if the scale is still moving. Tap an item to bill it, or tap again to let go.", "ತೂಕ ಚಲಿಸುತ್ತಿದ್ದರೂ ಈಗಲೇ ಓದುತ್ತದೆ. ವಸ್ತು ಒತ್ತಿ ಬಿಲ್ ಮಾಡಿ, ಅಥವಾ ಮತ್ತೆ ಒತ್ತಿ ಬಿಡಿ.")}>
             📖 {frozen != null ? `${k("Let go", "ಬಿಡಿ")} · ${frozen.toFixed(3)}` : k("Read weight", "ತೂಕ ಓದಿ")}
-          </button>
-          <button type="button" className={fill ? "on" : ""} onClick={() => (fill ? setFill(null) : openPad({ kind: "amount" }))}>
-            ₹→kg {fill ? `₹${fill.amount} ✕` : k("By amount", "ಮೊತ್ತದಿಂದ")}
-          </button>
-          {isBt ? (
+            </button>
+          )}
+          {show.byAmount && (
+            <button type="button" className={fill ? "on" : ""} onClick={() => (fill ? setFill(null) : openPad({ kind: "amount" }))}>
+              ₹→kg {fill ? `₹${fill.amount} ✕` : k("By amount", "ಮೊತ್ತದಿಂದ")}
+            </button>
+          )}
+          {!show.tare ? null : isBt ? (
             <>
               <button type="button" className="big" disabled={!bt.live || bt.live.grossKg <= 0} onClick={() => bt.live && bt.setTare(bt.live.grossKg)} title={k("Put the empty container on the scale, then press", "ಖಾಲಿ ಡಬ್ಬಿ ಇಟ್ಟು ಒತ್ತಿ")}>
                 ⚖️ {k("Tare", "ಟೇರ್")}
@@ -989,10 +1058,10 @@ export default function CounterApp() {
 
           {pay === "CREDIT" || (pay === "SPLIT" && (split.CREDIT || 0) > 0) || showParty ? (
             <input className="ctr-party" value={party} onChange={(e) => setParty(e.target.value)} placeholder={k("Customer name / mobile", "ಗ್ರಾಹಕರ ಹೆಸರು / ಮೊಬೈಲ್")} list="ctr-parties" />
-          ) : (
+          ) : show.customer ? (
             <button type="button" className="ctr-addparty" onClick={() => setShowParty(true)}>＋ {k("Customer name / mobile", "ಗ್ರಾಹಕರ ಹೆಸರು / ಮೊಬೈಲ್")}</button>
-          )}
-          {shop.gstin && (
+          ) : null}
+          {shop.gstin && show.gst && (
             <div className="ctr-gst">
               <label className="ctr-set">
                 <input type="checkbox" checked={taxInv.on} onChange={(e) => setTaxInv({ ...taxInv, on: e.target.checked })} />
@@ -1023,7 +1092,7 @@ export default function CounterApp() {
           )}
           <div className="ctr-act">
             <button type="button" className="clr" onClick={clearBill} disabled={busy || !lines.length}>{holdId ? k("Close", "ಮುಚ್ಚು") : k("Clear", "ಅಳಿಸಿ")}</button>
-            <button type="button" className="hold" onClick={() => void holdBill()} disabled={busy || !lines.length}>🅿️ {k("Hold", "ಹಿಡಿ")}</button>
+            {show.hold && <button type="button" className="hold" onClick={() => void holdBill()} disabled={busy || !lines.length}>🅿️ {k("Hold", "ಹಿಡಿ")}</button>}
             {!autoPrint && <button type="button" className="sv" onClick={() => void save(false)} disabled={busy || !lines.length}>{k("Save", "ಉಳಿಸಿ")}</button>}
             <button type="button" className="go" onClick={() => void save(autoPrint)} disabled={busy || !lines.length}>
               {busy ? "…" : `🖨️ ${autoPrint ? k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ") : k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ")}`}
@@ -1035,8 +1104,8 @@ export default function CounterApp() {
         {/* ---------- item keys ---------- */}
         <section className="ctr-items">
           <div className="ctr-itemhead">
-            <input className="ctr-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`🔍 ${k("Search item or PLU", "ವಸ್ತು ಅಥವಾ PLU ಹುಡುಕಿ")}`} />
-            <button type="button" className="ctr-plu" onClick={() => openPad({ kind: "plu" })}>⌨️ PLU</button>
+            {show.search ? <input className="ctr-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`🔍 ${k("Search item or PLU", "ವಸ್ತು ಅಥವಾ PLU ಹುಡುಕಿ")}`} /> : <span className="ctr-sp" />}
+            {show.plu && <button type="button" className="ctr-plu" onClick={() => openPad({ kind: "plu" })}>⌨️ PLU</button>}
             {isOwner && <button type="button" className="ctr-plu" onClick={openItems}>✏️ {k("Items", "ವಸ್ತುಗಳು")}</button>}
           </div>
           <div className="ctr-grid">
@@ -1341,6 +1410,18 @@ export default function CounterApp() {
                 <button key={v} type="button" className={theme.keySize === v ? "on" : ""} onClick={() => setLook({ keySize: v })}>{k(en, kn)}</button>
               ))}
             </div>
+            <h4>{k("Buttons on the screen", "ಪರದೆಯ ಬಟನ್‌ಗಳು")}</h4>
+            <div className="ctr-seg">
+              <button type="button" onClick={() => setShowCfg(SHOW_SIMPLE)}>🧑‍🍳 {k("Simple for staff", "ಸಿಬ್ಬಂದಿಗೆ ಸರಳ")}</button>
+              <button type="button" onClick={() => setShowCfg(SHOW_ALL)}>{k("Show everything", "ಎಲ್ಲವೂ ತೋರಿಸು")}</button>
+            </div>
+            {SHOW_KEYS.map((key) => (
+              <label key={key} className="ctr-set">
+                <input type="checkbox" checked={show[key]} onChange={(e) => setShowCfg({ ...show, [key]: e.target.checked })} />
+                <span>{k(SHOW_LABELS[key][0], SHOW_LABELS[key][1])}</span>
+              </label>
+            ))}
+            <p className="ctr-look-note">{k("Pay buttons, Save & Print, Clear and the item keys always stay. This 🎨 button stays too, to bring the others back.", "ಪಾವತಿ ಬಟನ್, ಸೇವ್ & ಪ್ರಿಂಟ್, ಅಳಿಸಿ, ವಸ್ತು ಕೀಗಳು ಯಾವಾಗಲೂ ಇರುತ್ತವೆ. ಇತರೆ ಮರಳಿ ತರಲು ಈ 🎨 ಬಟನ್ ಇರುತ್ತದೆ.")}</p>
             <h4>{k("Item symbols", "ವಸ್ತು ಚಿಹ್ನೆ")}</h4>
             <div className="ctr-seg">
               <button type="button" className={theme.icons ? "on" : ""} onClick={() => setLook({ icons: true })}>{k("Show", "ತೋರಿಸು")}</button>
@@ -1358,7 +1439,7 @@ export default function CounterApp() {
                 <button key={v} type="button" className={uiSize === v ? "on" : ""} onClick={() => { setUiSize(v); write("counterUi", v); }}>{k(en, kn)}</button>
               ))}
             </div>
-            <button type="button" className="ctr-tbtn" onClick={() => { setTheme(DEFAULT_THEME); write("counterTheme", DEFAULT_THEME); setUiSize("auto"); write("counterUi", "auto"); }}>↺ {k("Back to the standard look", "ಮೊದಲಿನ ರೂಪಕ್ಕೆ ಮರಳಿ")}</button>
+            <button type="button" className="ctr-tbtn" onClick={() => { setTheme(DEFAULT_THEME); write("counterTheme", DEFAULT_THEME); setShowCfg(SHOW_ALL); setUiSize("auto"); write("counterUi", "auto"); }}>↺ {k("Back to the standard look", "ಮೊದಲಿನ ರೂಪಕ್ಕೆ ಮರಳಿ")}</button>
           </div>
         </div>
       )}
@@ -1371,6 +1452,27 @@ export default function CounterApp() {
               <b>⚙️ {k("Counter settings", "ಕೌಂಟರ್ ಸೆಟ್ಟಿಂಗ್ಸ್")}</b>
               <button type="button" onClick={() => setPanel(null)} aria-label="Close">✕</button>
             </div>
+            <h4>{k("Check UPI payments by itself", "UPI ಪಾವತಿ ತಾನಾಗಿ ಪರಿಶೀಲನೆ")}</h4>
+            {!hasNativeUpi() ? (
+              <p className="ctr-hint">{k("Works in the Android app (update to the latest app). Install PhonePe / Google Pay Business on this tablet too.", "ಆಂಡ್ರಾಯ್ಡ್ ಆ್ಯಪ್‌ನಲ್ಲಿ ಮಾತ್ರ ಕೆಲಸ ಮಾಡುತ್ತದೆ (ಹೊಸ ಆ್ಯಪ್ ಅಪ್‌ಡೇಟ್ ಮಾಡಿ). ಈ ಟ್ಯಾಬ್ಲೆಟ್‌ನಲ್ಲಿ PhonePe / Google Pay Business ಹಾಕಿ.")}</p>
+            ) : (
+              <>
+                <label className="ctr-set">
+                  <input type="checkbox" checked={upiAuto} onChange={(e) => { setUpiAuto(e.target.checked); write("counterUpiAuto", e.target.checked); }} />
+                  <span>{k("Mark a UPI bill Paid when the UPI app on this device gets that payment", "ಈ ಸಾಧನದ UPI ಆ್ಯಪ್‌ಗೆ ಹಣ ಬಂದಾಗ ಬಿಲ್ ಪಾವತಿ ಎಂದು ಗುರುತಿಸು")}</span>
+                </label>
+                <p className={`ctr-msg ${upiAccess === "on" ? "ok" : "bad"}`}>
+                  {upiAccess === "on" ? k("Notification access is ON ✓", "ನೋಟಿಫಿಕೇಶನ್ ಅನುಮತಿ ಆನ್ ✓") : k("Notification access is OFF: allow it, then come back here.", "ನೋಟಿಫಿಕೇಶನ್ ಅನುಮತಿ ಆಫ್: ಅನುಮತಿಸಿ, ನಂತರ ಇಲ್ಲಿಗೆ ಬನ್ನಿ.")}
+                </p>
+                <button type="button" className="ctr-tbtn" onClick={() => void MahadevUpi.openSettings().catch((e: unknown) => setMsg({ ok: false, text: e instanceof Error ? e.message : "Open Android Settings → Notification access." }))}>
+                  🔔 {k("Allow notification access", "ನೋಟಿಫಿಕೇಶನ್ ಅನುಮತಿ ನೀಡಿ")}
+                </button>
+                <p className="ctr-hint">{k("Only PhonePe / Google Pay / Paytm style apps are read; other notifications are ignored. Test it with a ₹1 payment: it should appear below.", "PhonePe / Google Pay / Paytm ಮಾದರಿಯ ಆ್ಯಪ್‌ಗಳು ಮಾತ್ರ ಓದಲಾಗುತ್ತದೆ. ₹1 ಪಾವತಿಯಿಂದ ಪರೀಕ್ಷಿಸಿ: ಕೆಳಗೆ ಕಾಣಬೇಕು.")}</p>
+                {upiSeen.slice(-5).reverse().map((e) => (
+                  <p key={e.id} className="ctr-hint">💬 {rupees(e.amount)}{e.payer ? ` · ${e.payer}` : ""} · {timeOf(new Date(e.at).toISOString())} <small>({e.pkg.split(".").slice(-1)[0]})</small></p>
+                ))}
+              </>
+            )}
             <h4>{k("This device", "ಈ ಸಾಧನ")}</h4>
             <label className="ctr-set">
               <input type="checkbox" checked={autoPrint} onChange={(e) => { setAutoPrint(e.target.checked); write("counterAutoPrint", e.target.checked); }} />
