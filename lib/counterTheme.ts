@@ -5,6 +5,7 @@ export type ThemeMode = "auto" | "light" | "dark" | "black";
 export type Corner = "sq" | "md" | "rd";
 export type Density = "compact" | "normal" | "roomy";
 export type KeySize = "s" | "m" | "l";
+export type PluSize = "m" | "l" | "xl";
 export type Backdrop = "plain" | "tint";
 export type LcdColor = "green" | "amber" | "white" | "cyan";
 
@@ -20,6 +21,8 @@ export interface CounterTheme {
   lcd: LcdColor;
   /** show the small picture / symbol on each item key */
   icons: boolean;
+  /** size of the PLU number on each item key (xl = readable from across the counter) */
+  pluSize: PluSize;
 }
 
 export const PRESETS: { id: string; en: string; kn: string; hex: string }[] = [
@@ -33,7 +36,7 @@ export const PRESETS: { id: string; en: string; kn: string; hex: string }[] = [
 ];
 
 export const DEFAULT_THEME: CounterTheme = {
-  preset: "blue", custom: "#1f6feb", mode: "auto", opacity: 100, corner: "md", density: "normal", keySize: "m", backdrop: "plain", lcd: "green", icons: true,
+  preset: "blue", custom: "#1f6feb", mode: "auto", opacity: 100, corner: "md", density: "normal", keySize: "m", backdrop: "plain", lcd: "green", icons: true, pluSize: "m",
 };
 
 const pick = <T extends string>(v: unknown, all: readonly T[], d: T): T => (all.includes(v as T) ? (v as T) : d);
@@ -56,6 +59,7 @@ export function parseTheme(raw: unknown): CounterTheme {
     backdrop: pick(o.backdrop, ["plain", "tint"] as const, "plain"),
     lcd: pick(o.lcd, ["green", "amber", "white", "cyan"] as const, "green"),
     icons: o.icons !== false,
+    pluSize: pick(o.pluSize, ["m", "l", "xl"] as const, "m"),
   };
 }
 
@@ -102,5 +106,5 @@ export function themeStyle(t: CounterTheme): Record<string, string> {
 
 /** Class names for the counter root (density and background style). */
 export function themeClass(t: CounterTheme): string {
-  return `d-${t.density}${t.backdrop === "tint" ? " tint" : ""}${t.icons ? "" : " no-ic"}`;
+  return `d-${t.density}${t.backdrop === "tint" ? " tint" : ""}${t.icons ? "" : " no-ic"} plu-${t.pluSize}`;
 }

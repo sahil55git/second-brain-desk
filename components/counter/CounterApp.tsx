@@ -30,11 +30,12 @@ import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, v
 import { defaultHandover, handoverOf, isTracked, payStatus, type Handover } from "@/lib/counterTrack";
 import { matchUpi, parseUpi, type UpiEvent } from "@/lib/upiNotify";
 import { hasNativeUpi, MahadevUpi } from "@/lib/native";
-import { parseShow, SHOW_ALL, SHOW_KEYS, SHOW_LABELS, SHOW_SIMPLE, type ShowCfg } from "@/lib/counterShow";
+import { PAY_SHOW_KEYS, ensurePayOption, parseShow, SHOW_ALL, SHOW_KEYS, SHOW_LABELS, SHOW_SIMPLE, type ShowCfg } from "@/lib/counterShow";
 import { hashPin, KIOSK_EXTRAS, KIOSK_KEY, readKiosk, type KioskExtra, type KioskState } from "@/lib/counterKiosk";
 
 type Lang = "en" | "kn";
 type Chan = "CASH" | "UPI" | "CREDIT";
+const PAY_KEY = { CASH: "payCash", UPI: "payUpi", CREDIT: "payCredit", SPLIT: "paySplit" } as const;
 type PadTarget =
   | { kind: "received" | "tare" | "discount" | "plu" }
   | { kind: "qty" | "rate" | "ldisc"; line: number }
@@ -143,7 +144,7 @@ export default function CounterApp() {
   useEffect(() => { setTheme(parseTheme(read<unknown>("counterTheme", null))); }, []);
   const [show, setShow] = useState<ShowCfg>(SHOW_ALL);
   useEffect(() => { setShow(parseShow(read<unknown>("counterShow", null))); }, []);
-  const setShowCfg = (n: ShowCfg) => { setShow(n); write("counterShow", n); };
+  const setShowCfg = (n0: ShowCfg) => { const n = ensurePayOption(n0); setShow(n); write("counterShow", n); };
   const setLook = (p: Partial<CounterTheme>) => setTheme((t) => { const n = { ...t, ...p }; write("counterTheme", n); return n; });
   const k = (en: string, kn: string) => (lang === "kn" ? kn : en);
 
@@ -152,6 +153,11 @@ export default function CounterApp() {
   const [cfgRaw, setCfgRaw] = useState<unknown>(null);
   const [lines, setLines] = useState<CounterLine[]>([]);
   const [pay, setPay] = useState<CounterPay>("CASH");
+  // a pay button switched off on this device: start the bill on one that is still there
+  useEffect(() => {
+    if (pay === "SPLIT" || show[PAY_KEY[pay]]) return;
+    setPay(show.payCash ? "CASH" : show.payUpi ? "UPI" : "CREDIT");
+  }, [show, pay]);
   const [split, setSplit] = useState<SplitParts>({});
   const [party, setParty] = useState("");
   const [showParty, setShowParty] = useState(false);
@@ -1001,14 +1007,14 @@ export default function CounterApp() {
             <span>{lines.length} {k("item(s)", "ವಸ್ತು")} · {billKg(lines).toFixed(3)} kg</span>
             <b>{rupees(total)}</b>
           </div>
-          {discOn && lines.length > 0 && (
+          {discOn && show.discount && lines.length > 0 && (
             <button type="button" className="ctr-discbtn" onClick={() => openPad({ kind: "discount" })}>
               🏷️ {k("Bill discount", "ಬಿಲ್ ರಿಯಾಯಿತಿ")} {adjust.discount > 0 ? (adjust.pct ? `${adjust.discount}%` : rupees(adjust.discount)) : ""}
             </button>
           )}
 
           <div className="ctr-pay" role="radiogroup">
-            {(["CASH", "UPI", "CREDIT", "SPLIT"] as CounterPay[]).filter((p) => p !== "CREDIT" || can("udhaar")).map((p) => (
+            {(["CASH", "UPI", "CREDIT", "SPLIT"] as CounterPay[]).filter((p) => (p !== "CREDIT" || can("udhaar")) && (p === pay || show[PAY_KEY[p]])).map((p) => (
               <button key={p} type="button" role="radio" aria-checked={pay === p} className={pay === p ? "on" : ""} onClick={() => { setPay(p); setReceived(0); setHandPick(null); }}>
                 {p === "SPLIT" ? `➗ ${k("Split", "ಹಂಚಿಕೆ")}` : `${CHAN_TEXT[p as Chan][2]} ${k(CHAN_TEXT[p as Chan][0], CHAN_TEXT[p as Chan][1])}`}
               </button>
@@ -1030,10 +1036,12 @@ export default function CounterApp() {
 
           {cashDue > 0 && (
             <div className="ctr-cash">
-              <button type="button" className="recv" onClick={() => openPad({ kind: "received" })}>
-                {k("Cash received", "ಪಡೆದ ನಗದು")}: <b>{received > 0 ? rupees(received) : "—"}</b>
-              </button>
-              {!(received > 0) && <small className="ctr-hint">{k("Not typed = exact amount. Type it only if the customer gives more.", "ಟೈಪ್ ಮಾಡದಿದ್ದರೆ ಸರಿಯಾದ ಮೊತ್ತ. ಹೆಚ್ಚು ಕೊಟ್ಟರೆ ಮಾತ್ರ ಟೈಪ್ ಮಾಡಿ.")}</small>}
+              {show.cashReceived && (
+                <button type="button" className="recv" onClick={() => openPad({ kind: "received" })}>
+                  {k("Cash received", "ಪಡೆದ ನಗದು")}: <b>{received > 0 ? rupees(received) : "—"}</b>
+                </button>
+              )}
+              {show.cashReceived && !(received > 0) && <small className="ctr-hint">{k("Not typed = exact amount. Type it only if the customer gives more.", "ಟೈಪ್ ಮಾಡದಿದ್ದರೆ ಸರಿಯಾದ ಮೊತ್ತ. ಹೆಚ್ಚು ಕೊಟ್ಟರೆ ಮಾತ್ರ ಟೈಪ್ ಮಾಡಿ.")}</small>}
               {back > 0 && <div className="ctr-back-cash">{k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")} <b>{rupees(back)}</b></div>}
               {shortBy > 0 && <div className="ctr-short">{k("Still to collect", "ಇನ್ನೂ ಪಡೆಯಬೇಕು")} <b>{rupees(shortBy)}</b></div>}
             </div>
@@ -1417,11 +1425,17 @@ export default function CounterApp() {
             </div>
             {SHOW_KEYS.map((key) => (
               <label key={key} className="ctr-set">
-                <input type="checkbox" checked={show[key]} onChange={(e) => setShowCfg({ ...show, [key]: e.target.checked })} />
+                <input type="checkbox" checked={show[key]} disabled={show[key] && PAY_SHOW_KEYS.includes(key as (typeof PAY_SHOW_KEYS)[number]) && PAY_SHOW_KEYS.filter((x) => show[x]).length === 1} onChange={(e) => setShowCfg({ ...show, [key]: e.target.checked })} />
                 <span>{k(SHOW_LABELS[key][0], SHOW_LABELS[key][1])}</span>
               </label>
             ))}
-            <p className="ctr-look-note">{k("Pay buttons, Save & Print, Clear and the item keys always stay. This 🎨 button stays too, to bring the others back.", "ಪಾವತಿ ಬಟನ್, ಸೇವ್ & ಪ್ರಿಂಟ್, ಅಳಿಸಿ, ವಸ್ತು ಕೀಗಳು ಯಾವಾಗಲೂ ಇರುತ್ತವೆ. ಇತರೆ ಮರಳಿ ತರಲು ಈ 🎨 ಬಟನ್ ಇರುತ್ತದೆ.")}</p>
+            <p className="ctr-look-note">{k("At least one of Cash / UPI / Udhaar, Save & Print, Clear and the item keys always stay. If Udhaar is chosen the customer name is still asked. This 🎨 button stays too, to bring the others back.", "ನಗದು/UPI/ಉದ್ರಿಯಲ್ಲಿ ಕನಿಷ್ಠ ಒಂದು, ಸೇವ್ & ಪ್ರಿಂಟ್, ಅಳಿಸಿ, ವಸ್ತು ಕೀಗಳು ಯಾವಾಗಲೂ ಇರುತ್ತವೆ. ಉದ್ರಿ ಆರಿಸಿದರೆ ಹೆಸರು ಕೇಳುತ್ತದೆ. ಇತರೆ ಮರಳಿ ತರಲು ಈ 🎨 ಬಟನ್ ಇರುತ್ತದೆ.")}</p>
+            <h4>{k("PLU number size on item keys", "ವಸ್ತು ಕೀಯ ಮೇಲಿನ PLU ಸಂಖ್ಯೆ ಗಾತ್ರ")}</h4>
+            <div className="ctr-seg">
+              {([["m", "Normal", "ಸಾಮಾನ್ಯ"], ["l", "Large", "ದೊಡ್ಡದು"], ["xl", "Huge (from far)", "ತುಂಬಾ ದೊಡ್ಡದು (ದೂರದಿಂದ)"]] as const).map(([v, en, kn]) => (
+                <button key={v} type="button" className={theme.pluSize === v ? "on" : ""} onClick={() => setLook({ pluSize: v })}>{k(en, kn)}</button>
+              ))}
+            </div>
             <h4>{k("Item symbols", "ವಸ್ತು ಚಿಹ್ನೆ")}</h4>
             <div className="ctr-seg">
               <button type="button" className={theme.icons ? "on" : ""} onClick={() => setLook({ icons: true })}>{k("Show", "ತೋರಿಸು")}</button>

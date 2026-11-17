@@ -29,10 +29,14 @@ describe("counter theme", () => {
   it("item symbols can be switched off", () => {
     expect(parseTheme({}).icons).toBe(true);
     expect(parseTheme({ icons: false }).icons).toBe(false);
-    expect(themeClass({ ...DEFAULT_THEME, icons: false })).toBe("d-normal no-ic");
+    expect(parseTheme({}).pluSize).toBe("m");
+    expect(parseTheme({ pluSize: "xl" }).pluSize).toBe("xl");
+    expect(parseTheme({ pluSize: "huge" }).pluSize).toBe("m");
+    expect(themeClass({ ...DEFAULT_THEME, pluSize: "xl" })).toContain("plu-xl");
+    expect(themeClass({ ...DEFAULT_THEME, icons: false })).toBe("d-normal no-ic plu-m");
   });
   it("root classes", () => {
-    expect(themeClass(DEFAULT_THEME)).toBe("d-normal");
-    expect(themeClass({ ...DEFAULT_THEME, density: "roomy", backdrop: "tint" })).toBe("d-roomy tint");
+    expect(themeClass(DEFAULT_THEME)).toBe("d-normal plu-m");
+    expect(themeClass({ ...DEFAULT_THEME, density: "roomy", backdrop: "tint" })).toBe("d-roomy tint plu-m");
   });
 });

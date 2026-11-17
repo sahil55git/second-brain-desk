@@ -331,3 +331,10 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr.no-ic .ctr-key .ic { display: none; }
 .ctr.no-ic .ctr-key { min-height: 84px; justify-content: center; padding-top: 22px; }
 .ctr.no-ic .ctr-key b { font-size: 19px; }
+
+/* PLU number size: l and xl put a big number on its own line so it can be read from far away */
+.ctr.plu-l .ctr-key .plu, .ctr.plu-xl .ctr-key .plu { position: static; align-self: center; border-radius: 12px; line-height: 1.1; margin-bottom: 2px; padding: 0 12px; }
+.ctr.plu-l .ctr-key .plu { font-size: 30px; }
+.ctr.plu-xl .ctr-key .plu { font-size: 46px; padding: 0 16px; }
+.ctr.plu-l .ctr-key, .ctr.plu-xl .ctr-key { padding-top: 10px; }
+.ctr.plu-xl .ctr-key { min-height: 150px; }
