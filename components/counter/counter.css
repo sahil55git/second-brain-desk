@@ -326,3 +326,8 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr-hand button { flex: 1; border: 2px solid var(--c-line); background: var(--c-bg); border-radius: var(--r2, 12px); padding: 9px 6px; font-weight: 700; }
 .ctr-hand button.on { border-color: var(--c-ok); color: var(--c-ok); background: color-mix(in srgb, var(--c-ok) 12%, transparent); }
 .ctr-hand button.on.hold { border-color: var(--c-bad); color: var(--c-bad); background: color-mix(in srgb, var(--c-bad) 10%, transparent); }
+
+/* item symbols off: names only, shorter keys */
+.ctr.no-ic .ctr-key .ic { display: none; }
+.ctr.no-ic .ctr-key { min-height: 84px; justify-content: center; padding-top: 22px; }
+.ctr.no-ic .ctr-key b { font-size: 19px; }

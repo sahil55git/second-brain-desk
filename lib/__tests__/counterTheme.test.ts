@@ -26,6 +26,11 @@ describe("counter theme", () => {
     expect(themeStyle({ ...DEFAULT_THEME, mode: "black" })["--c-bg"]).toBe("#000000");
     expect(themeStyle({ ...DEFAULT_THEME, opacity: 70 })["--card-a"]).toBe("70");
   });
+  it("item symbols can be switched off", () => {
+    expect(parseTheme({}).icons).toBe(true);
+    expect(parseTheme({ icons: false }).icons).toBe(false);
+    expect(themeClass({ ...DEFAULT_THEME, icons: false })).toBe("d-normal no-ic");
+  });
   it("root classes", () => {
     expect(themeClass(DEFAULT_THEME)).toBe("d-normal");
     expect(themeClass({ ...DEFAULT_THEME, density: "roomy", backdrop: "tint" })).toBe("d-roomy tint");

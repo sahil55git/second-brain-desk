@@ -1341,6 +1341,11 @@ export default function CounterApp() {
                 <button key={v} type="button" className={theme.keySize === v ? "on" : ""} onClick={() => setLook({ keySize: v })}>{k(en, kn)}</button>
               ))}
             </div>
+            <h4>{k("Item symbols", "ವಸ್ತು ಚಿಹ್ನೆ")}</h4>
+            <div className="ctr-seg">
+              <button type="button" className={theme.icons ? "on" : ""} onClick={() => setLook({ icons: true })}>{k("Show", "ತೋರಿಸು")}</button>
+              <button type="button" className={!theme.icons ? "on" : ""} onClick={() => setLook({ icons: false })}>{k("Names only", "ಹೆಸರು ಮಾತ್ರ")}</button>
+            </div>
             <h4>{k("Weight display colour", "ತೂಕ ಪರದೆ ಬಣ್ಣ")}</h4>
             <div className="ctr-sw">
               {([["green", "#8ef0a2"], ["amber", "#ffc857"], ["white", "#f5f5f5"], ["cyan", "#7dd3fc"]] as const).map(([v, hex]) => (

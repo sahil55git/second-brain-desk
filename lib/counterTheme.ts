@@ -18,6 +18,8 @@ export interface CounterTheme {
   keySize: KeySize;
   backdrop: Backdrop;
   lcd: LcdColor;
+  /** show the small picture / symbol on each item key */
+  icons: boolean;
 }
 
 export const PRESETS: { id: string; en: string; kn: string; hex: string }[] = [
@@ -31,7 +33,7 @@ export const PRESETS: { id: string; en: string; kn: string; hex: string }[] = [
 ];
 
 export const DEFAULT_THEME: CounterTheme = {
-  preset: "blue", custom: "#1f6feb", mode: "auto", opacity: 100, corner: "md", density: "normal", keySize: "m", backdrop: "plain", lcd: "green",
+  preset: "blue", custom: "#1f6feb", mode: "auto", opacity: 100, corner: "md", density: "normal", keySize: "m", backdrop: "plain", lcd: "green", icons: true,
 };
 
 const pick = <T extends string>(v: unknown, all: readonly T[], d: T): T => (all.includes(v as T) ? (v as T) : d);
@@ -53,6 +55,7 @@ export function parseTheme(raw: unknown): CounterTheme {
     keySize: pick(o.keySize, ["s", "m", "l"] as const, "m"),
     backdrop: pick(o.backdrop, ["plain", "tint"] as const, "plain"),
     lcd: pick(o.lcd, ["green", "amber", "white", "cyan"] as const, "green"),
+    icons: o.icons !== false,
   };
 }
 
@@ -99,5 +102,5 @@ export function themeStyle(t: CounterTheme): Record<string, string> {
 
 /** Class names for the counter root (density and background style). */
 export function themeClass(t: CounterTheme): string {
-  return `d-${t.density}${t.backdrop === "tint" ? " tint" : ""}`;
+  return `d-${t.density}${t.backdrop === "tint" ? " tint" : ""}${t.icons ? "" : " no-ic"}`;
 }
