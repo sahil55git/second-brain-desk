@@ -190,6 +190,7 @@ export function salesReport(d: BizData, s: DateSpan) {
   const days = daysIn(s);
   const inv = d.sales.filter((x) => inSpan(x.date, s));
   const reg = d.register.filter((x) => (x.kind === "SALE" || x.kind === "FRESH_CRUSH") && inSpan(x.date, s));
+  const counterReturns = d.register.filter((x) => x.kind === "SALE_RETURN" && inSpan(x.date, s));
   const byItem: Record<string, Bucket> = {};
   const byParty: Record<string, Bucket> = {};
   const byMode: Record<string, number> = {};
@@ -219,6 +220,12 @@ export function salesReport(d: BizData, s: DateSpan) {
   // Refunds reduce sales on the day they were recorded, not on the bill date.
   const refs = refundsIn(d, s);
   let refundTotal = 0;
+  // Counter (Weigh & Bill) returns: same treatment as a refund.
+  for (const x of counterReturns) {
+    refundTotal += x.amountInr;
+    perDay[x.date] = (perDay[x.date] || 0) - x.amountInr;
+    byMode[x.paymentMode] = (byMode[x.paymentMode] || 0) - x.amountInr;
+  }
   for (const r of refs) {
     refundTotal += r.amount;
     perDay[r.date] = (perDay[r.date] || 0) - r.amount;
@@ -228,7 +235,7 @@ export function salesReport(d: BizData, s: DateSpan) {
     total: r2(invoiceTotal + counterTotal - refundTotal),
     grossTotal: r2(invoiceTotal + counterTotal),
     refundTotal: r2(refundTotal),
-    refundCount: refs.length,
+    refundCount: refs.length + counterReturns.length,
     invoiceTotal: r2(invoiceTotal),
     invoiceTaxable: r2(invoiceTaxable),
     invoiceTax: r2(invoiceTax),
@@ -243,6 +250,7 @@ export function salesReport(d: BizData, s: DateSpan) {
     rows: [
       ...inv.map((x) => ({ date: x.date, source: "Invoice", ref: x.invoiceNo, party: x.party?.name || "", item: (x.lineItems || []).map((l) => l.name).join("; "), qty: "", mode: x.paymentMode, amount: x.totalInr })),
       ...reg.map((x) => ({ date: x.date, source: x.kind === "FRESH_CRUSH" ? "Fresh crush" : "Counter", ref: "", party: x.partyName || "", item: registerItemName(x), qty: x.qty ? `${x.qty} ${x.unit || ""}` : "", mode: x.paymentMode, amount: x.amountInr })),
+      ...counterReturns.map((x) => ({ date: x.date, source: "Counter return", ref: "", party: x.partyName || "", item: registerItemName(x), qty: x.qty ? `${x.qty} ${x.unit || ""}` : "", mode: x.paymentMode, amount: -x.amountInr })),
       ...refs.map((r) => ({ date: r.date, source: "Refund", ref: r.invoiceNo, party: r.partyName, item: r.reason, qty: "", mode: r.paymentMode, amount: -r.amount })),
     ].sort((a, b) => (a.date < b.date ? 1 : -1)),
   };
@@ -555,10 +563,10 @@ export function stockReport(d: BizData, asOf: string) {
   const counter: Record<string, { inQty: number; outQty: number; unit: string }> = {};
   for (const e of d.register) {
     if (e.date > asOf || !e.qty) continue;
-    if (e.kind !== "SALE" && e.kind !== "PURCHASE" && e.kind !== "FRESH_CRUSH") continue;
+    if (e.kind !== "SALE" && e.kind !== "SALE_RETURN" && e.kind !== "PURCHASE" && e.kind !== "FRESH_CRUSH") continue;
     const key = `${registerItemName(e)}|${e.unit || "kg"}`;
     const c = (counter[key] ||= { inQty: 0, outQty: 0, unit: e.unit || "kg" });
-    if (e.kind === "PURCHASE") c.inQty += e.qty;
+    if (e.kind === "PURCHASE" || e.kind === "SALE_RETURN") c.inQty += e.qty;
     else c.outQty += e.qty;
   }
   const fresh = freshCrushTotals(d.register.filter((e) => e.date <= asOf));
@@ -600,6 +608,7 @@ export function cashReport(d: BizData, s: DateSpan) {
       else cashOut += e.amountInr;
     } else if (e.paymentMode === "CREDIT") {
       if (side === "in") creditGiven += e.amountInr;
+      else if (e.kind === "SALE_RETURN") creditGiven -= e.amountInr;
     } else if (entryChannel(e) === "OWNER_PHONEPE") ownerPhonePe += e.amountInr;
     else if (side === "in") upiIn += e.amountInr;
     else upiOut += e.amountInr;
@@ -650,6 +659,7 @@ export function udhaarReport(d: BizData, asOf: string) {
     if (e.date > asOf) continue;
     const name = (e.partyName || "").trim() || "(no name)";
     if (e.paymentMode === "CREDIT" && (e.kind === "SALE" || e.kind === "FRESH_CRUSH")) slot(name, e.date).given += e.amountInr;
+    else if (e.paymentMode === "CREDIT" && e.kind === "SALE_RETURN") slot(name, e.date).refunds += e.amountInr;
     if (e.kind === "UDHAAR_IN") slot(name, e.date).received += e.amountInr;
   }
   for (const x of d.sales) {

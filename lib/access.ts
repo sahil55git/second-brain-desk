@@ -128,7 +128,7 @@ export function canFn(p: Perms, k: FnKey) { return !!p.fn[k]; }
 /** Which Quick Register function each entry kind needs. */
 export function kindToFn(kind: RegisterKind): FnKey {
   switch (kind) {
-    case "SALE": case "FRESH_CRUSH": return "sale";
+    case "SALE": case "SALE_RETURN": case "FRESH_CRUSH": return "sale";
     case "UDHAAR_IN": return "udhaar";
     case "PURCHASE": return "purchase";
     case "EXPENSE": return "expense";

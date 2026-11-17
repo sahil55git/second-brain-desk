@@ -21,7 +21,7 @@ export async function GET() {
         include: { invoice: { select: { id: true, invoiceNo: true, paymentMode: true, party: { select: { name: true } } } } },
       }),
       prisma.registerEntry.findMany({
-        where: { OR: [{ kind: "UDHAAR_IN" }, { kind: { in: ["SALE", "FRESH_CRUSH"] }, paymentMode: "CREDIT" }] },
+        where: { OR: [{ kind: "UDHAAR_IN" }, { kind: { in: ["SALE", "FRESH_CRUSH", "SALE_RETURN"] }, paymentMode: "CREDIT" }] },
       }),
     ]);
     const refunds: RefundRecord[] = returns.map((r) => ({

@@ -539,6 +539,7 @@ model ScaleConnectionProfile {
 
 enum RegisterKind {
   SALE        // money in
+  SALE_RETURN // goods taken back at the counter: refund goes out (cash / UPI) or the customer's udhaar falls; stock comes back
   FRESH_CRUSH // money in — oil crushed from the shop's own seed in front of the customer
   UDHAAR_IN   // money in — old credit collected
   PURCHASE    // money out

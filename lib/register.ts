@@ -16,6 +16,7 @@ import type { CashInputs } from "./calculations";
 export type Side = "in" | "out" | "oth";
 export type RegisterKind =
   | "SALE"
+  | "SALE_RETURN"
   | "FRESH_CRUSH"
   | "UDHAAR_IN"
   | "PURCHASE"
@@ -28,6 +29,8 @@ export type LangMode = "both" | "en" | "kn";
 
 export const KIND_SIDE: Record<RegisterKind, Side> = {
   SALE: "in",
+  // goods taken back from a customer: money (or udhaar) goes back out, stock comes back in
+  SALE_RETURN: "out",
   FRESH_CRUSH: "in",
   UDHAAR_IN: "in",
   PURCHASE: "out",
@@ -472,6 +475,7 @@ export function dayTotals(entries: RegisterEntryLike[], jwEvents: CashEvent[] = 
       else t.cashOut += e.amountInr;
     } else if (e.paymentMode === "CREDIT") {
       if (side === "in") t.creditGiven += e.amountInr;
+      else if (e.kind === "SALE_RETURN") t.creditGiven -= e.amountInr; // returned on udhaar: the customer owes less
       else t.creditTaken += e.amountInr;
     } else if (entryChannel(e) === "OWNER_PHONEPE") t.ownerPhonePeIn += e.amountInr;
     else if (side === "in") t.upiIn += e.amountInr;
@@ -536,6 +540,7 @@ export function toClosingBuckets(
     if (!eff) continue;
     switch (e.kind) {
       case "SALE":
+      case "SALE_RETURN": // a cash refund is negative here, so sales cash is net of returns
       case "FRESH_CRUSH":
         b.cashInSales += eff;
         break;

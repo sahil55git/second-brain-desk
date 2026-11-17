@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
   }
   // Multi-item bill (sale / purchase): several item lines, one payment.
   let billLines: BillLine[] | null = null;
-  if ((kind === "SALE" || kind === "PURCHASE") && body.totalSale !== true && Array.isArray(body.lines) && body.lines.length > 1) {
+  if ((kind === "SALE" || kind === "SALE_RETURN" || kind === "PURCHASE") && body.totalSale !== true && Array.isArray(body.lines) && body.lines.length > 1) {
     const nb = normalizeBillLines(body.lines);
     if (!nb.ok) return NextResponse.json({ error: nb.error }, { status: 400 });
     const sum = Math.round(nb.lines.reduce((a, l) => a + l.amount, 0) * 100) / 100;
@@ -105,6 +105,26 @@ export async function POST(req: NextRequest) {
     billLines = nb.lines;
   }
   const side = KIND_SIDE[kind];
+  // A return points at the counter bill it came from; refunds cannot exceed what that bill was.
+  const returnOf = kind === "SALE_RETURN" && Number.isInteger(Number(body.returnOf)) && Number(body.returnOf) > 0 ? Number(body.returnOf) : null;
+  if (kind === "SALE_RETURN") {
+    if (body.paymentMode === "CREDIT" && !(typeof body.partyName === "string" && body.partyName.trim())) {
+      return NextResponse.json({ error: "A return against udhaar needs the customer's name." }, { status: 400 });
+    }
+    if (returnOf) {
+      const chk = await safeDbCall(async () => {
+        const first = await prisma.registerEntry.findFirst({ where: { kind: "SALE", details: { path: ["billNo"], equals: returnOf } } });
+        if (!first) return { bad: `Bill ${returnOf} was not found.` };
+        const d0 = (first.details && typeof first.details === "object" ? first.details : {}) as { split?: { total?: number } };
+        const billTotal = Number(d0.split?.total) > 0 ? Number(d0.split!.total) : first.amountInr;
+        const prev = await prisma.registerEntry.aggregate({ _sum: { amountInr: true }, where: { kind: "SALE_RETURN", details: { path: ["returnOf"], equals: returnOf } } });
+        const left = Math.round((billTotal - (prev._sum?.amountInr || 0)) * 100) / 100;
+        return amount > left + 0.01 ? { bad: `Only ₹${Math.max(0, left)} of bill ${returnOf} is left to return.` } : { bad: "" };
+      });
+      if (!chk.ok) return NextResponse.json({ error: chk.error }, { status: 503 });
+      if (chk.data.bad) return NextResponse.json({ error: chk.data.bad }, { status: 400 });
+    }
+  }
   // A sale taken fully on the owner's personal PhonePe: mode OTHER + channel tag.
   const ownerPhonePe = (kind === "SALE" || kind === "FRESH_CRUSH") && body.payChannel === "OWNER_PHONEPE";
   const mode = ownerPhonePe ? "OTHER" : side === "oth" ? "CASH" : MODES.includes(body.paymentMode) ? body.paymentMode : "CASH";
@@ -219,6 +239,7 @@ export async function POST(req: NextRequest) {
               details: {
                 ...(clientId && idx === 0 ? { clientId } : {}),
                 ...(billNo && idx === 0 ? { billNo } : {}),
+                ...(returnOf ? { returnOf } : {}),
                 split: { id: gid, i: idx + 1, n, total: amount },
                 bill: { line: r.line + 1, lines: lines.length },
                 ...(r.channel === "OWNER_PHONEPE" ? { channel: "OWNER_PHONEPE" } : {}),
@@ -286,7 +307,7 @@ export async function POST(req: NextRequest) {
         partyId,
         notes,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        details: (((ownerPhonePe || clientId || pendingOk || billNo) ? { ...(details || linkDetails || {}), ...(ownerPhonePe ? { channel: "OWNER_PHONEPE" } : {}), ...(clientId ? { clientId } : {}), ...(billNo ? { billNo } : {}), ...(pendingOk ? { approval: "pending" } : {}) } : details || linkDetails) as any) ?? undefined,
+        details: (((ownerPhonePe || clientId || pendingOk || billNo || returnOf) ? { ...(details || linkDetails || {}), ...(returnOf ? { returnOf } : {}), ...(ownerPhonePe ? { channel: "OWNER_PHONEPE" } : {}), ...(clientId ? { clientId } : {}), ...(billNo ? { billNo } : {}), ...(pendingOk ? { approval: "pending" } : {}) } : details || linkDetails) as any) ?? undefined,
         createdByName: user.name || null,
       },
     });

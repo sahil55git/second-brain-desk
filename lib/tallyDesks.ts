@@ -179,6 +179,7 @@ export function balancesAsOf(rows: RegLite[], asOf: string): RowDef[] {
     const name = (e.partyName || "").trim();
     if (!name) continue;
     if (e.paymentMode === "CREDIT" && (e.kind === "SALE" || e.kind === "FRESH_CRUSH")) add(cust, name, e.amountInr);
+    else if (e.paymentMode === "CREDIT" && e.kind === "SALE_RETURN") add(cust, name, -e.amountInr);
     else if (e.kind === "UDHAAR_IN") add(cust, name, -e.amountInr);
     else if (e.paymentMode === "CREDIT" && e.kind === "PURCHASE") add(supp, name, e.amountInr);
     else if (e.kind === "PAYMENT" && e.item !== "salary") add(supp, name, -e.amountInr);

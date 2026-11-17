@@ -55,7 +55,7 @@ async function buildRows(desk: DeskId, date: string) {
     });
     defs = jobWorkExpected(intakes, endOfDayMs(date), Date.now());
   } else if (desk === "UDHAR") {
-    const rows = await registerRows(null, date, ["SALE", "FRESH_CRUSH", "UDHAAR_IN", "PURCHASE", "PAYMENT"]);
+    const rows = await registerRows(null, date, ["SALE", "SALE_RETURN", "FRESH_CRUSH", "UDHAAR_IN", "PURCHASE", "PAYMENT"]);
     defs = balancesAsOf(rows, date);
   } else if (desk === "TANK") {
     const closings = await prisma.dailyClosing.findMany({ where: { date: { lte: date } }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 30, select: { date: true, stock: true } });

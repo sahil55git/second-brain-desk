@@ -98,6 +98,15 @@ export interface BillSum {
   amounts: number[];
 }
 
+/** Total discount (item-wise + whole-bill) as a % of the bill before any discount. */
+export function totalDiscPct(lines: CounterLine[], a: BillAdjust = {}): number {
+  const before = lines.reduce((s, l) => s + lineGross(l), 0);
+  if (before <= 0) return 0;
+  const itemDisc = lines.reduce((s, l) => s + lineDisc(l), 0);
+  const billDisc = billSum(lines, a).discount;
+  return Math.round(((itemDisc + billDisc) / before) * 10000) / 100;
+}
+
 /** Gross → discount → round-off → net, with the net spread over the lines (each line keeps qty and rate). */
 export function billSum(lines: CounterLine[], a: BillAdjust = {}): BillSum {
   const gross = billTotal(lines);

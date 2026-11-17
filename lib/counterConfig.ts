@@ -12,6 +12,9 @@ export interface CounterItem {
   unit: "kg" | "L" | "pcs";
   /** counter's own rate; 0 = use the register's last rate */
   rate: number;
+  /** for the GST tax invoice: HSN code and GST % (empty / unset = the shop default for that item) */
+  hsn?: string;
+  gst?: number;
   hidden?: boolean;
 }
 
@@ -30,7 +33,11 @@ export interface CounterConfig {
   items: CounterItem[];
   /** things staff may NOT do at the counter (the owner always can) */
   staffLocks: StaffLock[];
+  /** most discount staff may give on one bill, as % of the bill before discount (item + bill discount together); owner unlimited */
+  staffDiscMaxPct: number;
 }
+
+export const DEFAULT_STAFF_DISC_MAX_PCT = 10;
 
 const UNITS = ["kg", "L", "pcs"] as const;
 
@@ -68,12 +75,16 @@ export function parseCounterConfig(raw: unknown, catalog: CatalogItem[]): Counte
         icon: typeof x.icon === "string" && x.icon.trim() ? x.icon.trim().slice(0, 4) : "🛢️",
         unit: UNITS.includes(x.unit as (typeof UNITS)[number]) ? (x.unit as CounterItem["unit"]) : "kg",
         rate: Number.isFinite(rate) && rate > 0 ? Math.round(rate * 100) / 100 : 0,
+        ...(typeof x.hsn === "string" && /^\d{2,8}$/.test(x.hsn.trim()) ? { hsn: x.hsn.trim() } : {}),
+        ...(Number.isFinite(Number(x.gst)) && x.gst !== "" && x.gst !== null && Number(x.gst) >= 0 && Number(x.gst) <= 28 ? { gst: Math.round(Number(x.gst) * 100) / 100 } : {}),
         ...(x.hidden === true ? { hidden: true } : {}),
       });
     }
   }
   const staffLocks = Array.isArray(o.staffLocks) ? (o.staffLocks.filter((k) => typeof k === "string" && k in STAFF_LOCKS) as StaffLock[]) : [];
-  return { items: items.length ? items.sort((a, b) => a.plu - b.plu) : defaultItems(catalog), staffLocks: Array.from(new Set(staffLocks)) };
+  const mx = Number(o.staffDiscMaxPct);
+  const staffDiscMaxPct = o.staffDiscMaxPct !== undefined && Number.isFinite(mx) && mx >= 0 && mx <= 100 ? Math.round(mx * 100) / 100 : DEFAULT_STAFF_DISC_MAX_PCT;
+  return { items: items.length ? items.sort((a, b) => a.plu - b.plu) : defaultItems(catalog), staffLocks: Array.from(new Set(staffLocks)), staffDiscMaxPct };
 }
 
 export function nextPlu(used: Set<number> | number[]): number {

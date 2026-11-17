@@ -94,6 +94,7 @@ export const SheetModeCtx = createContext<"modal" | "inline">("modal");
 
 export const KIND_ICON: Record<RegisterKind, string> = {
   SALE: "💰",
+  SALE_RETURN: "↩️",
   FRESH_CRUSH: "🫗",
   UDHAAR_IN: "🙌",
   PURCHASE: "🛒",
