@@ -67,9 +67,9 @@ export function homeSummary(d: BizData, nowMs = Date.now()): HomeSummary {
   // Sales by hour: counter sale / fresh crush entries + bills saved today.
   const hours: Record<number, number> = {};
   for (const e of d.register) {
-    if (e.date !== today || (e.kind !== "SALE" && e.kind !== "FRESH_CRUSH")) continue;
+    if (e.date !== today || (e.kind !== "SALE" && e.kind !== "SALE_RETURN" && e.kind !== "FRESH_CRUSH")) continue;
     const h = istHour(e.createdAt);
-    hours[h] = (hours[h] || 0) + e.amountInr;
+    hours[h] = (hours[h] || 0) + (e.kind === "SALE_RETURN" ? -e.amountInr : e.amountInr);
   }
   for (const x of d.sales) {
     if (x.date !== today) continue;

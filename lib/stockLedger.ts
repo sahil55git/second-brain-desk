@@ -80,7 +80,7 @@ export function productKeyFor(name: string | null | undefined): string | null {
 }
 
 // --------------------------------------------------------------------------- movements
-export type MoveSource = "register sale" | "register purchase" | "sales bill" | "purchase bill" | "fresh crush to tank" | "mill transfer" | "packing";
+export type MoveSource = "register sale" | "register sale return" | "register purchase" | "sales bill" | "purchase bill" | "fresh crush to tank" | "mill transfer" | "packing";
 export interface LedgerMove {
   product: string;
   date: string;
@@ -148,6 +148,8 @@ export function ledgerMoves(d: BizData, ops: OpsLite[] = []): { moves: LedgerMov
         continue;
       }
       if (e.qty && e.qty > 0) add(e.itemLabel || e.item || "", e.qty, e.unit, "out", "register sale", e.date, at);
+    } else if (e.kind === "SALE_RETURN") {
+      if (e.qty && e.qty > 0) add(e.itemLabel || e.item || "", e.qty, e.unit, "in", "register sale return", e.date, at);
     } else if (e.kind === "PURCHASE") {
       if (e.qty && e.qty > 0) add(e.itemLabel || e.item || "", e.qty, e.unit, "in", "register purchase", e.date, at);
     } else if (e.kind === "FRESH_CRUSH") {

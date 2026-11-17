@@ -21,6 +21,7 @@ import {
   type BillAdjust, type CounterLine, type CounterPay, type SplitParts,
 } from "@/lib/counterBill";
 import type { HoldData } from "@/lib/counterHold";
+import { defaultRefundMode, refundFor, returnBody, returnables, returnedByBill, type RefundMode, type ReturnItem, type ReturnedSoFar } from "@/lib/counterReturn";
 import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
 import { hashPin, KIOSK_EXTRAS, KIOSK_KEY, readKiosk, type KioskExtra, type KioskState } from "@/lib/counterKiosk";
@@ -30,7 +31,8 @@ type Chan = "CASH" | "UPI" | "CREDIT";
 type PadTarget =
   | { kind: "received" | "tare" | "discount" | "plu" }
   | { kind: "qty" | "rate" | "ldisc"; line: number }
-  | { kind: "split"; chan: Chan };
+  | { kind: "split"; chan: Chan }
+  | { kind: "retqty"; key: string };
 
 interface Settings {
   showTare: boolean;
@@ -140,6 +142,8 @@ export default function CounterApp() {
   const [bTo, setBTo] = useState("");
   const [bQ, setBQ] = useState("");
   const [bills, setBills] = useState<SavedBill[]>([]);
+  const [retTotal, setRetTotal] = useState(0);
+  const [ret, setRet] = useState<{ bill: SavedBill; items: ReturnItem[]; picks: Record<string, number>; mode: RefundMode; reason: string; busy: boolean; err: string; prior?: ReturnedSoFar } | null>(null);
   const [bErr, setBErr] = useState("");
   const [editing, setEditing] = useState<SavedBill | null>(null);
   const [kiosk, setKiosk] = useState<KioskState | null>(null);
@@ -305,7 +309,8 @@ export default function CounterApp() {
       const ci = findPlu(cfg.items, Math.floor(v));
       if (ci) addItem(ci);
       else setMsg({ ok: false, text: k(`No item with PLU ${Math.floor(v)}.`, `PLU ${Math.floor(v)} ವಸ್ತು ಇಲ್ಲ.`) });
-    } else if (p.kind === "ldisc") setLines((ls) => updateLine(ls, p.line, { disc: v, discPct: padPct }));
+    } else if (p.kind === "retqty") setRet((r) => (r ? { ...r, picks: { ...r.picks, [p.key]: Math.max(0, r3(v)) }, err: "" } : r));
+    else if (p.kind === "ldisc") setLines((ls) => updateLine(ls, p.line, { disc: v, discPct: padPct }));
     else if ((p.kind === "qty" || p.kind === "rate") && padText !== "") {
       const field = p.kind;
       setLines((ls) => updateLine(ls, p.line, { [field]: v }));
@@ -320,6 +325,7 @@ export default function CounterApp() {
       case "split": return k(`${CHAN_TEXT[p.chan][0]} part of the bill (left ${rupees(splitLeft)})`, `${CHAN_TEXT[p.chan][1]} ಭಾಗ (ಉಳಿದದ್ದು ${rupees(splitLeft)})`);
       case "qty": return `${lines[p.line] ? lineName(lines[p.line]) : ""} · ${k(`Quantity (${lines[p.line]?.unit || "kg"})`, `ಪ್ರಮಾಣ (${lines[p.line]?.unit || "kg"})`)}`;
       case "rate": return `${lines[p.line] ? lineName(lines[p.line]) : ""} · ${k("Rate ₹", "ದರ ₹")}`;
+      case "retqty": return `${ret?.items.find((i) => i.key === p.key)?.label || ""} · ${k("Quantity returned", "ಹಿಂತಿರುಗಿಸಿದ ಪ್ರಮಾಣ")}`;
       case "ldisc": return `${lines[p.line] ? lineName(lines[p.line]) : ""} · ${k("Item discount", "ವಸ್ತು ರಿಯಾಯಿತಿ")}`;
     }
   };
@@ -425,11 +431,22 @@ export default function CounterApp() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Could not load bills.");
       setBills(groupBills(j.data as SaleRow[], labelOf));
+      setRetTotal(Math.round((j.data as SaleRow[]).filter((r) => r.kind === "SALE_RETURN").reduce((a, r) => a + r.amountInr, 0) * 100) / 100);
     } catch (e) {
       setBErr(e instanceof Error ? e.message : "Could not load bills.");
     }
   };
   const cancelBill = async (b: SavedBill, why?: string): Promise<boolean> => {
+    if (why === undefined && retTotal > 0) {
+      try {
+        const rr = await fetch(`/api/register/range?from=${b.date}&to=${date}`, { cache: "no-store" });
+        const jj = await rr.json();
+        if (rr.ok && returnedByBill(jj.data as SaleRow[]).has(b.no)) {
+          setBErr(k(`Bill #${b.no} already has a return. A bill with a return cannot be cancelled.`, `ಬಿಲ್ #${b.no} ಗೆ ರಿಟರ್ನ್ ಇದೆ. ರದ್ದು ಮಾಡಲಾಗದು.`));
+          return false;
+        }
+      } catch { /* the server still guards the money */ }
+    }
     const reason = why ?? window.prompt(k(`Reason for cancelling bill #${b.no} (${rupees(b.total)})?`, `ಬಿಲ್ #${b.no} ರದ್ದು ಮಾಡಲು ಕಾರಣ?`));
     if (reason == null) return false;
     if (!reason.trim()) {
@@ -445,6 +462,41 @@ export default function CounterApp() {
     void loadBills();
     void load();
     return true;
+  };
+
+  // ---- returns: goods back, money (or udhaar) back
+  const openReturn = async (b: SavedBill) => {
+    setBErr("");
+    let prior: ReturnedSoFar | undefined;
+    try {
+      const res = await fetch(`/api/register/range?from=${b.date}&to=${date}`, { cache: "no-store" });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Could not check earlier returns.");
+      prior = returnedByBill(j.data as SaleRow[]).get(b.no);
+    } catch (e) {
+      return setBErr(e instanceof Error ? e.message : "Could not check earlier returns.");
+    }
+    const items = returnables(b, prior);
+    if (!items.some((i) => i.leftAmt > 0)) return setBErr(k(`Bill #${b.no} has nothing left to return.`, `ಬಿಲ್ #${b.no} ನಲ್ಲಿ ಹಿಂತಿರುಗಿಸಲು ಏನೂ ಇಲ್ಲ.`));
+    setRet({ bill: b, items, picks: {}, mode: defaultRefundMode(b), reason: "", busy: false, err: "", prior });
+  };
+  const retPlan = ret ? returnBody(ret.bill, ret.items, ret.picks, { date, mode: ret.mode, reason: ret.reason }) : null;
+  const saveReturn = async () => {
+    if (!ret || !retPlan) return;
+    if ("err" in retPlan) return setRet({ ...ret, err: retPlan.err });
+    if (!ret.reason.trim()) return setRet({ ...ret, err: k("Write the reason for the return.", "ಹಿಂತಿರುಗಿಸಲು ಕಾರಣ ಬರೆಯಿರಿ.") });
+    setRet({ ...ret, busy: true, err: "" });
+    try {
+      const res = await fetch("/api/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(retPlan.body) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || "Could not save the return.");
+      setRet(null);
+      setMsg({ ok: true, text: k(`Return saved: ${rupees(retPlan.amount)} ${ret.mode === "CREDIT" ? "off the udhaar" : ret.mode === "UPI" ? "back by UPI" : "cash back"}. Stock updated.`, `ರಿಟರ್ನ್ ಉಳಿದಿದೆ: ${rupees(retPlan.amount)}. ಸ್ಟಾಕ್ ಅಪ್‌ಡೇಟ್ ಆಗಿದೆ.`) });
+      void loadBills();
+      void load();
+    } catch (e) {
+      setRet((r) => (r ? { ...r, busy: false, err: e instanceof Error ? e.message : "Could not save the return." } : r));
+    }
   };
 
   const save = async (print: boolean) => {
@@ -817,6 +869,50 @@ export default function CounterApp() {
       </main>
 
       {/* ---------- pop-up keypad ---------- */}
+      {ret && (
+        <div className="ctr-modal" role="dialog" aria-label="Return items" onClick={() => !ret.busy && setRet(null)}>
+          <div className="ctr-sheet wide" onClick={(e) => e.stopPropagation()}>
+            <div className="ctr-sheethead">
+              <b>↩️ {k(`Return from bill #${ret.bill.no}`, `ಬಿಲ್ #${ret.bill.no} ರಿಂದ ರಿಟರ್ನ್`)}</b>
+              <button type="button" onClick={() => setRet(null)} aria-label="Close">✕</button>
+            </div>
+            <ul className="ctr-list">
+              {ret.items.map((it) => {
+                const q = ret.picks[it.key] || 0;
+                return (
+                  <li key={it.key}>
+                    <div className="open">
+                      <b>{it.label}</b>
+                      <small>{k("Left to return", "ಹಿಂತಿರುಗಿಸಬಹುದಾದ್ದು")} {it.leftQty} {it.unit || ""} · {rupees(it.leftAmt)}</small>
+                    </div>
+                    <button type="button" className="ctr-plu" disabled={it.leftQty <= 0} onClick={() => openPad({ kind: "retqty", key: it.key })}>{q > 0 ? `${q} ${it.unit || ""}` : k("Qty", "ಪ್ರಮಾಣ")}</button>
+                    <button type="button" disabled={it.leftQty <= 0} onClick={() => setRet({ ...ret, picks: { ...ret.picks, [it.key]: it.leftQty }, err: "" })}>{k("All", "ಎಲ್ಲಾ")}</button>
+                    <b className="amt">{q > 0 ? rupees(refundFor(it, q)) : ""}</b>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="ctr-bact">
+              {(["CASH", "UPI", "CREDIT"] as RefundMode[]).map((m) => (
+                <button key={m} type="button" className={ret.mode === m ? "on" : ""} onClick={() => setRet({ ...ret, mode: m, err: "" })}>
+                  {m === "CASH" ? k("💵 Cash back", "💵 ನಗದು ಹಿಂದೆ") : m === "UPI" ? k("📲 UPI back", "📲 UPI ಹಿಂದೆ") : k("📒 Cut udhaar", "📒 ಉದ್ರಿ ಕಡಿಮೆ")}
+                </button>
+              ))}
+            </div>
+            {ret.mode === "CREDIT" && !ret.bill.party && <p className="ctr-hint">{k("Udhaar needs the customer's name: it is taken from the bill, and this bill has none.", "ಉದ್ರಿಗೆ ಗ್ರಾಹಕರ ಹೆಸರು ಬೇಕು; ಈ ಬಿಲ್‌ನಲ್ಲಿ ಇಲ್ಲ.")}</p>}
+            <input className="ctr-search" value={ret.reason} onChange={(e) => setRet({ ...ret, reason: e.target.value, err: "" })} placeholder={k("Reason (required): leaking tin, wrong item …", "ಕಾರಣ (ಅಗತ್ಯ): ಸೋರಿಕೆ, ತಪ್ಪು ವಸ್ತು …")} />
+            {ret.err && <p className="ctr-msg bad">{ret.err}</p>}
+            <div className="okrow">
+              <button type="button" className="cancel" onClick={() => setRet(null)}>{k("Cancel", "ರದ್ದು")}</button>
+              <button type="button" className="ok" disabled={ret.busy || !retPlan || "err" in retPlan} onClick={() => void saveReturn()}>
+                ✓ {k("Return", "ರಿಟರ್ನ್")} {retPlan && !("err" in retPlan) ? rupees(retPlan.amount) : ""}
+              </button>
+            </div>
+            <p className="ctr-hint">{k("Stock goes back in, and the cash book, udhaar and Daily Closing follow. The bill itself stays as it was.", "ಸ್ಟಾಕ್ ಮರಳುತ್ತದೆ; ಕ್ಯಾಶ್ ಬುಕ್, ಉದ್ರಿ, ಡೈಲಿ ಕ್ಲೋಸಿಂಗ್ ಅನುಸರಿಸುತ್ತವೆ. ಬಿಲ್ ಹಾಗೇ ಇರುತ್ತದೆ.")}</p>
+          </div>
+        </div>
+      )}
+
       {pad && (
         <div className="ctr-modal" role="dialog" aria-label={padTitle(pad)} onClick={() => setPad(null)}>
           <div className="ctr-padbox" onClick={(e) => e.stopPropagation()}>
@@ -898,6 +994,7 @@ export default function CounterApp() {
               <b>{rupees(bSum.total)}</b>
               <span>{bSum.kg.toFixed(3)} kg</span>
               {Object.entries(bSum.modes).map(([m, v]) => <span key={m}>{modeName(m)} {rupees(v)}</span>)}
+              {retTotal > 0 && <span>↩️ {k("Returned", "ಹಿಂತಿರುಗಿಸಿದ್ದು")} −{rupees(retTotal)}</span>}
             </div>
             {bErr && <p className="ctr-msg bad">{bErr}</p>}
             <ul className="ctr-list">
@@ -911,6 +1008,7 @@ export default function CounterApp() {
                   <b className="amt">{rupees(b.total)}</b>
                   <div className="ctr-bact">
                     <button type="button" onClick={() => setRcpt({ doc: billDoc(b), auto: true })} aria-label={k("Re-print", "ಮತ್ತೆ ಮುದ್ರಿಸಿ")}>🖨️</button>
+                    <button type="button" onClick={() => void openReturn(b)} aria-label={k("Return items", "ವಸ್ತು ಹಿಂತಿರುಗಿಸಿ")}>↩️ {k("Return", "ರಿಟರ್ನ್")}</button>
                     {b.date === date && can("cancel") && <button type="button" onClick={() => void editBill(b)} aria-label={k("Edit", "ತಿದ್ದು")}>✏️</button>}
                     {can("cancel") && <button type="button" onClick={() => void cancelBill(b)}>✕ {k("Cancel", "ರದ್ದು")}</button>}
                   </div>

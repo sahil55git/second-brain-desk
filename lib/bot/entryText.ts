@@ -3,7 +3,7 @@ import { CATALOG, KIND_SIDE, type RegisterKind } from "@/lib/register";
 import type { EntryCmd } from "@/lib/bot/parse";
 import { dmy, rs } from "@/lib/bot/format";
 
-export const KIND_NAME: Record<RegisterKind, string> = { SALE: "Sale", FRESH_CRUSH: "Fresh crush", UDHAAR_IN: "Udhaar received", PURCHASE: "Purchase", EXPENSE: "Expense", PAYMENT: "Payment", PIGMEE: "Pigmee", OWNER_DRAW: "Owner draw" };
+export const KIND_NAME: Record<RegisterKind, string> = { SALE: "Sale", SALE_RETURN: "Sale return", FRESH_CRUSH: "Fresh crush", UDHAAR_IN: "Udhaar received", PURCHASE: "Purchase", EXPENSE: "Expense", PAYMENT: "Payment", PIGMEE: "Pigmee", OWNER_DRAW: "Owner draw" };
 const MODE_NAME: Record<string, string> = { CASH: "Cash", UPI: "UPI / bank", BANK: "Bank", CREDIT: "Udhaar (credit)", OTHER: "Other" };
 
 function itemName(e: EntryCmd): string {

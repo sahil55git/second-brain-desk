@@ -56,6 +56,8 @@ export function tallyVouchers(d: BizData, s: { from: string; to: string }, L: Ta
     const no = `QR-${e.date.replace(/-/g, "")}-${++n}`;
     const money = modeLedger(e.paymentMode, L, party);
     if (e.kind === "SALE" || e.kind === "FRESH_CRUSH") out.push({ type: "Sales", date: e.date, no, party, narration: `${what}${e.qty ? ` ${e.qty} ${e.unit || ""}` : ""} (counter)`, legs: [{ ledger: e.paymentMode === "CREDIT" ? party || "Sundry Debtors" : money, dr: true, amount: e.amountInr }, { ledger: L.sales, dr: false, amount: e.amountInr }] });
+    // a counter return: reverses the sale (Dr Sales, Cr cash/UPI, or Cr the customer when it was on udhaar); the accountant may prefer a credit note
+    else if (e.kind === "SALE_RETURN") out.push({ type: "Payment", date: e.date, no, party, narration: `Sale return: ${what}${e.qty ? ` ${e.qty} ${e.unit || ""}` : ""} (counter)`, legs: [{ ledger: L.sales, dr: true, amount: e.amountInr }, { ledger: e.paymentMode === "CREDIT" ? party || "Sundry Debtors" : money, dr: false, amount: e.amountInr }] });
     else if (e.kind === "PURCHASE") out.push({ type: "Purchase", date: e.date, no, party, narration: `${what}${e.qty ? ` ${e.qty} ${e.unit || ""}` : ""} (counter)`, legs: [{ ledger: L.purchase, dr: true, amount: e.amountInr }, { ledger: e.paymentMode === "CREDIT" ? party || "Sundry Creditors" : money, dr: false, amount: e.amountInr }] });
     else if (e.kind === "UDHAAR_IN") out.push({ type: "Receipt", date: e.date, no, party, narration: "Udhaar received", legs: [{ ledger: e.paymentMode === "CREDIT" ? L.cash : money, dr: true, amount: e.amountInr }, { ledger: party || "Sundry Debtors", dr: false, amount: e.amountInr }] });
     else if (e.kind === "EXPENSE" || e.kind === "PAYMENT") {

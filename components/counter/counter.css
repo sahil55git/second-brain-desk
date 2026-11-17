@@ -214,3 +214,7 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
   .ctr-lines .nm { flex: 1 1 60%; }
   .ctr-lines .a { margin-left: auto; }
 }
+
+/* return sheet (a sheet shown as a centred pop-up) */
+.ctr-modal .ctr-sheet { height: auto; max-height: 92vh; border-radius: 14px; }
+.ctr-bact button.on { background: var(--c-acc); color: #fff; border-color: var(--c-acc); }
