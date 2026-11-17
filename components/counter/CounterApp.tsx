@@ -1,27 +1,36 @@
 "use client";
 
 // Weigh & Bill counter (/register/counter): a full-screen till for selling by weight.
-// Put the item on the scale → tap the item → (repeat) → Save & Print.
-// The bill is saved as ONE register SALE with its lines (lib/counterBill.ts), through the same
-// /api/register call as the Quick Register (offline queue included), so cash, udhaar, stock and
-// Daily Closing need nothing new. The scale is the one already set up on this device (Live Scales).
+// Put the item on the scale → tap the item (or type its PLU) → (repeat) → Save & Print.
+// Each bill is ONE register SALE with its lines (lib/counterBill.ts) through /api/register, so cash,
+// udhaar, stock and Daily Closing need nothing new. Bills get plain numbers 1, 2, 3 … from the server.
+// Item keys, PLU numbers, Kannada names and staff locks are shared by every device (setting "counter").
 import "./counter.css";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useScale } from "@/components/ScaleProvider";
+import { useAccess } from "@/components/AccessProvider";
 import ReceiptSheet, { useShop } from "@/components/print/ReceiptSheet";
 import QrCode from "@/components/barrels/QrCode";
 import { upiPay, validVpa } from "@/lib/money";
 import { api, type DayBundle } from "@/components/register/forms/shared";
-import { businessDate, itemsFor, rateKey, type CatalogItem } from "@/lib/register";
+import { businessDate, itemsFor, rateKey } from "@/lib/register";
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
-import { addLine, billKg, billSum, changeDue, lineAmount, r2, r3, registerBody, updateLine, type BillAdjust, type CounterLine, type CounterPay } from "@/lib/counterBill";
+import {
+  addLine, billKg, billSum, cashReturn, lineAmount, lineDisc, lineGross, r2, r3, registerBody, updateLine,
+  type BillAdjust, type CounterLine, type CounterPay, type SplitParts,
+} from "@/lib/counterBill";
 import type { HoldData } from "@/lib/counterHold";
 import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
+import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
+import { hashPin, KIOSK_EXTRAS, KIOSK_KEY, readKiosk, type KioskExtra, type KioskState } from "@/lib/counterKiosk";
 
 type Lang = "en" | "kn";
-type PadTarget = { kind: "received" | "tare" | "discount" } | { kind: "qty" | "rate"; line: number };
-const lineOf = (p: PadTarget) => ("line" in p ? p.line : -1);
+type Chan = "CASH" | "UPI" | "CREDIT";
+type PadTarget =
+  | { kind: "received" | "tare" | "discount" | "plu" }
+  | { kind: "qty" | "rate" | "ldisc"; line: number }
+  | { kind: "split"; chan: Chan };
 
 interface Settings {
   showTare: boolean;
@@ -33,12 +42,17 @@ interface Settings {
 }
 const DEFAULTS: Settings = { showTare: true, showGross: false, upiQr: true, roundOff: false, discount: true, beep: true };
 const SETTING_TEXT: Record<keyof Settings, [string, string]> = {
-  showTare: ["Show tare weight on bill and print", "ಬಿಲ್‌ನಲ್ಲಿ ಟೇರ್ ತೂಕ ತೋರಿಸು"],
-  showGross: ["Show gross weight on bill and print", "ಬಿಲ್‌ನಲ್ಲಿ ಒಟ್ಟು (ಗ್ರಾಸ್) ತೂಕ ತೋರಿಸು"],
-  upiQr: ["UPI pay QR on UPI / udhaar bills", "UPI / ಉದ್ರಿ ಬಿಲ್‌ನಲ್ಲಿ UPI QR"],
+  showTare: ["Show tare weight on bill and print", "ಬಿಲ್ ಮತ್ತು ಮುದ್ರಣದಲ್ಲಿ ಟೇರ್ ತೂಕ ತೋರಿಸು"],
+  showGross: ["Show gross weight on bill and print", "ಬಿಲ್ ಮತ್ತು ಮುದ್ರಣದಲ್ಲಿ ಒಟ್ಟು ತೂಕ ತೋರಿಸು"],
+  upiQr: ["UPI pay QR on UPI / udhaar / split bills", "UPI / ಉದ್ರಿ / ಹಂಚಿಕೆ ಬಿಲ್‌ನಲ್ಲಿ UPI QR"],
   roundOff: ["Round the bill to the nearest rupee", "ಬಿಲ್ ಅನ್ನು ಹತ್ತಿರದ ರೂಪಾಯಿಗೆ ಸುತ್ತು"],
-  discount: ["Allow discount", "ರಿಯಾಯಿತಿ ಅನುಮತಿಸು"],
+  discount: ["Allow discount (bill and item-wise)", "ರಿಯಾಯಿತಿ ಅನುಮತಿಸು (ಬಿಲ್ ಮತ್ತು ವಸ್ತು)"],
   beep: ["Beep when an item is added", "ವಸ್ತು ಸೇರಿಸಿದಾಗ ಬೀಪ್"],
+};
+const CHAN_TEXT: Record<Chan, [string, string, string]> = {
+  CASH: ["Cash", "ನಗದು", "💵"],
+  UPI: ["UPI", "UPI", "📱"],
+  CREDIT: ["Udhaar", "ಉದ್ರಿ", "📒"],
 };
 
 interface Hold {
@@ -52,6 +66,21 @@ interface Hold {
   createdAt: string;
 }
 
+const read = <V,>(k: string, d: V): V => {
+  try {
+    const v = window.localStorage.getItem(k);
+    return v == null ? d : (JSON.parse(v) as V);
+  } catch {
+    return d;
+  }
+};
+const write = (k: string, v: unknown) => {
+  try {
+    window.localStorage.setItem(k, JSON.stringify(v));
+  } catch {
+    /* storage blocked: setting lasts for this visit */
+  }
+};
 function beepNow() {
   try {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -73,104 +102,56 @@ const ago = (iso: string) => {
   const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
   return m < 1 ? "now" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
 };
-
-const T = {
-  title: ["Weigh & Bill", "ತೂಕ & ಬಿಲ್"],
-  weight: ["Weight", "ತೂಕ"],
-  steady: ["STEADY", "ಸ್ಥಿರ"],
-  moving: ["MOVING", "ಅಲುಗಾಡುತ್ತಿದೆ"],
-  noScale: ["No scale reading", "ತಕ್ಕಡಿ ಓದು ಇಲ್ಲ"],
-  tare: ["Tare", "ಟೇರ್"],
-  clearTare: ["Clear tare", "ಟೇರ್ ತೆಗೆ"],
-  noContainer: ["No container", "ಡಬ್ಬಿ ಇಲ್ಲ"],
-  search: ["Search item…", "ಹುಡುಕಿ…"],
-  bill: ["Bill", "ಬಿಲ್"],
-  empty: ["Put the item on the scale, then tap it.", "ವಸ್ತುವನ್ನು ತಕ್ಕಡಿಯಲ್ಲಿ ಇಟ್ಟು ಒತ್ತಿ."],
-  total: ["Total", "ಒಟ್ಟು"],
-  cash: ["Cash", "ನಗದು"],
-  upi: ["UPI", "UPI"],
-  udhaar: ["Udhaar", "ಉದ್ರಿ"],
-  customer: ["Customer name / mobile", "ಗ್ರಾಹಕರ ಹೆಸರು / ಮೊಬೈಲ್"],
-  received: ["Received", "ಪಡೆದದ್ದು"],
-  change: ["Change", "ಚಿಲ್ಲರೆ"],
-  due: ["Still due", "ಬಾಕಿ"],
-  save: ["Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ"],
-  saveOnly: ["Save", "ಉಳಿಸಿ"],
-  clear: ["Clear", "ಅಳಿಸಿ"],
-  previous: ["Previous bill", "ಹಿಂದಿನ ಬಿಲ್"],
-  reprint: ["Re-print", "ಮತ್ತೆ ಮುದ್ರಿಸಿ"],
-  autoPrint: ["Print after save", "ಉಳಿಸಿದ ಮೇಲೆ ಮುದ್ರಿಸು"],
-  noRate: ["no rate", "ದರ ಇಲ್ಲ"],
-  typed: ["typed", "ಟೈಪ್"],
-  movingTag: ["moving", "ಅಲುಗಾಟ"],
-  setScale: ["Set up scale", "ತಕ್ಕಡಿ ಹೊಂದಿಸಿ"],
-  back: ["Desk", "ಡೆಸ್ಕ್"],
-  saved: ["Saved", "ಉಳಿಸಲಾಗಿದೆ"],
-} as const;
-const t = (k: keyof typeof T, l: Lang) => T[k][l === "kn" ? 1 : 0];
-
-const read = <V,>(k: string, d: V): V => {
-  try {
-    const v = window.localStorage.getItem(k);
-    return v == null ? d : (JSON.parse(v) as V);
-  } catch {
-    return d;
-  }
-};
-const write = (k: string, v: unknown) => {
-  try {
-    window.localStorage.setItem(k, JSON.stringify(v));
-  } catch {
-    /* storage blocked: setting lasts for this visit */
-  }
-};
+const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" });
 
 export default function CounterApp() {
   const { connected, selectedReading: reading, bt } = useScale();
+  const { isOwner } = useAccess();
+  const shop = useShop();
   const [lang, setLang] = useState<Lang>("en");
+  const k = (en: string, kn: string) => (lang === "kn" ? kn : en);
+
   const [day, setDay] = useState<DayBundle | null>(null);
   const [loadErr, setLoadErr] = useState("");
+  const [cfgRaw, setCfgRaw] = useState<unknown>(null);
   const [lines, setLines] = useState<CounterLine[]>([]);
   const [pay, setPay] = useState<CounterPay>("CASH");
+  const [split, setSplit] = useState<SplitParts>({});
   const [party, setParty] = useState("");
   const [showParty, setShowParty] = useState(false);
-  const [received, setReceived] = useState("");
-  const [pad, setPad] = useState<PadTarget>({ kind: "received" });
+  const [received, setReceived] = useState(0);
+  const [adjust, setAdjust] = useState<{ discount: number; pct: boolean }>({ discount: 0, pct: false });
+  const [pad, setPad] = useState<PadTarget | null>(null);
   const [padText, setPadText] = useState("");
+  const [padPct, setPadPct] = useState(false);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [autoPrint, setAutoPrint] = useState(true);
-  const [prev, setPrev] = useState<{ doc: ReceiptDoc; total: number; received: number | null } | null>(null);
-  const [rcpt, setRcpt] = useState<{ doc: ReceiptDoc; auto: boolean } | null>(null);
-  const [, tick] = useState(0);
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
-  const [showSettings, setShowSettings] = useState(false);
-  const [adjust, setAdjust] = useState<{ discount: number; pct: boolean }>({ discount: 0, pct: false });
+  const [panel, setPanel] = useState<null | "settings" | "items" | "holds" | "bills">(null);
+  const [prev, setPrev] = useState<{ doc: ReceiptDoc; no: string; total: number; back: number } | null>(null);
+  const [rcpt, setRcpt] = useState<{ doc: ReceiptDoc; auto: boolean } | null>(null);
+  const [vpa, setVpa] = useState<string | null>(null);
   const [holds, setHolds] = useState<Hold[]>([]);
-  const [showHolds, setShowHolds] = useState(false);
   const [holdId, setHoldId] = useState<string | null>(null);
   const [device, setDevice] = useState("");
-  const [showBills, setShowBills] = useState(false);
   const [bFrom, setBFrom] = useState("");
   const [bTo, setBTo] = useState("");
   const [bQ, setBQ] = useState("");
   const [bills, setBills] = useState<SavedBill[]>([]);
   const [bErr, setBErr] = useState("");
   const [editing, setEditing] = useState<SavedBill | null>(null);
-  const shop = useShop();
-  const [vpa, setVpa] = useState<string | null>(null);
-  useEffect(() => {
-    fetch("/api/settings/app?key=shop")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => setVpa(validVpa(j?.data?.upi) ? String(j.data.upi).trim() : null))
-      .catch(() => {});
-  }, []);
+  const [kiosk, setKiosk] = useState<KioskState | null>(null);
+  const [draftItems, setDraftItems] = useState<CounterItem[]>([]);
+  const [draftLocks, setDraftLocks] = useState<StaffLock[]>([]);
+  const [, tick] = useState(0);
 
   useEffect(() => {
     setLang(read<Lang>("counterLang", "en"));
     setAutoPrint(read<boolean>("counterAutoPrint", true));
     setSettings({ ...DEFAULTS, ...read<Partial<Settings>>("counterSettings", {}) });
+    setKiosk(readKiosk());
     let d = read<string>("counterDevice", "");
     if (!d) {
       d = `dev-${Math.random().toString(36).slice(2, 8)}`;
@@ -191,11 +172,23 @@ export default function CounterApp() {
       setLoadErr(e instanceof Error ? e.message : "Could not load items and rates.");
     }
   }, [date]);
+  const loadCfg = useCallback(async () => {
+    try {
+      const r = await fetch("/api/settings/app?key=counter", { cache: "no-store" });
+      if (r.ok) setCfgRaw((await r.json()).data ?? null);
+    } catch {
+      /* offline: defaults */
+    }
+  }, []);
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadCfg();
+    fetch("/api/settings/app?key=shop")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => setVpa(validVpa(j?.data?.upi) ? String(j.data.upi).trim() : null))
+      .catch(() => {});
+  }, [load, loadCfg]);
 
-  // held bills are shared by every device: refresh the list every few seconds
   const loadHolds = useCallback(async () => {
     try {
       const r = await fetch("/api/register/counter-holds", { cache: "no-store" });
@@ -224,6 +217,16 @@ export default function CounterApp() {
     };
   }, []);
 
+  // ---- set-up: item keys (PLU, names, units, rates) and staff locks
+  const catalog = useMemo(() => (day ? itemsFor("SALE", day.config) : []), [day]);
+  const cfg: CounterConfig = useMemo(() => parseCounterConfig(cfgRaw, catalog), [cfgRaw, catalog]);
+  const can = (lock: StaffLock) => allowed(cfg, isOwner, lock);
+  const rateOf = (ci: CounterItem) => ci.rate || (day && !ci.key.startsWith("new:") ? day.config.rates[rateKey("SALE", ci.key)] ?? 0 : 0);
+  const nameOf = (ci: CounterItem) => (lang === "kn" && ci.kn ? ci.kn : ci.en);
+  const tiles = cfg.items.filter((i) => !i.hidden && (!q.trim() || `${i.plu} ${i.en} ${i.kn}`.toLowerCase().includes(q.trim().toLowerCase())));
+  const knOf = (l: CounterLine) => cfg.items.find((i) => registerItem(i).item === l.item && (l.item !== "other" || i.en === l.label))?.kn;
+  const lineName = (l: CounterLine) => (lang === "kn" ? knOf(l) || l.label : l.label);
+
   // ---- the scale
   const fresh = !!reading && Date.now() - reading.receivedAt < 10_000;
   const kg = fresh && reading ? r3(reading.unit === "g" ? reading.weight / 1000 : reading.weight) : 0;
@@ -231,14 +234,188 @@ export default function CounterApp() {
   const usable = fresh && kg > 0 && (steady || !!reading?.trusted);
   const isBt = !!bt.source && reading?.scale_source === bt.source;
 
-  // ---- items and rates (the register's SALE catalogue + its saved rates)
-  const items: CatalogItem[] = useMemo(() => (day ? itemsFor("SALE", day.config).filter((i) => i.key !== "other") : []), [day]);
-  const rateOf = (key: string) => (day ? day.config.rates[rateKey("SALE", key)] ?? 0 : 0);
-  const shown = items.filter((i) => !q.trim() || `${i.en} ${i.kn}`.toLowerCase().includes(q.trim().toLowerCase()));
-  const label = (i: CatalogItem) => (lang === "kn" ? i.kn : i.en);
-  const labelOf = (item: string | null, lbl: string | null) => lbl || items.find((i) => i.key === item)?.en || item || "Item";
+  // ---- totals
+  const setSetting = (key: keyof Settings, v: boolean) => {
+    const next = { ...settings, [key]: v };
+    setSettings(next);
+    write("counterSettings", next);
+  };
+  const discOn = settings.discount && can("discount");
+  const billAdjust: BillAdjust = { discount: discOn ? adjust.discount : 0, pct: adjust.pct, roundOff: settings.roundOff };
+  const sum = billSum(lines, billAdjust);
+  const total = sum.net;
+  const itemDisc = r2(lines.reduce((a, l) => a + lineDisc(l), 0));
+  const splitSum = r2((split.CASH || 0) + (split.UPI || 0) + (split.CREDIT || 0));
+  const splitLeft = r2(total - splitSum);
+  const cashDue = pay === "CASH" ? total : pay === "SPLIT" ? split.CASH || 0 : 0;
+  const upiDue = pay === "UPI" ? total : pay === "SPLIT" ? split.UPI || 0 : 0;
+  const back = cashDue > 0 && received > 0 ? cashReturn(cashDue, received) : 0;
+  const shortBy = cashDue > 0 && received > 0 && received < cashDue ? r2(cashDue - received) : 0;
+  const upiFor = (amount: number, note: string) => (vpa && amount > 0 ? upiPay(vpa, shop.name || "Mahadev Traders", amount, note) : undefined);
+  const itemsNote = (ls: CounterLine[]) => ls.map((l) => `${l.label} ${l.qty.toFixed(3)}${l.unit}`).join(", ");
 
-  // ---- saved bills (records): any device sees the same list
+  // ---- adding items
+  const addItem = (ci: CounterItem) => {
+    setMsg(null);
+    const rate = rateOf(ci);
+    const ri = registerItem(ci);
+    const base = { item: ri.item, label: ri.label, unit: ci.unit, rate };
+    let next: CounterLine[];
+    if (ci.unit === "kg" && usable) {
+      const live = isBt ? bt.live : null;
+      next = addLine(lines, { ...base, qty: kg, source: steady ? "steady" : "moving", ...(live && bt.tareKg > 0 ? { grossKg: live.grossKg, tareKg: bt.tareKg } : {}) });
+    } else if (ci.unit === "kg" && !can("typedWeight")) {
+      return setMsg({ ok: false, text: k("Put the item on the scale first (typing a weight is locked).", "ಮೊದಲು ವಸ್ತುವನ್ನು ತಕ್ಕಡಿಯಲ್ಲಿ ಇಡಿ (ತೂಕ ಟೈಪ್ ಮಾಡುವುದು ಲಾಕ್ ಆಗಿದೆ).") });
+    } else {
+      next = [...lines, { ...base, qty: ci.unit === "pcs" ? 1 : 0, source: "typed" as const }];
+    }
+    setLines(next);
+    if (settings.beep) beepNow();
+    const i = next.length - 1;
+    if (!(next[i].qty > 0)) openPad({ kind: "qty", line: i });
+    else if (!(rate > 0)) {
+      if (can("rate")) openPad({ kind: "rate", line: i });
+      else setMsg({ ok: false, text: k(`${ci.en} has no rate. Ask the owner to set it.`, `${nameOf(ci)} ಗೆ ದರ ಇಲ್ಲ. ಮಾಲೀಕರಿಗೆ ತಿಳಿಸಿ.`) });
+    }
+  };
+
+  // ---- the pop-up keypad
+  const openPad = (p: PadTarget) => {
+    setPad(p);
+    setPadText("");
+    setPadPct(p.kind === "discount" ? adjust.pct : p.kind === "ldisc" ? !!lines[p.line]?.discPct : false);
+  };
+  const padKey = (key: string) => {
+    if (key === "⌫") return setPadText((t) => t.slice(0, -1));
+    if (key === "C") return setPadText("");
+    if (key === "." && (padText.includes(".") || pad?.kind === "plu")) return;
+    setPadText((t) => (t.length < 9 ? t + key : t));
+  };
+  const padOk = () => {
+    if (!pad) return;
+    const n = parseFloat(padText);
+    const v = Number.isFinite(n) ? n : 0;
+    const p = pad;
+    setPad(null);
+    if (p.kind === "received") setReceived(v);
+    else if (p.kind === "tare") bt.setTare(v);
+    else if (p.kind === "discount") setAdjust({ discount: v, pct: padPct });
+    else if (p.kind === "split") setSplit((s) => ({ ...s, [p.chan]: r2(v) }));
+    else if (p.kind === "plu") {
+      const ci = findPlu(cfg.items, Math.floor(v));
+      if (ci) addItem(ci);
+      else setMsg({ ok: false, text: k(`No item with PLU ${Math.floor(v)}.`, `PLU ${Math.floor(v)} ವಸ್ತು ಇಲ್ಲ.`) });
+    } else if (p.kind === "ldisc") setLines((ls) => updateLine(ls, p.line, { disc: v, discPct: padPct }));
+    else if ((p.kind === "qty" || p.kind === "rate") && padText !== "") {
+      const field = p.kind;
+      setLines((ls) => updateLine(ls, p.line, { [field]: v }));
+    }
+  };
+  const padTitle = (p: PadTarget): string => {
+    switch (p.kind) {
+      case "received": return k(`Cash received from customer (bill cash ${rupees(cashDue)})`, `ಗ್ರಾಹಕರಿಂದ ಪಡೆದ ನಗದು (ಬಿಲ್ ${rupees(cashDue)})`);
+      case "tare": return k("Tare: container weight in kg", "ಟೇರ್: ಡಬ್ಬಿಯ ತೂಕ kg");
+      case "discount": return k("Discount on the whole bill", "ಇಡೀ ಬಿಲ್‌ಗೆ ರಿಯಾಯಿತಿ");
+      case "plu": return k("Type the item's PLU number", "ವಸ್ತುವಿನ PLU ಸಂಖ್ಯೆ ಟೈಪ್ ಮಾಡಿ");
+      case "split": return k(`${CHAN_TEXT[p.chan][0]} part of the bill (left ${rupees(splitLeft)})`, `${CHAN_TEXT[p.chan][1]} ಭಾಗ (ಉಳಿದದ್ದು ${rupees(splitLeft)})`);
+      case "qty": return `${lines[p.line] ? lineName(lines[p.line]) : ""} · ${k(`Quantity (${lines[p.line]?.unit || "kg"})`, `ಪ್ರಮಾಣ (${lines[p.line]?.unit || "kg"})`)}`;
+      case "rate": return `${lines[p.line] ? lineName(lines[p.line]) : ""} · ${k("Rate ₹", "ದರ ₹")}`;
+      case "ldisc": return `${lines[p.line] ? lineName(lines[p.line]) : ""} · ${k("Item discount", "ವಸ್ತು ರಿಯಾಯಿತಿ")}`;
+    }
+  };
+
+  // ---- bill actions
+  const reset = () => {
+    setLines([]);
+    setParty("");
+    setShowParty(false);
+    setReceived(0);
+    setPay("CASH");
+    setSplit({});
+    setAdjust({ discount: 0, pct: false });
+    setHoldId(null);
+    setEditing(null);
+    setPad(null);
+  };
+  const removeLine = (i: number) => setLines((ls) => ls.filter((_, j) => j !== i));
+  const clearBill = () => {
+    if (holdId) {
+      void fetch(`/api/register/counter-holds/${holdId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ release: true }) }).finally(() => void loadHolds());
+      return reset();
+    }
+    if (lines.length && !window.confirm(k("Clear this bill?", "ಈ ಬಿಲ್ ಅಳಿಸಬೇಕೆ?"))) return;
+    reset();
+  };
+
+  const holdData = (): HoldData => ({ lines, pay, party: party.trim(), adjust: billAdjust, ...(pay === "SPLIT" ? { split } : {}) });
+  const holdBill = async (): Promise<boolean> => {
+    if (!lines.length) return true;
+    try {
+      const res = await fetch(holdId ? `/api/register/counter-holds/${holdId}` : "/api/register/counter-holds", {
+        method: holdId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: holdData() }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ ok: false, text: j.error || k("Could not hold the bill.", "ಬಿಲ್ ಹಿಡಿಯಲು ಆಗಲಿಲ್ಲ.") });
+        return false;
+      }
+      setMsg({ ok: true, text: `${k("Bill held", "ಬಿಲ್ ಹಿಡಿದಿಡಲಾಗಿದೆ")} · ${rupees(total)}` });
+      reset();
+      void loadHolds();
+      return true;
+    } catch {
+      setMsg({ ok: false, text: k("No internet: could not hold the bill.", "ಇಂಟರ್ನೆಟ್ ಇಲ್ಲ — ಬಿಲ್ ಹಿಡಿಯಲು ಆಗಲಿಲ್ಲ.") });
+      return false;
+    }
+  };
+  const openHold = async (h: Hold) => {
+    if (h.id === holdId) return setPanel(null);
+    if (lines.length && !(await holdBill())) return;
+    const claim = (force: boolean) =>
+      fetch(`/api/register/counter-holds/${h.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ claim: true, device, force }) });
+    let res = await claim(false);
+    if (res.status === 409) {
+      if (!window.confirm(k("This bill is open on another device. Take it over here?", "ಈ ಬಿಲ್ ಇನ್ನೊಂದು ಸಾಧನದಲ್ಲಿ ತೆರೆದಿದೆ. ಇಲ್ಲಿ ತೆಗೆದುಕೊಳ್ಳಬೇಕೆ?"))) return;
+      res = await claim(true);
+    }
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setMsg({ ok: false, text: j.error || k("Could not open the held bill.", "ಹಿಡಿದ ಬಿಲ್ ತೆರೆಯಲು ಆಗಲಿಲ್ಲ.") });
+      void loadHolds();
+      return;
+    }
+    const d = h.data;
+    setLines(d.lines || []);
+    setPay(d.pay || "CASH");
+    setSplit(d.split || {});
+    setParty(d.party || "");
+    setShowParty(!!d.party);
+    setAdjust({ discount: d.adjust?.discount || 0, pct: !!d.adjust?.pct });
+    setReceived(0);
+    setHoldId(h.id);
+    setPanel(null);
+  };
+  const dropHold = async (h: Hold) => {
+    if (!window.confirm(k(`Delete held bill "${h.label}"?`, `"${h.label}" ಹಿಡಿದ ಬಿಲ್ ಅಳಿಸಬೇಕೆ?`))) return;
+    await fetch(`/api/register/counter-holds/${h.id}`, { method: "DELETE" }).catch(() => {});
+    if (h.id === holdId) reset();
+    void loadHolds();
+  };
+
+  /** "Tare 1.250 · Net 1.800 kg × ₹260 − ₹10" as the settings say */
+  const lineDetail = (l: CounterLine) => {
+    const qty = `${l.qty.toFixed(l.unit === "pcs" ? 0 : 3)} ${l.unit}`;
+    const parts: string[] = [];
+    if (settings.showGross && l.grossKg) parts.push(`Gross ${l.grossKg.toFixed(3)}`);
+    if (settings.showTare && l.tareKg) parts.push(`Tare ${l.tareKg.toFixed(3)}`);
+    const d = lineDisc(l);
+    return `${parts.length ? `${parts.join(" · ")} · Net ` : ""}${qty} × ₹${l.rate}${d > 0 ? ` − ${l.discPct ? `${l.disc}% ` : ""}${rupees(d)}` : ""}`;
+  };
+
+  // ---- saved bills
+  const labelOf = (item: string | null, lbl: string | null) => lbl || cfg.items.find((i) => i.key === item)?.en || catalog.find((c) => c.key === item)?.en || item || "Item";
   const loadBills = async () => {
     const from = bFrom || date;
     const to = bTo || from;
@@ -252,330 +429,214 @@ export default function CounterApp() {
       setBErr(e instanceof Error ? e.message : "Could not load bills.");
     }
   };
-  const shownBills = bills.filter((b) => billMatches(b, bQ));
-  const bSum = billsSummary(shownBills);
-  const modeName = (m: string) => (m === "CREDIT" ? "Udhaar" : m === "UPI" ? "UPI" : m === "CASH" ? "Cash" : m);
-  const billDoc = (b: SavedBill): ReceiptDoc => ({
-    title: "RECEIPT",
-    no: b.no,
-    when: receiptTime(b.createdAt),
-    party: b.party || undefined,
-    rows: b.lines.map((l) => ({ name: l.label, detail: l.qty ? `${l.qty.toFixed(l.unit === "kg" ? 3 : 0)} ${l.unit || ""} × ₹${l.rate ?? ""}` : undefined, amount: rupees(l.amount) })),
-    totals: [{ label: "TOTAL", value: rupees(b.total), strong: true }],
-    notes: [`Mode: ${Object.keys(b.modes).map(modeName).join(" + ")}`, "Re-print"],
-  });
-  const cancelBill = async (b: SavedBill, why?: string) => {
-    const reason = why ?? window.prompt(lang === "kn" ? `ಬಿಲ್ #${b.no} ರದ್ದು ಮಾಡಲು ಕಾರಣ?` : `Reason for cancelling bill #${b.no} (${rupees(b.total)})?`);
+  const cancelBill = async (b: SavedBill, why?: string): Promise<boolean> => {
+    const reason = why ?? window.prompt(k(`Reason for cancelling bill #${b.no} (${rupees(b.total)})?`, `ಬಿಲ್ #${b.no} ರದ್ದು ಮಾಡಲು ಕಾರಣ?`));
     if (reason == null) return false;
     if (!reason.trim()) {
-      setBErr(lang === "kn" ? "ಕಾರಣ ಬರೆಯಿರಿ." : "Write a reason to cancel a bill.");
+      setBErr(k("Write a reason to cancel a bill.", "ಕಾರಣ ಬರೆಯಿರಿ."));
       return false;
     }
     const res = await fetch(`/api/register/${b.firstId}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: `Counter bill #${b.no}: ${reason.trim()}` }) });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setBErr(j.error || "Could not cancel the bill.");
+      setBErr(j.error || k("Could not cancel the bill.", "ಬಿಲ್ ರದ್ದು ಮಾಡಲು ಆಗಲಿಲ್ಲ."));
       return false;
     }
     void loadBills();
     void load();
     return true;
   };
-  const editBill = async (b: SavedBill) => {
-    if (lines.length && !(await holdBill())) return;
-    setLines(billToLines(b));
-    setParty(b.party || "");
-    setShowParty(!!b.party);
-    const ms = Object.keys(b.modes);
-    setPay(ms.length === 1 && (ms[0] === "UPI" || ms[0] === "CREDIT") ? (ms[0] as CounterPay) : "CASH");
-    setEditing(b);
-    setShowBills(false);
-    openPad({ kind: "received" }, "");
-  };
-  const exportCsv = () => {
-    const rowsCsv = [["Date", "Time", "Bill", "Customer", "Items", "Kg", "Total", "Modes", "By"]];
-    for (const b of shownBills) {
-      rowsCsv.push([
-        b.date,
-        new Date(b.createdAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" }),
-        b.no,
-        b.party || "",
-        b.lines.map((l) => `${l.label} ${l.qty ?? ""}${l.unit ?? ""} @${l.rate ?? ""}`).join("; "),
-        String(b.lines.reduce((a, l) => a + (l.unit === "kg" && l.qty ? l.qty : 0), 0).toFixed(3)),
-        b.total.toFixed(2),
-        Object.entries(b.modes).map(([m, v]) => `${modeName(m)} ${v}`).join(" + "),
-        b.by || "",
-      ]);
-    }
-    const csv = rowsCsv.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv" }));
-    a.download = `counter-bills_${bFrom || date}_${bTo || bFrom || date}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  };
-
-  const setSetting = (k: keyof Settings, v: boolean) => {
-    const next = { ...settings, [k]: v };
-    setSettings(next);
-    write("counterSettings", next);
-  };
-  const billAdjust: BillAdjust = { discount: settings.discount ? adjust.discount : 0, pct: adjust.pct, roundOff: settings.roundOff };
-  const sum = billSum(lines, billAdjust);
-  const total = sum.net;
-  /** UPI link for the exact bill amount (amount + bill note filled in on the customer's phone) */
-  const upiFor = (amount: number, note: string) => (vpa && amount > 0 ? upiPay(vpa, shop.name || "Mahadev Traders", amount, note) : undefined);
-  const billNote = (ls: CounterLine[], no?: string) =>
-    [no ? `Bill ${no}` : "Bill", ls.map((l) => `${l.label} ${l.qty.toFixed(3)}kg`).join(", ")].join(" · ");
-  const recvN = parseFloat(received) || 0;
-  const change = pay === "CASH" && recvN > 0 ? changeDue(total, recvN) : null;
-
-  const tapItem = (i: CatalogItem) => {
-    setMsg(null);
-    const rate = rateOf(i.key);
-    const base = { item: i.key, label: i.en, unit: "kg", rate };
-    if (usable) {
-      const live = isBt ? bt.live : null;
-      const next = addLine(lines, { ...base, qty: kg, source: steady ? "steady" : "moving", ...(live && bt.tareKg > 0 ? { grossKg: live.grossKg, tareKg: bt.tareKg } : {}) });
-      setLines(next);
-      if (settings.beep) beepNow();
-      if (!(rate > 0)) openPad({ kind: "rate", line: next.length - 1 }, "");
-    } else {
-      // no reading: add the line and type the weight on the pad
-      const next = [...lines, { ...base, qty: 0, source: "typed" as const }];
-      setLines(next);
-      openPad({ kind: "qty", line: next.length - 1 }, "");
-    }
-  };
-
-  const openPad = (p: PadTarget, text: string) => {
-    setPad(p);
-    setPadText(text);
-  };
-  const applyPad = (text: string) => {
-    setPadText(text);
-    const n = parseFloat(text);
-    if (pad.kind === "received") setReceived(text);
-    else if (pad.kind === "tare") {
-      if (Number.isFinite(n) || text === "") bt.setTare(Number.isFinite(n) ? n : 0);
-    } else if (pad.kind === "discount") setAdjust((a) => ({ ...a, discount: Number.isFinite(n) ? n : 0 }));
-    else if ("line" in pad) {
-      const p = pad;
-      if (Number.isFinite(n)) setLines((ls) => updateLine(ls, p.line, { [p.kind]: n }));
-      else if (text === "") setLines((ls) => updateLine(ls, p.line, { [p.kind]: 0 }));
-    }
-  };
-  const key = (k: string) => {
-    if (k === "⌫") return applyPad(padText.slice(0, -1));
-    if (k === "C") return applyPad("");
-    if (k === "." && padText.includes(".")) return;
-    applyPad(padText + k);
-  };
-  const removeLine = (i: number) => {
-    setLines((ls) => ls.filter((_, j) => j !== i));
-    openPad({ kind: "received" }, received);
-  };
-  const clearBill = () => {
-    if (holdId) {
-      // a held bill goes back to the held list unchanged
-      void fetch(`/api/register/counter-holds/${holdId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ release: true }) }).finally(() => void loadHolds());
-      return reset();
-    }
-    if (lines.length && !window.confirm(lang === "kn" ? "ಈ ಬಿಲ್ ಅಳಿಸಬೇಕೆ?" : "Clear this bill?")) return;
-    reset();
-  };
-  const reset = () => {
-    setLines([]);
-    setParty("");
-    setShowParty(false);
-    setReceived("");
-    setPay("CASH");
-    setAdjust({ discount: 0, pct: false });
-    setHoldId(null);
-    setEditing(null);
-    openPad({ kind: "received" }, "");
-  };
-
-  // ---- held bills
-  const holdData = (): HoldData => ({ lines, pay, party: party.trim(), adjust: billAdjust });
-  const holdBill = async (): Promise<boolean> => {
-    if (!lines.length) return true;
-    try {
-      const res = await fetch(holdId ? `/api/register/counter-holds/${holdId}` : "/api/register/counter-holds", {
-        method: holdId ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: holdData() }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setMsg({ ok: false, text: j.error || "Could not hold the bill." });
-        return false;
-      }
-      setMsg({ ok: true, text: lang === "kn" ? `ಬಿಲ್ ಹಿಡಿದಿಡಲಾಗಿದೆ · ${rupees(total)}` : `Bill held · ${rupees(total)}` });
-      reset();
-      void loadHolds();
-      return true;
-    } catch {
-      setMsg({ ok: false, text: lang === "kn" ? "ಇಂಟರ್ನೆಟ್ ಇಲ್ಲ — ಬಿಲ್ ಹಿಡಿಯಲು ಆಗಲಿಲ್ಲ" : "No internet: could not hold the bill." });
-      return false;
-    }
-  };
-  const openHold = async (h: Hold) => {
-    if (h.id === holdId) return setShowHolds(false);
-    if (lines.length && !(await holdBill())) return;
-    const claim = async (force: boolean) =>
-      fetch(`/api/register/counter-holds/${h.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ claim: true, device, force }) });
-    let res = await claim(false);
-    if (res.status === 409) {
-      if (!window.confirm(lang === "kn" ? "ಈ ಬಿಲ್ ಇನ್ನೊಂದು ಸಾಧನದಲ್ಲಿ ತೆರೆದಿದೆ. ಇಲ್ಲಿ ತೆಗೆದುಕೊಳ್ಳಬೇಕೆ?" : "This bill is open on another device. Take it over here?")) return;
-      res = await claim(true);
-    }
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setMsg({ ok: false, text: j.error || "Could not open the held bill." });
-      void loadHolds();
-      return;
-    }
-    const d = h.data;
-    setLines(d.lines || []);
-    setPay(d.pay || "CASH");
-    setParty(d.party || "");
-    setShowParty(!!d.party);
-    setAdjust({ discount: d.adjust?.discount || 0, pct: !!d.adjust?.pct });
-    setReceived("");
-    setHoldId(h.id);
-    setShowHolds(false);
-    openPad({ kind: "received" }, "");
-  };
-  const dropHold = async (h: Hold) => {
-    if (!window.confirm(lang === "kn" ? `"${h.label}" ಬಿಲ್ ಅಳಿಸಬೇಕೆ?` : `Delete held bill "${h.label}"?`)) return;
-    await fetch(`/api/register/counter-holds/${h.id}`, { method: "DELETE" }).catch(() => {});
-    if (h.id === holdId) reset();
-    void loadHolds();
-  };
-
-  /** "2.050 − tare 0.250 = 1.800 kg × ₹260" when the settings say so */
-  const lineDetail = (l: CounterLine) => {
-    const q = `${l.qty.toFixed(l.unit === "kg" ? 3 : 0)} ${l.unit}`;
-    const parts: string[] = [];
-    if (settings.showGross && l.grossKg) parts.push(`Gross ${l.grossKg.toFixed(3)}`);
-    if (settings.showTare && l.tareKg) parts.push(`Tare ${l.tareKg.toFixed(3)}`);
-    return `${parts.length ? `${parts.join(" · ")} · Net ` : ""}${q} × ₹${l.rate}`;
-  };
 
   const save = async (print: boolean) => {
     setMsg(null);
     const bad = lines.findIndex((l) => !(l.qty > 0) || !(l.rate > 0));
     if (bad >= 0) {
-      openPad({ kind: !(lines[bad].qty > 0) ? "qty" : "rate", line: bad }, "");
-      return setMsg({ ok: false, text: lang === "kn" ? `ಸಾಲು ${bad + 1}: ತೂಕ ಮತ್ತು ದರ ಬೇಕು` : `Line ${bad + 1} needs a weight and a rate.` });
+      openPad({ kind: !(lines[bad].qty > 0) ? "qty" : "rate", line: bad });
+      return setMsg({ ok: false, text: k(`Line ${bad + 1} needs a quantity and a rate.`, `ಸಾಲು ${bad + 1}: ಪ್ರಮಾಣ ಮತ್ತು ದರ ಬೇಕು.`) });
     }
-    const r = registerBody(lines, pay, { date, party, adjust: billAdjust, notes: editing ? `Replaces bill #${editing.no}` : undefined });
+    if ((pay === "CREDIT" || (pay === "SPLIT" && (split.CREDIT || 0) > 0)) && !can("udhaar")) return setMsg({ ok: false, text: k("Udhaar is locked for staff.", "ಉದ್ರಿ ಸಿಬ್ಬಂದಿಗೆ ಲಾಕ್ ಆಗಿದೆ.") });
+    const r = registerBody(lines, pay, { date, party, adjust: billAdjust, split, notes: editing ? `Replaces bill #${editing.no}` : undefined });
     if ("err" in r) return setMsg({ ok: false, text: r.err });
     setBusy(true);
     try {
-      const res = await api<{ data?: { id?: string; queued?: boolean } }>("/api/register", { method: "POST", body: JSON.stringify(r.body) });
-      const id = res?.data?.id;
+      const res = await api<{ data?: { id?: string; queued?: boolean; details?: { billNo?: number } } }>("/api/register", { method: "POST", body: JSON.stringify(r.body) });
+      const billNo = res?.data?.details?.billNo;
+      const no = billNo ? String(billNo) : k("(saved offline)", "(ಆಫ್‌ಲೈನ್)");
+      const modes: [string, number][] =
+        pay === "SPLIT" ? (["CASH", "UPI", "CREDIT"] as Chan[]).filter((c) => (split[c] || 0) > 0).map((c) => [CHAN_TEXT[c][0], split[c] || 0]) : [[CHAN_TEXT[pay as Chan][0], total]];
       const doc: ReceiptDoc = {
         title: "RECEIPT",
-        no: id ? id.slice(-6).toUpperCase() : undefined,
+        no,
         when: receiptTime(Date.now()),
         party: party.trim() || undefined,
         rows: lines.map((l) => ({ name: l.label, detail: lineDetail(l), amount: rupees(lineAmount(l)) })),
         totals: [
           ...(billKg(lines) > 0 && lines.length > 1 ? [{ label: "Net weight", value: `${billKg(lines).toFixed(3)} kg` }] : []),
+          ...(itemDisc > 0 ? [{ label: "Item discount", value: `−${rupees(itemDisc)}` }] : []),
           ...(sum.discount || sum.roundOff ? [{ label: "Subtotal", value: rupees(sum.gross) }] : []),
           ...(sum.discount ? [{ label: adjust.pct ? `Discount ${adjust.discount}%` : "Discount", value: `−${rupees(sum.discount)}` }] : []),
           ...(sum.roundOff ? [{ label: "Round-off", value: `${sum.roundOff > 0 ? "+" : "−"}${rupees(Math.abs(sum.roundOff))}` }] : []),
           { label: "TOTAL", value: rupees(total), strong: true },
-          ...(change != null && change >= 0 ? [{ label: "Received", value: rupees(recvN) }, { label: "Change", value: rupees(change) }] : []),
+          ...(modes.length > 1 ? modes.map(([m, v]) => ({ label: m, value: rupees(v) })) : []),
+          ...(cashDue > 0 && received > 0 ? [{ label: "Cash received", value: rupees(received) }, ...(back > 0 ? [{ label: "Return to customer", value: rupees(back), strong: true }] : [])] : []),
         ],
-        notes: [
-          `Mode: ${pay === "CREDIT" ? "Udhaar" : pay === "UPI" ? "UPI" : "Cash"}`,
-          ...(pay !== "CASH" && vpa && settings.upiQr ? [`Scan to pay ${rupees(total)} by UPI · ${vpa}`] : []),
-        ],
-        // UPI and udhaar bills carry a QR for the exact amount, with the bill number and items in the payment note
-        qr: pay !== "CASH" && settings.upiQr ? upiFor(total, billNote(lines, id ? id.slice(-6).toUpperCase() : undefined)) : undefined,
+        notes: [`Mode: ${modes.map(([m]) => m).join(" + ")}`, ...(upiDue > 0 && vpa && settings.upiQr ? [`Scan to pay ${rupees(upiDue)} by UPI · ${vpa}`] : [])],
+        qr: pay !== "CASH" && settings.upiQr ? upiFor(pay === "SPLIT" ? (split.UPI || 0) + (split.CREDIT || 0) : total, `Bill ${no} · ${itemsNote(lines)}`) : undefined,
       };
       if (editing) {
-        const old = editing;
-        const ok = await cancelBill(old, `edited at the counter, replaced by bill #${id ? id.slice(-6).toUpperCase() : "new"}`);
-        if (!ok) setMsg({ ok: false, text: lang === "kn" ? `ಹೊಸ ಬಿಲ್ ಉಳಿಸಲಾಗಿದೆ, ಆದರೆ ಹಳೆಯ ಬಿಲ್ #${old.no} ಅಳಿಸಲಾಗಲಿಲ್ಲ — ಮಾಲೀಕರಿಗೆ ತಿಳಿಸಿ.` : `New bill saved, but old bill #${old.no} could not be removed (owner only for earlier days). Ask the owner to cancel it.` });
+        const ok = await cancelBill(editing, `edited at the counter, replaced by bill #${no}`);
+        if (!ok) setMsg({ ok: false, text: k(`New bill saved, but old bill #${editing.no} could not be removed. Ask the owner to cancel it.`, `ಹೊಸ ಬಿಲ್ ಉಳಿಸಲಾಗಿದೆ, ಹಳೆಯ ಬಿಲ್ #${editing.no} ಅಳಿಸಲಾಗಲಿಲ್ಲ — ಮಾಲೀಕರಿಗೆ ತಿಳಿಸಿ.`) });
       }
       if (holdId) void fetch(`/api/register/counter-holds/${holdId}`, { method: "DELETE" }).finally(() => void loadHolds());
-      setPrev({ doc, total, received: pay === "CASH" && recvN > 0 ? recvN : null });
+      setPrev({ doc, no, total, back });
       if (print) setRcpt({ doc, auto: true });
-      setMsg({ ok: true, text: `${t("saved", lang)} · ${rupees(total)}${res?.data?.queued ? (lang === "kn" ? " · ಇಂಟರ್ನೆಟ್ ಬಂದಾಗ ಕಳುಹಿಸಲಾಗುವುದು" : " · no internet: kept on this tablet, sent when back online") : ""}` });
+      if (!editing)
+        setMsg({
+          ok: true,
+          text: `${k("Saved", "ಉಳಿಸಲಾಗಿದೆ")} #${no} · ${rupees(total)}${back > 0 ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(back)}` : ""}${res?.data?.queued ? k(" · no internet: kept on this tablet", " · ಇಂಟರ್ನೆಟ್ ಇಲ್ಲ: ಈ ಟ್ಯಾಬ್ಲೆಟ್‌ನಲ್ಲಿ ಇಡಲಾಗಿದೆ") : ""}`,
+        });
       reset();
       void load();
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : "Could not save." });
+      setMsg({ ok: false, text: e instanceof Error ? e.message : k("Could not save.", "ಉಳಿಸಲು ಆಗಲಿಲ್ಲ.") });
     } finally {
       setBusy(false);
     }
   };
 
-  const padLabel =
-    pad.kind === "received"
-      ? t("received", lang)
-      : pad.kind === "tare"
-        ? lang === "kn" ? "ಟೇರ್ ತೂಕ kg (ಡಬ್ಬಿ)" : "Tare weight kg (container)"
-        : pad.kind === "discount"
-          ? lang === "kn" ? `ರಿಯಾಯಿತಿ ${adjust.pct ? "%" : "₹"}` : `Discount ${adjust.pct ? "%" : "₹"}`
-          : `${lines[lineOf(pad)]?.label ?? ""} · ${pad.kind === "qty" ? (lang === "kn" ? "ತೂಕ kg" : "Weight kg") : lang === "kn" ? "ದರ ₹" : "Rate ₹"}`;
+  const shownBills = bills.filter((b) => billMatches(b, bQ));
+  const bSum = billsSummary(shownBills);
+  const modeName = (m: string) => (m === "CREDIT" ? k("Udhaar", "ಉದ್ರಿ") : m === "UPI" ? "UPI" : m === "CASH" ? k("Cash", "ನಗದು") : m);
+  const billDoc = (b: SavedBill): ReceiptDoc => ({
+    title: "RECEIPT",
+    no: b.no,
+    when: receiptTime(b.createdAt),
+    party: b.party || undefined,
+    rows: b.lines.map((l) => ({ name: l.label, detail: l.qty ? `${l.qty.toFixed(l.unit === "pcs" ? 0 : 3)} ${l.unit || ""} × ₹${l.rate ?? ""}` : undefined, amount: rupees(l.amount) })),
+    totals: [{ label: "TOTAL", value: rupees(b.total), strong: true }, ...(Object.keys(b.modes).length > 1 ? Object.entries(b.modes).map(([m, v]) => ({ label: modeName(m), value: rupees(v) })) : [])],
+    notes: [`Mode: ${Object.keys(b.modes).map(modeName).join(" + ")}`, "Re-print"],
+  });
+  const editBill = async (b: SavedBill) => {
+    if (lines.length && !(await holdBill())) return;
+    setLines(billToLines(b));
+    setParty(b.party || "");
+    setShowParty(!!b.party);
+    const ms = Object.keys(b.modes) as Chan[];
+    if (ms.length > 1) {
+      setPay("SPLIT");
+      setSplit(Object.fromEntries(ms.map((m) => [m, b.modes[m]])) as SplitParts);
+    } else setPay(ms[0] === "UPI" || ms[0] === "CREDIT" ? ms[0] : "CASH");
+    setEditing(b);
+    setPanel(null);
+  };
+  const exportCsv = () => {
+    const out = [["Date", "Time", "Bill", "Customer", "Items", "Kg", "Total", "Modes", "By"]];
+    for (const b of shownBills) {
+      out.push([
+        b.date,
+        timeOf(b.createdAt),
+        b.no,
+        b.party || "",
+        b.lines.map((l) => `${l.label} ${l.qty ?? ""}${l.unit ?? ""} @${l.rate ?? ""}`).join("; "),
+        b.lines.reduce((a, l) => a + (l.unit === "kg" && l.qty ? l.qty : 0), 0).toFixed(3),
+        b.total.toFixed(2),
+        Object.entries(b.modes).map(([m, v]) => `${modeName(m)} ${v}`).join(" + "),
+        b.by || "",
+      ]);
+    }
+    const csv = out.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv" }));
+    a.download = `counter-bills_${bFrom || date}_${bTo || bFrom || date}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
 
+  // ---- owner set-up: items and staff locks
+  const openItems = () => {
+    setDraftItems(cfg.items.map((i) => ({ ...i })));
+    setDraftLocks(cfg.staffLocks);
+    setPanel("items");
+  };
+  const saveCfg = async (items: CounterItem[], staffLocks: StaffLock[]) => {
+    const res = await fetch("/api/settings/app", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: "counter", data: { items, staffLocks } }) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg({ ok: false, text: j.error || k("Could not save the set-up.", "ಸೆಟಪ್ ಉಳಿಸಲು ಆಗಲಿಲ್ಲ.") });
+      return false;
+    }
+    await loadCfg();
+    return true;
+  };
+  const patchDraft = (i: number, p: Partial<CounterItem>) => setDraftItems((d) => d.map((x, j) => (j === i ? { ...x, ...p } : x)));
+
+  // ---- counter-only mode (this device)
+  const kioskOn = async () => {
+    const pin = window.prompt(k("Choose a PIN (4 to 8 digits) to leave counter-only mode later:", "ನಂತರ ಹೊರಬರಲು PIN ಆರಿಸಿ (4 ರಿಂದ 8 ಅಂಕೆ):"));
+    if (pin == null) return;
+    if (!/^\d{4,8}$/.test(pin)) return setMsg({ ok: false, text: k("The PIN must be 4 to 8 digits.", "PIN 4 ರಿಂದ 8 ಅಂಕೆ ಇರಬೇಕು.") });
+    if (window.prompt(k("Type the PIN again:", "PIN ಮತ್ತೆ ಟೈಪ್ ಮಾಡಿ:")) !== pin) return setMsg({ ok: false, text: k("The PINs did not match.", "PIN ಹೊಂದಲಿಲ್ಲ.") });
+    const s: KioskState = { on: true, pinHash: await hashPin(pin), allow: kiosk?.allow || [] };
+    write(KIOSK_KEY, s);
+    setKiosk(s);
+  };
+  const kioskOff = async () => {
+    const pin = window.prompt(k("PIN to leave counter-only mode:", "ಹೊರಬರಲು PIN:"));
+    if (pin == null) return;
+    if (!kiosk || (await hashPin(pin)) !== kiosk.pinHash) return setMsg({ ok: false, text: k("Wrong PIN.", "ತಪ್ಪು PIN.") });
+    const s = { ...kiosk, on: false };
+    write(KIOSK_KEY, s);
+    setKiosk(s);
+  };
+  const kioskAllow = (x: KioskExtra, on: boolean) => {
+    const cur = kiosk?.allow || [];
+    const s: KioskState = { on: !!kiosk?.on, pinHash: kiosk?.pinHash || "", allow: on ? Array.from(new Set([...cur, x])) : cur.filter((a) => a !== x) };
+    write(KIOSK_KEY, s);
+    setKiosk(s);
+  };
+
+  // ======================================================================================
   return (
-    <div className="ctr" lang={lang === "kn" ? "kn" : "en"}>
+    <div className="ctr" lang={lang}>
       {/* ---------- top bar ---------- */}
       <header className="ctr-top">
-        <Link href="/register/pos" className="ctr-back">← {t("back", lang)}</Link>
-        <b className="ctr-title">⚖️ {t("title", lang)}</b>
-        <span className={`ctr-chip ${connected ? (fresh ? "ok" : "mid") : "bad"}`}>
-          {connected ? (bt.config?.name || reading?.scale_source || "Scale") : t("noScale", lang)}
-        </span>
-        {!connected && <Link href="/?desk=scales" className="ctr-link">{t("setScale", lang)}</Link>}
+        {!kiosk?.on && <Link href="/register/pos" className="ctr-back">← {k("Desk", "ಡೆಸ್ಕ್")}</Link>}
+        <b className="ctr-title">⚖️ {k("Weigh & Bill", "ತೂಕ & ಬಿಲ್")}</b>
+        <span className={`ctr-chip ${connected ? (fresh ? "ok" : "mid") : "bad"}`}>{connected ? bt.config?.name || reading?.scale_source || k("Scale", "ತಕ್ಕಡಿ") : k("No scale", "ತಕ್ಕಡಿ ಇಲ್ಲ")}</span>
+        {!connected && !kiosk?.on && <Link href="/?desk=scales" className="ctr-link">{k("Set up scale", "ತಕ್ಕಡಿ ಹೊಂದಿಸಿ")}</Link>}
         <span className="ctr-sp" />
-        <button type="button" className={`ctr-held${holds.length ? " has" : ""}`} onClick={() => { setShowHolds((v) => !v); void loadHolds(); }}>
-          🅿️ {lang === "kn" ? "ಹಿಡಿದ ಬಿಲ್" : "Held"} <b>{holds.length}</b>
+        <button type="button" className={`ctr-tbtn${holds.length ? " has" : ""}`} onClick={() => { setPanel("holds"); void loadHolds(); }}>
+          🅿️ {k("Held", "ಹಿಡಿದ")} <b>{holds.length}</b>
         </button>
-        <button type="button" className="ctr-held" onClick={() => { setShowBills(true); void loadBills(); }}>📋 {lang === "kn" ? "ಬಿಲ್‌ಗಳು" : "Bills"}</button>
-        <button type="button" className="ctr-lang" onClick={() => setShowSettings((v) => !v)} aria-label="Settings">⚙️</button>
-        <label className="ctr-tog">
-          <input type="checkbox" checked={autoPrint} onChange={(e) => { setAutoPrint(e.target.checked); write("counterAutoPrint", e.target.checked); }} /> 🖨️ {t("autoPrint", lang)}
-        </label>
-        <button type="button" className="ctr-lang" onClick={() => { const l = lang === "en" ? "kn" : "en"; setLang(l); write("counterLang", l); }}>
+        <button type="button" className="ctr-tbtn" onClick={() => { setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}</button>
+        {can("settings") && <button type="button" className="ctr-tbtn" onClick={() => setPanel("settings")} aria-label={k("Settings", "ಸೆಟ್ಟಿಂಗ್ಸ್")}>⚙️</button>}
+        <button type="button" className="ctr-tbtn" onClick={() => { const l = lang === "en" ? "kn" : "en"; setLang(l); write("counterLang", l); }}>
           {lang === "en" ? "ಕನ್ನಡ" : "English"}
         </button>
       </header>
 
       {/* ---------- weight strip ---------- */}
       <section className="ctr-weigh">
-        <div className="ctr-state">
-          <small>{lang === "kn" ? "ಸ್ಥಿತಿ" : "State"}</small>
-          <b className={!fresh ? "bad" : steady ? "ok" : "mid"}>{!fresh ? "—" : steady ? t("steady", lang) : t("moving", lang)}</b>
-          {isBt && bt.tareKg > 0 && <small className="ctr-net">net · {bt.container || t("tare", lang)} {bt.tareKg.toFixed(3)}</small>}
-        </div>
-        <div className="ctr-lcd" aria-live="polite">
-          <small>{t("weight", lang)} (kg)</small>
+        <div className={`ctr-lcd ${!fresh ? "off" : steady ? "ok" : "mid"}`} aria-live="polite">
+          <small>{k("Weight", "ತೂಕ")} (kg){isBt && bt.tareKg > 0 ? ` · ${k("net", "ನಿವ್ವಳ")}` : ""}</small>
           <span>{fresh ? kg.toFixed(3) : "0.000"}</span>
         </div>
-        <div className="ctr-lcd small">
-          <small>{t("total", lang)} ₹</small>
-          <span>{total.toFixed(2)}</span>
-        </div>
         <div className={`ctr-tarewin${bt.tareKg > 0 ? " on" : ""}`}>
-          <small>{lang === "kn" ? "ಟೇರ್" : "Tare"} (kg)</small>
+          <small>{k("Tare", "ಟೇರ್")} (kg)</small>
           <b>{bt.tareKg > 0 ? bt.tareKg.toFixed(3) : "0.000"}</b>
-          <small className="nm">{bt.container || (bt.tareKg > 0 ? (lang === "kn" ? "ಕೈಯಲ್ಲಿ" : "manual") : lang === "kn" ? "ಇಲ್ಲ" : "none")}</small>
+          <small className="nm">{bt.container || (bt.tareKg > 0 ? k("manual", "ಕೈಯಿಂದ") : k("none", "ಇಲ್ಲ"))}</small>
+        </div>
+        <div className="ctr-lcd small">
+          <small>{k("Total", "ಒಟ್ಟು")} ₹</small>
+          <span>{total.toFixed(2)}</span>
         </div>
         <div className="ctr-tare">
           {isBt ? (
             <>
-              <button type="button" className="big" disabled={!bt.live || bt.live.grossKg <= 0} onClick={() => bt.live && bt.setTare(bt.live.grossKg)} title="Put the empty container on the scale, then press">
-                ⚖️ {t("tare", lang)}
+              <button type="button" className="big" disabled={!bt.live || bt.live.grossKg <= 0} onClick={() => bt.live && bt.setTare(bt.live.grossKg)} title={k("Put the empty container on the scale, then press", "ಖಾಲಿ ಡಬ್ಬಿ ಇಟ್ಟು ಒತ್ತಿ")}>
+                ⚖️ {k("Tare", "ಟೇರ್")}
               </button>
-              <button type="button" onClick={() => openPad({ kind: "tare" }, "")}>⌨️ {lang === "kn" ? "ಟೈಪ್" : "Type"}</button>
-              {bt.tareKg > 0 && <button type="button" onClick={() => bt.setTare(0)}>{t("clearTare", lang)}</button>}
+              {bt.tareKg > 0 && <button type="button" onClick={() => bt.setTare(0)}>{k("Clear tare", "ಟೇರ್ ತೆಗೆ")}</button>}
               {bt.containers.map((c) => (
                 <button type="button" key={c.name} className={bt.container === c.name ? "on" : ""} onClick={() => bt.pickContainer(bt.container === c.name ? null : c.name)}>
                   {c.name} <small>{c.kg.toFixed(3)}</small>
@@ -583,128 +644,143 @@ export default function CounterApp() {
               ))}
             </>
           ) : (
-            <small className="ctr-hint">{lang === "kn" ? "ಟೇರ್ ಬ್ಲೂಟೂತ್ ತಕ್ಕಡಿಯೊಂದಿಗೆ" : "Tare works with the Bluetooth scale on this device."}</small>
+            <small className="ctr-hint">{k("Tare works with the Bluetooth scale on this device.", "ಟೇರ್ ಈ ಸಾಧನದ ಬ್ಲೂಟೂತ್ ತಕ್ಕಡಿಯೊಂದಿಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ.")}</small>
           )}
         </div>
       </section>
 
       <main className="ctr-main">
         {/* ---------- bill ---------- */}
-        <section className="ctr-bill" aria-label={t("bill", lang)}>
+        <section className="ctr-bill" aria-label={k("Bill", "ಬಿಲ್")}>
           {prev && !lines.length && (
             <div className="ctr-prev">
               <div>
-                <b>{t("previous", lang)}</b> {prev.doc.no && <span>#{prev.doc.no}</span>}
-                <div>{rupees(prev.total)}{prev.received != null ? ` · ${t("received", lang)} ${rupees(prev.received)} · ${t("change", lang)} ${rupees(prev.received - prev.total)}` : ""}</div>
+                <b>{k("Previous bill", "ಹಿಂದಿನ ಬಿಲ್")} #{prev.no}</b>
+                <div>{rupees(prev.total)}{prev.back > 0 ? ` · ${k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")} ${rupees(prev.back)}` : ""}</div>
               </div>
-              <button type="button" onClick={() => setRcpt({ doc: prev.doc, auto: true })}>🖨️ {t("reprint", lang)}</button>
+              <button type="button" onClick={() => setRcpt({ doc: prev.doc, auto: true })}>🖨️ {k("Re-print", "ಮತ್ತೆ ಮುದ್ರಿಸಿ")}</button>
               <button type="button" className="x" onClick={() => setPrev(null)} aria-label="Close">✕</button>
             </div>
           )}
+          {(editing || holdId) && <div className="ctr-banner">{editing ? `✏️ ${k("Editing bill", "ಬಿಲ್ ತಿದ್ದುಪಡಿ")} #${editing.no}` : `🅿️ ${k("Held bill", "ಹಿಡಿದ ಬಿಲ್")}`}</div>}
           <ol className="ctr-lines">
-            {!lines.length && <li className="ctr-empty">{t("empty", lang)}</li>}
+            {!lines.length && <li className="ctr-empty">{k("Put the item on the scale, then tap it (or type its PLU).", "ವಸ್ತುವನ್ನು ತಕ್ಕಡಿಯಲ್ಲಿ ಇಟ್ಟು ಒತ್ತಿ (ಅಥವಾ PLU ಟೈಪ್ ಮಾಡಿ).")}</li>}
             {lines.map((l, i) => (
-              <li key={i} className={lineOf(pad) === i ? "sel" : ""}>
+              <li key={i}>
                 <span className="n">{i + 1}</span>
                 <span className="nm">
-                  {l.label}
-                  {l.source !== "steady" && <em>{l.source === "typed" ? t("typed", lang) : t("movingTag", lang)}</em>}
+                  {lineName(l)}
+                  {l.source !== "steady" && <em>{l.source === "typed" ? k("typed", "ಟೈಪ್") : k("moving", "ಅಲುಗಾಟ")}</em>}
+                  {l.tareKg ? <small>{k("tare", "ಟೇರ್")} {l.tareKg.toFixed(3)}</small> : null}
                 </span>
-                <button type="button" className={`q${pad.kind === "qty" && lineOf(pad) === i ? " on" : ""}`} onClick={() => openPad({ kind: "qty", line: i }, "")}>
-                  {l.qty > 0 ? l.qty.toFixed(3) : "—"} kg
+                <button type="button" className="q" onClick={() => (l.unit !== "kg" || can("typedWeight") ? openPad({ kind: "qty", line: i }) : setMsg({ ok: false, text: k("Typing a weight is locked.", "ತೂಕ ಟೈಪ್ ಮಾಡುವುದು ಲಾಕ್ ಆಗಿದೆ.") }))}>
+                  {l.qty > 0 ? l.qty.toFixed(l.unit === "pcs" ? 0 : 3) : "—"} {l.unit}
                 </button>
-                <button type="button" className={`r${pad.kind === "rate" && lineOf(pad) === i ? " on" : ""}${l.rate > 0 ? "" : " need"}`} onClick={() => openPad({ kind: "rate", line: i }, "")}>
-                  {l.rate > 0 ? `₹${l.rate}` : t("noRate", lang)}
+                <button type="button" className={`r${l.rate > 0 ? "" : " need"}`} disabled={!can("rate") && l.rate > 0} onClick={() => openPad({ kind: "rate", line: i })}>
+                  {l.rate > 0 ? `₹${l.rate}` : k("rate?", "ದರ?")}
                 </button>
-                <b className="a">{rupees(lineAmount(l))}</b>
-                <button type="button" className="del" onClick={() => removeLine(i)} aria-label="Remove">✕</button>
+                {discOn && (
+                  <button type="button" className={`d${l.disc ? " on" : ""}`} onClick={() => openPad({ kind: "ldisc", line: i })} aria-label={k("Item discount", "ವಸ್ತು ರಿಯಾಯಿತಿ")}>
+                    🏷️{l.disc ? (l.discPct ? `${l.disc}%` : `₹${l.disc}`) : ""}
+                  </button>
+                )}
+                <b className="a">
+                  {lineDisc(l) > 0 && <s>{rupees(lineGross(l))}</s>}
+                  {rupees(lineAmount(l))}
+                </b>
+                <button type="button" className="del" onClick={() => removeLine(i)} aria-label={k("Remove", "ತೆಗೆ")}>✕</button>
               </li>
             ))}
           </ol>
 
-          {(sum.discount > 0 || sum.roundOff !== 0) && (
+          {(sum.discount > 0 || sum.roundOff !== 0 || itemDisc > 0) && (
             <div className="ctr-sub">
-              <span>{lang === "kn" ? "ಉಪ ಮೊತ್ತ" : "Subtotal"} {rupees(sum.gross)}</span>
-              {sum.discount > 0 && <span>− {lang === "kn" ? "ರಿಯಾಯಿತಿ" : "Discount"} {rupees(sum.discount)}</span>}
-              {sum.roundOff !== 0 && <span>{lang === "kn" ? "ಸುತ್ತು" : "Round-off"} {sum.roundOff > 0 ? "+" : "−"}{rupees(Math.abs(sum.roundOff))}</span>}
+              {itemDisc > 0 && <span>{k("Item discount", "ವಸ್ತು ರಿಯಾಯಿತಿ")} −{rupees(itemDisc)}</span>}
+              {(sum.discount > 0 || sum.roundOff !== 0) && <span>{k("Subtotal", "ಉಪ ಮೊತ್ತ")} {rupees(sum.gross)}</span>}
+              {sum.discount > 0 && <span>{k("Discount", "ರಿಯಾಯಿತಿ")} −{rupees(sum.discount)}</span>}
+              {sum.roundOff !== 0 && <span>{k("Round-off", "ಸುತ್ತು")} {sum.roundOff > 0 ? "+" : "−"}{rupees(Math.abs(sum.roundOff))}</span>}
             </div>
           )}
           <div className="ctr-tot">
-            <span>
-              {editing && <em className="ctr-heldtag">✏️ {lang === "kn" ? "ತಿದ್ದುಪಡಿ" : "Editing"} #{editing.no}</em>}
-              {holdId && <em className="ctr-heldtag">🅿️ {lang === "kn" ? "ಹಿಡಿದ ಬಿಲ್" : "Held bill"}</em>}
-              {lines.length} {lang === "kn" ? "ಸಾಲು" : "item(s)"} · {billKg(lines).toFixed(3)} kg
-            </span>
+            <span>{lines.length} {k("item(s)", "ವಸ್ತು")} · {billKg(lines).toFixed(3)} kg</span>
             <b>{rupees(total)}</b>
           </div>
-          {settings.discount && lines.length > 0 && (
-            <div className="ctr-disc">
-              <button type="button" className={pad.kind === "discount" ? "on" : ""} onClick={() => openPad({ kind: "discount" }, "")}>
-                🏷️ {lang === "kn" ? "ರಿಯಾಯಿತಿ" : "Discount"} {adjust.discount > 0 ? `${adjust.pct ? `${adjust.discount}%` : rupees(adjust.discount)}` : ""}
-              </button>
-              <button type="button" className={adjust.pct ? "on" : ""} onClick={() => setAdjust((a) => ({ ...a, pct: !a.pct }))}>{adjust.pct ? "%" : "₹"}</button>
-              {adjust.discount > 0 && <button type="button" onClick={() => setAdjust({ discount: 0, pct: false })}>✕</button>}
-            </div>
+          {discOn && lines.length > 0 && (
+            <button type="button" className="ctr-discbtn" onClick={() => openPad({ kind: "discount" })}>
+              🏷️ {k("Bill discount", "ಬಿಲ್ ರಿಯಾಯಿತಿ")} {adjust.discount > 0 ? (adjust.pct ? `${adjust.discount}%` : rupees(adjust.discount)) : ""}
+            </button>
           )}
 
           <div className="ctr-pay" role="radiogroup">
-            {(["CASH", "UPI", "CREDIT"] as CounterPay[]).map((p) => (
-              <button key={p} type="button" role="radio" aria-checked={pay === p} className={pay === p ? "on" : ""} onClick={() => setPay(p)}>
-                {p === "CASH" ? `💵 ${t("cash", lang)}` : p === "UPI" ? `📱 ${t("upi", lang)}` : `📒 ${t("udhaar", lang)}`}
+            {(["CASH", "UPI", "CREDIT", "SPLIT"] as CounterPay[]).filter((p) => p !== "CREDIT" || can("udhaar")).map((p) => (
+              <button key={p} type="button" role="radio" aria-checked={pay === p} className={pay === p ? "on" : ""} onClick={() => { setPay(p); setReceived(0); }}>
+                {p === "SPLIT" ? `➗ ${k("Split", "ಹಂಚಿಕೆ")}` : `${CHAN_TEXT[p as Chan][2]} ${k(CHAN_TEXT[p as Chan][0], CHAN_TEXT[p as Chan][1])}`}
               </button>
             ))}
           </div>
-          {pay === "UPI" && total > 0 && (
+
+          {pay === "SPLIT" && (
+            <div className="ctr-split">
+              {(["CASH", "UPI", "CREDIT"] as Chan[]).filter((c) => c !== "CREDIT" || can("udhaar")).map((c) => (
+                <div key={c} className="row">
+                  <span>{CHAN_TEXT[c][2]} {k(CHAN_TEXT[c][0], CHAN_TEXT[c][1])}</span>
+                  <button type="button" className="amt" onClick={() => openPad({ kind: "split", chan: c })}>{rupees(split[c] || 0)}</button>
+                  <button type="button" className="rest" disabled={splitLeft <= 0} onClick={() => setSplit((s) => ({ ...s, [c]: r2((s[c] || 0) + splitLeft) }))}>+ {k("rest", "ಉಳಿದದ್ದು")}</button>
+                </div>
+              ))}
+              <p className={splitLeft === 0 ? "ok" : "bad"}>{splitLeft === 0 ? k("Split adds up ✓", "ಹಂಚಿಕೆ ಸರಿ ✓") : `${k("Left to split", "ಹಂಚಲು ಉಳಿದದ್ದು")} ${rupees(splitLeft)}`}</p>
+            </div>
+          )}
+
+          {cashDue > 0 && (
+            <div className="ctr-cash">
+              <button type="button" className="recv" onClick={() => openPad({ kind: "received" })}>
+                {k("Cash received", "ಪಡೆದ ನಗದು")}: <b>{received > 0 ? rupees(received) : "—"}</b>
+              </button>
+              <div className="quick">
+                <button type="button" onClick={() => setReceived(cashDue)}>{k("Exact", "ಸರಿಯಾಗಿ")}</button>
+                {[100, 200, 500, 2000].filter((n) => n >= cashDue).slice(0, 3).map((n) => (
+                  <button key={n} type="button" onClick={() => setReceived(n)}>₹{n}</button>
+                ))}
+              </div>
+              {back > 0 && <div className="ctr-back-cash">{k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")} <b>{rupees(back)}</b></div>}
+              {shortBy > 0 && <div className="ctr-short">{k("Still to collect", "ಇನ್ನೂ ಪಡೆಯಬೇಕು")} <b>{rupees(shortBy)}</b></div>}
+            </div>
+          )}
+
+          {upiDue > 0 && (
             <div className="ctr-upi">
               {vpa ? (
                 <>
-                  <QrCode value={upiFor(total, billNote(lines)) || ""} moduleSize={4} />
+                  <QrCode value={upiFor(upiDue, `Bill · ${itemsNote(lines)}`) || ""} moduleSize={4} />
                   <div>
-                    <b>{rupees(total)}</b>
-                    <small>{lang === "kn" ? "ಗ್ರಾಹಕರು ಸ್ಕ್ಯಾನ್ ಮಾಡಿ ಪಾವತಿಸಲಿ — ಮೊತ್ತ ತಾನಾಗಿ ತುಂಬುತ್ತದೆ" : "Customer scans: the exact amount fills in by itself"}</small>
+                    <b>{rupees(upiDue)}</b>
+                    <small>{k("Customer scans: the exact amount fills in by itself", "ಗ್ರಾಹಕರು ಸ್ಕ್ಯಾನ್ ಮಾಡಲಿ — ಮೊತ್ತ ತಾನಾಗಿ ತುಂಬುತ್ತದೆ")}</small>
                     <small>{vpa}</small>
                   </div>
                 </>
               ) : (
-                <small>{lang === "kn" ? "UPI QR ಗೆ ಸೆಟ್ಟಿಂಗ್ಸ್‌ನಲ್ಲಿ UPI ID ಸೇರಿಸಿ" : "Add the shop's UPI ID in Settings → Shop to show a pay QR here."}</small>
+                <small>{k("Add the shop's UPI ID in Settings → Shop to show a pay QR here.", "UPI QR ಗೆ ಸೆಟ್ಟಿಂಗ್ಸ್ → ಶಾಪ್‌ನಲ್ಲಿ UPI ID ಸೇರಿಸಿ.")}</small>
               )}
             </div>
           )}
-          {(pay === "CREDIT" || showParty) && (
-            <input className="ctr-party" value={party} onChange={(e) => setParty(e.target.value)} placeholder={t("customer", lang)} list="ctr-parties" />
-          )}
-          {pay !== "CREDIT" && !showParty && (
-            <button type="button" className="ctr-addparty" onClick={() => setShowParty(true)}>＋ {t("customer", lang)}</button>
+
+          {pay === "CREDIT" || (pay === "SPLIT" && (split.CREDIT || 0) > 0) || showParty ? (
+            <input className="ctr-party" value={party} onChange={(e) => setParty(e.target.value)} placeholder={k("Customer name / mobile", "ಗ್ರಾಹಕರ ಹೆಸರು / ಮೊಬೈಲ್")} list="ctr-parties" />
+          ) : (
+            <button type="button" className="ctr-addparty" onClick={() => setShowParty(true)}>＋ {k("Customer name / mobile", "ಗ್ರಾಹಕರ ಹೆಸರು / ಮೊಬೈಲ್")}</button>
           )}
           <datalist id="ctr-parties">{(day?.allParties || []).slice(0, 300).map((p) => <option key={p} value={p} />)}</datalist>
-
-          <div className="ctr-padwrap">
-            <div className="ctr-padhead">
-              <span>{padLabel}</span>
-              <b>{pad.kind === "received" ? received || "0" : padText || "…"}</b>
-              {change != null && pad.kind === "received" && (
-                <em className={change >= 0 ? "ok" : "bad"}>{change >= 0 ? `${t("change", lang)} ${rupees(change)}` : `${t("due", lang)} ${rupees(-change)}`}</em>
-              )}
-            </div>
-            <div className="ctr-pad">
-              {["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", ".", "⌫"].map((k) => (
-                <button key={k} type="button" onClick={() => key(k)}>{k}</button>
-              ))}
-            </div>
-            {pad.kind !== "received" && (
-              <button type="button" className="ctr-padok" onClick={() => openPad({ kind: "received" }, received)}>✓ OK</button>
-            )}
-          </div>
 
           {msg && <p className={`ctr-msg ${msg.ok ? "ok" : "bad"}`}>{msg.text}</p>}
           {loadErr && <p className="ctr-msg bad">{loadErr}</p>}
 
           <div className="ctr-act">
-            <button type="button" className="clr" onClick={clearBill} disabled={busy || !lines.length}>{holdId ? (lang === "kn" ? "ಮುಚ್ಚು" : "Close") : t("clear", lang)}</button>
-            <button type="button" className="hold" onClick={() => void holdBill()} disabled={busy || !lines.length}>🅿️ {lang === "kn" ? "ಹಿಡಿ" : "Hold"}</button>
-            {!autoPrint && <button type="button" className="sv" onClick={() => void save(false)} disabled={busy || !lines.length}>{t("saveOnly", lang)}</button>}
+            <button type="button" className="clr" onClick={clearBill} disabled={busy || !lines.length}>{holdId ? k("Close", "ಮುಚ್ಚು") : k("Clear", "ಅಳಿಸಿ")}</button>
+            <button type="button" className="hold" onClick={() => void holdBill()} disabled={busy || !lines.length}>🅿️ {k("Hold", "ಹಿಡಿ")}</button>
+            {!autoPrint && <button type="button" className="sv" onClick={() => void save(false)} disabled={busy || !lines.length}>{k("Save", "ಉಳಿಸಿ")}</button>}
             <button type="button" className="go" onClick={() => void save(autoPrint)} disabled={busy || !lines.length}>
-              {busy ? "…" : autoPrint ? `🖨️ ${t("save", lang)}` : `🖨️ ${t("save", lang)}`}
+              {busy ? "…" : `🖨️ ${autoPrint ? k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ") : k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ")}`}
               <small>{rupees(total)}</small>
             </button>
           </div>
@@ -712,16 +788,22 @@ export default function CounterApp() {
 
         {/* ---------- item keys ---------- */}
         <section className="ctr-items">
-          <input className="ctr-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`🔍 ${t("search", lang)}`} />
+          <div className="ctr-itemhead">
+            <input className="ctr-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`🔍 ${k("Search item or PLU", "ವಸ್ತು ಅಥವಾ PLU ಹುಡುಕಿ")}`} />
+            <button type="button" className="ctr-plu" onClick={() => openPad({ kind: "plu" })}>⌨️ PLU</button>
+            {isOwner && <button type="button" className="ctr-plu" onClick={openItems}>✏️ {k("Items", "ವಸ್ತುಗಳು")}</button>}
+          </div>
           <div className="ctr-grid">
-            {shown.map((i) => {
-              const rate = rateOf(i.key);
+            {tiles.map((ci) => {
+              const rate = rateOf(ci);
               return (
-                <button key={i.key} type="button" className={`ctr-key${usable ? " ready" : ""}`} onClick={() => tapItem(i)}>
-                  <span className="ic" aria-hidden>{i.icon}</span>
-                  <b>{label(i)}</b>
-                  <small>{rate > 0 ? `₹${rate}/kg` : t("noRate", lang)}</small>
-                  {usable && rate > 0 && <em>{rupees(r2(kg * rate))}</em>}
+                <button key={ci.key} type="button" className={`ctr-key${usable && ci.unit === "kg" ? " ready" : ""}`} onClick={() => addItem(ci)}>
+                  <span className="plu">{ci.plu}</span>
+                  <span className="ic" aria-hidden>{ci.icon}</span>
+                  <b>{nameOf(ci)}</b>
+                  {lang === "kn" ? <small>{ci.en}</small> : ci.kn ? <small>{ci.kn}</small> : null}
+                  <small className="rt">{rate > 0 ? `₹${rate}/${ci.unit}` : k("no rate", "ದರ ಇಲ್ಲ")}</small>
+                  {usable && ci.unit === "kg" && rate > 0 && <em>{rupees(r2(kg * rate))}</em>}
                 </button>
               );
             })}
@@ -730,15 +812,45 @@ export default function CounterApp() {
         </section>
       </main>
 
-      {showHolds && (
-        <div className="ctr-drawer" role="dialog" aria-label="Held bills" onClick={() => setShowHolds(false)}>
+      {/* ---------- pop-up keypad ---------- */}
+      {pad && (
+        <div className="ctr-modal" role="dialog" aria-label={padTitle(pad)} onClick={() => setPad(null)}>
+          <div className="ctr-padbox" onClick={(e) => e.stopPropagation()}>
+            <p className="ttl">{padTitle(pad)}</p>
+            <div className="val">
+              {pad.kind === "split" || pad.kind === "received" || pad.kind === "rate" ? "₹" : ""}
+              {padText || "0"}
+              {(pad.kind === "discount" || pad.kind === "ldisc") && (padPct ? " %" : " ₹")}
+            </div>
+            {(pad.kind === "discount" || pad.kind === "ldisc") && (
+              <div className="pct">
+                <button type="button" className={!padPct ? "on" : ""} onClick={() => setPadPct(false)}>₹</button>
+                <button type="button" className={padPct ? "on" : ""} onClick={() => setPadPct(true)}>%</button>
+              </div>
+            )}
+            <div className="keys">
+              {["7", "8", "9", "4", "5", "6", "1", "2", "3", pad.kind === "plu" ? "C" : ".", "0", "⌫"].map((key) => (
+                <button key={key} type="button" onClick={() => padKey(key)}>{key}</button>
+              ))}
+            </div>
+            <div className="okrow">
+              <button type="button" className="cancel" onClick={() => setPad(null)}>{k("Cancel", "ರದ್ದು")}</button>
+              <button type="button" className="ok" onClick={padOk}>✓ OK</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- held bills ---------- */}
+      {panel === "holds" && (
+        <div className="ctr-drawer" role="dialog" aria-label="Held bills" onClick={() => setPanel(null)}>
           <div className="ctr-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="ctr-sheethead">
-              <b>🅿️ {lang === "kn" ? "ಹಿಡಿದ ಬಿಲ್‌ಗಳು" : "Held bills"} ({holds.length})</b>
-              <button type="button" onClick={() => setShowHolds(false)} aria-label="Close">✕</button>
+              <b>🅿️ {k("Held bills", "ಹಿಡಿದ ಬಿಲ್‌ಗಳು")} ({holds.length})</b>
+              <button type="button" onClick={() => setPanel(null)} aria-label="Close">✕</button>
             </div>
-            {!holds.length && <p className="ctr-empty">{lang === "kn" ? "ಯಾವುದೇ ಹಿಡಿದ ಬಿಲ್ ಇಲ್ಲ." : "No held bills. Press Hold to park a bill and serve the next customer."}</p>}
-            <ul className="ctr-holds">
+            {!holds.length && <p className="ctr-empty">{k("No held bills. Press Hold to park a bill and serve the next customer.", "ಹಿಡಿದ ಬಿಲ್ ಇಲ್ಲ. ಮುಂದಿನ ಗ್ರಾಹಕರಿಗಾಗಿ ‘ಹಿಡಿ’ ಒತ್ತಿ.")}</p>}
+            <ul className="ctr-list">
               {holds.map((h) => {
                 const elsewhere = !!h.openedBy && h.openedBy !== device && !!h.openedAt && Date.now() - new Date(h.openedAt).getTime() < 10 * 60 * 1000;
                 return (
@@ -747,12 +859,13 @@ export default function CounterApp() {
                       <b>{h.label}</b>
                       <span>{(h.data?.lines || []).map((l) => `${l.label} ${l.qty.toFixed(3)}`).join(", ")}</span>
                       <small>
-                        {ago(h.createdAt)}{h.heldBy ? ` · ${h.heldBy}` : ""}
-                        {h.id === holdId ? (lang === "kn" ? " · ಇಲ್ಲಿ ತೆರೆದಿದೆ" : " · open here") : elsewhere ? (lang === "kn" ? " · ಬೇರೆ ಸಾಧನದಲ್ಲಿ ತೆರೆದಿದೆ" : " · open on another device") : ""}
+                        {ago(h.createdAt)}
+                        {h.heldBy ? ` · ${h.heldBy}` : ""}
+                        {h.id === holdId ? ` · ${k("open here", "ಇಲ್ಲಿ ತೆರೆದಿದೆ")}` : elsewhere ? ` · ${k("open on another device", "ಬೇರೆ ಸಾಧನದಲ್ಲಿ ತೆರೆದಿದೆ")}` : ""}
                       </small>
                     </button>
                     <b className="amt">{rupees(h.total)}</b>
-                    <button type="button" className="del" onClick={() => void dropHold(h)} aria-label="Delete held bill">🗑️</button>
+                    {can("dropHold") && <button type="button" className="del" onClick={() => void dropHold(h)} aria-label="Delete held bill">🗑️</button>}
                   </li>
                 );
               })}
@@ -761,71 +874,152 @@ export default function CounterApp() {
         </div>
       )}
 
-      {showBills && (
-        <div className="ctr-drawer" role="dialog" aria-label="Bills" onClick={() => setShowBills(false)}>
+      {/* ---------- saved bills ---------- */}
+      {panel === "bills" && (
+        <div className="ctr-drawer" role="dialog" aria-label="Bills" onClick={() => setPanel(null)}>
           <div className="ctr-sheet wide" onClick={(e) => e.stopPropagation()}>
             <div className="ctr-sheethead">
-              <b>📋 {lang === "kn" ? "ಬಿಲ್‌ಗಳು" : "Bills"}</b>
-              <button type="button" onClick={() => setShowBills(false)} aria-label="Close">✕</button>
+              <b>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}</b>
+              <button type="button" onClick={() => setPanel(null)} aria-label="Close">✕</button>
             </div>
             <div className="ctr-bfilter">
-              <input type="date" value={bFrom || date} max={date} onChange={(e) => setBFrom(e.target.value)} aria-label="From" />
-              <input type="date" value={bTo || bFrom || date} max={date} onChange={(e) => setBTo(e.target.value)} aria-label="To" />
-              <button type="button" onClick={() => void loadBills()}>↻ {lang === "kn" ? "ತೋರಿಸು" : "Show"}</button>
+              <input type="date" value={bFrom || date} max={date} onChange={(e) => setBFrom(e.target.value)} aria-label={k("From", "ಇಂದ")} />
+              <input type="date" value={bTo || bFrom || date} max={date} onChange={(e) => setBTo(e.target.value)} aria-label={k("To", "ವರೆಗೆ")} />
+              <button type="button" onClick={() => void loadBills()}>↻ {k("Show", "ತೋರಿಸು")}</button>
               <button type="button" onClick={exportCsv} disabled={!shownBills.length}>⬇ Excel</button>
             </div>
-            <input className="ctr-search" value={bQ} onChange={(e) => setBQ(e.target.value)} placeholder={lang === "kn" ? "🔍 ಬಿಲ್ ಸಂಖ್ಯೆ, ಹೆಸರು, ವಸ್ತು, ಮೊತ್ತ" : "🔍 Bill no, customer, item, amount"} />
+            <input className="ctr-search" value={bQ} onChange={(e) => setBQ(e.target.value)} placeholder={k("🔍 Bill no, customer, item, amount", "🔍 ಬಿಲ್ ಸಂಖ್ಯೆ, ಹೆಸರು, ವಸ್ತು, ಮೊತ್ತ")} />
             <div className="ctr-bsum">
-              <span>{bSum.count} {lang === "kn" ? "ಬಿಲ್" : "bills"}</span>
+              <span>{bSum.count} {k("bills", "ಬಿಲ್")}</span>
               <b>{rupees(bSum.total)}</b>
               <span>{bSum.kg.toFixed(3)} kg</span>
               {Object.entries(bSum.modes).map(([m, v]) => <span key={m}>{modeName(m)} {rupees(v)}</span>)}
             </div>
             {bErr && <p className="ctr-msg bad">{bErr}</p>}
-            <ul className="ctr-holds">
+            <ul className="ctr-list">
               {shownBills.map((b) => (
-                <li key={b.key} className="bill">
+                <li key={b.key}>
                   <div className="open">
-                    <b>#{b.no} · {b.party || (lang === "kn" ? "ನಗದು ಗ್ರಾಹಕ" : "Walk-in")}</b>
+                    <b>#{b.no} · {b.party || k("Walk-in", "ನಗದು ಗ್ರಾಹಕ")}</b>
                     <span>{b.lines.map((l) => `${l.label}${l.qty ? ` ${l.qty.toFixed(3)}` : ""}`).join(", ")}</span>
-                    <small>
-                      {b.date} {new Date(b.createdAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" })} · {Object.keys(b.modes).map(modeName).join(" + ")}{b.by ? ` · ${b.by}` : ""}
-                      {b.notes ? ` · ${b.notes}` : ""}
-                    </small>
+                    <small>{b.date} {timeOf(b.createdAt)} · {Object.keys(b.modes).map(modeName).join(" + ")}{b.by ? ` · ${b.by}` : ""}{b.notes ? ` · ${b.notes}` : ""}</small>
                   </div>
                   <b className="amt">{rupees(b.total)}</b>
                   <div className="ctr-bact">
-                    <button type="button" onClick={() => setRcpt({ doc: billDoc(b), auto: true })}>🖨️</button>
-                    {b.date === date && <button type="button" onClick={() => void editBill(b)} title="Open this bill in the counter to change it">✏️</button>}
-                    <button type="button" onClick={() => void cancelBill(b)}>✕ {lang === "kn" ? "ರದ್ದು" : "Cancel"}</button>
+                    <button type="button" onClick={() => setRcpt({ doc: billDoc(b), auto: true })} aria-label={k("Re-print", "ಮತ್ತೆ ಮುದ್ರಿಸಿ")}>🖨️</button>
+                    {b.date === date && can("cancel") && <button type="button" onClick={() => void editBill(b)} aria-label={k("Edit", "ತಿದ್ದು")}>✏️</button>}
+                    {can("cancel") && <button type="button" onClick={() => void cancelBill(b)}>✕ {k("Cancel", "ರದ್ದು")}</button>}
                   </div>
                 </li>
               ))}
-              {!shownBills.length && !bErr && <li className="ctr-empty">{lang === "kn" ? "ಬಿಲ್ ಇಲ್ಲ." : "No bills for these dates."}</li>}
+              {!shownBills.length && !bErr && <li className="ctr-empty">{k("No bills for these dates.", "ಈ ದಿನಾಂಕಗಳಿಗೆ ಬಿಲ್ ಇಲ್ಲ.")}</li>}
             </ul>
-            <p className="ctr-hint">{lang === "kn" ? "ಸಿಬ್ಬಂದಿ ಇಂದಿನ ಬಿಲ್ ಮಾತ್ರ ರದ್ದು/ತಿದ್ದುಪಡಿ ಮಾಡಬಹುದು; ಪ್ರತಿ ಬದಲಾವಣೆ ದಾಖಲಾಗುತ್ತದೆ." : "Staff can cancel or edit today's bills only; the owner any day. Every cancel is kept in the Activity log with its reason."}</p>
+            <p className="ctr-hint">{k("Staff can cancel or edit today's bills only; the owner any day. Every cancel is kept in the Activity log with its reason.", "ಸಿಬ್ಬಂದಿ ಇಂದಿನ ಬಿಲ್ ಮಾತ್ರ ರದ್ದು/ತಿದ್ದುಪಡಿ ಮಾಡಬಹುದು; ಮಾಲೀಕರು ಯಾವುದೇ ದಿನ. ಪ್ರತಿ ರದ್ದು ಕಾರಣದೊಂದಿಗೆ ದಾಖಲಾಗುತ್ತದೆ.")}</p>
           </div>
         </div>
       )}
 
-      {showSettings && (
-        <div className="ctr-drawer" role="dialog" aria-label="Counter settings" onClick={() => setShowSettings(false)}>
+      {/* ---------- items set-up (owner) ---------- */}
+      {panel === "items" && (
+        <div className="ctr-drawer" role="dialog" aria-label="Items" onClick={() => setPanel(null)}>
+          <div className="ctr-sheet wide" onClick={(e) => e.stopPropagation()}>
+            <div className="ctr-sheethead">
+              <b>✏️ {k("Counter items", "ಕೌಂಟರ್ ವಸ್ತುಗಳು")}</b>
+              <button type="button" onClick={() => setPanel(null)} aria-label="Close">✕</button>
+            </div>
+            <p className="ctr-hint">{k("PLU is the number staff can type. Rate empty = use the last rate from the register. Hidden items stay in old bills.", "PLU ಸಿಬ್ಬಂದಿ ಟೈಪ್ ಮಾಡುವ ಸಂಖ್ಯೆ. ದರ ಖಾಲಿ = ರಿಜಿಸ್ಟರ್‌ನ ಕೊನೆಯ ದರ.")}</p>
+            <div className="ctr-itemtable">
+              <div className="hd"><span>PLU</span><span>{k("Icon", "ಚಿಹ್ನೆ")}</span><span>English</span><span>ಕನ್ನಡ</span><span>{k("Unit", "ಘಟಕ")}</span><span>₹</span><span>{k("Hide", "ಮರೆ")}</span><span /></div>
+              {draftItems.map((it, i) => (
+                <div key={i} className="rw">
+                  <input inputMode="numeric" value={it.plu || ""} onChange={(e) => patchDraft(i, { plu: parseInt(e.target.value, 10) || 0 })} aria-label="PLU" />
+                  <input value={it.icon} onChange={(e) => patchDraft(i, { icon: e.target.value })} aria-label={k("Icon", "ಚಿಹ್ನೆ")} />
+                  <input value={it.en} onChange={(e) => patchDraft(i, { en: e.target.value })} aria-label="English" />
+                  <input value={it.kn} onChange={(e) => patchDraft(i, { kn: e.target.value })} aria-label="ಕನ್ನಡ" />
+                  <select value={it.unit} onChange={(e) => patchDraft(i, { unit: e.target.value as CounterItem["unit"] })} aria-label={k("Unit", "ಘಟಕ")}>
+                    <option value="kg">kg</option>
+                    <option value="L">L</option>
+                    <option value="pcs">pcs</option>
+                  </select>
+                  <input inputMode="decimal" value={it.rate || ""} placeholder="—" onChange={(e) => patchDraft(i, { rate: parseFloat(e.target.value) || 0 })} aria-label="Rate" />
+                  <input type="checkbox" checked={!!it.hidden} onChange={(e) => patchDraft(i, { hidden: e.target.checked })} aria-label={k("Hide", "ಮರೆಮಾಡು")} />
+                  <button type="button" onClick={() => setDraftItems((d) => d.filter((_, j) => j !== i))} aria-label={k("Remove", "ತೆಗೆ")}>🗑️</button>
+                </div>
+              ))}
+            </div>
+            <button type="button" className="ctr-plu" onClick={() => setDraftItems((d) => [...d, { key: "", plu: nextPlu(d.map((x) => x.plu)), en: "", kn: "", icon: "🛢️", unit: "kg", rate: 0 }])}>
+              ＋ {k("Add item", "ವಸ್ತು ಸೇರಿಸಿ")}
+            </button>
+            <div className="ctr-act">
+              <button type="button" className="clr" onClick={() => setPanel(null)}>{k("Cancel", "ರದ್ದು")}</button>
+              <button type="button" className="go" onClick={async () => { if (await saveCfg(draftItems.filter((x) => x.en.trim()), draftLocks)) setPanel(null); }}>
+                ✓ {k("Save items", "ವಸ್ತುಗಳನ್ನು ಉಳಿಸಿ")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- settings ---------- */}
+      {panel === "settings" && (
+        <div className="ctr-drawer" role="dialog" aria-label="Counter settings" onClick={() => setPanel(null)}>
           <div className="ctr-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="ctr-sheethead">
-              <b>⚙️ {lang === "kn" ? "ಕೌಂಟರ್ ಸೆಟ್ಟಿಂಗ್ಸ್" : "Counter settings"}</b>
-              <button type="button" onClick={() => setShowSettings(false)} aria-label="Close">✕</button>
+              <b>⚙️ {k("Counter settings", "ಕೌಂಟರ್ ಸೆಟ್ಟಿಂಗ್ಸ್")}</b>
+              <button type="button" onClick={() => setPanel(null)} aria-label="Close">✕</button>
             </div>
+            <h4>{k("This device", "ಈ ಸಾಧನ")}</h4>
             <label className="ctr-set">
               <input type="checkbox" checked={autoPrint} onChange={(e) => { setAutoPrint(e.target.checked); write("counterAutoPrint", e.target.checked); }} />
-              <span>{lang === "kn" ? "ಉಳಿಸಿದ ತಕ್ಷಣ ಮುದ್ರಿಸು" : "Print the receipt as soon as the bill is saved"}</span>
+              <span>{k("Print the receipt as soon as the bill is saved", "ಬಿಲ್ ಉಳಿಸಿದ ತಕ್ಷಣ ರಸೀದಿ ಮುದ್ರಿಸು")}</span>
             </label>
-            {(Object.keys(SETTING_TEXT) as (keyof Settings)[]).map((k) => (
-              <label key={k} className="ctr-set">
-                <input type="checkbox" checked={settings[k]} onChange={(e) => setSetting(k, e.target.checked)} />
-                <span>{SETTING_TEXT[k][lang === "kn" ? 1 : 0]}</span>
+            {(Object.keys(SETTING_TEXT) as (keyof Settings)[]).map((key) => (
+              <label key={key} className="ctr-set">
+                <input type="checkbox" checked={settings[key]} onChange={(e) => setSetting(key, e.target.checked)} />
+                <span>{k(SETTING_TEXT[key][0], SETTING_TEXT[key][1])}</span>
               </label>
             ))}
-            <p className="ctr-hint">{lang === "kn" ? "ಈ ಸೆಟ್ಟಿಂಗ್ಸ್ ಈ ಸಾಧನಕ್ಕೆ ಮಾತ್ರ." : "These settings are for this device. UPI ID: Settings → Shop."}</p>
+
+            <h4>{k("Counter-only mode (this device)", "ಕೌಂಟರ್-ಮಾತ್ರ ಮೋಡ್ (ಈ ಸಾಧನ)")}</h4>
+            <p className="ctr-hint">
+              {k(
+                "When on, this tablet / phone opens only Weigh & Bill; every other page is closed except the ones ticked below. Leaving needs the PIN.",
+                "ಆನ್ ಆದಾಗ ಈ ಸಾಧನದಲ್ಲಿ ತೂಕ & ಬಿಲ್ ಮಾತ್ರ ತೆರೆಯುತ್ತದೆ; ಕೆಳಗೆ ಆರಿಸಿದ ಪುಟಗಳು ಮಾತ್ರ ತೆರೆಯುತ್ತವೆ. ಹೊರಬರಲು PIN ಬೇಕು."
+              )}
+            </p>
+            <button type="button" className={`ctr-kiosk${kiosk?.on ? " on" : ""}`} onClick={() => void (kiosk?.on ? kioskOff() : kioskOn())}>
+              {kiosk?.on ? `🔒 ${k("On — tap to leave (PIN)", "ಆನ್ — ಹೊರಬರಲು ಒತ್ತಿ (PIN)")}` : `🔓 ${k("Off — tap to turn on", "ಆಫ್ — ಆನ್ ಮಾಡಲು ಒತ್ತಿ")}`}
+            </button>
+            {(Object.keys(KIOSK_EXTRAS) as KioskExtra[]).map((x) => (
+              <label key={x} className="ctr-set">
+                <input type="checkbox" checked={!!kiosk?.allow.includes(x)} disabled={!!kiosk?.on} onChange={(e) => kioskAllow(x, e.target.checked)} />
+                <span>{k("Also allow", "ಇದನ್ನೂ ಅನುಮತಿಸು")}: {k(KIOSK_EXTRAS[x].en, KIOSK_EXTRAS[x].kn)}</span>
+              </label>
+            ))}
+            <p className="ctr-hint">
+              {k(
+                "Home-screen tile: after updating the Mahadev Desk app, long-press its icon and drag “Weigh & Bill” to the home screen.",
+                "ಹೋಮ್ ಸ್ಕ್ರೀನ್ ಟೈಲ್: ಆಪ್ ಅಪ್‌ಡೇಟ್ ಮಾಡಿದ ನಂತರ ಐಕಾನ್ ಮೇಲೆ ಒತ್ತಿ ಹಿಡಿದು “Weigh & Bill” ಅನ್ನು ಹೋಮ್ ಸ್ಕ್ರೀನ್‌ಗೆ ಎಳೆಯಿರಿ."
+              )}
+            </p>
+
+            {isOwner && (
+              <>
+                <h4>{k("Lock for staff (all devices)", "ಸಿಬ್ಬಂದಿಗೆ ಲಾಕ್ (ಎಲ್ಲಾ ಸಾಧನಗಳು)")}</h4>
+                {(Object.keys(STAFF_LOCKS) as StaffLock[]).map((lk) => (
+                  <label key={lk} className="ctr-set">
+                    <input
+                      type="checkbox"
+                      checked={cfg.staffLocks.includes(lk)}
+                      onChange={(e) => void saveCfg(cfg.items, e.target.checked ? [...cfg.staffLocks, lk] : cfg.staffLocks.filter((x) => x !== lk))}
+                    />
+                    <span>{k(STAFF_LOCKS[lk][0], STAFF_LOCKS[lk][1])}</span>
+                  </label>
+                ))}
+                <button type="button" className="ctr-plu" onClick={openItems}>✏️ {k("Items, PLU numbers and Kannada names", "ವಸ್ತುಗಳು, PLU ಸಂಖ್ಯೆ, ಕನ್ನಡ ಹೆಸರು")}</button>
+              </>
+            )}
+            <p className="ctr-hint">{k("UPI ID: Settings → Shop.", "UPI ID: ಸೆಟ್ಟಿಂಗ್ಸ್ → ಶಾಪ್.")}</p>
           </div>
         </div>
       )}

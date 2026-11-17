@@ -8,6 +8,7 @@ import "./polish.css";
 import { CustomizeProvider } from "@/lib/customize";
 import AuthSessionProvider from "@/components/AuthSessionProvider";
 import { ScaleProvider } from "@/components/ScaleProvider";
+import KioskGuard from "@/components/counter/KioskGuard";
 import AccessProvider from "@/components/AccessProvider";
 import PhoneNav from "@/components/PhoneNav";
 import LauncherProvider from "@/components/launcher/LauncherProvider";
@@ -46,6 +47,7 @@ export default function RootLayout({
             <ScaleProvider>
               <CustomizeProvider>
                 <LauncherProvider>
+                  <KioskGuard />
                   <NavDock />
                   <NativeBridge />
                   <WallGlass />

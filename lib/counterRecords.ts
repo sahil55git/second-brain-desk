@@ -59,6 +59,12 @@ function meta(d: unknown): { split?: { id: string; i: number }; bill?: { line: n
   };
 }
 
+/** The counter's plain bill number (1, 2, 3 …) when the bill has one. */
+export function billNoOf(d: unknown): string | null {
+  const n = Number((d as { billNo?: unknown } | null)?.billNo);
+  return Number.isInteger(n) && n > 0 ? String(n) : null;
+}
+
 /** Sale rows → bills, newest first. labelOf turns an item key into its name. */
 export function groupBills(rows: SaleRow[], labelOf: (item: string | null, label: string | null) => string): SavedBill[] {
   const groups = new Map<string, SaleRow[]>();
@@ -91,7 +97,7 @@ export function groupBills(rows: SaleRow[], labelOf: (item: string | null, label
       key,
       ids: g.map((r) => r.id),
       firstId: first.id,
-      no: first.id.slice(-6).toUpperCase(),
+      no: billNoOf(first.details) ?? first.id.slice(-6).toUpperCase(),
       date: first.date,
       createdAt: first.createdAt,
       party: first.partyName,

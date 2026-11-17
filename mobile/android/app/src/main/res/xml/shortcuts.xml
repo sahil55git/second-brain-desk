@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="counter" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_counter">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="in.mahadevtraders.desk" android:targetClass="in.mahadevtraders.desk.MainActivity" android:data="https://mahadev-second-brain.vercel.app/register/counter" />
+    </shortcut>
     <shortcut android:shortcutId="sale" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_sale">
         <intent android:action="android.intent.action.VIEW" android:targetPackage="in.mahadevtraders.desk" android:targetClass="in.mahadevtraders.desk.MainActivity" android:data="https://mahadev-second-brain.vercel.app/register?open=sale" />
     </shortcut>

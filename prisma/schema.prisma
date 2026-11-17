@@ -1348,3 +1348,9 @@ model CounterHold {
 
   @@index([createdAt])
 }
+
+// Running number for Weigh & Bill counter bills (1, 2, 3 …). One row, id "bill".
+model CounterSeq {
+  id String @id
+  n  Int    @default(0)
+}
