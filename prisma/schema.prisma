@@ -1330,3 +1330,21 @@ model ClientOp {
   kind String
   at   DateTime @default(now())
 }
+
+// Weigh & Bill counter: bills parked ("held") to serve the next customer. Shared by every device,
+// so another tablet / phone can open one and take the payment. Holding never touches cash or stock;
+// only paying (a register SALE) does, and that deletes the hold. openedBy/openedAt mark which device
+// is working on it so two devices do not take the same payment.
+model CounterHold {
+  id        String    @id @default(cuid())
+  label     String
+  total     Float     @default(0)
+  data      Json
+  heldBy    String?
+  openedBy  String?
+  openedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([createdAt])
+}
