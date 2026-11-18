@@ -3,8 +3,8 @@
 // Cashier desk: for the person who takes the money (manager) on a separate device. Held bills wait here;
 // type what the customer gave, see the change, one tap records the cash and releases the goods.
 // Same data and permissions as the counter; nothing is stored on this device except the language and print choice.
-import { parseTheme } from "@/lib/counterTheme";
-import OilIcon, { BookIcon, CashOut, CoinIcon, OilOut, PayIcon, PhoneIcon, PrinterIcon, TickIcon } from "./OilIcon";
+import { onAccent, parseTheme } from "@/lib/counterTheme";
+import OilIcon, { BookIcon, CashIn, CashOut, CoinIcon, OilOut, PayIcon, PhoneIcon, PrinterIcon, TickIcon } from "./OilIcon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ReceiptSheet from "@/components/print/ReceiptSheet";
 import { cashReceived, changeFor, noteChips } from "@/lib/cashDesk";
@@ -143,7 +143,7 @@ export default function CashierDesk() {
 
           {ps.cashDue > 0 && (
             <div className="cd-cash">
-              <div className="due"><CoinIcon size={30} /> {k("Cash in", "ನಗದು ಬರಬೇಕು")} – <b>{rupees(ps.cashDue)}</b></div>
+              <div className="due"><CashIn size={1.0} /> {k("Cash in", "ನಗದು ಬರಬೇಕು")} – <b>{rupees(ps.cashDue)}</b></div>
               <label>{k("Customer gave", "ಗ್ರಾಹಕರು ಕೊಟ್ಟದ್ದು")} ₹
                 <input className={!g ? "cd-next" : ""} inputMode="decimal" value={given} onChange={(e) => { setGiven(e.target.value.replace(/[^\d.]/g, "")); setMsg(null); }} placeholder="0" autoFocus />
               </label>
@@ -165,11 +165,11 @@ export default function CashierDesk() {
             </div>
           )}
 
-          {ps.cashDue === 0 && !upiLeft && !held && <p className="cd-ok"><TickIcon size={24} /> <CoinIcon size={22} /> {k("Cash in", "ನಗದು ಬಂತು")} · <OilIcon size={22} /> {k("Oil out", "ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ")}</p>}
+          {ps.cashDue === 0 && !upiLeft && !held && <p className="cd-ok"><TickIcon size={24} /> <CashIn size={0.73} /> {k("Cash in", "ನಗದು ಬಂತು")} · <OilIcon size={22} /> {k("Oil out", "ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ")}</p>}
           {msg && !msg.ok && <p className="cd-err">{msg.text}</p>}
 
           <div className="cd-acts">
-            {ps.cashDue > 0 && <button type="button" className={`go${g > 0 && short === 0 ? " cd-next" : ""}`} disabled={busy} onClick={onCash}><CoinIcon size={24} /> {upiLeft ? k("Cash in", "ನಗದು ಬಂತು") : k("Cash in – oil out", "ನಗದು ಬಂತು – ಎಣ್ಣೆ ಕೊಡಿ")} – {rupees(ps.cashDue)}</button>}
+            {ps.cashDue > 0 && <button type="button" className={`go${g > 0 && short === 0 ? " cd-next" : ""}`} disabled={busy} onClick={onCash}><CashIn size={0.8} /> {upiLeft ? k("Cash in", "ನಗದು ಬಂತು") : k("Cash in – oil out", "ನಗದು ಬಂತು – ಎಣ್ಣೆ ಕೊಡಿ")} – {rupees(ps.cashDue)}</button>}
             {ps.cashDue === 0 && held && need === "READY" && <button type="button" className="go cd-next" disabled={busy} onClick={() => void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("oil given", "ಎಣ್ಣೆ ಬಿಡುಗಡೆ")}`)}><OilOut kg={oilKgText(bill.lines)} size={0.7} /></button>}
             {held && need !== "READY" && (
               <button type="button" className={`ghost${armed === "give" ? " on" : ""}`} disabled={busy} onClick={() => (armed === "give" ? void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("oil given without payment", "ಹಣವಿಲ್ಲದೆ ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ")}`) : setArmed("give"))}>
@@ -201,6 +201,7 @@ const txtStyle = useMemo(() => {
     const st: Record<string, string> = {};
     if (t.ink) st["--tx"] = t.ink;
     if (t.soft) st["--mut"] = t.soft;
+    if (t.go) { st["--go"] = t.go; st["--on-go"] = onAccent(t.go); }
     return st as React.CSSProperties;
   }, []);
     const TABS: [Tab, string, number | null][] = [
@@ -248,7 +249,7 @@ const txtStyle = useMemo(() => {
                       <span className="r2">{b.lines.map((l) => `${l.label}${qtyText(l.qty, l.unit) ? " " + qtyText(l.qty, l.unit) : ""}`).join(" · ")}</span>
                       <span className="r3">
                         <span>⏱ {waitText(age)}</span>
-                        {ps.cashDue > 0 && <span className="wait"><CoinIcon size={20} /> {k("Cash in", "ನಗದು ಬರಬೇಕು")} – {rupees(ps.cashDue)} ⏳</span>}
+                        {ps.cashDue > 0 && <span className="wait"><CashIn size={0.67} /> {k("Cash in", "ನಗದು ಬರಬೇಕು")} – {rupees(ps.cashDue)} ⏳</span>}
                         {ps.upiDue > 0 && <span className="wait"><PhoneIcon size={20} /> {k("UPI in", "UPI ಬರಬೇಕು")} – {rupees(ps.upiDue)} ⏳</span>}
                         {need === "READY" && <span className="okc"><OilIcon size={22} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</span>}
                       </span>

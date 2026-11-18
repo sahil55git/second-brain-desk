@@ -37,6 +37,21 @@ export function ArrowIcon({ size = 24 }: { size?: number }) {
   );
 }
 
+export function ArrowDownIcon({ size = 22, color = "#22c55e" }: { size?: number; color?: string }) {
+  return (
+    <svg width={Math.round(size * 0.6)} height={size} viewBox="0 0 24 40" aria-hidden focusable="false" style={{ flex: "none", color }}>
+      <path d="M12 3v30M4 24l8 9 8-9" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+export function ArrowUpIcon({ size = 22, color = "#ef4444" }: { size?: number; color?: string }) {
+  return (
+    <svg width={Math.round(size * 0.6)} height={size} viewBox="0 0 24 40" aria-hidden focusable="false" style={{ flex: "none", color }}>
+      <path d="M12 37V7M4 16l8-9 8 9" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+
 export function PersonIcon({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden focusable="false" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" style={{ flex: "none" }}>
@@ -51,9 +66,11 @@ export function OilOut({ kg, size = 1 }: { kg?: string; size?: number }) {
   return (
     <span className="oil-out" style={{ display: "inline-flex", alignItems: "center", gap: `${10 * size}px` }}>
       <OilIcon size={Math.round(44 * size)} />
-      <b style={{ fontSize: `${28 * size}px`, fontWeight: 700 }}>Oil</b>
-      {kg ? <b style={{ fontSize: `${26 * size}px`, fontWeight: 700 }}>{kg}</b> : null}
-      <ArrowIcon size={Math.round(26 * size)} />
+      <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", lineHeight: 1.05 }}>
+        <b style={{ fontSize: `${28 * size}px`, fontWeight: 700 }}>Oil</b>
+        {kg ? <b style={{ fontSize: `${18 * size}px`, fontWeight: 700 }}>{kg}</b> : null}
+      </span>
+      <ArrowIcon size={Math.round(30 * size)} />
       <PersonIcon size={Math.round(32 * size)} />
     </span>
   );
@@ -118,19 +135,27 @@ export function PayIcon({ mode, size = 26 }: { mode: "CASH" | "UPI" | "CREDIT" |
   if (mode === "CREDIT") return <span style={{ color: "#f0b94d", display: "inline-flex" }}><BookIcon size={size} /></span>;
   return <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}><CoinIcon size={Math.round(size * 0.8)} /><span style={{ color: "#8fb0ff", display: "inline-flex" }}><PhoneIcon size={Math.round(size * 0.65)} /></span></span>;
 }
-/** Oil coming back from the customer: bottle, arrow back, customer. */
+/** Oil coming back from the customer: bottle + green arrow down (in). */
 export function OilIn({ size = 1 }: { size?: number }) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: `${8 * size}px` }}>
-      <OilIcon size={Math.round(34 * size)} /><BackArrowIcon size={Math.round(24 * size)} /><PersonIcon size={Math.round(28 * size)} />
+    <span style={{ display: "inline-flex", alignItems: "center", gap: `${6 * size}px` }}>
+      <OilIcon size={Math.round(34 * size)} /><ArrowDownIcon size={Math.round(26 * size)} />
     </span>
   );
 }
-/** Cash going out to the customer: coin, arrow, customer. */
+/** Cash going out to the customer: coin + red arrow up (out). */
 export function CashOut({ size = 1 }: { size?: number }) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: `${8 * size}px` }}>
-      <CoinIcon size={Math.round(30 * size)} /><ArrowIcon size={Math.round(24 * size)} /><PersonIcon size={Math.round(28 * size)} />
+    <span style={{ display: "inline-flex", alignItems: "center", gap: `${6 * size}px` }}>
+      <CoinIcon size={Math.round(30 * size)} /><ArrowUpIcon size={Math.round(26 * size)} />
+    </span>
+  );
+}
+/** Cash coming in from the customer: coin + green arrow down (in). */
+export function CashIn({ size = 1 }: { size?: number }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: `${6 * size}px` }}>
+      <CoinIcon size={Math.round(30 * size)} /><ArrowDownIcon size={Math.round(26 * size)} />
     </span>
   );
 }

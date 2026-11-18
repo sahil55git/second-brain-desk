@@ -74,3 +74,23 @@ describe("text colours", () => {
     expect(themeStyle({ ...DEFAULT_THEME, mode: "dark" })["--c-acc-text"]).not.toBe(DEFAULT_THEME.custom);
   });
 });
+
+describe("button colours", () => {
+  it("default is automatic, custom hex only", () => {
+    expect(parseTheme({})).toMatchObject({ go: "", hold: "" });
+    expect(parseTheme({ go: "#1F6B45", hold: "red" })).toMatchObject({ go: "#1f6b45", hold: "" });
+  });
+  it("custom button colours set the vars with readable text", () => {
+    const st = themeStyle({ ...DEFAULT_THEME, go: "#1f6b45", hold: "#f4d35e" });
+    expect(st["--c-go"]).toBe("#1f6b45");
+    expect(st["--c-on-go"]).toBe("#ffffff");
+    expect(st["--c-hold"]).toBe("#f4d35e");
+    expect(st["--c-on-hold"]).toBe("#1a1a1a");
+    expect(themeClass({ ...DEFAULT_THEME, hold: "#f4d35e" })).toContain("hold-c");
+    expect(themeStyle(DEFAULT_THEME)["--c-go"]).toBeUndefined();
+    const pr = themeStyle({ ...DEFAULT_THEME, print: "#f4d35e" });
+    expect(pr["--c-print"]).toBe("#f4d35e");
+    expect(pr["--c-on-print"]).toBe("#1a1a1a");
+    expect(parseTheme({ print: "nope" }).print).toBe("");
+  });
+});

@@ -29,6 +29,12 @@ export interface CounterTheme {
   soft: string;
   /** stronger text contrast everywhere (default on) */
   contrast: boolean;
+  /** green Oil button: "" = default dark green, or #rrggbb */
+  go: string;
+  /** Save & Print button: "" = default dark green, or #rrggbb */
+  print: string;
+  /** Hold button / held tab: "" = default, or #rrggbb */
+  hold: string;
 }
 
 export const PRESETS: { id: string; en: string; kn: string; hex: string }[] = [
@@ -45,7 +51,7 @@ export const PRESETS: { id: string; en: string; kn: string; hex: string }[] = [
 ];
 
 export const DEFAULT_THEME: CounterTheme = {
-  preset: "navy", custom: "#1d3557", mode: "auto", opacity: 100, corner: "md", density: "normal", keySize: "m", backdrop: "plain", lcd: "green", icons: true, pluSize: "m", ink: "", soft: "", contrast: true,
+  preset: "navy", custom: "#1d3557", mode: "auto", opacity: 100, corner: "md", density: "normal", keySize: "m", backdrop: "plain", lcd: "green", icons: true, pluSize: "m", ink: "", soft: "", contrast: true, go: "", print: "", hold: "",
 };
 
 const pick = <T extends string>(v: unknown, all: readonly T[], d: T): T => (all.includes(v as T) ? (v as T) : d);
@@ -72,6 +78,9 @@ export function parseTheme(raw: unknown): CounterTheme {
     ink: validHex(o.ink) ? o.ink.toLowerCase() : "",
     soft: validHex(o.soft) ? o.soft.toLowerCase() : "",
     contrast: o.contrast !== false,
+    go: validHex(o.go) ? o.go.toLowerCase() : "",
+    print: validHex(o.print) ? o.print.toLowerCase() : "",
+    hold: validHex(o.hold) ? o.hold.toLowerCase() : "",
   };
 }
 
@@ -135,10 +144,13 @@ export function themeStyle(t: CounterTheme): Record<string, string> {
   }
   if (validHex(t.ink)) s["--c-ink"] = t.ink;
   if (validHex(t.soft)) s["--c-soft"] = t.soft;
+  if (validHex(t.go)) { s["--c-go"] = t.go; s["--c-on-go"] = onAccent(t.go); }
+  if (validHex(t.print)) { s["--c-print"] = t.print; s["--c-on-print"] = onAccent(t.print); }
+  if (validHex(t.hold)) { s["--c-hold"] = t.hold; s["--c-on-hold"] = onAccent(t.hold); }
   return s;
 }
 
 /** Class names for the counter root (density and background style). */
 export function themeClass(t: CounterTheme): string {
-  return `d-${t.density}${t.backdrop === "tint" ? " tint" : t.backdrop === "glass" ? " glass" : ""}${t.icons ? "" : " no-ic"} plu-${t.pluSize}${t.contrast ? " hc" : ""}`;
+  return `d-${t.density}${t.backdrop === "tint" ? " tint" : t.backdrop === "glass" ? " glass" : ""}${t.icons ? "" : " no-ic"} plu-${t.pluSize}${t.contrast ? " hc" : ""}${t.hold ? " hold-c" : ""}`;
 }
