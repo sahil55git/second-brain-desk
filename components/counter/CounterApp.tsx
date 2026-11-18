@@ -159,8 +159,12 @@ export default function CounterApp() {
   const [tabOpts, setTabOpts] = useState<TabletOpts>(parseTabletOpts(null));
   useEffect(() => { setTabOpts(parseTabletOpts(read<unknown>("counterTabletOpts", null))); }, []);
   const setTab = (p: Partial<TabletOpts>) => { const n = { ...tabOpts, ...p }; setTabOpts(n); write("counterTabletOpts", n); };
-  const noRead = tablet && tabOpts.hideRead;
-  const noTare = tablet && tabOpts.hideTare;
+  // "Bluetooth scale off": this device types every weight, whatever the scale sends
+  const [scaleOff, setScaleOffState] = useState(false);
+  useEffect(() => { setScaleOffState(read<boolean>("counterScaleOff", false)); }, []);
+  const setScaleOff = (v: boolean) => { setScaleOffState(v); write("counterScaleOff", v); };
+  const noRead = (tablet && tabOpts.hideRead) || scaleOff;
+  const noTare = (tablet && tabOpts.hideTare) || scaleOff;
   const noTotal = tablet && tabOpts.hideTotal;
   const noOil = tablet && tabOpts.hideOil;
   const show = useMemo(() => layoutShow(layout, showBase), [layout, showBase]);
@@ -322,13 +326,14 @@ export default function CounterApp() {
   const lineName = (l: CounterLine) => (lang === "kn" ? knOf(l) || l.label : l.label);
 
   // ---- the scale
-  const fresh = !!reading && Date.now() - reading.receivedAt < 10_000;
+  const fresh = !scaleOff && !!reading && Date.now() - reading.receivedAt < 10_000;
   const kgLive = fresh && reading ? r3(reading.unit === "g" ? reading.weight / 1000 : reading.weight) : 0;
   // Freeze: hold the shown weight (e.g. while pouring or the scale swings) until it is let go
   const [frozen, setFrozen] = useState<number | null>(null);
   const kg = frozen ?? kgLive;
   const steady = frozen != null || (fresh && reading?.stable !== false);
-  const usable = frozen != null || (fresh && kgLive > 0 && (steady || !!reading?.trusted));
+  // tablet layout: the live weight is taken as it is when an item is tapped (a moving reading is tagged "moving" on the bill)
+  const usable = frozen != null || (fresh && kgLive > 0 && (steady || !!reading?.trusted || tablet));
   // the weight already put on the bill does not count as "waiting": the next step is then Save (or the next item)
   const [billedKg, setBilledKg] = useState(0);
   useEffect(() => { if (kg < 0.001) setBilledKg(0); }, [kg]);
@@ -381,7 +386,7 @@ export default function CounterApp() {
       const live = isBt ? bt.live : null;
       setBilledKg(kg);
       next = addLine(lines, { ...base, qty: kg, source: steady ? "steady" : "moving", ...(live && bt.tareKg > 0 ? { grossKg: live.grossKg, tareKg: bt.tareKg } : {}) });
-    } else if (ci.unit === "kg" && !can("typedWeight")) {
+    } else if (ci.unit === "kg" && !can("typedWeight") && !scaleOff) {
       return setMsg({ ok: false, text: k("Put the item on the scale first (typing a weight is locked).", "ಮೊದಲು ವಸ್ತುವನ್ನು ತಕ್ಕಡಿಯಲ್ಲಿ ಇಡಿ (ತೂಕ ಟೈಪ್ ಮಾಡುವುದು ಲಾಕ್ ಆಗಿದೆ).") });
     } else {
       next = [...lines, { ...base, qty: ci.unit === "pcs" ? 1 : 0, source: "typed" as const }];
@@ -1034,11 +1039,11 @@ export default function CounterApp() {
 
       {/* ---------- weight strip ---------- */}
       <section className="ctr-weigh">
-        <div className={`ctr-lcd ${frozen != null ? "ok" : !fresh ? "off" : steady ? "ok" : "mid"}${nextStep === "weigh" ? " ctr-next" : ""}${tablet ? " tap" : ""}`} aria-live="polite" {...(tablet && show.readWeight ? { role: "button", tabIndex: 0, onClick: () => { if (frozen != null) setFrozen(null); else if (fresh && kgLive > 0) setFrozen(kgLive); }, title: k("Tap to read the weight now; tap again to let go", "ತೂಕ ಓದಲು ಒತ್ತಿ; ಬಿಡಲು ಮತ್ತೆ ಒತ್ತಿ") } : {})}>
-          <small>{frozen != null ? "📖 " : ""}{k("Weight", "ತೂಕ")} (kg){isBt && bt.tareKg > 0 ? ` · ${k("net", "ನಿವ್ವಳ")}` : ""}{noRead ? ` · ${frozen != null ? k("tap to let go", "ಬಿಡಲು ಒತ್ತಿ") : k("tap to read", "ಓದಲು ಒತ್ತಿ")}` : ""}</small>
+        <div className={`ctr-lcd ${frozen != null ? "ok" : !fresh ? "off" : steady ? "ok" : "mid"}${nextStep === "weigh" ? " ctr-next" : ""}${tablet ? " tap" : ""}`} aria-live="polite" {...(tablet && show.readWeight && !scaleOff ? { role: "button", tabIndex: 0, onClick: () => { if (frozen != null) setFrozen(null); else if (fresh && kgLive > 0) setFrozen(kgLive); }, title: k("Tap to read the weight now; tap again to let go", "ತೂಕ ಓದಲು ಒತ್ತಿ; ಬಿಡಲು ಮತ್ತೆ ಒತ್ತಿ") } : {})}>
+          <small>{frozen != null ? "📖 " : ""}{k("Weight", "ತೂಕ")} (kg){isBt && bt.tareKg > 0 ? ` · ${k("net", "ನಿವ್ವಳ")}` : ""}{scaleOff ? ` · ${k("scale off: type weight", "ತಕ್ಕಡಿ ಆಫ್: ತೂಕ ಟೈಪ್ ಮಾಡಿ")}` : noRead ? ` · ${frozen != null ? k("tap to let go", "ಬಿಡಲು ಒತ್ತಿ") : k("tap to read", "ಓದಲು ಒತ್ತಿ")}` : ""}</small>
           <span>{fresh || frozen != null ? kg.toFixed(3) : "0.000"}</span>
         </div>
-        {show.tare && <div className={`ctr-tarewin${bt.tareKg > 0 ? " on" : ""}${tablet && isBt ? " tap" : ""}`} {...(tablet && isBt ? { role: "button", tabIndex: 0, onClick: () => { if (bt.tareKg > 0) bt.setTare(0); else if (bt.live && bt.live.grossKg > 0) bt.setTare(bt.live.grossKg); }, title: k("Tap to tare with the empty container on the scale; tap again to clear", "ಖಾಲಿ ಡಬ್ಬಿ ಇಟ್ಟು ಒತ್ತಿ ಟೇರ್; ತೆಗೆಯಲು ಮತ್ತೆ ಒತ್ತಿ") } : {})}>
+        {show.tare && !scaleOff && <div className={`ctr-tarewin${bt.tareKg > 0 ? " on" : ""}${tablet && isBt ? " tap" : ""}`} {...(tablet && isBt ? { role: "button", tabIndex: 0, onClick: () => { if (bt.tareKg > 0) bt.setTare(0); else if (bt.live && bt.live.grossKg > 0) bt.setTare(bt.live.grossKg); }, title: k("Tap to tare with the empty container on the scale; tap again to clear", "ಖಾಲಿ ಡಬ್ಬಿ ಇಟ್ಟು ಒತ್ತಿ ಟೇರ್; ತೆಗೆಯಲು ಮತ್ತೆ ಒತ್ತಿ") } : {})}>
           <small>{k("Tare", "ಟೇರ್")} (kg)</small>
           <b>{bt.tareKg > 0 ? bt.tareKg.toFixed(3) : "0.000"}</b>
           <small className="nm">{bt.container || (bt.tareKg > 0 ? k("manual", "ಕೈಯಿಂದ") : k("none", "ಇಲ್ಲ"))}{noTare && isBt ? ` · ${bt.tareKg > 0 ? k("tap to clear", "ತೆಗೆಯಲು ಒತ್ತಿ") : k("tap to tare", "ಟೇರ್‌ಗೆ ಒತ್ತಿ")}` : ""}</small>
@@ -1059,7 +1064,7 @@ export default function CounterApp() {
               ₹→kg {fill ? `₹${fill.amount} ✕` : k("By amount", "ಮೊತ್ತದಿಂದ")}
             </button>
           )}
-          {!show.tare ? null : isBt ? (
+          {!show.tare || scaleOff ? null : isBt ? (
             <>
               {!noTare && <button type="button" className="big" disabled={!bt.live || bt.live.grossKg <= 0} onClick={() => bt.live && bt.setTare(bt.live.grossKg)} title={k("Put the empty container on the scale, then press", "ಖಾಲಿ ಡಬ್ಬಿ ಇಟ್ಟು ಒತ್ತಿ")}>
                 ⚖️ {k("Tare", "ಟೇರ್")}
@@ -1120,7 +1125,7 @@ export default function CounterApp() {
                   {l.source !== "steady" && <em>{l.source === "typed" ? k("typed", "ಟೈಪ್") : k("moving", "ಅಲುಗಾಟ")}</em>}
                   {l.tareKg ? <small>{k("tare", "ಟೇರ್")} {l.tareKg.toFixed(3)}</small> : null}
                 </span>
-                <button type="button" className="q" onClick={() => (l.unit !== "kg" || can("typedWeight") ? openPad({ kind: "qty", line: i }) : setMsg({ ok: false, text: k("Typing a weight is locked.", "ತೂಕ ಟೈಪ್ ಮಾಡುವುದು ಲಾಕ್ ಆಗಿದೆ.") }))}>
+                <button type="button" className="q" onClick={() => (l.unit !== "kg" || can("typedWeight") || scaleOff ? openPad({ kind: "qty", line: i }) : setMsg({ ok: false, text: k("Typing a weight is locked.", "ತೂಕ ಟೈಪ್ ಮಾಡುವುದು ಲಾಕ್ ಆಗಿದೆ.") }))}>
                   {l.qty > 0 ? l.qty.toFixed(l.unit === "pcs" ? 0 : 3) : "—"} {l.unit}
                 </button>
                 <button type="button" className={`r${l.rate > 0 ? "" : " need"}`} disabled={!can("rate") && l.rate > 0} onClick={() => openPad({ kind: "rate", line: i })}>
@@ -1777,6 +1782,8 @@ export default function CounterApp() {
                 )}
               </>
             )}
+            <h4>{k("Scale", "ತಕ್ಕಡಿ")}</h4>
+            <label className="ctr-set"><input type="checkbox" checked={scaleOff} onChange={(e) => setScaleOff(e.target.checked)} /><span>{k("Bluetooth scale off on this device: type every weight (hides Read weight and Tare)", "ಈ ಸಾಧನದಲ್ಲಿ ಬ್ಲೂಟೂತ್ ತಕ್ಕಡಿ ಆಫ್: ತೂಕ ಟೈಪ್ ಮಾಡಿ")}</span></label>
             <h4>{k("Buttons on the screen", "ಪರದೆಯ ಬಟನ್‌ಗಳು")}</h4>
             <div className="ctr-seg">
               <button type="button" onClick={() => setShowCfg(SHOW_SIMPLE)}>🧑‍🍳 {k("Simple for staff", "ಸಿಬ್ಬಂದಿಗೆ ಸರಳ")}</button>
