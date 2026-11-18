@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
+import { shopProblem } from "@/lib/shopPay";
 
 export const dynamic = "force-dynamic";
 const KEYS = ["profit", "shop", "rates", "budgets", "cashplan", "features", "costs", "deposits", "rules", "backup", "approvals", "stockLedger", "counter"];
@@ -27,6 +28,10 @@ export async function PUT(req: NextRequest) {
   const json = JSON.stringify(body.data);
   if (json.length > 60_000) return NextResponse.json({ error: "Too big." }, { status: 400 });
   const data = JSON.parse(json);
+  if (key === "shop") {
+    const bad = shopProblem(data);
+    if (bad) return NextResponse.json({ error: bad }, { status: 400 });
+  }
   const r = await safeDbCall(() => prisma.appSetting.upsert({ where: { key }, create: { key, data, updatedBy: user.username }, update: { data, updatedBy: user.username } }));
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 503 });
   return NextResponse.json({ ok: true });

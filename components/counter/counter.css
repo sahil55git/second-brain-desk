@@ -338,3 +338,17 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr.plu-xl .ctr-key .plu { font-size: 46px; padding: 0 16px; }
 .ctr.plu-l .ctr-key, .ctr.plu-xl .ctr-key { padding-top: 10px; }
 .ctr.plu-xl .ctr-key { min-height: 150px; }
+
+/* UPI pay QR: tap to show it big to the customer; several UPI IDs; copy the ID */
+.ctr-qrbtn { border: 0; background: transparent; padding: 0; line-height: 0; }
+.ctr-upiacc { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0; }
+.ctr-upiacc button { border: 1.5px solid var(--c-line); background: #f2f4f7; color: #17202a; border-radius: 999px; padding: 4px 10px; font-size: 13px; font-weight: 600; }
+.ctr-upiacc button.on { background: var(--c-acc); color: var(--c-on-acc, #fff); border-color: var(--c-acc); }
+.ctr-copy { align-self: flex-start; border: 1.5px solid #c7ced8; background: #fff; color: #17202a; border-radius: 10px; padding: 4px 10px; font-size: 13px; }
+.ctr-qrbig { position: fixed; inset: 0; z-index: 1200; background: rgba(0,0,0,.72); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.ctr-qrbig > div { background: #fff; color: #17202a; border-radius: 22px; padding: 18px 22px; display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: min(92vw, 520px); max-height: 94vh; overflow: auto; }
+.ctr-qrbig svg { width: min(78vw, 60vh, 420px); height: auto; }
+.ctr-qrbig b { font-size: 22px; text-align: center; }
+.ctr-qrbig strong { font-size: 40px; }
+.ctr-qrbig small { color: #555; font-size: 15px; }
+.ctr-qrbig button { border: 0; background: var(--c-acc); color: var(--c-on-acc, #fff); border-radius: 14px; padding: 10px 28px; font-size: 18px; font-weight: 700; }

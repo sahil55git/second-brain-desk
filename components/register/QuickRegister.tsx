@@ -535,6 +535,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
       amountInr: e.amountInr,
       mode: payLabel(e, "en"),
       notes: e.notes,
+      payDue: e.paymentMode === "CREDIT" && (e.kind === "SALE" || e.kind === "FRESH_CRUSH") ? e.amountInr : undefined,
     });
 
   const isPrintable = (e: Entry) => e.kind === "SALE" || e.kind === "UDHAAR_IN" || e.kind === "FRESH_CRUSH" || e.kind === "PAYMENT" || e.kind === "PURCHASE" || e.kind === "EXPENSE";

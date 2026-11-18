@@ -32,8 +32,9 @@ import { JOBWORK_OVERDUE_DAYS } from "@/lib/reports";
 import { DEFAULT_HUB_PREFS, WIDGETS, loadHubPrefs, saveHubPrefs, type HubPrefs, type Preset } from "@/lib/hubPrefs";
 import { registerItemName } from "@/lib/bizReports";
 import { DeviceCopySettings } from "@/components/register/ProofParts";
+import UpiCard from "@/components/hub/UpiCard";
 
-type Section = "features" | "users" | "simple" | "integrations" | "appearance" | "register" | "rates" | "library" | "device" | "printers" | "dashboard" | "business" | "rules" | "data" | "io" | "proofs";
+type Section = "features" | "users" | "simple" | "integrations" | "appearance" | "register" | "rates" | "library" | "device" | "printers" | "dashboard" | "business" | "upi" | "rules" | "data" | "io" | "proofs";
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "features", label: "🧩 Features" },
   { key: "users", label: "👥 Users & profiles" },
@@ -47,6 +48,7 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: "dashboard", label: "📈 Dashboard & reports" },
   { key: "appearance", label: "🎨 Appearance" },
   { key: "integrations", label: "🔗 Share & integrations" },
+  { key: "upi", label: "💳 UPI & QR" },
   { key: "business", label: "🏢 Business & scales" },
   { key: "rules", label: "📏 Business rules" },
   { key: "io", label: "📥 Import / Export" },
@@ -465,6 +467,7 @@ export default function SettingsHub() {
             </section>
           )}
 
+          {section === "upi" && <UpiCard flash={flash} />}
           {section === "business" &&
             (biz === undefined ? (
               <div className="hub-empty">Loading…</div>
