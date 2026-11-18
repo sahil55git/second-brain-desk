@@ -673,7 +673,7 @@ export default function CounterApp() {
           ...(modes.length > 1 ? modes.map(([m, v]) => ({ label: m, value: rupees(v) })) : []),
           ...(cashDue > 0 && received > 0 ? [{ label: "Cash received", value: rupees(received) }, ...(back > 0 ? [{ label: "Return to customer", value: rupees(back), strong: true }] : [])] : []),
         ],
-        notes: [...(hand === "HELD" && holdCash && cashDue > 0 ? [`PAY ${rupees(cashDue)} AT THE CASH COUNTER · Bill #${no}`, "Goods are given after payment"] : []), `Mode: ${modes.map(([m]) => m).join(" + ")}`, ...(upiDue > 0 && vpa && settings.upiQr ? [`Scan to pay ${rupees(upiDue)} by UPI · ${vpa}`] : [])],
+        notes: [...(hand === "HELD" && holdCash && cashDue > 0 ? [`PAY ${rupees(cashDue)} AT THE CASH COUNTER · Bill #${no}`, "Oil is given after payment"] : []), `Mode: ${modes.map(([m]) => m).join(" + ")}`, ...(upiDue > 0 && vpa && settings.upiQr ? [`Scan to pay ${rupees(upiDue)} by UPI · ${vpa}`] : [])],
         qr: pay !== "CASH" && settings.upiQr ? upiFor(pay === "SPLIT" ? (split.UPI || 0) + (split.CREDIT || 0) : total, `Bill ${no} · ${itemsNote(lines)}`) : undefined,
       };
       // GST tax invoice instead of the plain receipt: same lines and amounts, GST taken out of each price
@@ -708,7 +708,7 @@ export default function CounterApp() {
       if (!editing)
         setMsg({
           ok: true,
-          text: `${k("Saved", "ಉಳಿಸಲಾಗಿದೆ")} #${no} · ${rupees(total)}${back > 0 ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(back)}` : ""}${hand === "HELD" && (upiDue > 0 || creditDue > 0 || (holdCash && cashDue > 0)) ? ` · 🔒 ${k("goods held till payment", "ಹಣ ಬರುವವರೆಗೆ ಸರಕು ಹಿಡಿಯಿರಿ")}` : ""}${res?.data?.queued ? k(" · no internet: kept on this tablet", " · ಇಂಟರ್ನೆಟ್ ಇಲ್ಲ: ಈ ಟ್ಯಾಬ್ಲೆಟ್‌ನಲ್ಲಿ ಇಡಲಾಗಿದೆ") : ""}`,
+          text: `${k("Saved", "ಉಳಿಸಲಾಗಿದೆ")} #${no} · ${rupees(total)}${back > 0 ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(back)}` : ""}${hand === "HELD" && (upiDue > 0 || creditDue > 0 || (holdCash && cashDue > 0)) ? ` · 🔒 ${k("oil held till payment", "ಹಣ ಬರುವವರೆಗೆ ಎಣ್ಣೆ ಹಿಡಿಯಿರಿ")}` : ""}${res?.data?.queued ? k(" · no internet: kept on this tablet", " · ಇಂಟರ್ನೆಟ್ ಇಲ್ಲ: ಈ ಟ್ಯಾಬ್ಲೆಟ್‌ನಲ್ಲಿ ಇಡಲಾಗಿದೆ") : ""}`,
         });
       reset();
       void load();
@@ -805,7 +805,7 @@ export default function CounterApp() {
     setPickFor(null);
     const err = await trackAct(b, "upiOk", { via: how, ref: e.ref, payer: e.payer, amount: e.amount, pkg: e.pkg, evId: e.id, evAt: e.at });
     if (err) setMsg({ ok: false, text: `${k("This UPI payment was not linked", "ಈ UPI ಪಾವತಿ ಜೋಡಣೆಯಾಗಲಿಲ್ಲ")}: ${err}` });
-    else setMsg({ ok: true, text: k(`✅ UPI ${rupees(e.amount)}${e.payer ? ` from ${e.payer}` : ""} received for bill #${b.no}${handoverOf(b.track) === "HELD" ? " — you can hand over the goods now" : ""}`, `✅ UPI ${rupees(e.amount)} ಬಂದಿದೆ — ಬಿಲ್ #${b.no}${handoverOf(b.track) === "HELD" ? " — ಸರಕು ಕೊಡಬಹುದು" : ""}`) });
+    else setMsg({ ok: true, text: k(`✅ UPI ${rupees(e.amount)}${e.payer ? ` from ${e.payer}` : ""} received for bill #${b.no}${handoverOf(b.track) === "HELD" ? " — you can hand over the oil now" : ""}`, `✅ UPI ${rupees(e.amount)} ಬಂದಿದೆ — ಬಿಲ್ #${b.no}${handoverOf(b.track) === "HELD" ? " — ಎಣ್ಣೆ ಕೊಡಬಹುದು" : ""}`) });
   };
   useEffect(() => {
     const plan = planUpi(upiSeen, waitingUpi(), usedPayments());
@@ -998,7 +998,7 @@ export default function CounterApp() {
           </button>
         )}
         {show.bills && <button type="button" className="ctr-tbtn" onClick={() => { setBFilter("all"); setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}{openN > 0 && <b>{openN}</b>}</button>}
-        {(heldN > 0 || holdCash) && <button type="button" className={`ctr-tbtn${heldN > 0 ? " has" : ""}${readyN > 0 ? " ctr-next" : ""}`} onClick={() => { setPanel("queue"); void loadBills(); }} title={k("Bills whose goods are held till the money is received", "ಹಣ ಬರುವವರೆಗೆ ಸರಕು ಹಿಡಿದ ಬಿಲ್‌ಗಳು")}>🔒 {k("Held queue", "ಹಿಡಿದ ಸಾಲು")} <b>{heldN}</b></button>}
+        {(heldN > 0 || holdCash) && <button type="button" className={`ctr-tbtn${heldN > 0 ? " has" : ""}${readyN > 0 ? " ctr-next" : ""}`} onClick={() => { setPanel("queue"); void loadBills(); }} title={k("Bills whose oil is held till the money is received", "ಹಣ ಬರುವವರೆಗೆ ಎಣ್ಣೆ ಹಿಡಿದ ಬಿಲ್‌ಗಳು")}>🔒 {k("Held queue", "ಹಿಡಿದ ಸಾಲು")} <b>{heldN}</b></button>}
         <button type="button" className="ctr-tbtn" onClick={() => setPanel("look")} aria-label={k("Colours and layout", "ಬಣ್ಣ ಮತ್ತು ವಿನ್ಯಾಸ")}>🎨</button>
         {can("settings") && <button type="button" className="ctr-tbtn" onClick={() => setPanel("settings")} aria-label={k("Settings", "ಸೆಟ್ಟಿಂಗ್ಸ್")}>⚙️</button>}
         {show.size && <button type="button" className="ctr-tbtn" onClick={() => { const u = UI_NEXT[uiSize]; setUiSize(u); write("counterUi", u); }} aria-label={k("Screen size", "ಪರದೆ ಗಾತ್ರ")} title={k("Screen size: Auto / Small / Normal / Large", "ಪರದೆ ಗಾತ್ರ: ಸ್ವಯಂ / ಸಣ್ಣ / ಸಾಮಾನ್ಯ / ದೊಡ್ಡ")}>
@@ -1224,7 +1224,7 @@ export default function CounterApp() {
           {loadErr && <p className="ctr-msg bad">{loadErr}</p>}
 
           {(upiDue > 0 || creditDue > 0 || (holdCash && cashDue > 0)) && lines.length > 0 && (
-            <div className="ctr-hand" role="radiogroup" aria-label={k("Goods", "ಸರಕು")}>
+            <div className="ctr-hand" role="radiogroup" aria-label={k("Oil", "ಎಣ್ಣೆ")}>
               <span aria-hidden>📦</span>
               <button type="button" role="radio" aria-checked={hand === "GIVEN"} className={hand === "GIVEN" ? "on" : ""} onClick={() => setHandPick("GIVEN")}><i aria-hidden>✅</i> {k("Give now", "ಈಗ ಕೊಡಿ")}</button>
               <button type="button" role="radio" aria-checked={hand === "HELD"} className={hand === "HELD" ? "on hold" : ""} onClick={() => setHandPick("HELD")}><i aria-hidden>🔒</i> {k("Hold bill", "ಬಿಲ್ ಹಿಡಿಯಿರಿ")}</button>
@@ -1402,7 +1402,7 @@ export default function CounterApp() {
             <div className="ctr-seg">
               <button type="button" className={bFilter === "all" ? "on" : ""} onClick={() => setBFilter("all")}>{k("All", "ಎಲ್ಲಾ")}</button>
               <button type="button" className={bFilter === "open" ? "on" : ""} onClick={() => setBFilter("open")}>⏳ {k("Payment pending", "ಹಣ ಬಾಕಿ")} {openN > 0 ? `(${openN})` : ""}</button>
-              <button type="button" className={bFilter === "held" ? "on" : ""} onClick={() => setBFilter("held")}>🔒 {k("Goods held", "ಸರಕು ಹಿಡಿದಿದೆ")} {heldN > 0 ? `(${heldN})` : ""}</button>
+              <button type="button" className={bFilter === "held" ? "on" : ""} onClick={() => setBFilter("held")}>🔒 {k("Oil held", "ಎಣ್ಣೆ ಹಿಡಿದಿದೆ")} {heldN > 0 ? `(${heldN})` : ""}</button>
             </div>
             <div className="ctr-bsum">
               <div><small>{k("Bills", "ಬಿಲ್")}</small><b>{bSum.count}</b></div>
@@ -1464,7 +1464,7 @@ export default function CounterApp() {
                         {ho === "HELD" ? (
                           <button type="button" className={`tick goods${armed === `${b.key}:give` ? " armed" : ""}${gd === "goods" ? " ctr-next" : ""}${gd === "money" ? " locked" : ""}`} onClick={() => (gd === "money" && armed !== `${b.key}:give` ? setArmed(`${b.key}:give`) : void trackAct(b, "handover", { value: "GIVEN" }))}>
                             <i className="box">{armed === `${b.key}:give` ? "✓?" : ""}</i><span className="ico" aria-hidden>{gd === "money" ? "🔒" : "📦"}</span>
-                            <b>{gd === "money" ? k("Held", "ಹಿಡಿದಿದೆ") : k("Give goods", "ಸರಕು ಕೊಡಿ")}</b>
+                            <b>{gd === "money" ? k("Held", "ಹಿಡಿದಿದೆ") : k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</b>
                             <small>{armed === `${b.key}:give` ? (gd === "money" ? k("No money yet — tap to give", "ಹಣ ಬಂದಿಲ್ಲ — ಕೊಡಲು ಒತ್ತಿ") : k("Tap again", "ಮತ್ತೆ ಒತ್ತಿ")) : k("Not given", "ಕೊಟ್ಟಿಲ್ಲ")}</small>
                           </button>
                         ) : (
@@ -1502,8 +1502,8 @@ export default function CounterApp() {
                 <button type="button" onClick={() => setPanel(null)} aria-label="Close">✕</button>
               </div>
               <p className="ctr-hint">
-                {k("Goods stay inside until the money is received. Tap the money button, then give the goods.", "ಹಣ ಬರುವವರೆಗೆ ಸರಕು ಒಳಗೇ ಇರುತ್ತದೆ. ಹಣ ಬಂದ ಬಟನ್ ಒತ್ತಿ, ನಂತರ ಸರಕು ಕೊಡಿ.")}
-                {q.length > 0 && <b> {waiting > 0 ? `⏳ ${waiting} ${k("waiting for money", "ಹಣಕ್ಕೆ ಕಾಯುತ್ತಿವೆ")}` : `✅ ${k("all paid — give the goods", "ಎಲ್ಲಾ ಹಣ ಬಂದಿದೆ — ಸರಕು ಕೊಡಿ")}`}</b>}
+                {k("Oil stays inside until the money is received. Tap the money button, then give the oil.", "ಹಣ ಬರುವವರೆಗೆ ಎಣ್ಣೆ ಒಳಗೇ ಇರುತ್ತದೆ. ಹಣ ಬಂದ ಬಟನ್ ಒತ್ತಿ, ನಂತರ ಎಣ್ಣೆ ಕೊಡಿ.")}
+                {q.length > 0 && <b> {waiting > 0 ? `⏳ ${waiting} ${k("waiting for money", "ಹಣಕ್ಕೆ ಕಾಯುತ್ತಿವೆ")}` : `✅ ${k("all paid — give the oil", "ಎಲ್ಲಾ ಹಣ ಬಂದಿದೆ — ಎಣ್ಣೆ ಕೊಡಿ")}`}</b>}
               </p>
               {bErr && <p className="ctr-msg bad">{bErr}</p>}
               {askCards()}
@@ -1539,7 +1539,7 @@ export default function CounterApp() {
                           </button>
                         )}
                         {need === "READY" ? (
-                          <button type="button" className="big give ctr-next" onClick={() => void trackAct(b, "handover", { value: "GIVEN" })}>📦 {k("Give goods", "ಸರಕು ಕೊಡಿ")}</button>
+                          <button type="button" className="big give ctr-next" onClick={() => void trackAct(b, "handover", { value: "GIVEN" })}>📦 {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</button>
                         ) : (
                           <button type="button" className={`ghost${armed === `${b.key}:give` ? " on" : ""}`} onClick={() => (armed === `${b.key}:give` ? void trackAct(b, "handover", { value: "GIVEN" }) : setArmed(`${b.key}:give`))}>
                             {armed === `${b.key}:give` ? k("Money NOT received — tap again to give anyway", "ಹಣ ಬಂದಿಲ್ಲ — ಆದರೂ ಕೊಡಲು ಮತ್ತೆ ಒತ್ತಿ") : `📦 ${k("Give anyway", "ಆದರೂ ಕೊಡಿ")}`}
@@ -1550,7 +1550,7 @@ export default function CounterApp() {
                     </li>
                   );
                 })}
-                {!q.length && <li className="ctr-empty">{k("Nothing held. Goods of every bill have been given.", "ಏನೂ ಹಿಡಿದಿಲ್ಲ. ಎಲ್ಲಾ ಬಿಲ್‌ಗಳ ಸರಕು ಕೊಟ್ಟಿದೆ.")}</li>}
+                {!q.length && <li className="ctr-empty">{k("Nothing held. Oil of every bill has been given.", "ಏನೂ ಹಿಡಿದಿಲ್ಲ. ಎಲ್ಲಾ ಬಿಲ್‌ಗಳ ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ.")}</li>}
               </ul>
             </div>
           </div>
@@ -1742,7 +1742,7 @@ export default function CounterApp() {
             </label>
             <label className="ctr-set">
               <input type="checkbox" checked={holdCash} onChange={(e) => { setHoldCash(e.target.checked); write("counterHoldCash", e.target.checked); setHandPick(null); }} />
-              <span>{k("Hold the goods of cash bills until the counter confirms the cash (Held queue)", "ನಗದು ಬಿಲ್‌ನ ಸರಕನ್ನು ಕೌಂಟರ್ ನಗದು ದೃಢಪಡಿಸುವವರೆಗೆ ಹಿಡಿಯಿರಿ (ಹಿಡಿದ ಸಾಲು)")}</span>
+              <span>{k("Hold the oil of cash bills until the counter confirms the cash (Held queue)", "ನಗದು ಬಿಲ್‌ನ ಎಣ್ಣೆಯನ್ನು ಕೌಂಟರ್ ನಗದು ದೃಢಪಡಿಸುವವರೆಗೆ ಹಿಡಿಯಿರಿ (ಹಿಡಿದ ಸಾಲು)")}</span>
             </label>
             <label className="ctr-set">
               <input type="checkbox" checked={autoPrint} onChange={(e) => { setAutoPrint(e.target.checked); write("counterAutoPrint", e.target.checked); }} />
