@@ -352,3 +352,11 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr-qrbig strong { font-size: 40px; }
 .ctr-qrbig small { color: #555; font-size: 15px; }
 .ctr-qrbig button { border: 0; background: var(--c-acc); color: var(--c-on-acc, #fff); border-radius: 14px; padding: 10px 28px; font-size: 18px; font-weight: 700; }
+
+/* UPI payment matching: which bill is this payment for */
+.ctr-upiask{margin:8px 0;padding:10px 12px;border:2px solid #f59e0b;border-radius:12px;background:rgba(245,158,11,.12);display:grid;gap:6px}
+.ctr-upiask .row,.ctr-upipick{display:flex;flex-wrap:wrap;gap:6px}
+.ctr-upiask button,.ctr-upipick button{min-height:44px;padding:6px 12px;border-radius:10px;border:1px solid currentColor;background:transparent;color:inherit;font-weight:700}
+.ctr-upiask button.ghost,.ctr-upipick button.ghost{opacity:.7;font-weight:500}
+.ctr-upiline{display:block;color:#15803d;font-weight:600}
+.ctr-twin{display:block;color:#b45309}

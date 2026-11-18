@@ -28,8 +28,8 @@ import { defaultRefundMode, refundFor, returnBody, returnables, returnedByBill, 
 import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
 import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
-import { defaultHandover, handoverOf, isTracked, payStatus, type Handover } from "@/lib/counterTrack";
-import { matchUpi, parseUpi, type UpiEvent } from "@/lib/upiNotify";
+import { defaultHandover, handoverOf, isTracked, payStatus, upiLine, type Handover } from "@/lib/counterTrack";
+import { fitsBill, parseUpi, planUpi, samePayment, type UpiEvent } from "@/lib/upiNotify";
 import { hasNativeUpi, MahadevUpi } from "@/lib/native";
 import { PAY_SHOW_KEYS, ensurePayOption, parseShow, SHOW_ALL, SHOW_KEYS, SHOW_LABELS, SHOW_SIMPLE, type ShowCfg } from "@/lib/counterShow";
 import { hashPin, KIOSK_EXTRAS, KIOSK_KEY, readKiosk, type KioskExtra, type KioskState } from "@/lib/counterKiosk";
@@ -686,7 +686,7 @@ export default function CounterApp() {
     .filter((b) => billMatches(b, bQ))
     .filter((b) => bFilter === "all" || (isTracked(b.track) && (bFilter === "open" ? payStatus(b.modes, b.track).state !== "PAID" : handoverOf(b.track) === "HELD")));
   // mark UPI received / collect the udhaar money / give or hold the goods
-  const trackAct = async (b: SavedBill, action: "handover" | "upiOk" | "paidLater", extra: Record<string, unknown> = {}) => {
+  const trackAct = async (b: SavedBill, action: "handover" | "upiOk" | "paidLater", extra: Record<string, unknown> = {}): Promise<string | null> => {
     setBErr("");
     setArmed(null);
     try {
@@ -694,8 +694,11 @@ export default function CounterApp() {
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || "Could not update the bill.");
       await loadBills();
+      return null;
     } catch (e) {
-      setBErr(e instanceof Error ? e.message : "Could not update the bill.");
+      const text = e instanceof Error ? e.message : "Could not update the bill.";
+      setBErr(text);
+      return text;
     }
   };
   useEffect(() => { if (date) void loadBills(); // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -715,6 +718,9 @@ export default function CounterApp() {
   const [upiSeen, setUpiSeen] = useState<(UpiEvent & { pkg: string; raw: string })[]>([]);
   const upiUsed = useRef<Set<string>>(new Set());
   const upiLast = useRef(0);
+  const [upiAsk, setUpiAsk] = useState<{ eventId: string; billKeys: string[] }[]>([]);
+  const [askHide, setAskHide] = useState<string[]>([]);
+  const [pickFor, setPickFor] = useState<string | null>(null);
   useEffect(() => {
     setUpiAuto(read<boolean>("counterUpiAuto", true));
     upiUsed.current = new Set(read<string[]>("counterUpiUsed", []));
@@ -729,34 +735,54 @@ export default function CounterApp() {
         setUpiAccess(st.enabled ? "on" : "off");
         if (!ev.events.length) return;
         upiLast.current = Math.max(upiLast.current, ...ev.events.map((e) => e.at));
-        const got = ev.events.map((e) => {
+        const got: (UpiEvent & { pkg: string; raw: string })[] = [];
+        for (const e of ev.events) {
           const h = parseUpi(e.title, e.text);
-          return h ? { id: e.id, at: e.at, amount: h.amount, payer: h.payer, pkg: e.pkg, raw: `${e.title} ${e.text}`.trim() } : null;
-        }).filter((x): x is UpiEvent & { pkg: string; raw: string } => !!x);
-        if (got.length) setUpiSeen((s) => [...s, ...got.filter((g) => !s.some((x) => x.id === g.id))].slice(-30));
+          if (h) got.push({ id: e.id, at: e.at, amount: h.amount, payer: h.payer, ref: h.ref, billNo: h.billNo, pkg: e.pkg, raw: `${e.title} ${e.text}`.trim() });
+        }
+        if (got.length) setUpiSeen((s) => [...s, ...got.filter((g) => !s.some((x) => x.id === g.id || samePayment(x, g)))].slice(-30));
       } catch { /* the plugin is not in this app version: nothing to do */ }
     };
     void tick();
     const t = setInterval(() => void tick(), 4000);
     return () => { stop = true; clearInterval(t); };
   }, [upiAuto]);
-  useEffect(() => {
-    if (!upiSeen.length || !bills.length) return;
-    const waiting = bills
+  // Payments already used: remembered on this device, and written on the bills themselves (so another device never reuses one).
+  const usedPayments = () => {
+    const u = new Set(upiUsed.current);
+    for (const b of bills) if (b.track.upiOk?.evId) u.add(b.track.upiOk.evId);
+    return u;
+  };
+  const waitingUpi = () =>
+    bills
       .filter((b) => isTracked(b.track) && payStatus(b.modes, b.track).upiDue > 0 && b.date === date)
-      .map((b) => ({ key: b.key, at: new Date(b.createdAt).getTime(), due: payStatus(b.modes, b.track).upiDue }));
-    for (const m of matchUpi(upiSeen, waiting, upiUsed.current)) {
+      .map((b) => ({ key: b.key, at: new Date(b.createdAt).getTime(), due: payStatus(b.modes, b.track).upiDue, no: b.no, party: b.party }));
+  /** Use this payment for this bill: the bill gets who paid and the bank reference. */
+  const claimUpi = async (b: SavedBill, e: UpiEvent & { pkg: string }, how: string) => {
+    upiUsed.current.add(e.id);
+    write("counterUpiUsed", Array.from(upiUsed.current).slice(-200));
+    setPickFor(null);
+    const err = await trackAct(b, "upiOk", { via: how, ref: e.ref, payer: e.payer, amount: e.amount, pkg: e.pkg, evId: e.id, evAt: e.at });
+    if (err) setMsg({ ok: false, text: `${k("This UPI payment was not linked", "ಈ UPI ಪಾವತಿ ಜೋಡಣೆಯಾಗಲಿಲ್ಲ")}: ${err}` });
+    else setMsg({ ok: true, text: k(`✅ UPI ${rupees(e.amount)}${e.payer ? ` from ${e.payer}` : ""} received for bill #${b.no}${handoverOf(b.track) === "HELD" ? " — you can hand over the goods now" : ""}`, `✅ UPI ${rupees(e.amount)} ಬಂದಿದೆ — ಬಿಲ್ #${b.no}${handoverOf(b.track) === "HELD" ? " — ಸರಕು ಕೊಡಬಹುದು" : ""}`) });
+  };
+  useEffect(() => {
+    const plan = planUpi(upiSeen, waitingUpi(), usedPayments());
+    const sig = JSON.stringify(plan.ask);
+    setUpiAsk((cur) => (JSON.stringify(cur) === sig ? cur : plan.ask));
+    for (const m of plan.auto) {
       const b = bills.find((x) => x.key === m.billKey);
       const e = upiSeen.find((x) => x.id === m.eventId);
-      if (!b || !e) continue;
-      upiUsed.current.add(e.id);
-      write("counterUpiUsed", Array.from(upiUsed.current).slice(-200));
-      void trackAct(b, "upiOk", { via: "auto from UPI app" }).then(() =>
-        setMsg({ ok: true, text: k(`✅ UPI ${rupees(e.amount)}${e.payer ? ` from ${e.payer}` : ""} received for bill #${b.no}${handoverOf(b.track) === "HELD" ? " — you can hand over the goods now" : ""}`, `✅ UPI ${rupees(e.amount)} ಬಂದಿದೆ — ಬಿಲ್ #${b.no}${handoverOf(b.track) === "HELD" ? " — ಸರಕು ಕೊಡಬಹುದು" : ""}`) })
-      );
+      if (b && e) void claimUpi(b, e, `auto from UPI app · ${m.how}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upiSeen, bills]);
+  /** Payments that could be for this waiting bill (same amount, right time, not used yet). */
+  const paymentsFor = (b: SavedBill) => {
+    const u = usedPayments();
+    const due = payStatus(b.modes, b.track).upiDue;
+    return upiSeen.filter((e) => !u.has(e.id) && fitsBill(e, { due, at: new Date(b.createdAt).getTime() }));
+  };
   const bSum = billsSummary(shownBills);
   const modeName = (m: string) => (m === "CREDIT" ? k("Udhaar", "ಉದ್ರಿ") : m === "UPI" ? "UPI" : m === "CASH" ? k("Cash", "ನಗದು") : m);
   /** HSN code and GST % of a counter item (the owner's value, else the shop default). */
@@ -1297,6 +1323,25 @@ export default function CounterApp() {
               {retTotal > 0 && <span>↩️ {k("Returned", "ಹಿಂತಿರುಗಿಸಿದ್ದು")} −{rupees(retTotal)}</span>}
             </div>
             {bErr && <p className="ctr-msg bad">{bErr}</p>}
+            {upiAsk.filter((a) => !askHide.includes(a.eventId)).map((a) => {
+              const e = upiSeen.find((x) => x.id === a.eventId);
+              const cands = a.billKeys.map((key) => bills.find((x) => x.key === key)).filter((x): x is SavedBill => !!x);
+              if (!e || !cands.length) return null;
+              return (
+                <div key={a.eventId} className="ctr-upiask">
+                  <b>💸 {rupees(e.amount)}{e.payer ? ` ${k("from", "ಇವರಿಂದ")} ${e.payer}` : ""}{e.ref ? ` · Ref ${e.ref}` : ""}</b>
+                  <span>{k("Several bills have this amount. Which bill is this payment for?", "ಈ ಮೊತ್ತದ ಹಲವು ಬಿಲ್ ಇವೆ. ಈ ಪಾವತಿ ಯಾವ ಬಿಲ್‌ಗೆ?")}</span>
+                  <div className="row">
+                    {cands.map((cb) => (
+                      <button key={cb.key} type="button" onClick={() => void claimUpi(cb, e, "chosen by staff")}>
+                        #{cb.no}{cb.party ? ` · ${cb.party}` : ""} · {timeOf(cb.createdAt)}
+                      </button>
+                    ))}
+                    <button type="button" className="ghost" onClick={() => setAskHide((h) => [...h, a.eventId])}>{k("Not now", "ಈಗ ಬೇಡ")}</button>
+                  </div>
+                </div>
+              );
+            })}
             <ul className="ctr-list">
               {shownBills.map((b) => (
                 <li key={b.key}>
@@ -1304,6 +1349,21 @@ export default function CounterApp() {
                     <b>#{b.no} · {b.party || k("Walk-in", "ನಗದು ಗ್ರಾಹಕ")}</b>
                     <span>{b.lines.map((l) => `${l.label}${l.qty ? ` ${l.qty.toFixed(3)}` : ""}`).join(", ")}</span>
                     <small>{b.date} {timeOf(b.createdAt)} · {Object.keys(b.modes).map(modeName).join(" + ")}{b.by ? ` · ${b.by}` : ""}{b.notes ? ` · ${b.notes}` : ""}</small>
+                    {upiLine(b.track.upiOk) && <small className="ctr-upiline">✅ {upiLine(b.track.upiOk)}</small>}
+                    {isTracked(b.track) && payStatus(b.modes, b.track).upiDue > 0 && !b.party && (() => {
+                      const twins = waitingUpi().filter((w) => w.key !== b.key && Math.abs(w.due - payStatus(b.modes, b.track).upiDue) < 0.005);
+                      return twins.length ? <small className="ctr-twin">⚠️ {k(`Same amount as bill ${twins.map((w) => "#" + w.no).join(", #")} — add the customer name so payments match correctly`, `ಇದೇ ಮೊತ್ತ: ಬಿಲ್ ${twins.map((w) => "#" + w.no).join(", #")} — ಸರಿಯಾಗಿ ಹೊಂದಿಸಲು ಗ್ರಾಹಕರ ಹೆಸರು ಹಾಕಿ`)}</small> : null;
+                    })()}
+                    {pickFor === b.key && (
+                      <div className="ctr-upipick">
+                        {paymentsFor(b).map((e) => (
+                          <button key={e.id} type="button" onClick={() => void claimUpi(b, e, "chosen by staff")}>
+                            {rupees(e.amount)}{e.payer ? ` · ${e.payer}` : ""}{e.ref ? ` · ${e.ref}` : ""} · {timeOf(new Date(e.at).toISOString())}
+                          </button>
+                        ))}
+                        <button type="button" className="ghost" onClick={() => { setPickFor(null); void trackAct(b, "upiOk"); }}>{k("Money seen in my app — tick anyway", "ನನ್ನ ಆ್ಯಪ್‌ನಲ್ಲಿ ಹಣ ಕಂಡಿದೆ — ಹಾಗೇ ಗುರುತಿಸಿ")}</button>
+                      </div>
+                    )}
                     {isTracked(b.track) && (() => {
                       const ps = payStatus(b.modes, b.track);
                       const ho = handoverOf(b.track);
@@ -1320,7 +1380,7 @@ export default function CounterApp() {
                   <b className="amt">{rupees(b.total)}</b>
                   <div className="ctr-bact">
                     {isTracked(b.track) && payStatus(b.modes, b.track).upiDue > 0 && (
-                      <button type="button" className={armed === `${b.key}:upi` ? "on" : ""} onClick={() => (armed === `${b.key}:upi` ? void trackAct(b, "upiOk") : setArmed(`${b.key}:upi`))}>
+                      <button type="button" className={armed === `${b.key}:upi` ? "on" : ""} onClick={() => (paymentsFor(b).length ? setPickFor(pickFor === b.key ? null : b.key) : armed === `${b.key}:upi` ? void trackAct(b, "upiOk") : setArmed(`${b.key}:upi`))}>
                         {armed === `${b.key}:upi` ? k("Tap again: UPI received", "ಮತ್ತೆ ಒತ್ತಿ: UPI ಬಂದಿದೆ") : `✓ ${k("UPI received", "UPI ಬಂದಿದೆ")}`}
                       </button>
                     )}

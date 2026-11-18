@@ -5,11 +5,28 @@
 export type Handover = "GIVEN" | "HELD";
 export type PayState = "PAID" | "PARTLY" | "PENDING" | "UNPAID";
 
+export interface UpiProof {
+  at: string;
+  by: string;
+  /** the bank's reference / UTR / transaction id, when the notification showed one */
+  ref?: string;
+  /** who paid, as the UPI app showed it */
+  payer?: string;
+  /** rupees in that payment */
+  amount?: number;
+  /** the UPI app that showed it (package name) */
+  pkg?: string;
+  /** the notification's own id on the shop device (so one payment is never used for two bills) */
+  evId?: string;
+  /** when the payment arrived (ms) */
+  evAt?: number;
+}
+
 export interface BillTrack {
   handover?: Handover;
   handedAt?: string;
-  /** UPI part checked on the shop's phone / bank app */
-  upiOk?: { at: string; by: string };
+  /** UPI part checked on the shop's phone / bank app; when it came from a UPI notification, which payment it was */
+  upiOk?: UpiProof;
   /** udhaar part collected later (an UDHAAR_IN entry was made) */
   paidLater?: { at: string; by: string; mode: "CASH" | "UPI"; amount: number };
 }
@@ -23,8 +40,22 @@ export function trackOf(details: unknown): BillTrack {
   const out: BillTrack = {};
   if (t.handover === "GIVEN" || t.handover === "HELD") out.handover = t.handover;
   if (typeof t.handedAt === "string") out.handedAt = t.handedAt;
-  const u = t.upiOk as { at?: unknown; by?: unknown } | undefined;
-  if (u && typeof u.at === "string") out.upiOk = { at: u.at, by: typeof u.by === "string" ? u.by : "" };
+  const u = t.upiOk as Record<string, unknown> | undefined;
+  if (u && typeof u.at === "string") {
+    const txt = (v: unknown, n: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : undefined);
+    const amt = Number(u.amount);
+    const evAt = Number(u.evAt);
+    out.upiOk = {
+      at: u.at,
+      by: typeof u.by === "string" ? u.by : "",
+      ...(txt(u.ref, 40) ? { ref: txt(u.ref, 40) } : {}),
+      ...(txt(u.payer, 60) ? { payer: txt(u.payer, 60) } : {}),
+      ...(Number.isFinite(amt) && amt > 0 ? { amount: amt } : {}),
+      ...(txt(u.pkg, 80) ? { pkg: txt(u.pkg, 80) } : {}),
+      ...(txt(u.evId, 80) ? { evId: txt(u.evId, 80) } : {}),
+      ...(Number.isFinite(evAt) && evAt > 0 ? { evAt } : {}),
+    };
+  }
   const p = t.paidLater as { at?: unknown; by?: unknown; mode?: unknown; amount?: unknown } | undefined;
   if (p && typeof p.at === "string" && Number.isFinite(Number(p.amount))) {
     out.paidLater = { at: p.at, by: typeof p.by === "string" ? p.by : "", mode: p.mode === "UPI" ? "UPI" : "CASH", amount: Number(p.amount) };
@@ -63,4 +94,11 @@ export function needsAttention(modes: Record<string, number>, track: BillTrack):
 /** Bills made before tracking existed carry no hand-over mark: no tags, nothing to settle. */
 export function isTracked(track: BillTrack): boolean {
   return track.handover !== undefined;
+}
+
+/** The payment behind "UPI received", for bills and the register: "UPI ₹500 · Anil · Ref 432198765432"; "" when it was ticked by hand with no details. */
+export function upiLine(u: UpiProof | undefined): string {
+  if (!u || (!u.ref && !u.payer && !u.amount)) return "";
+  const rs = u.amount ? `₹${u.amount % 1 ? u.amount.toFixed(2) : u.amount}` : "";
+  return ["UPI", rs, u.payer, u.ref ? `Ref ${u.ref}` : ""].filter(Boolean).join(" · ").replace(/^UPI · /, "UPI ");
 }

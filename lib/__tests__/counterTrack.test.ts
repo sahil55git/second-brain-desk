@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isTracked, defaultHandover, handoverOf, needsAttention, payStatus, trackOf } from "../counterTrack";
+import { isTracked, defaultHandover, handoverOf, needsAttention, payStatus, trackOf, upiLine } from "../counterTrack";
 
 describe("counter bill tracking", () => {
   it("cash bill is paid and nothing is held", () => {
@@ -37,5 +37,19 @@ describe("counter bill tracking", () => {
     expect(trackOf({ track: "x" })).toEqual({});
     expect(trackOf({ track: { handover: "MAYBE", paidLater: { at: "t", amount: "abc" } } })).toEqual({});
     expect(trackOf({ track: { handover: "HELD", upiOk: { at: "t", by: "Ravi" } } })).toEqual({ handover: "HELD", upiOk: { at: "t", by: "Ravi" } });
+  });
+});
+
+describe("UPI payment details on a bill", () => {
+  it("are read back from what was saved, and junk is dropped", () => {
+    const t = trackOf({ track: { handover: "HELD", upiOk: { at: "2026-11-18T05:00:00Z", by: "Ravi · auto", ref: " 432198765432 ", payer: "Anil", amount: 500, pkg: "com.phonepe.app", evId: "n1", evAt: 1763000000000, extra: 1 } } });
+    expect(t.upiOk).toEqual({ at: "2026-11-18T05:00:00Z", by: "Ravi · auto", ref: "432198765432", payer: "Anil", amount: 500, pkg: "com.phonepe.app", evId: "n1", evAt: 1763000000000 });
+    expect(trackOf({ track: { upiOk: { at: "x", by: "me", amount: -4, ref: 5, evAt: "no" } } }).upiOk).toEqual({ at: "x", by: "me" });
+  });
+  it("one line for the bill list and the register", () => {
+    expect(upiLine({ at: "x", by: "y", amount: 500, payer: "Anil", ref: "432198765432" })).toBe("UPI ₹500 · Anil · Ref 432198765432");
+    expect(upiLine({ at: "x", by: "y", amount: 260.5 })).toBe("UPI ₹260.50");
+    expect(upiLine({ at: "x", by: "y" })).toBe("");
+    expect(upiLine(undefined)).toBe("");
   });
 });
