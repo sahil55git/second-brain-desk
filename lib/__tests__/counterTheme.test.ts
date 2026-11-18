@@ -14,12 +14,12 @@ describe("counter theme", () => {
   });
   it("custom colour is used only when chosen and only if it is a real hex", () => {
     expect(accentOf(parseTheme({ preset: "custom", custom: "#AA22CC" }))).toBe("#aa22cc");
-    expect(accentOf(parseTheme({ preset: "custom", custom: "purple" }))).toBe("#1f6feb");
-    expect(accentOf(parseTheme({ preset: "teal", custom: "#aa22cc" }))).toBe("#0d9488");
+    expect(accentOf(parseTheme({ preset: "custom", custom: "purple" }))).toBe("#1d3557");
+    expect(accentOf(parseTheme({ preset: "teal", custom: "#aa22cc" }))).toBe("#237a76");
   });
   it("text on a light accent is dark, on a dark accent is white", () => {
     expect(onAccent("#eab308")).toBe("#1a1a1a");
-    expect(onAccent("#1f6feb")).toBe("#ffffff");
+    expect(onAccent("#1d3557")).toBe("#ffffff");
   });
   it("auto mode leaves the page colours to the device, other modes set them", () => {
     expect(themeStyle(DEFAULT_THEME)["--c-bg"]).toBeUndefined();
@@ -38,5 +38,13 @@ describe("counter theme", () => {
   it("root classes", () => {
     expect(themeClass(DEFAULT_THEME)).toBe("d-normal plu-m");
     expect(themeClass({ ...DEFAULT_THEME, density: "roomy", backdrop: "tint" })).toBe("d-roomy tint plu-m");
+  });
+});
+
+describe("glass backdrop", () => {
+  it("is a valid background and adds the glass class", () => {
+    expect(parseTheme({ backdrop: "glass" }).backdrop).toBe("glass");
+    expect(themeClass({ ...DEFAULT_THEME, backdrop: "glass" })).toContain("glass");
+    expect(themeClass({ ...DEFAULT_THEME, backdrop: "tint" })).not.toContain("glass");
   });
 });
