@@ -3,6 +3,7 @@
 // Cashier desk: for the person who takes the money (manager) on a separate device. Held bills wait here;
 // type what the customer gave, see the change, one tap records the cash and releases the goods.
 // Same data and permissions as the counter; nothing is stored on this device except the language and print choice.
+import OilIcon from "./OilIcon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ReceiptSheet from "@/components/print/ReceiptSheet";
 import { cashReceived, changeFor, noteChips } from "@/lib/cashDesk";
@@ -125,7 +126,7 @@ export default function CashierDesk() {
     const onCash = () => {
       if (!g) return setMsg({ ok: false, text: k("Type how much the customer gave.", "ಗ್ರಾಹಕರು ಎಷ್ಟು ಕೊಟ್ಟರು ಎಂದು ಬರೆಯಿರಿ.") });
       if (short > 0) return setMsg({ ok: false, text: k(`₹${short} short. Ask for the rest.`, `₹${short} ಕಡಿಮೆ ಇದೆ. ಉಳಿದದ್ದು ಕೇಳಿ.`) });
-      void act(bill, "cashOk", { given: g, release: !upiLeft }, `#${bill.no} · ${k("cash received", "ನಗದು ಬಂದಿದೆ")}${change > 0 ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(change)}` : ""}${upiLeft ? "" : ` · ${k("goods released", "ಸರಕು ಬಿಡುಗಡೆ")}`}`, g);
+      void act(bill, "cashOk", { given: g, release: !upiLeft }, `#${bill.no} · ${k("cash received", "ನಗದು ಬಂದಿದೆ")}${change > 0 ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(change)}` : ""}${upiLeft ? "" : ` · ${k("oil given", "ಎಣ್ಣೆ ಬಿಡುಗಡೆ")}`}`, g);
     };
     return (
       <div className="cd-modal" role="dialog" aria-label={k("Take payment", "ಪಾವತಿ ಪಡೆಯಿರಿ")} onClick={() => !busy && close()}>
@@ -163,15 +164,15 @@ export default function CashierDesk() {
             </div>
           )}
 
-          {ps.cashDue === 0 && !upiLeft && !held && <p className="cd-ok">✅ {k("Paid and given", "ಹಣ ಬಂದಿದೆ, ಸರಕು ಕೊಟ್ಟಿದೆ")}</p>}
+          {ps.cashDue === 0 && !upiLeft && !held && <p className="cd-ok">✅ {k("Paid and given", "ಹಣ ಬಂದಿದೆ, ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ")}</p>}
           {msg && !msg.ok && <p className="cd-err">{msg.text}</p>}
 
           <div className="cd-acts">
-            {ps.cashDue > 0 && <button type="button" className={`go${g > 0 && short === 0 ? " cd-next" : ""}`} disabled={busy} onClick={onCash}>✓ {upiLeft ? k("Cash received", "ನಗದು ಬಂದಿದೆ") : k("Cash received — release goods", "ನಗದು ಬಂದಿದೆ — ಸರಕು ಕೊಡಿ")}</button>}
-            {ps.cashDue === 0 && held && need === "READY" && <button type="button" className="go cd-next" disabled={busy} onClick={() => void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("goods released", "ಸರಕು ಬಿಡುಗಡೆ")}`)}>📦 {k("Release goods", "ಸರಕು ಕೊಡಿ")}</button>}
+            {ps.cashDue > 0 && <button type="button" className={`go${g > 0 && short === 0 ? " cd-next" : ""}`} disabled={busy} onClick={onCash}>✓ {upiLeft ? k("Cash received", "ನಗದು ಬಂದಿದೆ") : k("Cash received — release oil", "ನಗದು ಬಂದಿದೆ — ಎಣ್ಣೆ ಕೊಡಿ")}</button>}
+            {ps.cashDue === 0 && held && need === "READY" && <button type="button" className="go cd-next" disabled={busy} onClick={() => void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("oil given", "ಎಣ್ಣೆ ಬಿಡುಗಡೆ")}`)}><OilIcon size={22} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</button>}
             {held && need !== "READY" && (
-              <button type="button" className={`ghost${armed === "give" ? " on" : ""}`} disabled={busy} onClick={() => (armed === "give" ? void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("goods given without payment", "ಹಣವಿಲ್ಲದೆ ಸರಕು ಕೊಟ್ಟಿದೆ")}`) : setArmed("give"))}>
-                {armed === "give" ? k("Money NOT received — tap again to give anyway", "ಹಣ ಬಂದಿಲ್ಲ — ಆದರೂ ಕೊಡಲು ಮತ್ತೆ ಒತ್ತಿ") : `📦 ${k("Give anyway", "ಆದರೂ ಕೊಡಿ")}`}
+              <button type="button" className={`ghost${armed === "give" ? " on" : ""}`} disabled={busy} onClick={() => (armed === "give" ? void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("oil given without payment", "ಹಣವಿಲ್ಲದೆ ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ")}`) : setArmed("give"))}>
+                {armed === "give" ? k("Money NOT received — tap again to give anyway", "ಹಣ ಬಂದಿಲ್ಲ — ಆದರೂ ಕೊಡಲು ಮತ್ತೆ ಒತ್ತಿ") : <><OilIcon size={20} /> {k("Give anyway", "ಆದರೂ ಕೊಡಿ")}</>}
               </button>
             )}
             <button type="button" className="ghost" onClick={() => setRcpt(slip(bill, g > 0 && short === 0 ? g : undefined))}>🖨️ {k("Receipt", "ರಸೀದಿ")}</button>
@@ -184,7 +185,7 @@ export default function CashierDesk() {
   const state = (b: SavedBill) => {
     if (!isTracked(b.track)) return { cls: "paid", text: `✅ ${k("Paid", "ಪಾವತಿ")}` };
     const ps = payStatus(b.modes, b.track);
-    if (handoverOf(b.track) === "HELD") return { cls: ps.state === "PAID" ? "ready" : "wait", text: ps.state === "PAID" ? `📦 ${k("Give goods", "ಸರಕು ಕೊಡಿ")}` : `⏳ ${k("Held", "ಹಿಡಿದಿದೆ")}` };
+    if (handoverOf(b.track) === "HELD") return { cls: ps.state === "PAID" ? "ready" : "wait", text: ps.state === "PAID" ? <><OilIcon size={18} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</> : `⏳ ${k("Held", "ಹಿಡಿದಿದೆ")}` };
     if (ps.creditDue > 0) return { cls: "wait", text: `📒 ${k("Udhaar", "ಉದ್ರಿ")} ${rupees(ps.creditDue)}` };
     return { cls: "paid", text: `✅ ${k("Paid", "ಪಾವತಿ")}` };
   };
@@ -218,7 +219,7 @@ export default function CashierDesk() {
       <main className="cd-body">
         {tab === "queue" && (
           <>
-            <p className="cd-sub">{queue.length === 0 ? k("Nothing waiting. Goods of every bill have been given.", "ಏನೂ ಕಾಯುತ್ತಿಲ್ಲ. ಎಲ್ಲಾ ಬಿಲ್‌ಗಳ ಸರಕು ಕೊಟ್ಟಿದೆ.") : waiting > 0 ? `⏳ ${waiting} ${k("waiting for money", "ಹಣಕ್ಕೆ ಕಾಯುತ್ತಿವೆ")}` : `✅ ${k("All paid — release the goods", "ಎಲ್ಲಾ ಹಣ ಬಂದಿದೆ — ಸರಕು ಕೊಡಿ")}`}</p>
+            <p className="cd-sub">{queue.length === 0 ? k("Nothing waiting. Oil of every bill has been given.", "ಏನೂ ಕಾಯುತ್ತಿಲ್ಲ. ಎಲ್ಲಾ ಬಿಲ್‌ಗಳ ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ.") : waiting > 0 ? `⏳ ${waiting} ${k("waiting for money", "ಹಣಕ್ಕೆ ಕಾಯುತ್ತಿವೆ")}` : `✅ ${k("All paid — give the oil", "ಎಲ್ಲಾ ಹಣ ಬಂದಿದೆ — ಎಣ್ಣೆ ಕೊಡಿ")}`}</p>
             <form className="cd-find" onSubmit={(e) => { e.preventDefault(); const m = queue.filter((b) => billMatches(b, q)); if (m.length === 1) { open(m[0]); setQ(""); } }}>
               <input inputMode="numeric" value={q} onChange={(e) => setQ(e.target.value.replace(/[^\w ]/g, ""))} placeholder={k("Bill number on the slip", "ಸ್ಲಿಪ್‌ನ ಬಿಲ್ ಸಂಖ್ಯೆ")} aria-label={k("Bill number", "ಬಿಲ್ ಸಂಖ್ಯೆ")} />
               <button type="submit">{k("Open", "ತೆರೆಯಿರಿ")}</button>
@@ -237,7 +238,7 @@ export default function CashierDesk() {
                         <span>⏱ {waitText(age)}</span>
                         {ps.cashDue > 0 && <span className="wait">💵 {rupees(ps.cashDue)} {k("to receive", "ಪಡೆಯಬೇಕು")}</span>}
                         {ps.upiDue > 0 && <span className="wait">📲 {rupees(ps.upiDue)} {k("UPI waiting", "UPI ಕಾಯುತ್ತಿದೆ")}</span>}
-                        {need === "READY" && <span className="okc">📦 {k("Give goods", "ಸರಕು ಕೊಡಿ")}</span>}
+                        {need === "READY" && <span className="okc"><OilIcon size={22} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</span>}
                       </span>
                     </button>
                   </li>
