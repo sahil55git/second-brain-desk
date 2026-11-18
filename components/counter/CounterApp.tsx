@@ -31,7 +31,7 @@ import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCK
 import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
 import { billGuide, counterStep } from "@/lib/counterGuide";
 import { billIcon, billName, qtyText, oilKgText } from "@/lib/counterName";
-import { LAYOUTS, LAYOUT_INFO, layoutShow, pickLayout, type Layout } from "@/lib/counterLayout";
+import { LAYOUTS, LAYOUT_INFO, layoutShow, parseTabletOpts, pickLayout, type Layout, type TabletOpts } from "@/lib/counterLayout";
 import { defaultHandover, handoverOf, heldNeed, heldQueue, isTracked, payStatus, upiLine, waitText, type Handover } from "@/lib/counterTrack";
 import { fitsBill, parseUpi, planUpi, samePayment, type UpiEvent } from "@/lib/upiNotify";
 import { hasNativeUpi, MahadevUpi } from "@/lib/native";
@@ -155,6 +155,13 @@ export default function CounterApp() {
   const [shopLayout, setShopLayout] = useState<unknown>(null);
   const [devLayout, setDevLayout] = useState<string>("shop");
   const layout: Layout = pickLayout(shopLayout, devLayout);
+  const tablet = layout === "tablet";
+  const [tabOpts, setTabOpts] = useState<TabletOpts>(parseTabletOpts(null));
+  useEffect(() => { setTabOpts(parseTabletOpts(read<unknown>("counterTabletOpts", null))); }, []);
+  const setTab = (p: Partial<TabletOpts>) => { const n = { ...tabOpts, ...p }; setTabOpts(n); write("counterTabletOpts", n); };
+  const noRead = tablet && tabOpts.hideRead;
+  const noTotal = tablet && tabOpts.hideTotal;
+  const noOil = tablet && tabOpts.hideOil;
   const show = useMemo(() => layoutShow(layout, showBase), [layout, showBase]);
   const [moreItems, setMoreItems] = useState(false);
   useEffect(() => {
@@ -991,8 +998,20 @@ export default function CounterApp() {
   useEffect(() => { setNowMs(Date.now()); const t = setInterval(() => setNowMs(Date.now()), 20_000); return () => clearInterval(t); }, []);
   const clock = !nowMs ? { time: "", date: "" } : { time: new Date(nowMs).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }).toUpperCase(), date: new Date(nowMs).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) };
 
+  const chips = (
+    <>
+        {(show.held || holds.length > 0) && (
+          <button type="button" className={`ctr-tbtn${holds.length ? " has" : ""}`} onClick={() => { setPanel("holds"); void loadHolds(); }}>
+            🅿️ {k("Parked", "ನಿಲ್ಲಿಸಿದ")} <b>{holds.length}</b>
+          </button>
+        )}
+        {show.bills && <button type="button" className="ctr-tbtn" onClick={() => { setBFilter("all"); setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}{openN > 0 && <b>{openN}</b>}</button>}
+        {(heldN > 0 || holdCash) && <button type="button" className={`ctr-tbtn${heldN > 0 ? " has" : ""}${readyN > 0 ? " ctr-next" : ""}`} onClick={() => { setPanel("queue"); void loadBills(); }} title={k("Bills whose oil is held till the money is received", "ಹಣ ಬರುವವರೆಗೆ ಎಣ್ಣೆ ಹಿಡಿದ ಬಿಲ್‌ಗಳು")}>🔒 {k("Held queue", "ಹಿಡಿದ ಸಾಲು")} <b>{heldN}</b></button>}
+    </>
+  );
+
   return (
-    <div className={`ctr ${themeClass(theme)} lay-${layout}`} data-view={stepsView ?? undefined} lang={lang} style={{ ["--u" as string]: zoom, ...themeStyle(theme) } as React.CSSProperties}>
+    <div className={`ctr ${themeClass(theme)} lay-${layout}${noRead ? " tb-noread" : ""}${noTotal ? " tb-nototal" : ""}${noOil ? " tb-nooil" : ""}`} data-view={stepsView ?? undefined} lang={lang} style={{ ["--u" as string]: zoom, ...themeStyle(theme) } as React.CSSProperties}>
       {/* ---------- top bar ---------- */}
       <header className="ctr-top">
         {!kiosk?.on && show.deskLink && <Link href="/register/pos" className="ctr-back">← {k("Desk", "ಡೆಸ್ಕ್")}</Link>}
@@ -1001,13 +1020,7 @@ export default function CounterApp() {
         {show.scaleStatus && <span className={`ctr-chip ${connected ? (fresh ? "ok" : "mid") : "bad"}`}>{connected ? bt.config?.name || reading?.scale_source || k("Scale", "ತಕ್ಕಡಿ") : k("No scale", "ತಕ್ಕಡಿ ಇಲ್ಲ")}</span>}
         {show.scaleSetup && !connected && !kiosk?.on && <Link href="/?desk=scales" className="ctr-link">{k("Set up scale", "ತಕ್ಕಡಿ ಹೊಂದಿಸಿ")}</Link>}
         <span className="ctr-sp" />
-        {(show.held || holds.length > 0) && (
-          <button type="button" className={`ctr-tbtn${holds.length ? " has" : ""}`} onClick={() => { setPanel("holds"); void loadHolds(); }}>
-            🅿️ {k("Parked", "ನಿಲ್ಲಿಸಿದ")} <b>{holds.length}</b>
-          </button>
-        )}
-        {show.bills && <button type="button" className="ctr-tbtn" onClick={() => { setBFilter("all"); setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}{openN > 0 && <b>{openN}</b>}</button>}
-        {(heldN > 0 || holdCash) && <button type="button" className={`ctr-tbtn${heldN > 0 ? " has" : ""}${readyN > 0 ? " ctr-next" : ""}`} onClick={() => { setPanel("queue"); void loadBills(); }} title={k("Bills whose oil is held till the money is received", "ಹಣ ಬರುವವರೆಗೆ ಎಣ್ಣೆ ಹಿಡಿದ ಬಿಲ್‌ಗಳು")}>🔒 {k("Held queue", "ಹಿಡಿದ ಸಾಲು")} <b>{heldN}</b></button>}
+        {!noTotal && chips}
         <button type="button" className="ctr-tbtn" onClick={() => setPanel("look")} aria-label={k("Colours and layout", "ಬಣ್ಣ ಮತ್ತು ವಿನ್ಯಾಸ")}>🎨</button>
         {can("settings") && <button type="button" className="ctr-tbtn" onClick={() => setPanel("settings")} aria-label={k("Settings", "ಸೆಟ್ಟಿಂಗ್ಸ್")}>⚙️</button>}
         {show.size && <button type="button" className="ctr-tbtn" onClick={() => { const u = UI_NEXT[uiSize]; setUiSize(u); write("counterUi", u); }} aria-label={k("Screen size", "ಪರದೆ ಗಾತ್ರ")} title={k("Screen size: Auto / Small / Normal / Large", "ಪರದೆ ಗಾತ್ರ: ಸ್ವಯಂ / ಸಣ್ಣ / ಸಾಮಾನ್ಯ / ದೊಡ್ಡ")}>
@@ -1020,8 +1033,8 @@ export default function CounterApp() {
 
       {/* ---------- weight strip ---------- */}
       <section className="ctr-weigh">
-        <div className={`ctr-lcd ${frozen != null ? "ok" : !fresh ? "off" : steady ? "ok" : "mid"}${nextStep === "weigh" ? " ctr-next" : ""}`} aria-live="polite">
-          <small>{frozen != null ? "📖 " : ""}{k("Weight", "ತೂಕ")} (kg){isBt && bt.tareKg > 0 ? ` · ${k("net", "ನಿವ್ವಳ")}` : ""}</small>
+        <div className={`ctr-lcd ${frozen != null ? "ok" : !fresh ? "off" : steady ? "ok" : "mid"}${nextStep === "weigh" ? " ctr-next" : ""}${tablet ? " tap" : ""}`} aria-live="polite" {...(tablet && show.readWeight ? { role: "button", tabIndex: 0, onClick: () => { if (frozen != null) setFrozen(null); else if (fresh && kgLive > 0) setFrozen(kgLive); }, title: k("Tap to read the weight now; tap again to let go", "ತೂಕ ಓದಲು ಒತ್ತಿ; ಬಿಡಲು ಮತ್ತೆ ಒತ್ತಿ") } : {})}>
+          <small>{frozen != null ? "📖 " : ""}{k("Weight", "ತೂಕ")} (kg){isBt && bt.tareKg > 0 ? ` · ${k("net", "ನಿವ್ವಳ")}` : ""}{noRead ? ` · ${frozen != null ? k("tap to let go", "ಬಿಡಲು ಒತ್ತಿ") : k("tap to read", "ಓದಲು ಒತ್ತಿ")}` : ""}</small>
           <span>{fresh || frozen != null ? kg.toFixed(3) : "0.000"}</span>
         </div>
         {show.tare && <div className={`ctr-tarewin${bt.tareKg > 0 ? " on" : ""}`}>
@@ -1029,12 +1042,13 @@ export default function CounterApp() {
           <b>{bt.tareKg > 0 ? bt.tareKg.toFixed(3) : "0.000"}</b>
           <small className="nm">{bt.container || (bt.tareKg > 0 ? k("manual", "ಕೈಯಿಂದ") : k("none", "ಇಲ್ಲ"))}</small>
         </div>}
-        {show.totalBox && <div className="ctr-lcd small">
+        {show.totalBox && !noTotal && <div className="ctr-lcd small">
           <small>{k("Total", "ಒಟ್ಟು")} ₹</small>
           <span>{total.toFixed(2)}</span>
         </div>}
+        {noTotal && <div className="ctr-chips">{chips}</div>}
         <div className="ctr-tare">
-          {show.readWeight && (
+          {show.readWeight && !noRead && (
             <button type="button" className={`big${frozen != null ? " on" : ""}`} disabled={frozen == null && !(fresh && kgLive > 0)} onClick={() => setFrozen(frozen != null ? null : kgLive)} title={k("Reads the weight now, even if the scale is still moving. Tap an item to bill it, or tap again to let go.", "ತೂಕ ಚಲಿಸುತ್ತಿದ್ದರೂ ಈಗಲೇ ಓದುತ್ತದೆ. ವಸ್ತು ಒತ್ತಿ ಬಿಲ್ ಮಾಡಿ, ಅಥವಾ ಮತ್ತೆ ಒತ್ತಿ ಬಿಡಿ.")}>
             📖 {frozen != null ? `${k("Let go", "ಬಿಡಿ")} · ${frozen.toFixed(3)}` : k("Read weight", "ತೂಕ ಓದಿ")}
             </button>
@@ -1140,7 +1154,7 @@ export default function CounterApp() {
           {cashDue > 0 && show.cashReceived && lines.length > 0 && (
             <div className="ctr-cash">
               <button type="button" className="recv" onClick={() => openPad({ kind: "received" })}>
-                <span className="lbl" title={k("Cash paid by customer", "ಗ್ರಾಹಕ ಕೊಟ್ಟ ನಗದು")}><CashIn size={1.3} /><em>{k("Cash in", "ನಗದು ಬಂತು")}</em></span>
+                <span className="lbl" title={k("Cash paid by customer", "ಗ್ರಾಹಕ ಕೊಟ್ಟ ನಗದು")}><CashIn size={tablet ? 0.85 : 1.3} /><em>{k("Cash in", "ನಗದು ಬಂತು")}</em></span>
                 <b className={received > 0 ? "typed" : "exact"}>{received > 0 ? rupees(received) : "₹ —"}</b>
                 <span className="edit" aria-hidden>✎</span>
               </button>
@@ -1157,7 +1171,7 @@ export default function CounterApp() {
           <div className={`ctr-pay${nextStep === "pay" ? " ctr-next" : ""}`} role="radiogroup">
             {(["CASH", "UPI", "CREDIT", "SPLIT"] as CounterPay[]).filter((p) => (p !== "CREDIT" || can("udhaar")) && (p === pay || show[PAY_KEY[p]])).map((p) => (
               <button key={p} type="button" role="radio" aria-checked={pay === p} className={pay === p ? "on" : ""} onClick={() => { setPay(p); setReceived(0); setHandPick(null); setPayTouched(true); }}>
-                <PayIcon mode={p as "CASH" | "UPI" | "CREDIT" | "SPLIT"} size={30} /> <span>{p === "SPLIT" ? k("Split", "ಹಂಚಿಕೆ") : k(CHAN_TEXT[p as Chan][0], CHAN_TEXT[p as Chan][1])}</span>
+                <PayIcon mode={p as "CASH" | "UPI" | "CREDIT" | "SPLIT"} size={tablet ? 22 : 30} /> <span>{p === "SPLIT" ? k("Split", "ಹಂಚಿಕೆ") : k(CHAN_TEXT[p as Chan][0], CHAN_TEXT[p as Chan][1])}</span>
               </button>
             ))}
           </div>
@@ -1231,7 +1245,7 @@ export default function CounterApp() {
           {msg && <p className={`ctr-msg ${msg.ok ? "ok" : "bad"}`}>{msg.text}</p>}
           {loadErr && <p className="ctr-msg bad">{loadErr}</p>}
 
-          {(upiDue > 0 || creditDue > 0 || (holdCash && cashDue > 0)) && lines.length > 0 && (
+          {!noOil && (upiDue > 0 || creditDue > 0 || (holdCash && cashDue > 0)) && lines.length > 0 && (
             <div className="ctr-hand" role="radiogroup" aria-label={k("Oil", "ಎಣ್ಣೆ")}>
               <button type="button" role="radio" aria-checked={hand === "GIVEN"} aria-label={k("Give oil now", "ಈಗ ಎಣ್ಣೆ ಕೊಡಿ")} className={`give${hand === "GIVEN" ? " on" : ""}`} onClick={() => setHandPick("GIVEN")}><OilOut kg={oilKgText(lines)} size={0.8} /></button>
               <button type="button" role="radio" aria-checked={hand === "HELD"} aria-label={k("Wait: hold the oil until the money is confirmed", "ಕಾಯಿರಿ: ಹಣ ಖಚಿತವಾಗುವವರೆಗೆ ಎಣ್ಣೆ ಹಿಡಿಯಿರಿ")} className={hand === "HELD" ? "on hold" : ""} onClick={() => setHandPick("HELD")}><OilWait size={0.9} /></button>
@@ -1751,6 +1765,14 @@ export default function CounterApp() {
                   ))}
                 </div>
                 {devLayout !== "shop" && <div className="ctr-seg"><button type="button" onClick={() => { setDevLayout("shop"); write("counterLayoutDev", "shop"); }}>{k("This device: follow all staff", "ಈ ಸಾಧನ: ಎಲ್ಲರಂತೆ")}</button></div>}
+                {tablet && (
+                  <>
+                    <h4>{k("Tablet big items: what to hide", "ಟ್ಯಾಬ್ಲೆಟ್: ಏನು ಮರೆಮಾಡಬೇಕು")}</h4>
+                    <label className="ctr-set"><input type="checkbox" checked={tabOpts.hideRead} onChange={(e) => setTab({ hideRead: e.target.checked })} /><span>{k("Hide the Read weight button (tap the weight to read it)", "ತೂಕ ಓದಿ ಬಟನ್ ಮರೆಮಾಡಿ (ತೂಕವನ್ನು ಒತ್ತಿ)")}</span></label>
+                    <label className="ctr-set"><input type="checkbox" checked={tabOpts.hideTotal} onChange={(e) => setTab({ hideTotal: e.target.checked })} /><span>{k("Hide the Total box (Parked, Bills, Held move up; total stays on Save)", "ಒಟ್ಟು ಬಾಕ್ಸ್ ಮರೆಮಾಡಿ (ಒಟ್ಟು ಉಳಿಸಿ ಬಟನ್‌ನಲ್ಲಿ ಇರುತ್ತದೆ)")}</span></label>
+                    <label className="ctr-set"><input type="checkbox" checked={tabOpts.hideOil} onChange={(e) => setTab({ hideOil: e.target.checked })} /><span>{k("Hide Oil kg / Wait", "ಎಣ್ಣೆ ಕೆಜಿ / ಕಾಯಿರಿ ಮರೆಮಾಡಿ")}</span></label>
+                  </>
+                )}
               </>
             )}
             <h4>{k("Buttons on the screen", "ಪರದೆಯ ಬಟನ್‌ಗಳು")}</h4>

@@ -844,3 +844,37 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
   .ctr.lay-big .ctr-lcd.small span { font-size: clamp(30px, calc(9dvh / var(--u, 1)), 80px); }
   .ctr.lay-big .ctr-weigh { padding: 6px 12px; gap: 8px; }
 }
+
+/* Tablet big items: tall readable item list, small cash / payment strips, optional hides (tb-*) */
+.ctr-chips { display: none; }
+.ctr-lcd.tap { cursor: pointer; }
+@media (min-width: 821px) {
+  .ctr.lay-tablet .ctr-weigh { flex-wrap: nowrap; padding: 6px 12px; gap: 8px; align-items: stretch; }
+  .ctr.lay-tablet .ctr-weigh > .ctr-lcd:first-child { order: 0; flex: 0 0 36%; min-width: 0; }
+  .ctr.lay-tablet .ctr-tarewin { order: 1; flex: 0 0 auto; }
+  .ctr.lay-tablet .ctr-tare { order: 2; flex: 0 1 auto; min-width: 0; align-content: center; }
+  .ctr.lay-tablet .ctr-weigh > .ctr-lcd.small { order: 3; flex: 1 1 0; min-width: 0; }
+  .ctr.lay-tablet .ctr-weigh > .ctr-chips { order: 3; flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-content: center; gap: 8px; justify-content: flex-end; }
+  .ctr.lay-tablet .ctr-chips .ctr-tbtn { font-size: 18px; padding: 12px 16px; min-height: 52px; }
+  .ctr.lay-tablet .ctr-lcd span { font-size: clamp(34px, calc(8dvh / var(--u, 1)), 72px); }
+  .ctr.lay-tablet .ctr-lcd.small span { font-size: clamp(28px, calc(7dvh / var(--u, 1)), 60px); }
+  .ctr.lay-tablet .ctr-tare button.big { padding: 10px 14px; font-size: 16px; }
+  .ctr.lay-tablet .ctr-main { grid-template-columns: minmax(420px, 1fr) minmax(340px, 0.9fr); }
+  /* items: big rows */
+  .ctr.lay-tablet .ctr-lines { min-height: 220px; }
+  .ctr.lay-tablet .ctr-lines li { padding: 12px 4px; gap: 8px; font-size: 19px; }
+  .ctr.lay-tablet .ctr-lines .n { font-size: 15px; }
+  .ctr.lay-tablet .ctr-lines .nm { font-size: 21px; }
+  .ctr.lay-tablet .ctr-lines .q, .ctr.lay-tablet .ctr-lines .r, .ctr.lay-tablet .ctr-lines .d { padding: 11px 12px; font-size: 18px; min-height: 48px; }
+  .ctr.lay-tablet .ctr-lines .a { font-size: 21px; min-width: 96px; }
+  .ctr.lay-tablet .ctr-lines .del { font-size: 22px; min-width: 40px; min-height: 44px; }
+  /* small: cash in, payment strip, total bar */
+  .ctr.lay-tablet .ctr-cash .recv { min-height: 40px; padding: 2px 10px; border-radius: 12px; }
+  .ctr.lay-tablet .ctr-cash .recv .lbl em { font-size: 15px; }
+  .ctr.lay-tablet .ctr-cash .recv b { font-size: 19px; }
+  .ctr.lay-tablet .ctr-pay { gap: 4px; }
+  .ctr.lay-tablet .ctr-pay button { padding: 5px 2px; font-size: 13px; border-radius: 10px; min-height: 40px; }
+  .ctr.lay-tablet .ctr-tot { padding: 3px 12px; }
+  .ctr.lay-tablet .ctr-tot b { font-size: 24px; }
+  .ctr.lay-tablet .ctr-bill { gap: 6px; }
+}
