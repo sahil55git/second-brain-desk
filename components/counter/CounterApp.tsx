@@ -26,7 +26,7 @@ import { billText, daySummaryDoc, mobileOf, whatsappLink } from "@/lib/counterSh
 import { DEFAULT_GST_PCT, DEFAULT_HSN, taxInvoiceDoc, validGstin } from "@/lib/counterGst";
 import { defaultRefundMode, refundFor, returnBody, returnables, returnedByBill, type RefundMode, type ReturnItem, type ReturnedSoFar } from "@/lib/counterReturn";
 import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
-import OilIcon, { CashIn, CashOut, CoinIcon, CrossIcon, OilIn, OilOut, PauseIcon, PayIcon, PhoneIcon, PrinterIcon, TickIcon, BookIcon } from "./OilIcon";
+import OilIcon, { CashIn, CashOut, CoinIcon, CrossIcon, OilIn, OilOut, OilOutWait, OilWait, PauseIcon, PayIcon, PhoneIcon, PrinterIcon, TickIcon, BookIcon } from "./OilIcon";
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
 import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
 import { billGuide, counterStep } from "@/lib/counterGuide";
@@ -1231,7 +1231,7 @@ export default function CounterApp() {
           {(upiDue > 0 || creditDue > 0 || (holdCash && cashDue > 0)) && lines.length > 0 && (
             <div className="ctr-hand" role="radiogroup" aria-label={k("Oil", "ಎಣ್ಣೆ")}>
               <button type="button" role="radio" aria-checked={hand === "GIVEN"} aria-label={k("Give oil now", "ಈಗ ಎಣ್ಣೆ ಕೊಡಿ")} className={`give${hand === "GIVEN" ? " on" : ""}`} onClick={() => setHandPick("GIVEN")}><OilOut kg={oilKgText(lines)} size={0.8} /></button>
-              <button type="button" role="radio" aria-checked={hand === "HELD"} className={hand === "HELD" ? "on hold" : ""} onClick={() => setHandPick("HELD")}><PauseIcon size={26} /> <span>{k("Hold bill", "ಬಿಲ್ ಹಿಡಿಯಿರಿ")}</span></button>
+              <button type="button" role="radio" aria-checked={hand === "HELD"} aria-label={k("Wait: hold the oil until the money is confirmed", "ಕಾಯಿರಿ: ಹಣ ಖಚಿತವಾಗುವವರೆಗೆ ಎಣ್ಣೆ ಹಿಡಿಯಿರಿ")} className={hand === "HELD" ? "on hold" : ""} onClick={() => setHandPick("HELD")}><OilWait size={0.9} /></button>
             </div>
           )}
           <div className="ctr-act">
@@ -1546,7 +1546,7 @@ export default function CounterApp() {
                           <button type="button" className="big give ctr-next" onClick={() => void trackAct(b, "handover", { value: "GIVEN" })}><OilOut kg={oilKgText(b.lines)} size={0.8} /></button>
                         ) : (
                           <button type="button" className={`ghost${armed === `${b.key}:give` ? " on" : ""}`} onClick={() => (armed === `${b.key}:give` ? void trackAct(b, "handover", { value: "GIVEN" }) : setArmed(`${b.key}:give`))}>
-                            {armed === `${b.key}:give` ? k("Money NOT received — tap again to give anyway", "ಹಣ ಬಂದಿಲ್ಲ — ಆದರೂ ಕೊಡಲು ಮತ್ತೆ ಒತ್ತಿ") : <><OilIcon size={20} /> {k("Give anyway", "ಆದರೂ ಕೊಡಿ")}</>}
+                            {armed === `${b.key}:give` ? k("Money NOT received — tap again to give anyway", "ಹಣ ಬಂದಿಲ್ಲ — ಆದರೂ ಕೊಡಲು ಮತ್ತೆ ಒತ್ತಿ") : <span className="ctr-locked"><OilOutWait size={0.7} /><small>{ps.cashDue > 0 ? <><CashIn size={0.55} /> {k("Wait for Cash in", "ನಗದಿಗಾಗಿ ಕಾಯಿರಿ")}</> : k("Wait for UPI in", "UPI ಗಾಗಿ ಕಾಯಿರಿ")}</small></span>}
                           </button>
                         )}
                         <button type="button" className="ghost" onClick={() => setRcpt({ doc: billDoc(b), auto: true })} aria-label={k("Re-print", "ಮತ್ತೆ ಮುದ್ರಿಸಿ")}>🖨️</button>

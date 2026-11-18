@@ -821,3 +821,11 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr.hold-c .ctr-act .hold, .ctr.hold-c .ctr-tbtn.has { color: var(--c-on-hold); }
 .ctr.hold-c .ctr-act .hold svg { color: var(--c-on-hold); }
 .ctr-sw.btn button { width: 34px; height: 34px; }
+
+/* ---- Hold (park the whole bill) = blue pause; Wait (oil held for money) = amber; locked Oil out in the queue */
+.ctr:not(.hold-c) .ctr-act .hold { background: color-mix(in srgb, #5b9bf5 14%, var(--c-card)); border: 2px solid #5b9bf5; color: #8fb8ff; }
+.ctr:not(.hold-c) .ctr-act .hold svg { color: #8fb8ff; }
+.ctr .ctr-hand button[role="radio"]:not(.give) { border-color: #c99a1b; color: #f2c94c; }
+.ctr .ctr-hand button.on.hold { border-color: #c99a1b; background: color-mix(in srgb, #c99a1b 16%, var(--c-card)); color: #f2c94c; }
+.ctr-queue .acts .ghost .ctr-locked { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; color: var(--c-ink); }
+.ctr-queue .acts .ghost .ctr-locked small { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: #f2c94c; font-weight: 700; }
