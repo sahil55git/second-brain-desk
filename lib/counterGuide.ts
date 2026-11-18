@@ -11,3 +11,9 @@ export function counterStep(a: { lines: number; kg: number; scaleOn: boolean }):
   if (a.lines > 0) return "save";
   return a.scaleOn ? "weigh" : "pick";
 }
+
+/** After saving: what a held bill needs next, so the screen can flash that tick box. money → tick "received"; goods → give the goods. */
+export function billGuide(a: { moneyDue: boolean; held: boolean }): "money" | "goods" | null {
+  if (a.moneyDue) return "money";
+  return a.held ? "goods" : null;
+}
