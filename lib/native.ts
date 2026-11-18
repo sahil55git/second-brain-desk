@@ -58,6 +58,20 @@ interface MahadevScalePlugin {
   addListener(ev: "scaleBytes", f: (e: { base64: string }) => void): Promise<{ remove: () => void }>;
   addListener(ev: "scaleClosed", f: (e: { error: string }) => void): Promise<{ remove: () => void }>;
 }
+export interface UpiNotification {
+  id: string;
+  pkg: string;
+  title: string;
+  text: string;
+  at: number;
+}
+/** Payment-received notifications of the UPI apps on this device (needs Notification access; app 1.4+). */
+interface MahadevUpiPlugin {
+  status(): Promise<{ enabled: boolean }>;
+  openSettings(): Promise<void>;
+  events(o: { since: number }): Promise<{ events: UpiNotification[] }>;
+  clear(): Promise<void>;
+}
 interface LocalNotificationsPlugin {
   requestPermissions(): Promise<{ display: string }>;
   checkPermissions(): Promise<{ display: string }>;
@@ -73,6 +87,7 @@ interface AppPlugin {
 export const MahadevNative = registerPlugin<MahadevNativePlugin>("MahadevNative");
 export const MahadevPrinter = registerPlugin<MahadevPrinterPlugin>("MahadevPrinter");
 export const MahadevScale = registerPlugin<MahadevScalePlugin>("MahadevScale");
+export const MahadevUpi = registerPlugin<MahadevUpiPlugin>("MahadevUpi");
 export const LocalNotifications = registerPlugin<LocalNotificationsPlugin>("LocalNotifications");
 export const AppEvents = registerPlugin<AppPlugin>("App");
 
@@ -89,6 +104,15 @@ export function isNative(): boolean {
 export function hasNativeScale(): boolean {
   try {
     return isNative() && Capacitor.isPluginAvailable("MahadevScale");
+  } catch {
+    return false;
+  }
+}
+
+/** True inside an Android app new enough to read UPI payment notifications. */
+export function hasNativeUpi(): boolean {
+  try {
+    return isNative() && Capacitor.isPluginAvailable("MahadevUpi");
   } catch {
     return false;
   }

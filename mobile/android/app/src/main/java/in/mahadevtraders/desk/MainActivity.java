@@ -19,6 +19,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(MahadevNativePlugin.class);
         registerPlugin(MahadevPrinterPlugin.class);
         registerPlugin(MahadevScalePlugin.class);
+        registerPlugin(MahadevUpiPlugin.class);
         super.onCreate(savedInstanceState);
         openFromIntent(getIntent(), 600);
     }

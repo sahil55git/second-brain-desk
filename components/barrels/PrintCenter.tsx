@@ -46,6 +46,10 @@ interface Props {
   setupLink?: boolean;
   /** one-click: print once to the saved / last printer as soon as the sheet opens */
   autoPrint?: boolean;
+  /** one-click printing began (a printer was known) */
+  onStart?: () => void;
+  /** one-click printing did not work: the page can open its full print panel */
+  onFail?: () => void;
   /** open the "More ways to print" part from the start (the printer setup page) */
   moreOpen?: boolean;
 }
@@ -61,7 +65,7 @@ interface Target {
 type Msg = { ok: boolean; text: string } | null;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export default function PrintCenter({ kind, size, selector, marginMm = 0, count, label, disabled, name = "print", saved, onSave, onDone, setupLink = true, moreOpen = false, autoPrint = false }: Props) {
+export default function PrintCenter({ kind, size, selector, marginMm = 0, count, label, disabled, name = "print", saved, onSave, onDone, setupLink = true, moreOpen = false, autoPrint = false, onStart, onFail }: Props) {
   const savedRef = useRef(saved);
   savedRef.current = saved;
   const [mode, setMode] = useState<PrintMode>(printMode(saved.mode));
@@ -606,6 +610,7 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
     setBusy(true);
     const o = chosen;
     const t = targetFor(o);
+    onStart?.();
     try {
       const c = await printWith(t);
       if (o) remember(o, t, c);
@@ -626,6 +631,7 @@ export default function PrintCenter({ kind, size, selector, marginMm = 0, count,
         window.print();
         onDone?.();
       } else {
+        onFail?.();
         setMsg({ ok: false, text: t.mode === "direct" ? explainError(e, t.printer?.via ?? "print") : e instanceof Error ? e.message : "Printing did not work." });
       }
     } finally {

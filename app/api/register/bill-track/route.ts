@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
   if (!ids.length || !["handover", "upiOk", "paidLater"].includes(action)) return NextResponse.json({ error: "Nothing to do." }, { status: 400 });
   const mode: "CASH" | "UPI" = body.mode === "UPI" ? "UPI" : "CASH";
   const handover = body.value === "HELD" ? "HELD" : "GIVEN";
+  const via = typeof body.via === "string" ? body.via.replace(/[^\w .,:₹/-]/g, "").slice(0, 60) : "";
 
   const found = await safeDbCall(() => prisma.registerEntry.findMany({ where: { id: { in: ids } }, orderBy: { createdAt: "asc" } }));
   if (!found.ok) return NextResponse.json({ error: found.error }, { status: 503 });
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
     prisma.$transaction(async (tx) => {
       const patch: Record<string, unknown> = { ...cur };
       if (action === "handover") Object.assign(patch, { handover, handedAt: handover === "GIVEN" ? now : undefined });
-      if (action === "upiOk") patch.upiOk = { at: now, by };
+      if (action === "upiOk") patch.upiOk = { at: now, by: via ? `${by} · ${via}` : by };
       if (action === "paidLater") {
         // Collecting the udhaar is real money in: an "udhaar received" entry, so cash book and the customer's balance follow.
         await tx.registerEntry.create({
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
         await tx.registerEntry.update({ where: { id: rows[i].id }, data: { details: { ...prev, track: patch } as any } });
       }
       await writeAudit(tx, user, "EDIT", "RegisterEntry", rows[0].id,
-        `Bill ${billNo ? "#" + billNo + " " : ""}${action === "handover" ? (handover === "HELD" ? "goods held" : "goods handed over") : action === "upiOk" ? "UPI received" : `udhaar ${rupees(credit)} collected by ${mode}`}`);
+        `Bill ${billNo ? "#" + billNo + " " : ""}${action === "handover" ? (handover === "HELD" ? "goods held" : "goods handed over") : action === "upiOk" ? `UPI received${via ? " (" + via + ")" : ""}` : `udhaar ${rupees(credit)} collected by ${mode}`}`);
       return patch;
     })
   );
