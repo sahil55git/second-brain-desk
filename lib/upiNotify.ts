@@ -41,7 +41,9 @@ export function parseUpi(title: string, text: string): UpiHit | null {
   if (!m) return null;
   const amount = Math.round(parseFloat(m[1].replace(/,/g, "")) * 100) / 100;
   if (!(amount > 0)) return null;
-  const payer = payerIn((text || "").replace(/\s+/g, " ").trim()) || payerIn(s);
+  const one = (v: string) => (v || "").replace(/\s+/g, " ").trim();
+  // the title and the body are tried on their own first, so a long body cannot swallow the name ("₹1.70 received from SAHIL L" + "See live notifications…")
+  const payer = payerIn(one(title)) || payerIn(one(text)) || payerIn(s);
   const ref = refOf(s);
   const billNo = billNoOf(s);
   return { amount, payer, ...(ref ? { ref } : {}), ...(billNo ? { billNo } : {}) };

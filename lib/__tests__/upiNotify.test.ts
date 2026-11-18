@@ -119,3 +119,12 @@ describe("planUpi: same amount on several bills", () => {
     expect(p.ask).toEqual([]);
   });
 });
+
+describe("Google Pay for Business notification", () => {
+  it("reads the payer from the title even when the body is long", () => {
+    expect(parseUpi("₹1.70 received from SAHIL L", "See live notifications here when you receive customer payments")).toEqual({ amount: 1.7, payer: "SAHIL L" });
+  });
+  it("ignores a bank debit alert", () => {
+    expect(parseUpi("- ₹ 1.70 DEBIT", "From AXIS XX7087")).toBeNull();
+  });
+});
