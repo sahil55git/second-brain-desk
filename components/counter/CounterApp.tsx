@@ -26,6 +26,7 @@ import { billText, daySummaryDoc, mobileOf, whatsappLink } from "@/lib/counterSh
 import { DEFAULT_GST_PCT, DEFAULT_HSN, taxInvoiceDoc, validGstin } from "@/lib/counterGst";
 import { defaultRefundMode, refundFor, returnBody, returnables, returnedByBill, type RefundMode, type ReturnItem, type ReturnedSoFar } from "@/lib/counterReturn";
 import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
+import OilIcon from "./OilIcon";
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
 import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
 import { billGuide, counterStep } from "@/lib/counterGuide";
@@ -1224,7 +1225,7 @@ export default function CounterApp() {
 
           {(upiDue > 0 || creditDue > 0 || (holdCash && cashDue > 0)) && lines.length > 0 && (
             <div className="ctr-hand" role="radiogroup" aria-label={k("Oil", "ಎಣ್ಣೆ")}>
-              <span aria-hidden>📦</span>
+              <span aria-hidden><OilIcon size={30} /></span>
               <button type="button" role="radio" aria-checked={hand === "GIVEN"} className={hand === "GIVEN" ? "on" : ""} onClick={() => setHandPick("GIVEN")}><i aria-hidden>✅</i> {k("Give now", "ಈಗ ಕೊಡಿ")}</button>
               <button type="button" role="radio" aria-checked={hand === "HELD"} className={hand === "HELD" ? "on hold" : ""} onClick={() => setHandPick("HELD")}><i aria-hidden>🔒</i> {k("Hold bill", "ಬಿಲ್ ಹಿಡಿಯಿರಿ")}</button>
             </div>
@@ -1462,12 +1463,12 @@ export default function CounterApp() {
                         </div>
                         {ho === "HELD" ? (
                           <button type="button" className={`tick goods${armed === `${b.key}:give` ? " armed" : ""}${gd === "goods" ? " ctr-next" : ""}${gd === "money" ? " locked" : ""}`} onClick={() => (gd === "money" && armed !== `${b.key}:give` ? setArmed(`${b.key}:give`) : void trackAct(b, "handover", { value: "GIVEN" }))}>
-                            <i className="box">{armed === `${b.key}:give` ? "✓?" : ""}</i><span className="ico" aria-hidden>{gd === "money" ? "🔒" : "📦"}</span>
+                            <i className="box">{armed === `${b.key}:give` ? "✓?" : ""}</i><span className="ico" aria-hidden>{gd === "money" ? "🔒" : <OilIcon size={26} />}</span>
                             <b>{gd === "money" ? k("Held", "ಹಿಡಿದಿದೆ") : k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</b>
                             <small>{armed === `${b.key}:give` ? (gd === "money" ? k("No money yet — tap to give", "ಹಣ ಬಂದಿಲ್ಲ — ಕೊಡಲು ಒತ್ತಿ") : k("Tap again", "ಮತ್ತೆ ಒತ್ತಿ")) : k("Not given", "ಕೊಟ್ಟಿಲ್ಲ")}</small>
                           </button>
                         ) : (
-                          <span className="tick goods on"><i className="box">✓</i><span className="ico" aria-hidden>📦</span><b>{k("Given", "ಕೊಟ್ಟಿದೆ")}</b></span>
+                          <span className="tick goods on"><i className="box">✓</i><span className="ico" aria-hidden><OilIcon size={26} /></span><b>{k("Given", "ಕೊಟ್ಟಿದೆ")}</b></span>
                         )}
                       </div>
                     )}
@@ -1538,10 +1539,10 @@ export default function CounterApp() {
                           </button>
                         )}
                         {need === "READY" ? (
-                          <button type="button" className="big give ctr-next" onClick={() => void trackAct(b, "handover", { value: "GIVEN" })}>📦 {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</button>
+                          <button type="button" className="big give ctr-next" onClick={() => void trackAct(b, "handover", { value: "GIVEN" })}><OilIcon size={24} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</button>
                         ) : (
                           <button type="button" className={`ghost${armed === `${b.key}:give` ? " on" : ""}`} onClick={() => (armed === `${b.key}:give` ? void trackAct(b, "handover", { value: "GIVEN" }) : setArmed(`${b.key}:give`))}>
-                            {armed === `${b.key}:give` ? k("Money NOT received — tap again to give anyway", "ಹಣ ಬಂದಿಲ್ಲ — ಆದರೂ ಕೊಡಲು ಮತ್ತೆ ಒತ್ತಿ") : `📦 ${k("Give anyway", "ಆದರೂ ಕೊಡಿ")}`}
+                            {armed === `${b.key}:give` ? k("Money NOT received — tap again to give anyway", "ಹಣ ಬಂದಿಲ್ಲ — ಆದರೂ ಕೊಡಲು ಮತ್ತೆ ಒತ್ತಿ") : <><OilIcon size={20} /> {k("Give anyway", "ಆದರೂ ಕೊಡಿ")}</>}
                           </button>
                         )}
                         <button type="button" className="ghost" onClick={() => setRcpt({ doc: billDoc(b), auto: true })} aria-label={k("Re-print", "ಮತ್ತೆ ಮುದ್ರಿಸಿ")}>🖨️</button>
