@@ -95,13 +95,14 @@ public class MahadevPrinterPlugin extends Plugin {
                     for (BluetoothDevice d : bonded) {
                         String name = d.getName() == null ? d.getAddress() : d.getName();
                         int major = d.getBluetoothClass() == null ? BluetoothClass.Device.Major.UNCATEGORIZED : d.getBluetoothClass().getMajorDeviceClass();
-                        if (major == BluetoothClass.Device.Major.AUDIO_VIDEO || major == BluetoothClass.Device.Major.PHONE || major == BluetoothClass.Device.Major.COMPUTER
-                                || major == BluetoothClass.Device.Major.WEARABLE || major == BluetoothClass.Device.Major.HEALTH || major == BluetoothClass.Device.Major.TOY) continue;
+                        // Many cheap thermal printers report a wrong class (headset, phone, computer…), so every
+                        // paired device is listed; only the likely printers are marked and sorted first.
                         JSObject o = new JSObject();
                         o.put("id", "nbt:" + d.getAddress());
                         o.put("name", name);
                         o.put("kind", "bluetooth");
                         o.put("printer", major == BluetoothClass.Device.Major.IMAGING || PRINTERISH.matcher(name).find());
+                        o.put("cls", major);
                         arr.put(o);
                     }
                 }
@@ -124,6 +125,7 @@ public class MahadevPrinterPlugin extends Plugin {
         JSObject r = new JSObject();
         r.put("printers", arr);
         r.put("bluetoothOn", btOn);
+        r.put("permission", !needsBtPermission());
         call.resolve(r);
     }
 
