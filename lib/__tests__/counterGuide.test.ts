@@ -8,3 +8,12 @@ describe("counter guide", () => {
   it("items on the bill, scale empty: save", () => expect(counterStep({ lines: 2, kg: 0, scaleOn: true })).toBe("save"));
   it("another weight after an item: pick again", () => expect(counterStep({ lines: 1, kg: 1, scaleOn: true })).toBe("pick"));
 });
+
+import { billGuide } from "../counterGuide";
+describe("billGuide", () => {
+  it("money first, then the goods, then nothing", () => {
+    expect(billGuide({ moneyDue: true, held: true })).toBe("money");
+    expect(billGuide({ moneyDue: false, held: true })).toBe("goods");
+    expect(billGuide({ moneyDue: false, held: false })).toBeNull();
+  });
+});

@@ -9,6 +9,7 @@ import { cashReceived, changeFor, noteChips } from "@/lib/cashDesk";
 import { billMatches, billsSummary, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
 import { daySummaryDoc } from "@/lib/counterShare";
 import { handoverOf, heldNeed, heldQueue, isTracked, payStatus, waitText } from "@/lib/counterTrack";
+import { billName } from "@/lib/counterName";
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
 import { businessDate } from "@/lib/register";
 import "./cashier.css";
@@ -130,7 +131,7 @@ export default function CashierDesk() {
       <div className="cd-modal" role="dialog" aria-label={k("Take payment", "ಪಾವತಿ ಪಡೆಯಿರಿ")} onClick={() => !busy && close()}>
         <div className="cd-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="cd-head">
-            <b>#{bill.no}{bill.party ? ` · ${bill.party}` : ""}</b>
+            <b>#{bill.no}{` · ${billName(bill.party, bill.modes)}`}</b>
             <button type="button" onClick={close} aria-label="Close">✕</button>
           </div>
           <ul className="cd-lines">
@@ -230,7 +231,7 @@ export default function CashierDesk() {
                 return (
                   <li key={b.key}>
                     <button type="button" className={need === "READY" ? "ready" : age > 15 * 60_000 ? "late" : ""} onClick={() => open(b)}>
-                      <span className="r1"><b>#{b.no}{b.party ? ` · ${b.party}` : ""}</b><strong>{rupees(b.total)}</strong></span>
+                      <span className="r1"><b>#{b.no}{` · ${billName(b.party, b.modes)}`}</b><strong>{rupees(b.total)}</strong></span>
                       <span className="r2">{b.lines.map((l) => l.label).join(", ")}</span>
                       <span className="r3">
                         <span>⏱ {waitText(age)}</span>
@@ -265,7 +266,7 @@ export default function CashierDesk() {
                 return (
                   <li key={b.key}>
                     <button type="button" onClick={() => open(b)}>
-                      <span className="r1"><b>#{b.no}{b.party ? ` · ${b.party}` : ""}</b><strong>{rupees(b.total)}</strong></span>
+                      <span className="r1"><b>#{b.no}{` · ${billName(b.party, b.modes)}`}</b><strong>{rupees(b.total)}</strong></span>
                       <span className="r3"><span>{timeOf(b.createdAt)} · {Object.keys(b.modes).join(" + ")}</span><span className={st.cls === "paid" ? "okc" : "wait"}>{st.text}</span></span>
                     </button>
                   </li>

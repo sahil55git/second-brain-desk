@@ -383,13 +383,9 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 /* "Do this next" guide: the control to use next pulses */
 @keyframes ctrPulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, #f59e0b 65%, transparent); } 50% { box-shadow: 0 0 0 9px transparent; } }
 .ctr-next { outline: 3px solid #f59e0b; outline-offset: 3px; border-radius: 14px; animation: ctrPulse 1.2s ease-in-out infinite; }
-.ctr-steps { list-style: none; display: flex; gap: 6px; margin: 0 0 8px; padding: 0; font-size: 14px; }
-.ctr-steps li { flex: 1; text-align: center; padding: 6px 4px; border-radius: 10px; border: 1px solid var(--c-line, #ccc); opacity: .6; }
-.ctr-steps li.on { opacity: 1; font-weight: 700; border: 2px solid #f59e0b; }
 @media (prefers-reduced-motion: reduce) { .ctr-next { animation: none; outline-width: 4px; } }
 
 /* Layouts */
-.ctr-steps li.sum { flex: 0 0 auto; padding: 6px 12px; font-weight: 700; opacity: 1; }
 .ctr-stepbtn { width: 100%; min-height: 52px; margin: 0 0 8px; border: 2px dashed var(--c-line, #999); border-radius: 12px; background: transparent; color: inherit; font-weight: 700; font-size: 16px; }
 .ctr-stepbtn.done { border-style: solid; border-color: var(--c-ok); color: var(--c-ok); }
 .ctr.lay-steps[data-view="bill"] .ctr-items { display: none; }
@@ -408,3 +404,83 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr-layout .mini i { background: color-mix(in srgb, currentColor 30%, transparent); border-radius: 3px; }
 .ctr-layout .m-big { grid-template-columns: 1fr; } .ctr-layout .m-big i:first-child { grid-row: span 2; }
 .ctr-layout .m-steps { grid-template-columns: 1fr; } .ctr-layout .m-steps i:nth-child(n+2) { display: none; }
+
+
+/* ============ Polish: calmer palette, soft depth, gentle motion ============ */
+.ctr {
+  --c-bg: #f4f6f9; --c-acc: #2457c5; --c-ok: #1b8a4b; --c-mid: #c27c0e; --c-bad: #b8431a;
+  --c-hold: #f1d684; --c-lcd: #0e1620; --c-lcd-ink: #7fe3a0;
+  --shadow: 0 1px 2px rgba(16,24,40,.06), 0 4px 14px rgba(16,24,40,.06);
+  --ease: cubic-bezier(.2,.8,.2,1);
+}
+@media (prefers-color-scheme: dark) {
+  .ctr { --c-bg: #0c1117; --c-card: #151b23; --c-line: #27303b; --c-acc: #6b9bff; --c-ok: #3ecf7e; --c-mid: #e8a73a; --c-bad: #f08a5d; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.35); }
+}
+.ctr button { transition: transform .15s var(--ease), box-shadow .2s var(--ease), background-color .2s, border-color .2s; }
+.ctr button:active:not(:disabled) { transform: scale(.97); }
+.ctr-top { box-shadow: var(--shadow); border-bottom: 0; }
+.ctr-title { font-weight: 700; letter-spacing: .2px; }
+.ctr-chip { background: color-mix(in srgb, var(--c-card) 70%, var(--c-bg)); }
+.ctr-tbtn { box-shadow: 0 1px 2px rgba(16,24,40,.05); }
+.ctr-lcd { border-radius: 16px; border-width: 2px; box-shadow: inset 0 0 18px rgba(0,0,0,.45), var(--shadow); }
+.ctr-key { box-shadow: var(--shadow); border-width: 1.5px; transition: transform .15s var(--ease), box-shadow .2s var(--ease), border-color .2s; }
+.ctr-key:hover { box-shadow: 0 2px 4px rgba(16,24,40,.08), 0 8px 20px rgba(16,24,40,.09); }
+.ctr-key.ready { box-shadow: 0 0 0 1px color-mix(in srgb, var(--c-ok) 45%, transparent), var(--shadow); }
+.ctr-act button { border-radius: 14px; box-shadow: var(--shadow); }
+.ctr-act .go { background: linear-gradient(180deg, color-mix(in srgb, var(--c-ok) 92%, #fff), var(--c-ok)); letter-spacing: .2px; }
+.ctr-bill, .ctr-sheet { box-shadow: var(--shadow); }
+.ctr-list li, .ctr-queue li { box-shadow: var(--shadow); background: var(--c-card); }
+.ctr-seg button.on { box-shadow: inset 0 0 0 1px var(--c-acc); }
+
+/* ---- the flashing guide: a soft glowing ring + a pointing finger, no words ---- */
+@keyframes ctrGlow {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, #f5a623 70%, transparent), 0 0 0 0 color-mix(in srgb, #f5a623 35%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, #f5a623 0%, transparent), 0 0 22px 6px color-mix(in srgb, #f5a623 45%, transparent); }
+}
+@keyframes ctrPoint { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
+@keyframes ctrSheen { from { background-position: -160% 0; } to { background-position: 260% 0; } }
+.ctr-next { position: relative; outline: 3px solid #f5a623; outline-offset: 3px; border-radius: 14px; animation: ctrGlow 1.3s ease-in-out infinite; z-index: 1; }
+.ctr-next::after { content: "👇"; position: absolute; top: -26px; right: 10px; font-size: 24px; line-height: 1; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); animation: ctrPoint .9s ease-in-out infinite; pointer-events: none; z-index: 3; }
+.ctr-lcd.ctr-next::after, .ctr-grid.ctr-next::after { top: -24px; right: 14px; }
+.ctr-grid.ctr-next { outline-offset: 5px; }
+.ctr-next.go { background-image: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%); background-size: 60% 100%; background-repeat: no-repeat; animation: ctrGlow 1.3s ease-in-out infinite, ctrSheen 2.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .ctr-next, .ctr-next::after, .ctr-next.go { animation: none; } }
+
+/* goods chooser: two big icon buttons */
+.ctr-hand button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px; }
+.ctr-hand button i { font-style: normal; font-size: 22px; }
+.ctr-hand span { font-size: 26px; }
+
+/* ---- Bills page: one card per bill, big tick boxes ---- */
+.ctr-list li.br { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 12px; border-width: 1.5px; border-left: 6px solid var(--c-line); }
+.ctr-list li.br.need-money { border-left-color: var(--c-mid); }
+.ctr-list li.br.need-goods { border-left-color: var(--c-acc); }
+.ctr-list li.br.done { border-left-color: var(--c-ok); }
+.br-top { display: flex; align-items: center; gap: 10px; }
+.br-no { background: var(--c-acc-soft); color: var(--c-acc); font-weight: 800; border-radius: 10px; padding: 2px 10px; font-size: 18px; }
+.br-name { flex: 1; font-size: 19px; line-height: 1.2; } .br-name i { font-style: normal; }
+.br-top .amt { font-size: 24px; font-variant-numeric: tabular-nums; }
+.br-items { font-size: 14px; color: var(--c-soft); }
+.br-meta { color: var(--c-soft); font-size: 12px; }
+.br-ticks { display: grid; grid-template-columns: 1.25fr 1fr; gap: 8px; align-items: stretch; margin-top: 2px; }
+.br-col { display: grid; gap: 8px; align-content: start; }
+.tick { display: grid; grid-template-columns: 30px 28px 1fr; grid-template-areas: "box ico lbl" "box ico sub"; column-gap: 8px; align-items: center; text-align: left; min-height: 62px; padding: 8px 10px; border: 2px solid var(--c-line); border-radius: 14px; background: var(--c-card); color: var(--c-ink); }
+.tick .box { grid-area: box; width: 30px; height: 30px; border: 2.5px solid var(--c-mid); border-radius: 9px; display: grid; place-items: center; font-style: normal; font-weight: 800; font-size: 18px; color: #fff; background: transparent; }
+.tick .ico { grid-area: ico; font-size: 24px; }
+.tick b { grid-area: lbl; font-size: 17px; align-self: end; line-height: 1.1; }
+.tick small { grid-area: sub; font-size: 12px; color: var(--c-soft); align-self: start; }
+.tick.on { border-color: color-mix(in srgb, var(--c-ok) 60%, var(--c-line)); background: color-mix(in srgb, var(--c-ok) 9%, var(--c-card)); }
+.tick.on .box { background: var(--c-ok); border-color: var(--c-ok); }
+.tick.on small { color: var(--c-ok); font-weight: 700; }
+.tick.armed { border-color: var(--c-acc); background: var(--c-acc-soft); }
+.tick.armed .box { border-color: var(--c-acc); color: var(--c-acc); }
+.tick.goods { grid-template-columns: 30px 1fr; grid-template-areas: "box ico" "box lbl" "box sub"; min-height: 100%; }
+.tick.goods .ico { justify-self: start; font-size: 28px; }
+.tick.goods .box { border-color: var(--c-acc); }
+.tick.goods.on .box { border-color: var(--c-ok); }
+.tick.locked { opacity: .75; border-style: dashed; }
+.tick.locked .box { border-color: var(--c-line); }
+.br .ctr-bact { display: flex; gap: 6px; margin-top: 4px; }
+.br .ctr-bact button { flex: 1; min-height: 40px; font-size: 18px; }
+.br .ctr-bact button.bad { color: var(--c-bad); }
+.ctr-queue .acts .big.ctr-next, .ctr-queue .acts .big.give { min-height: 56px; font-size: 18px; }

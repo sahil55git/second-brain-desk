@@ -50,7 +50,7 @@ export function parseHold(raw: unknown): { ok: true; data: HoldData; total: numb
   const disc = Number(a.discount);
   const adjust: BillAdjust = { discount: Number.isFinite(disc) && disc > 0 ? r2(disc) : 0, pct: a.pct === true, roundOff: a.roundOff === true };
   const total = billSum(lines, adjust).net;
-  const label = party || `Walk-in · ${lines.length} item${lines.length > 1 ? "s" : ""}`;
+  const label = party || `${lines.length} item${lines.length > 1 ? "s" : ""}`;
   return { ok: true, data: { lines, pay, party, adjust, ...(pay === "SPLIT" ? { split } : {}) }, total, label };
 }
 

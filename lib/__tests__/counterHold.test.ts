@@ -11,7 +11,7 @@ describe("held counter bills", () => {
   });
   it("labels a walk-in and refuses junk", () => {
     const r = parseHold({ lines: [{ item: "karadi", qty: 1, rate: 260 }, { item: "cake", qty: 2, rate: 42 }] });
-    expect(r.ok && r.label).toBe("Walk-in · 2 items");
+    expect(r.ok && r.label).toBe("2 items");
     expect(parseHold({ lines: [] }).ok).toBe(false);
     expect(parseHold({ lines: [{ item: "x", qty: "a", rate: 1 }] }).ok).toBe(false);
   });
