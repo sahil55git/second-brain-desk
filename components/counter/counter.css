@@ -484,3 +484,75 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .br .ctr-bact button { flex: 1; min-height: 40px; font-size: 18px; }
 .br .ctr-bact button.bad { color: var(--c-bad); }
 .ctr-queue .acts .big.ctr-next, .ctr-queue .acts .big.give { min-height: 56px; font-size: 18px; }
+
+
+/* ============ Round 2: fixes from the phone screenshots + refinement ============ */
+/* the pointing hand for the item grid sits above it, never clipped */
+.ctr-grid.ctr-next::after { content: none; }
+.ctr-point { text-align: center; font-size: 28px; line-height: 1; height: 30px; animation: ctrPoint .9s ease-in-out infinite; pointer-events: none; filter: drop-shadow(0 2px 2px rgba(0,0,0,.3)); }
+.ctr-grid.ctr-next { outline: 0; animation: none; }
+.ctr-grid.ctr-next .ctr-key { border-color: #f5a623; animation: ctrKeyGlow 1.6s ease-in-out infinite; }
+.ctr-grid.ctr-next .ctr-key:nth-child(2n) { animation-delay: .25s; } .ctr-grid.ctr-next .ctr-key:nth-child(3n) { animation-delay: .5s; }
+@keyframes ctrKeyGlow { 0%, 100% { box-shadow: 0 0 0 0 transparent, var(--shadow); } 50% { box-shadow: 0 0 0 3px color-mix(in srgb, #f5a623 55%, transparent), 0 0 16px 2px color-mix(in srgb, #f5a623 35%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .ctr-point, .ctr-grid.ctr-next .ctr-key { animation: none; } }
+/* the pay row: finger sits inside the row so the bill card never clips it */
+.ctr-pay.ctr-next::after { top: -22px; }
+
+/* item tiles: number badge above the name, names never split mid-word */
+.ctr-key { padding: 34px 6px 10px; min-width: 0; }
+.ctr-key .plu { top: 6px; left: 6px; font-size: 12px; padding: 0 7px; line-height: 20px; }
+.ctr-key b { overflow-wrap: normal; word-break: normal; hyphens: manual; text-wrap: balance; line-height: 1.2; font-size: clamp(13px, 3.7vw, 17px); max-width: 100%; }
+.ctr-key b.long { font-size: clamp(11px, 3.1vw, 15px); }
+.ctr-key small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctr-key .ic:empty { display: none; }
+
+/* Save & Print: one clean block, amount under the words */
+.ctr-act { align-items: stretch; }
+.ctr-act .go { flex-direction: column; justify-content: center; gap: 2px; white-space: nowrap; font-size: 18px; line-height: 1.15; padding: 10px 14px; }
+.ctr-act .go small { font-size: 22px; font-weight: 800; letter-spacing: .3px; }
+.ctr-act .clr, .ctr-act .hold, .ctr-act .sv { flex: 0 0 auto; }
+@media (max-width: 820px) { .ctr-sticky { padding-bottom: calc(12px + env(safe-area-inset-bottom)); } .ctr { padding-bottom: env(safe-area-inset-bottom); } }
+
+/* items as chips on every bill card */
+.br-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.br-items .it { display: inline-flex; align-items: baseline; gap: 6px; background: color-mix(in srgb, var(--c-ink) 6%, var(--c-card)); border: 1px solid var(--c-line); border-radius: 999px; padding: 3px 12px; color: var(--c-ink); font-size: 15px; }
+.br-items .it b { font-weight: 700; }
+.br-items .it em { font-style: normal; font-weight: 800; color: var(--c-acc); }
+.ctr-queue li > .br-items { margin: 2px 0 4px; }
+
+/* Bills page: calmer header, stat tiles, mature filter pills */
+.ctr-bfilter input[type="date"] { border-radius: 12px; border: 1.5px solid var(--c-line); background: var(--c-card); padding: 8px 10px; }
+.ctr-bfilter button { border-radius: 12px; border: 1.5px solid var(--c-line); background: var(--c-card); padding: 8px 12px; font-weight: 600; box-shadow: var(--shadow); }
+.ctr-bsum { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; background: transparent; padding: 0; }
+.ctr-bsum > div { background: var(--c-card); border: 1px solid var(--c-line); border-radius: 14px; padding: 8px 12px; display: grid; gap: 1px; box-shadow: var(--shadow); }
+.ctr-bsum small { color: var(--c-soft); font-size: 12px; letter-spacing: .3px; text-transform: uppercase; }
+.ctr-bsum b { font-size: 19px; font-variant-numeric: tabular-nums; }
+.ctr-bsum .tot { border-color: color-mix(in srgb, var(--c-acc) 45%, var(--c-line)); background: var(--c-acc-soft); }
+.ctr-bsum .tot b { color: var(--c-acc); font-size: 22px; }
+.ctr-bsum .ret b { color: var(--c-bad); }
+.ctr-seg button { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.ctr-list li.br { border-radius: 18px; }
+.br-name { font-weight: 700; letter-spacing: .1px; }
+.br-no { font-variant-numeric: tabular-nums; letter-spacing: .3px; }
+.tick { border-radius: 16px; transition: border-color .2s, background-color .2s, transform .15s var(--ease); }
+.tick .box { transition: background-color .2s, border-color .2s; }
+.tick.ctr-next .box { animation: ctrBox 1.3s ease-in-out infinite; }
+@keyframes ctrBox { 0%, 100% { background: transparent; } 50% { background: color-mix(in srgb, #f5a623 40%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .tick.ctr-next .box { animation: none; } }
+
+/* Customer gave: a quiet field with the amount large, quick notes below */
+.ctr-cash { gap: 8px; }
+.ctr-cash .recv { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; min-height: 58px; padding: 8px 14px; border: 1.5px solid var(--c-line); border-radius: 16px; background: var(--c-card); box-shadow: var(--shadow); text-align: left; }
+.ctr-cash .recv .lbl { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--c-soft); }
+.ctr-cash .recv .lbl i { font-style: normal; font-size: 20px; }
+.ctr-cash .recv b { font-size: 24px; font-variant-numeric: tabular-nums; }
+.ctr-cash .recv b.exact { color: var(--c-soft); font-weight: 600; }
+.ctr-cash .recv b.typed { color: var(--c-ink); }
+.ctr-cash .recv .edit { font-size: 12px; color: var(--c-soft); border: 1px solid var(--c-line); border-radius: 999px; padding: 2px 9px; min-width: 28px; text-align: center; }
+.ctr-cash .quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 6px; }
+.ctr-cash .quick button { border: 1.5px solid var(--c-line); background: var(--c-card); border-radius: 12px; padding: 9px 6px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ctr-cash .quick button.on { border-color: var(--c-acc); background: var(--c-acc-soft); color: var(--c-acc); }
+.ctr-back-cash { border: 1.5px solid color-mix(in srgb, var(--c-ok) 45%, transparent); border-radius: 16px; padding: 10px 14px; }
+.ctr-back-cash b { font-size: 28px; font-variant-numeric: tabular-nums; }
+.ctr-short { background: color-mix(in srgb, var(--c-bad) 10%, transparent); border: 1.5px solid color-mix(in srgb, var(--c-bad) 40%, transparent); border-radius: 16px; padding: 10px 14px; }
+.ctr-cash .ctr-hint { display: none; }

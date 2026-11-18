@@ -29,7 +29,8 @@ import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type 
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
 import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
 import { billGuide, counterStep } from "@/lib/counterGuide";
-import { billIcon, billName } from "@/lib/counterName";
+import { billIcon, billName, qtyText } from "@/lib/counterName";
+import { noteChips } from "@/lib/cashDesk";
 import { LAYOUTS, LAYOUT_INFO, layoutShow, pickLayout, type Layout } from "@/lib/counterLayout";
 import { defaultHandover, handoverOf, heldNeed, heldQueue, isTracked, payStatus, upiLine, waitText, type Handover } from "@/lib/counterTrack";
 import { fitsBill, parseUpi, planUpi, samePayment, type UpiEvent } from "@/lib/upiNotify";
@@ -188,6 +189,7 @@ export default function CounterApp() {
   const [showParty, setShowParty] = useState(false);
   const [taxInv, setTaxInv] = useState<{ on: boolean; gstin: string; igst: boolean }>({ on: false, gstin: "", igst: false });
   const [received, setReceived] = useState(0);
+  const [payTouched, setPayTouched] = useState(false);
   const [adjust, setAdjust] = useState<{ discount: number; pct: boolean }>({ discount: 0, pct: false });
   const [pad, setPad] = useState<PadTarget | null>(null);
   const [padText, setPadText] = useState("");
@@ -320,8 +322,8 @@ export default function CounterApp() {
   const [billedKg, setBilledKg] = useState(0);
   useEffect(() => { if (kg < 0.001) setBilledKg(0); }, [kg]);
   const waitingKg = usable && Math.abs(kg - billedKg) > 0.003 ? kg : 0;
-  const nextStep = (guide || layout === "steps") && !busy ? counterStep({ lines: lines.length, kg: waitingKg, scaleOn: fresh }) : null;
-  const stepsView: "bill" | "items" | null = layout === "steps" ? (nextStep === "save" && !moreItems ? "bill" : "items") : null;
+  const nextStep = (guide || layout === "steps") && !busy ? counterStep({ lines: lines.length, kg: waitingKg, scaleOn: fresh, payChosen: payTouched }) : null;
+  const stepsView: "bill" | "items" | null = layout === "steps" ? ((nextStep === "save" || nextStep === "pay") && !moreItems ? "bill" : "items") : null;
   useEffect(() => { if (!lines.length) setMoreItems(false); }, [lines.length]);
   // Sell by amount: "₹100 of oil" → the kg to pour, with a beep when the scale gets there
   const [fill, setFill] = useState<{ amount: number; item?: CounterItem } | null>(null);
@@ -461,6 +463,7 @@ export default function CounterApp() {
   // ---- bill actions
   const reset = () => {
     setLines([]);
+    setPayTouched(false);
     setParty("");
     setShowParty(false);
     setTaxInv({ on: false, gstin: "", igst: false });
@@ -1132,9 +1135,9 @@ export default function CounterApp() {
             </button>
           )}
 
-          <div className="ctr-pay" role="radiogroup">
+          <div className={`ctr-pay${nextStep === "pay" ? " ctr-next" : ""}`} role="radiogroup">
             {(["CASH", "UPI", "CREDIT", "SPLIT"] as CounterPay[]).filter((p) => (p !== "CREDIT" || can("udhaar")) && (p === pay || show[PAY_KEY[p]])).map((p) => (
-              <button key={p} type="button" role="radio" aria-checked={pay === p} className={pay === p ? "on" : ""} onClick={() => { setPay(p); setReceived(0); setHandPick(null); }}>
+              <button key={p} type="button" role="radio" aria-checked={pay === p} className={pay === p ? "on" : ""} onClick={() => { setPay(p); setReceived(0); setHandPick(null); setPayTouched(true); }}>
                 {p === "SPLIT" ? `➗ ${k("Split", "ಹಂಚಿಕೆ")}` : `${CHAN_TEXT[p as Chan][2]} ${k(CHAN_TEXT[p as Chan][0], CHAN_TEXT[p as Chan][1])}`}
               </button>
             ))}
@@ -1156,11 +1159,19 @@ export default function CounterApp() {
           {cashDue > 0 && (
             <div className="ctr-cash">
               {show.cashReceived && (
-                <button type="button" className="recv" onClick={() => openPad({ kind: "received" })}>
-                  {k("Cash received", "ಪಡೆದ ನಗದು")}: <b>{received > 0 ? rupees(received) : "—"}</b>
-                </button>
+                <>
+                  <button type="button" className="recv" onClick={() => openPad({ kind: "received" })}>
+                    <span className="lbl"><i aria-hidden>💵</i>{k("Customer gave", "ಗ್ರಾಹಕ ಕೊಟ್ಟದ್ದು")}</span>
+                    <b className={received > 0 ? "typed" : "exact"}>{rupees(received > 0 ? received : cashDue)}</b>
+                    <span className="edit" aria-hidden>{received > 0 ? "✎" : k("exact", "ಸರಿ")}</span>
+                  </button>
+                  <div className="quick" aria-label={k("Quick amounts", "ತ್ವರಿತ ಮೊತ್ತ")}>
+                    {noteChips(cashDue).map((n) => (
+                      <button key={n} type="button" className={received === n || (!(received > 0) && n === Math.ceil(cashDue)) ? "on" : ""} onClick={() => setReceived(n === Math.ceil(cashDue) && Math.abs(n - cashDue) < 0.005 ? 0 : n)}>₹{n}</button>
+                    ))}
+                  </div>
+                </>
               )}
-              {show.cashReceived && !(received > 0) && <small className="ctr-hint">{k("Not typed = exact amount. Type it only if the customer gives more.", "ಟೈಪ್ ಮಾಡದಿದ್ದರೆ ಸರಿಯಾದ ಮೊತ್ತ. ಹೆಚ್ಚು ಕೊಟ್ಟರೆ ಮಾತ್ರ ಟೈಪ್ ಮಾಡಿ.")}</small>}
               {back > 0 && <div className="ctr-back-cash">{k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")} <b>{rupees(back)}</b></div>}
               {shortBy > 0 && <div className="ctr-short">{k("Still to collect", "ಇನ್ನೂ ಪಡೆಯಬೇಕು")} <b>{rupees(shortBy)}</b></div>}
             </div>
@@ -1226,7 +1237,7 @@ export default function CounterApp() {
             <div className="ctr-hand" role="radiogroup" aria-label={k("Goods", "ಸರಕು")}>
               <span aria-hidden>📦</span>
               <button type="button" role="radio" aria-checked={hand === "GIVEN"} className={hand === "GIVEN" ? "on" : ""} onClick={() => setHandPick("GIVEN")}><i aria-hidden>✅</i> {k("Give now", "ಈಗ ಕೊಡಿ")}</button>
-              <button type="button" role="radio" aria-checked={hand === "HELD"} className={`${hand === "HELD" ? "on hold" : ""}${guide && hand === "HELD" && nextStep === "save" ? " ctr-next" : ""}`} onClick={() => setHandPick("HELD")}><i aria-hidden>🔒</i> {k("Hold bill", "ಬಿಲ್ ಹಿಡಿಯಿರಿ")}</button>
+              <button type="button" role="radio" aria-checked={hand === "HELD"} className={hand === "HELD" ? "on hold" : ""} onClick={() => setHandPick("HELD")}><i aria-hidden>🔒</i> {k("Hold bill", "ಬಿಲ್ ಹಿಡಿಯಿರಿ")}</button>
             </div>
           )}
           <div className="ctr-act">
@@ -1248,6 +1259,7 @@ export default function CounterApp() {
             {show.plu && <button type="button" className="ctr-plu" onClick={() => openPad({ kind: "plu" })}>⌨️ PLU</button>}
             {isOwner && show.itemsBtn && <button type="button" className="ctr-plu" onClick={openItems}>✏️ {k("Items", "ವಸ್ತುಗಳು")}</button>}
           </div>
+          {nextStep === "pick" && <div className="ctr-point" aria-hidden>👇</div>}
           <div className={`ctr-grid${nextStep === "pick" ? " ctr-next" : ""}`}>
             {tiles.map((ci) => {
               const rate = rateOf(ci);
@@ -1255,7 +1267,7 @@ export default function CounterApp() {
                 <button key={ci.key} type="button" className={`ctr-key${usable && ci.unit === "kg" ? " ready" : ""}`} onClick={() => addItem(ci)}>
                   <span className="plu">{ci.plu}</span>
                   <span className="ic" aria-hidden>{ci.icon}</span>
-                  <b>{nameOf(ci)}</b>
+                  <b className={nameOf(ci).length > 9 ? "long" : ""}>{nameOf(ci)}</b>
                   {lang === "kn" ? <small>{ci.en}</small> : ci.kn ? <small>{ci.kn}</small> : null}
                   <small className="rt">{rate > 0 ? `₹${rate}/${ci.unit}` : k("no rate", "ದರ ಇಲ್ಲ")}</small>
                   {usable && ci.unit === "kg" && rate > 0 && <em>{rupees(r2(kg * rate))}</em>}
@@ -1343,7 +1355,7 @@ export default function CounterApp() {
             </div>
             <div className="okrow">
               <button type="button" className="cancel" onClick={() => setPad(null)}>{k("Cancel", "ರದ್ದು")}</button>
-              <button type="button" className="ok" onClick={padOk}>✓ OK</button>
+              <button type="button" className={`ok${guide && padText ? " ctr-next" : ""}`} onClick={padOk}>✓ OK</button>
             </div>
           </div>
         </div>
@@ -1404,11 +1416,11 @@ export default function CounterApp() {
               <button type="button" className={bFilter === "held" ? "on" : ""} onClick={() => setBFilter("held")}>🔒 {k("Goods held", "ಸರಕು ಹಿಡಿದಿದೆ")} {heldN > 0 ? `(${heldN})` : ""}</button>
             </div>
             <div className="ctr-bsum">
-              <span>{bSum.count} {k("bills", "ಬಿಲ್")}</span>
-              <b>{rupees(bSum.total)}</b>
-              <span>{bSum.kg.toFixed(3)} kg</span>
-              {Object.entries(bSum.modes).map(([m, v]) => <span key={m}>{modeName(m)} {rupees(v)}</span>)}
-              {retTotal > 0 && <span>↩️ {k("Returned", "ಹಿಂತಿರುಗಿಸಿದ್ದು")} −{rupees(retTotal)}</span>}
+              <div><small>{k("Bills", "ಬಿಲ್")}</small><b>{bSum.count}</b></div>
+              <div className="tot"><small>{k("Total", "ಒಟ್ಟು")}</small><b>{rupees(bSum.total)}</b></div>
+              <div><small>kg</small><b>{bSum.kg.toFixed(3).replace(/\.?0+$/, "")}</b></div>
+              {Object.entries(bSum.modes).map(([m, v]) => <div key={m}><small>{modeName(m)}</small><b>{rupees(v)}</b></div>)}
+              {retTotal > 0 && <div className="ret"><small>↩️ {k("Returned", "ಹಿಂತಿರುಗಿಸಿದ್ದು")}</small><b>−{rupees(retTotal)}</b></div>}
             </div>
             {bErr && <p className="ctr-msg bad">{bErr}</p>}
             {askCards()}
@@ -1429,7 +1441,7 @@ export default function CounterApp() {
                       <b className="br-name"><i aria-hidden>{billIcon(b.modes)}</i> {billLabel(b)}</b>
                       <b className="amt">{rupees(b.total)}</b>
                     </div>
-                    <span className="br-items">{b.lines.map((l) => `${l.label}${l.qty ? ` ${l.qty.toFixed(3)}` : ""}`).join(", ")}</span>
+                    <span className="br-items">{b.lines.map((l, i) => <span className="it" key={i}><b>{l.label}</b>{qtyText(l.qty, l.unit) && <em>{qtyText(l.qty, l.unit)}</em>}</span>)}</span>
                     <small className="br-meta">{timeOf(b.createdAt)}{b.date !== date ? ` · ${b.date}` : ""}{b.by ? ` · ${b.by}` : ""}{b.notes ? ` · ${b.notes}` : ""}</small>
                     {upiLn && <small className="ctr-upiline">✅ {upiLn}</small>}
                     {tracked && ps.upiDue > 0 && !b.party && (() => {
@@ -1519,7 +1531,7 @@ export default function CounterApp() {
                         <strong>{rupees(b.total)}</strong>
                         <span className="wait">⏱ {waitText(age)}</span>
                       </div>
-                      <small>{b.lines.map((l) => `${l.label}${l.qty ? ` ${l.qty.toFixed(3)}` : ""}`).join(", ")}</small>
+                      <span className="br-items">{b.lines.map((l, i) => <span className="it" key={i}><b>{l.label}</b>{qtyText(l.qty, l.unit) && <em>{qtyText(l.qty, l.unit)}</em>}</span>)}</span>
                       <div className="chips">
                         {(b.modes.CASH || 0) > 0 && <span className={ps.cashDue > 0 ? "wait" : "okc"}>💵 {rupees(b.modes.CASH)} {ps.cashDue > 0 ? k("to receive", "ಪಡೆಯಬೇಕು") : "✓"}</span>}
                         {(b.modes.UPI || 0) > 0 && <span className={ps.upiDue > 0 ? "wait" : "okc"}>📲 {rupees(b.modes.UPI)} {ps.upiDue > 0 ? k("waiting", "ಕಾಯುತ್ತಿದೆ") : `✓${b.track.upiOk?.payer ? ` ${b.track.upiOk.payer}` : ""}`}</span>}

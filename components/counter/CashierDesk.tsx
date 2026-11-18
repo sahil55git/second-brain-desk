@@ -9,7 +9,7 @@ import { cashReceived, changeFor, noteChips } from "@/lib/cashDesk";
 import { billMatches, billsSummary, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
 import { daySummaryDoc } from "@/lib/counterShare";
 import { handoverOf, heldNeed, heldQueue, isTracked, payStatus, waitText } from "@/lib/counterTrack";
-import { billName } from "@/lib/counterName";
+import { billName, qtyText } from "@/lib/counterName";
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
 import { businessDate } from "@/lib/register";
 import "./cashier.css";
@@ -135,7 +135,7 @@ export default function CashierDesk() {
             <button type="button" onClick={close} aria-label="Close">✕</button>
           </div>
           <ul className="cd-lines">
-            {bill.lines.map((l, i) => <li key={i}><span>{l.label}{l.qty ? ` ${l.qty.toFixed(l.unit === "pcs" ? 0 : 3)} ${l.unit || ""}` : ""}</span><b>{rupees(l.amount)}</b></li>)}
+            {bill.lines.map((l, i) => <li key={i}><span><b>{l.label}</b>{qtyText(l.qty, l.unit) ? <em>{qtyText(l.qty, l.unit)}</em> : null}</span><b>{rupees(l.amount)}</b></li>)}
             <li className="tot"><span>{k("Bill total", "ಬಿಲ್ ಒಟ್ಟು")}</span><b>{rupees(bill.total)}</b></li>
           </ul>
 
@@ -232,7 +232,7 @@ export default function CashierDesk() {
                   <li key={b.key}>
                     <button type="button" className={need === "READY" ? "ready" : age > 15 * 60_000 ? "late" : ""} onClick={() => open(b)}>
                       <span className="r1"><b>#{b.no}{` · ${billName(b.party, b.modes)}`}</b><strong>{rupees(b.total)}</strong></span>
-                      <span className="r2">{b.lines.map((l) => l.label).join(", ")}</span>
+                      <span className="r2">{b.lines.map((l) => `${l.label}${qtyText(l.qty, l.unit) ? " " + qtyText(l.qty, l.unit) : ""}`).join(" · ")}</span>
                       <span className="r3">
                         <span>⏱ {waitText(age)}</span>
                         {ps.cashDue > 0 && <span className="wait">💵 {rupees(ps.cashDue)} {k("to receive", "ಪಡೆಯಬೇಕು")}</span>}

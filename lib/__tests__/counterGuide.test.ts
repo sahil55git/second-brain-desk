@@ -17,3 +17,12 @@ describe("billGuide", () => {
     expect(billGuide({ moneyDue: false, held: false })).toBeNull();
   });
 });
+
+describe("pay step", () => {
+  it("items on the bill and no payment tapped yet: pay comes before save", () => {
+    expect(counterStep({ lines: 1, kg: 0, scaleOn: true, payChosen: false })).toBe("pay");
+    expect(counterStep({ lines: 1, kg: 0, scaleOn: true, payChosen: true })).toBe("save");
+    expect(counterStep({ lines: 1, kg: 0, scaleOn: true })).toBe("save");
+    expect(counterStep({ lines: 1, kg: 2, scaleOn: true, payChosen: false })).toBe("pick");
+  });
+});
