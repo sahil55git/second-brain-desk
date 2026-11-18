@@ -34,3 +34,15 @@ describe("quantities", () => {
     expect(qtyText(null, "kg")).toBe("");
   });
 });
+
+import { oilKgText } from "../counterName";
+describe("oilKgText", () => {
+  it("adds up the kg lines", () => {
+    expect(oilKgText([{ qty: 1, unit: "kg" }, { qty: 2, unit: "kg" }])).toBe("3 kg");
+    expect(oilKgText([{ qty: 0.5, unit: "kg" }, { qty: 2, unit: "pcs" }])).toBe("0.5 kg");
+  });
+  it("is blank when nothing is sold by weight", () => {
+    expect(oilKgText([{ qty: 2, unit: "pcs" }])).toBe("");
+    expect(oilKgText([])).toBe("");
+  });
+});

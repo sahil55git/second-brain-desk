@@ -33,3 +33,9 @@ export function qtyText(qty: number | null | undefined, unit: string | null | un
   const u = (unit || "kg").trim();
   return `${fmtQty(qty)} ${u}`;
 }
+
+/** Total kg of oil on a bill, for the big "Oil 3 kg" button: "3 kg"; blank when nothing is sold by weight. */
+export function oilKgText(lines: { qty?: number | null; unit?: string | null }[]): string {
+  const kg = lines.reduce((s, l) => ((l.unit || "kg").trim() === "kg" && (l.qty || 0) > 0 ? s + (l.qty as number) : s), 0);
+  return kg > 0 ? `${fmtQty(kg)} kg` : "";
+}

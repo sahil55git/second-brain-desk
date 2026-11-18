@@ -79,3 +79,6 @@
 .cd-lines li>span{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
 .cd-lines li>span em{font-style:normal;font-weight:700;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:1px 8px;font-size:14px}
 .cd-list .r2{font-weight:500;color:var(--tx);opacity:.85}
+
+.cd-acts .go { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 64px; }
+.cd-acts .go .oil-out { flex-wrap: nowrap; }

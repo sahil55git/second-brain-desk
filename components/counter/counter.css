@@ -748,3 +748,9 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr .ctr-upiacc button { background: transparent; color: var(--c-ink); border-color: var(--c-line); }
 .ctr .ctr-upiacc button.on { background: var(--c-acc); color: var(--c-on-acc, #fff); border-color: var(--c-acc); }
 @media (max-width: 380px) { .ctr .ctr-upi .ctr-qrbtn svg { width: 96px; height: 96px; } .ctr .ctr-upi b { font-size: 28px; } }
+
+/* ---- Oil button: bottle + Oil + kg + arrow + customer, full width, no English needed */
+.ctr-queue .acts button.give { flex: 1 1 100%; min-height: 84px; display: flex; align-items: center; justify-content: center; padding: 8px 10px; }
+.ctr-queue .acts button.give .oil-out { flex-wrap: nowrap; }
+.ctr-queue .acts button.big:not(.give) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.tick .ico svg { display: block; }
