@@ -770,3 +770,15 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr-act .go small { font-size: 26px; font-weight: 700; opacity: 1; }
 .ctr-modal .ctr-bact button { display: inline-flex; align-items: center; gap: 8px; min-height: 52px; }
 .ctr-sheethead > b { display: inline-flex; align-items: center; gap: 10px; }
+
+/* ---- PLU band, high contrast: solid accent band with the theme's "on accent" colour (white on dark themes), larger digits */
+.ctr .ctr-key { --plu-fs: 38px; --plu-h: 52px; }
+.ctr.plu-l .ctr-key { --plu-fs: 48px; --plu-h: 64px; }
+.ctr.plu-xl .ctr-key { --plu-fs: 60px; --plu-h: 78px; }
+.ctr .ctr-key .plu { background: var(--c-acc); color: var(--c-on-acc, #fff); border-bottom: 0; font-weight: 800; text-shadow: 0 1px 2px rgba(0,0,0,.35); letter-spacing: .03em; }
+.ctr .ctr-key.ready .plu { background: var(--c-ok); color: #fff; border-bottom: 0; }
+@media (max-width: 520px) {
+  .ctr .ctr-key { --plu-fs: 34px; --plu-h: 46px; }
+  .ctr.plu-l .ctr-key { --plu-fs: 42px; --plu-h: 56px; }
+  .ctr.plu-xl .ctr-key { --plu-fs: 54px; --plu-h: 70px; }
+}
