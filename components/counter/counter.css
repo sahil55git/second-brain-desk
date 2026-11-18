@@ -387,3 +387,24 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr-steps li { flex: 1; text-align: center; padding: 6px 4px; border-radius: 10px; border: 1px solid var(--c-line, #ccc); opacity: .6; }
 .ctr-steps li.on { opacity: 1; font-weight: 700; border: 2px solid #f59e0b; }
 @media (prefers-reduced-motion: reduce) { .ctr-next { animation: none; outline-width: 4px; } }
+
+/* Layouts */
+.ctr-steps li.sum { flex: 0 0 auto; padding: 6px 12px; font-weight: 700; opacity: 1; }
+.ctr-stepbtn { width: 100%; min-height: 52px; margin: 0 0 8px; border: 2px dashed var(--c-line, #999); border-radius: 12px; background: transparent; color: inherit; font-weight: 700; font-size: 16px; }
+.ctr-stepbtn.done { border-style: solid; border-color: var(--c-ok); color: var(--c-ok); }
+.ctr.lay-steps[data-view="bill"] .ctr-items { display: none; }
+.ctr.lay-steps[data-view="items"] .ctr-bill { display: none; }
+.ctr.lay-steps .ctr-main { grid-template-columns: 1fr; }
+.ctr.lay-big .ctr-lcd { flex: 1 1 100%; padding: 10px 22px; }
+.ctr.lay-big .ctr-lcd span { font-size: clamp(64px, 20vw, 160px); line-height: 1; }
+.ctr.lay-big .ctr-lcd.small { flex: 1 1 100%; }
+.ctr.lay-big .ctr-lcd.small span { font-size: clamp(44px, 13vw, 110px); }
+.ctr-layouts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 6px 0; }
+.ctr-layout { border: 2px solid var(--c-line, #ccc); border-radius: 12px; padding: 8px; display: grid; gap: 4px; }
+.ctr-layout.on { border-color: var(--c-ok); }
+.ctr-layout small { opacity: .75; font-size: 12px; }
+.ctr-layout button { min-height: 40px; border: 1px solid currentColor; border-radius: 8px; background: transparent; color: inherit; font-size: 13px; }
+.ctr-layout .mini { height: 54px; border-radius: 8px; background: color-mix(in srgb, currentColor 8%, transparent); display: grid; gap: 3px; padding: 5px; grid-template-columns: 1fr 1fr; }
+.ctr-layout .mini i { background: color-mix(in srgb, currentColor 30%, transparent); border-radius: 3px; }
+.ctr-layout .m-big { grid-template-columns: 1fr; } .ctr-layout .m-big i:first-child { grid-row: span 2; }
+.ctr-layout .m-steps { grid-template-columns: 1fr; } .ctr-layout .m-steps i:nth-child(n+2) { display: none; }

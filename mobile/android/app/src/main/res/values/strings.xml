@@ -23,6 +23,7 @@
     <string name="widget_approvals_desc">Owner: staff payments and expenses waiting for your OK</string>
     <string name="widget_actions_desc">Six one-tap buttons you choose in the app</string>
     <string name="sc_counter">Weigh &amp; Bill</string>
+    <string name="sc_cashier">Cashier desk</string>
     <string name="sc_sale">Sale</string>
     <string name="sc_expense">Expense</string>
     <string name="sc_weigh">Weigh barrel</string>

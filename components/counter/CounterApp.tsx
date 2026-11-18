@@ -29,6 +29,7 @@ import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type 
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
 import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
 import { counterStep } from "@/lib/counterGuide";
+import { LAYOUTS, LAYOUT_INFO, layoutShow, pickLayout, type Layout } from "@/lib/counterLayout";
 import { defaultHandover, handoverOf, heldNeed, heldQueue, isTracked, payStatus, upiLine, waitText, type Handover } from "@/lib/counterTrack";
 import { fitsBill, parseUpi, planUpi, samePayment, type UpiEvent } from "@/lib/upiNotify";
 import { hasNativeUpi, MahadevUpi } from "@/lib/native";
@@ -144,8 +145,29 @@ export default function CounterApp() {
   const zoom = uiZoom(uiSize, vw);
   const [theme, setTheme] = useState<CounterTheme>(DEFAULT_THEME);
   useEffect(() => { setTheme(parseTheme(read<unknown>("counterTheme", null))); }, []);
-  const [show, setShow] = useState<ShowCfg>(SHOW_ALL);
-  useEffect(() => { setShow(parseShow(read<unknown>("counterShow", null))); }, []);
+  const [showBase, setShow] = useState<ShowCfg>(SHOW_ALL);
+  // layout: the owner's choice for all staff, or this device's own choice ("shop" = follow all staff)
+  const [shopLayout, setShopLayout] = useState<unknown>(null);
+  const [devLayout, setDevLayout] = useState<string>("shop");
+  const layout: Layout = pickLayout(shopLayout, devLayout);
+  const show = useMemo(() => layoutShow(layout, showBase), [layout, showBase]);
+  const [moreItems, setMoreItems] = useState(false);
+  useEffect(() => {
+    setShow(parseShow(read<unknown>("counterShow", null)));
+    setDevLayout(read<string>("counterLayoutDev", "shop"));
+    fetch("/api/settings/app?key=counterLayout", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((j) => j && setShopLayout(j.data)).catch(() => { /* offline: keep the last layout */ });
+  }, []);
+  const saveShopLayout = async (l: Layout) => {
+    try {
+      const res = await fetch("/api/settings/app", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: "counterLayout", data: { layout: l } }) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not save.");
+      setShopLayout({ layout: l });
+      setDevLayout("shop");
+      write("counterLayoutDev", "shop");
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : "Could not save the layout." });
+    }
+  };
   const setShowCfg = (n0: ShowCfg) => { const n = ensurePayOption(n0); setShow(n); write("counterShow", n); };
   const setLook = (p: Partial<CounterTheme>) => setTheme((t) => { const n = { ...t, ...p }; write("counterTheme", n); return n; });
   const k = (en: string, kn: string) => (lang === "kn" ? kn : en);
@@ -293,7 +315,13 @@ export default function CounterApp() {
   const kg = frozen ?? kgLive;
   const steady = frozen != null || (fresh && reading?.stable !== false);
   const usable = frozen != null || (fresh && kgLive > 0 && (steady || !!reading?.trusted));
-  const nextStep = guide && !busy ? counterStep({ lines: lines.length, kg: usable ? kg : 0, scaleOn: fresh }) : null;
+  // the weight already put on the bill does not count as "waiting": the next step is then Save (or the next item)
+  const [billedKg, setBilledKg] = useState(0);
+  useEffect(() => { if (kg < 0.001) setBilledKg(0); }, [kg]);
+  const waitingKg = usable && Math.abs(kg - billedKg) > 0.003 ? kg : 0;
+  const nextStep = (guide || layout === "steps") && !busy ? counterStep({ lines: lines.length, kg: waitingKg, scaleOn: fresh }) : null;
+  const stepsView: "bill" | "items" | null = layout === "steps" ? (nextStep === "save" && !moreItems ? "bill" : "items") : null;
+  useEffect(() => { if (!lines.length) setMoreItems(false); }, [lines.length]);
   // Sell by amount: "₹100 of oil" → the kg to pour, with a beep when the scale gets there
   const [fill, setFill] = useState<{ amount: number; item?: CounterItem } | null>(null);
   const fillBeeped = useRef(false);
@@ -337,6 +365,7 @@ export default function CounterApp() {
     let next: CounterLine[];
     if (ci.unit === "kg" && usable) {
       const live = isBt ? bt.live : null;
+      setBilledKg(kg);
       next = addLine(lines, { ...base, qty: kg, source: steady ? "steady" : "moving", ...(live && bt.tareKg > 0 ? { grossKg: live.grossKg, tareKg: bt.tareKg } : {}) });
     } else if (ci.unit === "kg" && !can("typedWeight")) {
       return setMsg({ ok: false, text: k("Put the item on the scale first (typing a weight is locked).", "ಮೊದಲು ವಸ್ತುವನ್ನು ತಕ್ಕಡಿಯಲ್ಲಿ ಇಡಿ (ತೂಕ ಟೈಪ್ ಮಾಡುವುದು ಲಾಕ್ ಆಗಿದೆ).") });
@@ -950,13 +979,13 @@ export default function CounterApp() {
 
   // ======================================================================================
   return (
-    <div className={`ctr ${themeClass(theme)}`} lang={lang} style={{ ["--u" as string]: zoom, ...themeStyle(theme) } as React.CSSProperties}>
+    <div className={`ctr ${themeClass(theme)} lay-${layout}`} data-view={stepsView ?? undefined} lang={lang} style={{ ["--u" as string]: zoom, ...themeStyle(theme) } as React.CSSProperties}>
       {/* ---------- top bar ---------- */}
       <header className="ctr-top">
-        {!kiosk?.on && <Link href="/register/pos" className="ctr-back">← {k("Desk", "ಡೆಸ್ಕ್")}</Link>}
+        {!kiosk?.on && show.deskLink && <Link href="/register/pos" className="ctr-back">← {k("Desk", "ಡೆಸ್ಕ್")}</Link>}
         <b className="ctr-title">⚖️ {k("Weigh & Bill", "ತೂಕ & ಬಿಲ್")}</b>
-        <span className={`ctr-chip ${connected ? (fresh ? "ok" : "mid") : "bad"}`}>{connected ? bt.config?.name || reading?.scale_source || k("Scale", "ತಕ್ಕಡಿ") : k("No scale", "ತಕ್ಕಡಿ ಇಲ್ಲ")}</span>
-        {!connected && !kiosk?.on && <Link href="/?desk=scales" className="ctr-link">{k("Set up scale", "ತಕ್ಕಡಿ ಹೊಂದಿಸಿ")}</Link>}
+        {show.scaleStatus && <span className={`ctr-chip ${connected ? (fresh ? "ok" : "mid") : "bad"}`}>{connected ? bt.config?.name || reading?.scale_source || k("Scale", "ತಕ್ಕಡಿ") : k("No scale", "ತಕ್ಕಡಿ ಇಲ್ಲ")}</span>}
+        {show.scaleSetup && !connected && !kiosk?.on && <Link href="/?desk=scales" className="ctr-link">{k("Set up scale", "ತಕ್ಕಡಿ ಹೊಂದಿಸಿ")}</Link>}
         <span className="ctr-sp" />
         {(show.held || holds.length > 0) && (
           <button type="button" className={`ctr-tbtn${holds.length ? " has" : ""}`} onClick={() => { setPanel("holds"); void loadHolds(); }}>
@@ -1036,9 +1065,18 @@ export default function CounterApp() {
         </div>
       )}
 
+      {nextStep && (
+        <ol className="ctr-steps" aria-label={k("Next step", "ಮುಂದಿನ ಹಂತ")}>
+          <li className={nextStep === "weigh" ? "on" : ""}>① {k("Put on scale", "ತೂಕಕ್ಕೆ ಇಡಿ")}</li>
+          <li className={nextStep === "pick" ? "on" : ""}>② {k("Tap the item", "ವಸ್ತು ಒತ್ತಿ")}</li>
+          <li className={nextStep === "save" ? "on" : ""}>③ {k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ")}</li>
+          {layout === "steps" && lines.length > 0 && <li className="sum">{lines.length} {k("item(s)", "ವಸ್ತು")} · {rupees(total)}</li>}
+        </ol>
+      )}
       <main className="ctr-main">
         {/* ---------- bill ---------- */}
         <section className="ctr-bill" id="ctr-bill" aria-label={k("Bill", "ಬಿಲ್")}>
+          {layout === "steps" && stepsView === "bill" && <button type="button" className="ctr-stepbtn" onClick={() => setMoreItems(true)}>＋ {k("Add another item", "ಇನ್ನೊಂದು ವಸ್ತು ಸೇರಿಸಿ")}</button>}
           {prev && !lines.length && (
             <div className="ctr-prev">
               <div>
@@ -1209,17 +1247,11 @@ export default function CounterApp() {
 
         {/* ---------- item keys ---------- */}
         <section className="ctr-items">
-          {nextStep && (
-            <ol className="ctr-steps" aria-label={k("Next step", "ಮುಂದಿನ ಹಂತ")}>
-              <li className={nextStep === "weigh" ? "on" : ""}>① {k("Put on scale", "ತೂಕಕ್ಕೆ ಇಡಿ")}</li>
-              <li className={nextStep === "pick" ? "on" : ""}>② {k("Tap the item", "ವಸ್ತು ಒತ್ತಿ")}</li>
-              <li className={nextStep === "save" ? "on" : ""}>③ {k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ")}</li>
-            </ol>
-          )}
+          {layout === "steps" && moreItems && lines.length > 0 && <button type="button" className="ctr-stepbtn done" onClick={() => setMoreItems(false)}>✓ {k("Done adding — go to bill", "ಸೇರಿಸಿ ಮುಗಿಯಿತು — ಬಿಲ್‌ಗೆ")}</button>}
           <div className="ctr-itemhead">
             {show.search ? <input className="ctr-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`🔍 ${k("Search item or PLU", "ವಸ್ತು ಅಥವಾ PLU ಹುಡುಕಿ")}`} /> : <span className="ctr-sp" />}
             {show.plu && <button type="button" className="ctr-plu" onClick={() => openPad({ kind: "plu" })}>⌨️ PLU</button>}
-            {isOwner && <button type="button" className="ctr-plu" onClick={openItems}>✏️ {k("Items", "ವಸ್ತುಗಳು")}</button>}
+            {isOwner && show.itemsBtn && <button type="button" className="ctr-plu" onClick={openItems}>✏️ {k("Items", "ವಸ್ತುಗಳು")}</button>}
           </div>
           <div className={`ctr-grid${nextStep === "pick" ? " ctr-next" : ""}`}>
             {tiles.map((ci) => {
@@ -1603,6 +1635,24 @@ export default function CounterApp() {
                 <button key={v} type="button" className={theme.keySize === v ? "on" : ""} onClick={() => setLook({ keySize: v })}>{k(en, kn)}</button>
               ))}
             </div>
+            {isOwner && (
+              <>
+                <h4>{k("Layout for staff", "ಸಿಬ್ಬಂದಿಗೆ ವಿನ್ಯಾಸ")}</h4>
+                <p className="ctr-look-note">{k(`All staff: ${LAYOUT_INFO[pickLayout(shopLayout, "shop")].en} · This device: ${devLayout === "shop" ? "follows all staff" : LAYOUT_INFO[pickLayout(null, devLayout)].en}`, `ಎಲ್ಲಾ ಸಿಬ್ಬಂದಿ: ${LAYOUT_INFO[pickLayout(shopLayout, "shop")].kn} · ಈ ಸಾಧನ: ${devLayout === "shop" ? "ಎಲ್ಲರಂತೆ" : LAYOUT_INFO[pickLayout(null, devLayout)].kn}`)}</p>
+                <div className="ctr-layouts">
+                  {LAYOUTS.map((l) => (
+                    <div key={l} className={`ctr-layout${layout === l ? " on" : ""}`}>
+                      <div className={`mini m-${l}`} aria-hidden><i /><i /><i /><i /></div>
+                      <b>{k(LAYOUT_INFO[l].en, LAYOUT_INFO[l].kn)}</b>
+                      <small>{k(LAYOUT_INFO[l].en2, LAYOUT_INFO[l].kn2)}</small>
+                      <button type="button" onClick={() => { setDevLayout(l); write("counterLayoutDev", l); }}>{k("Use on this device", "ಈ ಸಾಧನದಲ್ಲಿ ಬಳಸಿ")}</button>
+                      <button type="button" onClick={() => void saveShopLayout(l)}>{k("Use for all staff", "ಎಲ್ಲಾ ಸಿಬ್ಬಂದಿಗೆ ಬಳಸಿ")}</button>
+                    </div>
+                  ))}
+                </div>
+                {devLayout !== "shop" && <div className="ctr-seg"><button type="button" onClick={() => { setDevLayout("shop"); write("counterLayoutDev", "shop"); }}>{k("This device: follow all staff", "ಈ ಸಾಧನ: ಎಲ್ಲರಂತೆ")}</button></div>}
+              </>
+            )}
             <h4>{k("Buttons on the screen", "ಪರದೆಯ ಬಟನ್‌ಗಳು")}</h4>
             <div className="ctr-seg">
               <button type="button" onClick={() => setShowCfg(SHOW_SIMPLE)}>🧑‍🍳 {k("Simple for staff", "ಸಿಬ್ಬಂದಿಗೆ ಸರಳ")}</button>
@@ -1610,7 +1660,7 @@ export default function CounterApp() {
             </div>
             {SHOW_KEYS.map((key) => (
               <label key={key} className="ctr-set">
-                <input type="checkbox" checked={show[key]} disabled={show[key] && PAY_SHOW_KEYS.includes(key as (typeof PAY_SHOW_KEYS)[number]) && PAY_SHOW_KEYS.filter((x) => show[x]).length === 1} onChange={(e) => setShowCfg({ ...show, [key]: e.target.checked })} />
+                <input type="checkbox" checked={showBase[key]} disabled={showBase[key] && PAY_SHOW_KEYS.includes(key as (typeof PAY_SHOW_KEYS)[number]) && PAY_SHOW_KEYS.filter((x) => showBase[x]).length === 1} onChange={(e) => setShowCfg({ ...showBase, [key]: e.target.checked })} />
                 <span>{k(SHOW_LABELS[key][0], SHOW_LABELS[key][1])}</span>
               </label>
             ))}

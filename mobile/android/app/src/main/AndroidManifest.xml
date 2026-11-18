@@ -46,6 +46,33 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
+        <!-- Second and third home-screen icons: open straight on the Weigh & Bill counter / Cashier desk -->
+        <activity-alias
+            android:name=".CounterLauncher"
+            android:targetActivity=".MainActivity"
+            android:label="@string/sc_counter"
+            android:icon="@drawable/ic_counter"
+            android:roundIcon="@drawable/ic_counter"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".CashierLauncher"
+            android:targetActivity=".MainActivity"
+            android:label="@string/sc_cashier"
+            android:icon="@drawable/ic_cashier"
+            android:roundIcon="@drawable/ic_cashier"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <receiver android:name=".SummaryWidget" android:label="Mahadev · Today" android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
