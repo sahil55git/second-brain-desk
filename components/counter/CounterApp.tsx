@@ -1621,6 +1621,27 @@ export default function CounterApp() {
               ))}
               <input type="color" aria-label={k("Pick any colour", "ಯಾವುದೇ ಬಣ್ಣ ಆರಿಸಿ")} value={accentOf(theme)} onChange={(e) => validHex(e.target.value) && setLook({ preset: "custom", custom: e.target.value })} />
             </div>
+            <h4>{k("Text colour", "ಅಕ್ಷರ ಬಣ್ಣ")}</h4>
+            <div className="ctr-seg">
+              <button type="button" className={theme.contrast ? "on" : ""} onClick={() => setLook({ contrast: true })}>{k("Strong (clear)", "ಸ್ಪಷ್ಟ")}</button>
+              <button type="button" className={!theme.contrast ? "on" : ""} onClick={() => setLook({ contrast: false })}>{k("Soft", "ಮೃದು")}</button>
+            </div>
+            <p className="ctr-look-note">{k("Main text (names, amounts)", "ಮುಖ್ಯ ಅಕ್ಷರ (ಹೆಸರು, ಮೊತ್ತ)")}</p>
+            <div className="ctr-sw txt">
+              <button type="button" className={!theme.ink ? "on auto" : "auto"} aria-label="Auto" title="Auto" onClick={() => setLook({ ink: "" })}>A</button>
+              {["#ffffff", "#fff3d6", "#ffe08a", "#8be9fd", "#b9f6ca", "#000000", "#1a212b"].map((c) => (
+                <button key={c} type="button" aria-label={c} className={theme.ink === c ? "on" : ""} style={{ background: c }} onClick={() => setLook({ ink: c })} />
+              ))}
+              <input type="color" aria-label={k("Pick any text colour", "ಯಾವುದೇ ಅಕ್ಷರ ಬಣ್ಣ")} value={theme.ink || "#ffffff"} onChange={(e) => validHex(e.target.value) && setLook({ ink: e.target.value })} />
+            </div>
+            <p className="ctr-look-note">{k("Small text (labels, notes)", "ಸಣ್ಣ ಅಕ್ಷರ (ಲೇಬಲ್, ಟಿಪ್ಪಣಿ)")}</p>
+            <div className="ctr-sw txt">
+              <button type="button" className={!theme.soft ? "on auto" : "auto"} aria-label="Auto" title="Auto" onClick={() => setLook({ soft: "" })}>A</button>
+              {["#ffffff", "#d3dae3", "#ffd58a", "#9be0b4", "#8a94a3", "#334050", "#000000"].map((c) => (
+                <button key={c} type="button" aria-label={c} className={theme.soft === c ? "on" : ""} style={{ background: c }} onClick={() => setLook({ soft: c })} />
+              ))}
+              <input type="color" aria-label={k("Pick any small-text colour", "ಯಾವುದೇ ಸಣ್ಣ ಅಕ್ಷರ ಬಣ್ಣ")} value={theme.soft || "#d3dae3"} onChange={(e) => validHex(e.target.value) && setLook({ soft: e.target.value })} />
+            </div>
             <h4>{k("Light or dark", "ಬೆಳಕು / ಕತ್ತಲೆ")}</h4>
             <div className="ctr-seg">
               {([["auto", "Auto", "ಸ್ವಯಂ"], ["light", "Light", "ಬೆಳಕು"], ["dark", "Dark", "ಕತ್ತಲೆ"], ["black", "Black", "ಕಪ್ಪು"]] as const).map(([v, en, kn]) => (

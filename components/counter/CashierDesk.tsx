@@ -3,6 +3,7 @@
 // Cashier desk: for the person who takes the money (manager) on a separate device. Held bills wait here;
 // type what the customer gave, see the change, one tap records the cash and releases the goods.
 // Same data and permissions as the counter; nothing is stored on this device except the language and print choice.
+import { parseTheme } from "@/lib/counterTheme";
 import OilIcon, { BookIcon, CashOut, CoinIcon, OilOut, PayIcon, PhoneIcon, PrinterIcon, TickIcon } from "./OilIcon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ReceiptSheet from "@/components/print/ReceiptSheet";
@@ -194,7 +195,15 @@ export default function CashierDesk() {
 const [clockMs, setClockMs] = useState(0);
   useEffect(() => { setClockMs(Date.now()); const t = setInterval(() => setClockMs(Date.now()), 20_000); return () => clearInterval(t); }, []);
   const clockTime = clockMs ? new Date(clockMs).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }).toUpperCase() : "";
-  const TABS: [Tab, string, number | null][] = [
+const txtStyle = useMemo(() => {
+    let t = parseTheme(null);
+    try { t = parseTheme(JSON.parse(localStorage.getItem("counterTheme") || "null")); } catch { /* default */ }
+    const st: Record<string, string> = {};
+    if (t.ink) st["--tx"] = t.ink;
+    if (t.soft) st["--mut"] = t.soft;
+    return st as React.CSSProperties;
+  }, []);
+    const TABS: [Tab, string, number | null][] = [
     ["queue", k("Queue", "ಸಾಲು"), queue.length],
     ["parked", k("Parked", "ನಿಲ್ಲಿಸಿದ"), parked.length],
     ["bills", k("Bills", "ಬಿಲ್‌ಗಳು"), null],
@@ -202,7 +211,7 @@ const [clockMs, setClockMs] = useState(0);
   ];
 
   return (
-    <div className="cd">
+    <div className="cd" style={txtStyle}>
       <header className="cd-top">
         <b><CoinIcon size={28} /> {k("Cashier desk", "ಕ್ಯಾಷಿಯರ್ ಡೆಸ್ಕ್")}</b>
         <span className="cd-date"><b>{clockTime}</b> <small>{today}</small></span>
