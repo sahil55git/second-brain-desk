@@ -52,6 +52,30 @@ export function ArrowUpIcon({ size = 22, color = "#ef4444" }: { size?: number; c
   );
 }
 
+/** Raised palm: with an arrow it shows who gets it (in / out of the hand). */
+export function HandIcon({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden focusable="false" style={{ flex: "none" }}>
+      <g fill="currentColor">
+        <rect x="8" y="4" width="3.6" height="14" rx="1.8" /><rect x="12.4" y="2" width="3.6" height="16" rx="1.8" />
+        <rect x="16.8" y="3" width="3.6" height="15" rx="1.8" /><rect x="21.2" y="6" width="3.4" height="12" rx="1.7" />
+        <path d="M8 16v6a7 7 0 0 0 7 7h2a7 7 0 0 0 7-7v-6z" /><path d="M8 17c-2-2-4-3-5-1-.7 1.5 1 4 4 7z" />
+      </g>
+    </svg>
+  );
+}
+
+/** Hourglass: "wait". */
+export function HourglassIcon({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={Math.round(size * 0.75)} height={size} viewBox="0 0 24 32" aria-hidden focusable="false" style={{ flex: "none" }}>
+      <path d="M4 3h16M4 29h16" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      <path d="M6 3c0 8 5 9 6 13-1 4-6 5-6 13M18 3c0 8-5 9-6 13 1 4 6 5 6 13" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" />
+      <path d="M8.5 25h7l-3.5-4z" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function PersonIcon({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden focusable="false" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" style={{ flex: "none" }}>
@@ -139,7 +163,7 @@ export function PayIcon({ mode, size = 26 }: { mode: "CASH" | "UPI" | "CREDIT" |
 export function OilIn({ size = 1 }: { size?: number }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: `${6 * size}px` }}>
-      <OilIcon size={Math.round(34 * size)} /><ArrowDownIcon size={Math.round(26 * size)} />
+      <OilIcon size={Math.round(34 * size)} /><ArrowDownIcon size={Math.round(26 * size)} /><HandIcon size={Math.round(28 * size)} />
     </span>
   );
 }
@@ -147,7 +171,7 @@ export function OilIn({ size = 1 }: { size?: number }) {
 export function CashOut({ size = 1 }: { size?: number }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: `${6 * size}px` }}>
-      <CoinIcon size={Math.round(30 * size)} /><ArrowUpIcon size={Math.round(26 * size)} />
+      <CoinIcon size={Math.round(30 * size)} /><ArrowUpIcon size={Math.round(26 * size)} /><HandIcon size={Math.round(28 * size)} />
     </span>
   );
 }
@@ -155,7 +179,25 @@ export function CashOut({ size = 1 }: { size?: number }) {
 export function CashIn({ size = 1 }: { size?: number }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: `${6 * size}px` }}>
-      <CoinIcon size={Math.round(30 * size)} /><ArrowDownIcon size={Math.round(26 * size)} />
+      <CoinIcon size={Math.round(30 * size)} /><ArrowDownIcon size={Math.round(26 * size)} /><HandIcon size={Math.round(28 * size)} />
+    </span>
+  );
+}
+/** Oil out, still locked (waiting for the cash): bottle, red arrow up, "Oil out". */
+export function OilOutWait({ size = 1 }: { size?: number }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: `${8 * size}px` }}>
+      <OilIcon size={Math.round(40 * size)} /><ArrowUpIcon size={Math.round(28 * size)} /><HandIcon size={Math.round(32 * size)} />
+      <b style={{ fontSize: `${20 * size}px`, fontWeight: 700 }}>Oil out</b>
+    </span>
+  );
+}
+/** "Wait" for the oil (hold it until the money is confirmed): bottle, hourglass, the word Wait. */
+export function OilWait({ size = 1 }: { size?: number }) {
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: `${6 * size}px` }}><OilIcon size={Math.round(32 * size)} /><HourglassIcon size={Math.round(30 * size)} /></span>
+      <b style={{ fontSize: `${16 * size}px`, fontWeight: 700 }}>Wait</b>
     </span>
   );
 }
