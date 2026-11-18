@@ -6,7 +6,7 @@ export type Corner = "sq" | "md" | "rd";
 export type Density = "compact" | "normal" | "roomy";
 export type KeySize = "s" | "m" | "l";
 export type PluSize = "m" | "l" | "xl";
-export type Backdrop = "plain" | "tint";
+export type Backdrop = "plain" | "tint" | "glass";
 export type LcdColor = "green" | "amber" | "white" | "cyan";
 
 export interface CounterTheme {
@@ -26,17 +26,20 @@ export interface CounterTheme {
 }
 
 export const PRESETS: { id: string; en: string; kn: string; hex: string }[] = [
-  { id: "blue", en: "Blue", kn: "ನೀಲಿ", hex: "#1f6feb" },
-  { id: "teal", en: "Teal", kn: "ಟೀಲ್", hex: "#0d9488" },
-  { id: "green", en: "Green", kn: "ಹಸಿರು", hex: "#15803d" },
-  { id: "orange", en: "Orange", kn: "ಕಿತ್ತಳೆ", hex: "#d97706" },
-  { id: "purple", en: "Purple", kn: "ನೇರಳೆ", hex: "#7c3aed" },
-  { id: "slate", en: "Slate", kn: "ಬೂದು", hex: "#475569" },
-  { id: "gold", en: "Gold", kn: "ಚಿನ್ನ", hex: "#eab308" },
+  { id: "navy", en: "Navy", kn: "ನೇವಿ", hex: "#1d3557" },
+  { id: "blue", en: "Steel blue", kn: "ನೀಲಿ", hex: "#2c5aa0" },
+  { id: "teal", en: "Teal", kn: "ಟೀಲ್", hex: "#237a76" },
+  { id: "green", en: "Forest", kn: "ಹಸಿರು", hex: "#2e6b4e" },
+  { id: "maroon", en: "Maroon", kn: "ಮರೂನ್", hex: "#843040" },
+  { id: "orange", en: "Amber", kn: "ಕಿತ್ತಳೆ", hex: "#b4621a" },
+  { id: "purple", en: "Plum", kn: "ನೇರಳೆ", hex: "#5d4d8c" },
+  { id: "slate", en: "Slate", kn: "ಬೂದು", hex: "#4a5568" },
+  { id: "graphite", en: "Graphite", kn: "ಗ್ರ್ಯಾಫೈಟ್", hex: "#2f3a48" },
+  { id: "gold", en: "Antique gold", kn: "ಚಿನ್ನ", hex: "#a37a15" },
 ];
 
 export const DEFAULT_THEME: CounterTheme = {
-  preset: "blue", custom: "#1f6feb", mode: "auto", opacity: 100, corner: "md", density: "normal", keySize: "m", backdrop: "plain", lcd: "green", icons: true, pluSize: "m",
+  preset: "navy", custom: "#1d3557", mode: "auto", opacity: 100, corner: "md", density: "normal", keySize: "m", backdrop: "plain", lcd: "green", icons: true, pluSize: "m",
 };
 
 const pick = <T extends string>(v: unknown, all: readonly T[], d: T): T => (all.includes(v as T) ? (v as T) : d);
@@ -56,7 +59,7 @@ export function parseTheme(raw: unknown): CounterTheme {
     corner: pick(o.corner, ["sq", "md", "rd"] as const, "md"),
     density: pick(o.density, ["compact", "normal", "roomy"] as const, "normal"),
     keySize: pick(o.keySize, ["s", "m", "l"] as const, "m"),
-    backdrop: pick(o.backdrop, ["plain", "tint"] as const, "plain"),
+    backdrop: pick(o.backdrop, ["plain", "tint", "glass"] as const, "plain"),
     lcd: pick(o.lcd, ["green", "amber", "white", "cyan"] as const, "green"),
     icons: o.icons !== false,
     pluSize: pick(o.pluSize, ["m", "l", "xl"] as const, "m"),
@@ -80,8 +83,8 @@ export function onAccent(hex: string): string {
 }
 
 const MODES = {
-  light: { "--c-bg": "#f2f4f7", "--c-card": "#ffffff", "--c-ink": "#18202b", "--c-soft": "#667085", "--c-line": "#dde2ea" },
-  dark: { "--c-bg": "#0d1117", "--c-card": "#161b22", "--c-ink": "#e6edf3", "--c-soft": "#9aa6b2", "--c-line": "#2b333d" },
+  light: { "--c-bg": "#f1f3f5", "--c-card": "#ffffff", "--c-ink": "#1a212b", "--c-soft": "#5f6b7a", "--c-line": "#dadee3" },
+  dark: { "--c-bg": "#0f1318", "--c-card": "#171c23", "--c-ink": "#e7ebf0", "--c-soft": "#9aa4b1", "--c-line": "#272e38" },
   black: { "--c-bg": "#000000", "--c-card": "#0b0b0b", "--c-ink": "#f5f5f5", "--c-soft": "#a3a3a3", "--c-line": "#2a2a2a" },
 } as const;
 
@@ -106,5 +109,5 @@ export function themeStyle(t: CounterTheme): Record<string, string> {
 
 /** Class names for the counter root (density and background style). */
 export function themeClass(t: CounterTheme): string {
-  return `d-${t.density}${t.backdrop === "tint" ? " tint" : ""}${t.icons ? "" : " no-ic"} plu-${t.pluSize}`;
+  return `d-${t.density}${t.backdrop === "tint" ? " tint" : t.backdrop === "glass" ? " glass" : ""}${t.icons ? "" : " no-ic"} plu-${t.pluSize}`;
 }

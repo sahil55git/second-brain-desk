@@ -30,7 +30,6 @@ import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCK
 import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
 import { billGuide, counterStep } from "@/lib/counterGuide";
 import { billIcon, billName, qtyText } from "@/lib/counterName";
-import { noteChips } from "@/lib/cashDesk";
 import { LAYOUTS, LAYOUT_INFO, layoutShow, pickLayout, type Layout } from "@/lib/counterLayout";
 import { defaultHandover, handoverOf, heldNeed, heldQueue, isTracked, payStatus, upiLine, waitText, type Handover } from "@/lib/counterTrack";
 import { fitsBill, parseUpi, planUpi, samePayment, type UpiEvent } from "@/lib/upiNotify";
@@ -350,7 +349,6 @@ export default function CounterApp() {
   const [handPick, setHandPick] = useState<Handover | null>(null);
   const hand: Handover = handPick ?? defaultHandover({ CASH: cashDue, UPI: upiDue, CREDIT: creditDue }, holdCash);
   const back = cashDue > 0 && received > 0 ? cashReturn(cashDue, received) : 0;
-  const shortBy = cashDue > 0 && received > 0 && received < cashDue ? r2(cashDue - received) : 0;
   const upiFor = (amount: number, note: string) => (amount > 0 ? sp.linkFor(amount, note, shop.name || "Mahadev Traders", acct) : undefined);
   const itemsNote = (ls: CounterLine[]) => ls.map((l) => `${l.label} ${l.qty.toFixed(3)}${l.unit}`).join(", ");
 
@@ -1156,26 +1154,6 @@ export default function CounterApp() {
             </div>
           )}
 
-          {cashDue > 0 && (
-            <div className="ctr-cash">
-              {show.cashReceived && (
-                <>
-                  <button type="button" className="recv" onClick={() => openPad({ kind: "received" })}>
-                    <span className="lbl"><i aria-hidden>💵</i>{k("Customer gave", "ಗ್ರಾಹಕ ಕೊಟ್ಟದ್ದು")}</span>
-                    <b className={received > 0 ? "typed" : "exact"}>{rupees(received > 0 ? received : cashDue)}</b>
-                    <span className="edit" aria-hidden>{received > 0 ? "✎" : k("exact", "ಸರಿ")}</span>
-                  </button>
-                  <div className="quick" aria-label={k("Quick amounts", "ತ್ವರಿತ ಮೊತ್ತ")}>
-                    {noteChips(cashDue).map((n) => (
-                      <button key={n} type="button" className={received === n || (!(received > 0) && n === Math.ceil(cashDue)) ? "on" : ""} onClick={() => setReceived(n === Math.ceil(cashDue) && Math.abs(n - cashDue) < 0.005 ? 0 : n)}>₹{n}</button>
-                    ))}
-                  </div>
-                </>
-              )}
-              {back > 0 && <div className="ctr-back-cash">{k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")} <b>{rupees(back)}</b></div>}
-              {shortBy > 0 && <div className="ctr-short">{k("Still to collect", "ಇನ್ನೂ ಪಡೆಯಬೇಕು")} <b>{rupees(shortBy)}</b></div>}
-            </div>
-          )}
 
           {upiDue > 0 && (
             <div className="ctr-upi">
@@ -1259,7 +1237,6 @@ export default function CounterApp() {
             {show.plu && <button type="button" className="ctr-plu" onClick={() => openPad({ kind: "plu" })}>⌨️ PLU</button>}
             {isOwner && show.itemsBtn && <button type="button" className="ctr-plu" onClick={openItems}>✏️ {k("Items", "ವಸ್ತುಗಳು")}</button>}
           </div>
-          {nextStep === "pick" && <div className="ctr-point" aria-hidden>👇</div>}
           <div className={`ctr-grid${nextStep === "pick" ? " ctr-next" : ""}`}>
             {tiles.map((ci) => {
               const rate = rateOf(ci);
@@ -1637,7 +1614,7 @@ export default function CounterApp() {
             <input className="ctr-range" type="range" min={40} max={100} step={5} value={theme.opacity} onChange={(e) => setLook({ opacity: Number(e.target.value) })} />
             <h4>{k("Background", "ಹಿನ್ನೆಲೆ")}</h4>
             <div className="ctr-seg">
-              {([["plain", "Plain", "ಸರಳ"], ["tint", "Colour glow", "ಬಣ್ಣದ ಹೊಳಪು"]] as const).map(([v, en, kn]) => (
+              {([["plain", "Plain", "ಸರಳ"], ["tint", "Colour glow", "ಬಣ್ಣದ ಹೊಳಪು"], ["glass", "Glass", "ಗಾಜು"]] as const).map(([v, en, kn]) => (
                 <button key={v} type="button" className={theme.backdrop === v ? "on" : ""} onClick={() => setLook({ backdrop: v })}>{k(en, kn)}</button>
               ))}
             </div>
