@@ -1680,7 +1680,7 @@ export default function CounterApp() {
             <p className="ctr-look-note">{k("At least one of Cash / UPI / Udhaar, Save & Print, Clear and the item keys always stay. If Udhaar is chosen the customer name is still asked. This 🎨 button stays too, to bring the others back.", "ನಗದು/UPI/ಉದ್ರಿಯಲ್ಲಿ ಕನಿಷ್ಠ ಒಂದು, ಸೇವ್ & ಪ್ರಿಂಟ್, ಅಳಿಸಿ, ವಸ್ತು ಕೀಗಳು ಯಾವಾಗಲೂ ಇರುತ್ತವೆ. ಉದ್ರಿ ಆರಿಸಿದರೆ ಹೆಸರು ಕೇಳುತ್ತದೆ. ಇತರೆ ಮರಳಿ ತರಲು ಈ 🎨 ಬಟನ್ ಇರುತ್ತದೆ.")}</p>
             <h4>{k("PLU number size on item keys", "ವಸ್ತು ಕೀಯ ಮೇಲಿನ PLU ಸಂಖ್ಯೆ ಗಾತ್ರ")}</h4>
             <div className="ctr-seg">
-              {([["m", "Normal", "ಸಾಮಾನ್ಯ"], ["l", "Large", "ದೊಡ್ಡದು"], ["xl", "Huge (from far)", "ತುಂಬಾ ದೊಡ್ಡದು (ದೂರದಿಂದ)"]] as const).map(([v, en, kn]) => (
+              {([["m", "Big", "ದೊಡ್ಡದು"], ["l", "Bigger", "ಇನ್ನೂ ದೊಡ್ಡದು"], ["xl", "Huge (from far)", "ತುಂಬಾ ದೊಡ್ಡದು (ದೂರದಿಂದ)"]] as const).map(([v, en, kn]) => (
                 <button key={v} type="button" className={theme.pluSize === v ? "on" : ""} onClick={() => setLook({ pluSize: v })}>{k(en, kn)}</button>
               ))}
             </div>

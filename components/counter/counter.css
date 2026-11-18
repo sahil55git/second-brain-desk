@@ -712,3 +712,25 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr-tbtn.ctr-next::before { right: 12px; bottom: 22px; }
 .ctr-point { display: none; }
 @media (prefers-reduced-motion: reduce) { .ctr-next::after, .ctr-next::before { animation: none; } .ctr-next::before { display: none; } }
+
+/* ---- PLU band: the number sits in a full-width header strip of the key, big enough to read from far, joined to the item name */
+.ctr .ctr-key { --plu-fs: 30px; --plu-h: 42px; padding-top: calc(var(--plu-h) + 8px); overflow: hidden; }
+.ctr.plu-l .ctr-key { --plu-fs: 38px; --plu-h: 52px; }
+.ctr.plu-xl .ctr-key { --plu-fs: 50px; --plu-h: 66px; }
+.ctr .ctr-key .plu {
+  position: absolute; top: 0; left: 0; right: 0; margin: 0; align-self: auto;
+  height: var(--plu-h); display: flex; align-items: center; justify-content: center;
+  border: 0; border-bottom: 1px solid color-mix(in srgb, var(--c-acc) 22%, transparent); border-radius: 0;
+  background: color-mix(in srgb, var(--c-acc) 10%, var(--c-bg));
+  color: var(--c-acc); font-size: var(--plu-fs); font-weight: 800; line-height: 1; padding: 0;
+  letter-spacing: .02em; font-variant-numeric: tabular-nums;
+}
+.ctr .ctr-key.ready .plu { background: color-mix(in srgb, var(--c-ok) 12%, var(--c-bg)); color: var(--c-ok); border-bottom-color: color-mix(in srgb, var(--c-ok) 28%, transparent); }
+.ctr.plu-l .ctr-key, .ctr.plu-xl .ctr-key { padding-top: calc(var(--plu-h) + 8px); }
+.ctr.plu-xl .ctr-key { min-height: 160px; }
+.ctr.no-ic .ctr-key { padding-top: calc(var(--plu-h) + 8px); justify-content: center; }
+@media (max-width: 520px) {
+  .ctr .ctr-key { --plu-fs: 26px; --plu-h: 36px; }
+  .ctr.plu-l .ctr-key { --plu-fs: 32px; --plu-h: 44px; }
+  .ctr.plu-xl .ctr-key { --plu-fs: 42px; --plu-h: 56px; }
+}
