@@ -21,3 +21,15 @@ export function billIcon(modes: Record<string, number>): string {
   const ms = ["CASH", "UPI", "CREDIT"].filter((m) => (modes[m] || 0) > 0);
   return ms.length === 1 ? ICONS[ms[0]] : ms.length > 1 ? "💵📲" : "🧾";
 }
+
+/** 2 → "2", 1.000 → "1", 0.5 → "0.5", 2.345 → "2.345" */
+export function fmtQty(q: number): string {
+  return String(Math.round(q * 1000) / 1000);
+}
+
+/** The amount sold with its unit: "2 kg", "3 pcs"; blank when there is no quantity. */
+export function qtyText(qty: number | null | undefined, unit: string | null | undefined): string {
+  if (!qty || qty <= 0) return "";
+  const u = (unit || "kg").trim();
+  return `${fmtQty(qty)} ${u}`;
+}

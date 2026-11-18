@@ -33,7 +33,8 @@ export default function PhoneNav() {
     setDesk(new URLSearchParams(window.location.search).get("desk"));
   }, [path]);
 
-  const hidden = status !== "authenticated" || path.startsWith("/login") || path.startsWith("/setup");
+  // the counter and the cashier desk are full screens of their own: the bottom tabs would cover their buttons
+  const hidden = status !== "authenticated" || path.startsWith("/login") || path.startsWith("/setup") || path.startsWith("/register/counter") || path.startsWith("/register/cashier");
   useEffect(() => {
     document.documentElement.classList.toggle("has-pnav", !hidden);
     return () => document.documentElement.classList.remove("has-pnav");

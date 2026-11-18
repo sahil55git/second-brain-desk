@@ -19,3 +19,18 @@ describe("bill names", () => {
     expect(billIcon({ CASH: 1, UPI: 1 })).toBe("💵📲");
   });
 });
+
+import { fmtQty, qtyText } from "../counterName";
+describe("quantities", () => {
+  it("shows weights the way people say them", () => {
+    expect(fmtQty(1)).toBe("1");
+    expect(fmtQty(2.5)).toBe("2.5");
+    expect(fmtQty(2.345)).toBe("2.345");
+    expect(qtyText(2, "kg")).toBe("2 kg");
+    expect(qtyText(1.0004, "kg")).toBe("1 kg");
+    expect(qtyText(3, "pcs")).toBe("3 pcs");
+    expect(qtyText(2, null)).toBe("2 kg");
+    expect(qtyText(0, "kg")).toBe("");
+    expect(qtyText(null, "kg")).toBe("");
+  });
+});
