@@ -349,6 +349,7 @@ export default function CounterApp() {
   const [handPick, setHandPick] = useState<Handover | null>(null);
   const hand: Handover = handPick ?? defaultHandover({ CASH: cashDue, UPI: upiDue, CREDIT: creditDue }, holdCash);
   const back = cashDue > 0 && received > 0 ? cashReturn(cashDue, received) : 0;
+  const shortBy = cashDue > 0 && received > 0 && received < cashDue ? r2(cashDue - received) : 0;
   const upiFor = (amount: number, note: string) => (amount > 0 ? sp.linkFor(amount, note, shop.name || "Mahadev Traders", acct) : undefined);
   const itemsNote = (ls: CounterLine[]) => ls.map((l) => `${l.label} ${l.qty.toFixed(3)}${l.unit}`).join(", ");
 
@@ -1127,6 +1128,17 @@ export default function CounterApp() {
             <span>{lines.length} {k("item(s)", "ವಸ್ತು")} · {billKg(lines).toFixed(3)} kg</span>
             <b>{rupees(total)}</b>
           </div>
+          {cashDue > 0 && show.cashReceived && lines.length > 0 && (
+            <div className="ctr-cash">
+              <button type="button" className="recv" onClick={() => openPad({ kind: "received" })}>
+                <span className="lbl"><i aria-hidden>💵</i>{k("Cash paid by customer", "ಗ್ರಾಹಕ ಕೊಟ್ಟ ನಗದು")}</span>
+                <b className={received > 0 ? "typed" : "exact"}>{received > 0 ? rupees(received) : "₹ —"}</b>
+                <span className="edit" aria-hidden>✎</span>
+              </button>
+              {back > 0 && <div className="ctr-back-cash"><span>↩️ {k("Cash to return", "ಹಿಂತಿರುಗಿಸಬೇಕಾದ ನಗದು")}</span><b>{rupees(back)}</b></div>}
+              {shortBy > 0 && <div className="ctr-short"><span>{k("Still to collect", "ಇನ್ನೂ ಪಡೆಯಬೇಕು")}</span><b>{rupees(shortBy)}</b></div>}
+            </div>
+          )}
           {discOn && show.discount && lines.length > 0 && (
             <button type="button" className="ctr-discbtn" onClick={() => openPad({ kind: "discount" })}>
               🏷️ {k("Bill discount", "ಬಿಲ್ ರಿಯಾಯಿತಿ")} {adjust.discount > 0 ? (adjust.pct ? `${adjust.discount}%` : rupees(adjust.discount)) : ""}
