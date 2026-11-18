@@ -759,3 +759,14 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr-clock { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1.05; padding: 2px 10px; border-left: 1px solid var(--c-line); border-right: 1px solid var(--c-line); font-variant-numeric: tabular-nums; }
 .ctr-clock b { font-size: 16px; font-weight: 700; }
 .ctr-clock small { font-size: 11px; color: var(--c-soft); font-weight: 600; }
+
+/* ---- picture-first pay tiles, save / hold / clear, returns */
+.ctr-pay button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 64px; font-size: 17px; font-weight: 600; }
+.ctr-split .row > span { display: inline-flex; align-items: center; gap: 6px; }
+.ctr-act .clr, .ctr-act .hold { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 13px; }
+.ctr-act .clr svg { color: #ff9b9b; } .ctr-act .hold svg { color: #ffd58a; }
+.ctr-act .go { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.ctr-act .go .sv-ico { display: inline-flex; align-items: center; gap: 6px; }
+.ctr-act .go small { font-size: 26px; font-weight: 700; opacity: 1; }
+.ctr-modal .ctr-bact button { display: inline-flex; align-items: center; gap: 8px; min-height: 52px; }
+.ctr-sheethead > b { display: inline-flex; align-items: center; gap: 10px; }

@@ -58,3 +58,79 @@ export function OilOut({ kg, size = 1 }: { kg?: string; size?: number }) {
     </span>
   );
 }
+
+const L = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" } as const;
+const wrap = { flex: "none", verticalAlign: "-0.25em" } as const;
+
+export function PhoneIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden focusable="false" style={wrap} {...L}>
+      <rect x="7" y="2.5" width="10" height="19" rx="2.5" /><path d="M11 18.5h2" /><path d="M9.5 9.5l2 2 3-3.5" />
+    </svg>
+  );
+}
+export function BookIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden focusable="false" style={wrap} {...L}>
+      <path d="M6 3h11a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 17 21H6z" /><path d="M6 3v18M10 8h5M10 12h5" />
+    </svg>
+  );
+}
+export function PrinterIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden focusable="false" style={wrap} {...L}>
+      <path d="M7 9V3h10v6M7 17H4.5A1.5 1.5 0 0 1 3 15.5v-5A1.5 1.5 0 0 1 4.5 9h15a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 1-1.5 1.5H17" /><rect x="7" y="14" width="10" height="7" rx="1" />
+    </svg>
+  );
+}
+export function PauseIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden focusable="false" style={wrap} {...L} strokeWidth={2}>
+      <rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" />
+    </svg>
+  );
+}
+export function CrossIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden focusable="false" style={wrap} {...L} strokeWidth={2.2}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+export function TickIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden focusable="false" style={wrap} {...L} strokeWidth={2.6}>
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
+export function BackArrowIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={Math.round(size * 0.75)} viewBox="0 0 40 30" aria-hidden focusable="false" style={{ flex: "none" }}>
+      <path d="M38 15H12M20 6l-9 9 9 9" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+/** Pay-mode picture: coin, phone or ledger book. */
+export function PayIcon({ mode, size = 26 }: { mode: "CASH" | "UPI" | "CREDIT" | "SPLIT"; size?: number }) {
+  if (mode === "CASH") return <CoinIcon size={size} />;
+  if (mode === "UPI") return <span style={{ color: "#8fb0ff", display: "inline-flex" }}><PhoneIcon size={size} /></span>;
+  if (mode === "CREDIT") return <span style={{ color: "#f0b94d", display: "inline-flex" }}><BookIcon size={size} /></span>;
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}><CoinIcon size={Math.round(size * 0.8)} /><span style={{ color: "#8fb0ff", display: "inline-flex" }}><PhoneIcon size={Math.round(size * 0.65)} /></span></span>;
+}
+/** Oil coming back from the customer: bottle, arrow back, customer. */
+export function OilIn({ size = 1 }: { size?: number }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: `${8 * size}px` }}>
+      <OilIcon size={Math.round(34 * size)} /><BackArrowIcon size={Math.round(24 * size)} /><PersonIcon size={Math.round(28 * size)} />
+    </span>
+  );
+}
+/** Cash going out to the customer: coin, arrow, customer. */
+export function CashOut({ size = 1 }: { size?: number }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: `${8 * size}px` }}>
+      <CoinIcon size={Math.round(30 * size)} /><ArrowIcon size={Math.round(24 * size)} /><PersonIcon size={Math.round(28 * size)} />
+    </span>
+  );
+}

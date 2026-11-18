@@ -26,7 +26,7 @@ import { billText, daySummaryDoc, mobileOf, whatsappLink } from "@/lib/counterSh
 import { DEFAULT_GST_PCT, DEFAULT_HSN, taxInvoiceDoc, validGstin } from "@/lib/counterGst";
 import { defaultRefundMode, refundFor, returnBody, returnables, returnedByBill, type RefundMode, type ReturnItem, type ReturnedSoFar } from "@/lib/counterReturn";
 import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
-import OilIcon, { CoinIcon, OilOut } from "./OilIcon";
+import OilIcon, { CashOut, CoinIcon, CrossIcon, OilIn, OilOut, PauseIcon, PayIcon, PhoneIcon, PrinterIcon, TickIcon, BookIcon } from "./OilIcon";
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
 import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
 import { billGuide, counterStep } from "@/lib/counterGuide";
@@ -1154,7 +1154,7 @@ export default function CounterApp() {
           <div className={`ctr-pay${nextStep === "pay" ? " ctr-next" : ""}`} role="radiogroup">
             {(["CASH", "UPI", "CREDIT", "SPLIT"] as CounterPay[]).filter((p) => (p !== "CREDIT" || can("udhaar")) && (p === pay || show[PAY_KEY[p]])).map((p) => (
               <button key={p} type="button" role="radio" aria-checked={pay === p} className={pay === p ? "on" : ""} onClick={() => { setPay(p); setReceived(0); setHandPick(null); setPayTouched(true); }}>
-                {p === "SPLIT" ? `➗ ${k("Split", "ಹಂಚಿಕೆ")}` : `${CHAN_TEXT[p as Chan][2]} ${k(CHAN_TEXT[p as Chan][0], CHAN_TEXT[p as Chan][1])}`}
+                <PayIcon mode={p as "CASH" | "UPI" | "CREDIT" | "SPLIT"} size={30} /> <span>{p === "SPLIT" ? k("Split", "ಹಂಚಿಕೆ") : k(CHAN_TEXT[p as Chan][0], CHAN_TEXT[p as Chan][1])}</span>
               </button>
             ))}
           </div>
@@ -1163,7 +1163,7 @@ export default function CounterApp() {
             <div className="ctr-split">
               {(["CASH", "UPI", "CREDIT"] as Chan[]).filter((c) => c !== "CREDIT" || can("udhaar")).map((c) => (
                 <div key={c} className="row">
-                  <span>{CHAN_TEXT[c][2]} {k(CHAN_TEXT[c][0], CHAN_TEXT[c][1])}</span>
+                  <span><PayIcon mode={c} size={24} /> {k(CHAN_TEXT[c][0], CHAN_TEXT[c][1])}</span>
                   <button type="button" className="amt" onClick={() => openPad({ kind: "split", chan: c })}>{rupees(split[c] || 0)}</button>
                   <button type="button" className="rest" disabled={splitLeft <= 0} onClick={() => setSplit((s) => ({ ...s, [c]: r2((s[c] || 0) + splitLeft) }))}>+ {k("rest", "ಉಳಿದದ್ದು")}</button>
                 </div>
@@ -1236,11 +1236,11 @@ export default function CounterApp() {
             </div>
           )}
           <div className="ctr-act">
-            <button type="button" className="clr" onClick={clearBill} disabled={busy || !lines.length}>{holdId ? k("Close", "ಮುಚ್ಚು") : k("Clear", "ಅಳಿಸಿ")}</button>
-            {show.hold && <button type="button" className="hold" onClick={() => void holdBill()} disabled={busy || !lines.length}>🅿️ {k("Hold", "ಹಿಡಿ")}</button>}
+            <button type="button" className="clr" onClick={clearBill} disabled={busy || !lines.length}><CrossIcon size={26} /><span>{holdId ? k("Close", "ಮುಚ್ಚು") : k("Clear", "ಅಳಿಸಿ")}</span></button>
+            {show.hold && <button type="button" className="hold" onClick={() => void holdBill()} disabled={busy || !lines.length}><PauseIcon size={26} /><span>{k("Hold", "ಹಿಡಿ")}</span></button>}
             {!autoPrint && <button type="button" className="sv" onClick={() => void save(false)} disabled={busy || !lines.length}>{k("Save", "ಉಳಿಸಿ")}</button>}
             <button type="button" className={`go${nextStep === "save" ? " ctr-next" : ""}`} onClick={() => void save(autoPrint)} disabled={busy || !lines.length}>
-              {busy ? "…" : `🖨️ ${autoPrint ? k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ") : k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ")}`}
+              {busy ? "…" : <span className="sv-ico" aria-label={k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ")}><PrinterIcon size={30} /><TickIcon size={26} /></span>}
               <small>{rupees(total)}</small>
             </button>
           </div>
@@ -1287,7 +1287,7 @@ export default function CounterApp() {
         <div className="ctr-modal" role="dialog" aria-label="Return items" onClick={() => !ret.busy && setRet(null)}>
           <div className="ctr-sheet wide" onClick={(e) => e.stopPropagation()}>
             <div className="ctr-sheethead">
-              <b>↩️ {k(`Return from bill #${ret.bill.no}`, `ಬಿಲ್ #${ret.bill.no} ರಿಂದ ರಿಟರ್ನ್`)}</b>
+              <b><OilIn size={0.8} /> {k(`Oil in · bill #${ret.bill.no}`, `ಎಣ್ಣೆ ವಾಪಸ್ · ಬಿಲ್ #${ret.bill.no}`)}</b>
               <button type="button" onClick={() => setRet(null)} aria-label="Close">✕</button>
             </div>
             <ul className="ctr-list">
@@ -1309,7 +1309,7 @@ export default function CounterApp() {
             <div className="ctr-bact">
               {(["CASH", "UPI", "CREDIT"] as RefundMode[]).map((m) => (
                 <button key={m} type="button" className={ret.mode === m ? "on" : ""} onClick={() => setRet({ ...ret, mode: m, err: "" })}>
-                  {m === "CASH" ? k("💵 Cash back", "💵 ನಗದು ಹಿಂದೆ") : m === "UPI" ? k("📲 UPI back", "📲 UPI ಹಿಂದೆ") : k("📒 Cut udhaar", "📒 ಉದ್ರಿ ಕಡಿಮೆ")}
+                  {m === "CASH" ? <><CashOut size={0.8} /> {k("Cash out", "ನಗದು ಹೊರಗೆ")}</> : m === "UPI" ? <><PhoneIcon size={24} /> {k("UPI out", "UPI ಹೊರಗೆ")}</> : <><BookIcon size={24} /> {k("Cut udhaar", "ಉದ್ರಿ ಕಡಿಮೆ")}</>}
                 </button>
               ))}
             </div>
@@ -1319,7 +1319,7 @@ export default function CounterApp() {
             <div className="okrow">
               <button type="button" className="cancel" onClick={() => setRet(null)}>{k("Cancel", "ರದ್ದು")}</button>
               <button type="button" className="ok" disabled={ret.busy || !retPlan || "err" in retPlan} onClick={() => void saveReturn()}>
-                ✓ {k("Return", "ರಿಟರ್ನ್")} {retPlan && !("err" in retPlan) ? rupees(retPlan.amount) : ""}
+                ✓ {k("Oil in", "ಎಣ್ಣೆ ವಾಪಸ್")} {retPlan && !("err" in retPlan) ? rupees(retPlan.amount) : ""}
               </button>
             </div>
             <p className="ctr-hint">{k("Stock goes back in, and the cash book, udhaar and Daily Closing follow. The bill itself stays as it was.", "ಸ್ಟಾಕ್ ಮರಳುತ್ತದೆ; ಕ್ಯಾಶ್ ಬುಕ್, ಉದ್ರಿ, ಡೈಲಿ ಕ್ಲೋಸಿಂಗ್ ಅನುಸರಿಸುತ್ತವೆ. ಬಿಲ್ ಹಾಗೇ ಇರುತ್ತದೆ.")}</p>
@@ -1528,8 +1528,8 @@ export default function CounterApp() {
                       <span className="br-items">{b.lines.map((l, i) => <span className="it" key={i}><b>{l.label}</b>{qtyText(l.qty, l.unit) && <em>{qtyText(l.qty, l.unit)}</em>}</span>)}</span>
                       <div className="chips">
                         {(b.modes.CASH || 0) > 0 && <span className={ps.cashDue > 0 ? "wait" : "okc"}><CoinIcon size={20} /> {k("Cash in", "ನಗದು ಬಂತು")} – {rupees(b.modes.CASH)} {ps.cashDue > 0 ? "⏳" : "✓"}</span>}
-                        {(b.modes.UPI || 0) > 0 && <span className={ps.upiDue > 0 ? "wait" : "okc"}>📲 {rupees(b.modes.UPI)} {ps.upiDue > 0 ? k("waiting", "ಕಾಯುತ್ತಿದೆ") : `✓${b.track.upiOk?.payer ? ` ${b.track.upiOk.payer}` : ""}`}</span>}
-                        {(b.modes.CREDIT || 0) > 0 && <span>📒 {rupees(b.modes.CREDIT)} {k("udhaar", "ಉದ್ರಿ")}</span>}
+                        {(b.modes.UPI || 0) > 0 && <span className={ps.upiDue > 0 ? "wait" : "okc"}><PhoneIcon size={20} /> {k("UPI in", "UPI ಬಂತು")} – {rupees(b.modes.UPI)} {ps.upiDue > 0 ? "⏳" : `✓${b.track.upiOk?.payer ? ` ${b.track.upiOk.payer}` : ""}`}</span>}
+                        {(b.modes.CREDIT || 0) > 0 && <span><BookIcon size={20} /> {k("Udhaar", "ಉದ್ರಿ")} – {rupees(b.modes.CREDIT)}</span>}
                       </div>
                       {pickBox(b)}
                       <div className="acts">
