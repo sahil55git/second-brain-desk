@@ -422,7 +422,7 @@ function UdhaarTab({ d, today }: { d: BizData; today: string }) {
         <div className="hub-kpi b"><div className="l">Promises</div><div className="v">{rows.filter((r) => r.promise).length}</div><div className="s">{rows.filter((r) => r.promiseLate).length} late</div></div>
       </div>
       <details className="hub-card ins-shop">
-        <summary>Shop name and UPI id for the message {shop.upi ? `· ${shop.upi}` : "· add your UPI id"}</summary>
+        <summary>Shop name and UPI id for the message {shop.upi ? `· ${shop.upi}` : "· add your UPI id"} <small>(more options: Settings → 💳 UPI &amp; QR)</small></summary>
         <div className="ins-row">
           <label>Shop name <input value={shop.name} onChange={(e) => setShop({ ...shop, name: e.target.value })} /></label>
           <label>UPI id <input value={shop.upi} placeholder="mahadev@ybl" onChange={(e) => setShop({ ...shop, upi: e.target.value.trim() })} /></label>

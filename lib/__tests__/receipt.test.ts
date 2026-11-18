@@ -27,4 +27,23 @@ describe("receipts", () => {
     expect(c.notes).toEqual(["x"]);
     expect(receiptName({ title: "BILL", no: "INV/0042" })).toBe("BILL-INV-0042");
   });
+
+  describe("pay QR amount", () => {
+    const lines = [{ name: "Oil", qty: 1, unit: "kg", rateInr: 100, totalInr: 100 }];
+    it("a UPI or udhaar bill carries the amount still to pay; cash does not", () => {
+      expect(billReceipt({ lines, subtotalInr: 100, totalInr: 100, paymentMode: "UPI" }).payDue).toBe(100);
+      expect(billReceipt({ lines, subtotalInr: 100, totalInr: 100, paymentMode: "CREDIT" }).payDue).toBe(100);
+      expect(billReceipt({ lines, subtotalInr: 100, totalInr: 100, paymentMode: "CASH" }).payDue).toBeUndefined();
+      expect(billReceipt({ lines, subtotalInr: 100, totalInr: 100 }).payDue).toBeUndefined();
+    });
+    it("an entry receipt only has it when the caller says money is still owed", () => {
+      expect(entryReceipt({ title: "RECEIPT", amountInr: 250, mode: "Udhaar", payDue: 250 }).payDue).toBe(250);
+      expect(entryReceipt({ title: "RECEIPT", amountInr: 250, mode: "Cash" }).payDue).toBeUndefined();
+    });
+    it("cleaning keeps a good amount and drops nonsense", () => {
+      expect(cleanReceipt({ title: "X", rows: [], payDue: 99.999 }).payDue).toBe(100);
+      expect(cleanReceipt({ title: "X", rows: [], payDue: -5 }).payDue).toBeUndefined();
+      expect(cleanReceipt({ title: "X", rows: [], payDue: Number.NaN }).payDue).toBeUndefined();
+    });
+  });
 });

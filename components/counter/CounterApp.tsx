@@ -12,7 +12,8 @@ import { useScale } from "@/components/ScaleProvider";
 import { useAccess } from "@/components/AccessProvider";
 import ReceiptSheet, { useShop } from "@/components/print/ReceiptSheet";
 import QrCode from "@/components/barrels/QrCode";
-import { upiPay, validVpa } from "@/lib/money";
+import { useShopPay } from "@/lib/useShopPay";
+import { appHint } from "@/lib/shopPay";
 import { api, type DayBundle } from "@/components/register/forms/shared";
 import { businessDate, itemsFor, rateKey } from "@/lib/register";
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
@@ -177,7 +178,13 @@ export default function CounterApp() {
   const [panel, setPanel] = useState<null | "settings" | "items" | "holds" | "bills" | "look">(null);
   const [prev, setPrev] = useState<{ doc: ReceiptDoc; no: string; total: number; back: number } | null>(null);
   const [rcpt, setRcpt] = useState<{ doc: ReceiptDoc; auto: boolean } | null>(null);
-  const [vpa, setVpa] = useState<string | null>(null);
+  // the shop's UPI IDs (Settings → UPI & QR); which one this device shows is remembered per device
+  const sp = useShopPay();
+  const [acct, setAcct] = useState<string | null>(null);
+  const [qrBig, setQrBig] = useState(false);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => { setAcct(read<string | null>("counterUpiAcct", null)); }, []);
+  const vpa = sp.vpaOf(acct) || null;
   const [holds, setHolds] = useState<Hold[]>([]);
   const [holdId, setHoldId] = useState<string | null>(null);
   const [device, setDevice] = useState("");
@@ -231,10 +238,6 @@ export default function CounterApp() {
   useEffect(() => {
     void load();
     void loadCfg();
-    fetch("/api/settings/app?key=shop")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => setVpa(validVpa(j?.data?.upi) ? String(j.data.upi).trim() : null))
-      .catch(() => {});
   }, [load, loadCfg]);
 
   const loadHolds = useCallback(async () => {
@@ -309,7 +312,7 @@ export default function CounterApp() {
   const hand: Handover = handPick ?? defaultHandover({ CASH: cashDue, UPI: upiDue, CREDIT: creditDue });
   const back = cashDue > 0 && received > 0 ? cashReturn(cashDue, received) : 0;
   const shortBy = cashDue > 0 && received > 0 && received < cashDue ? r2(cashDue - received) : 0;
-  const upiFor = (amount: number, note: string) => (vpa && amount > 0 ? upiPay(vpa, shop.name || "Mahadev Traders", amount, note) : undefined);
+  const upiFor = (amount: number, note: string) => (amount > 0 ? sp.linkFor(amount, note, shop.name || "Mahadev Traders", acct) : undefined);
   const itemsNote = (ls: CounterLine[]) => ls.map((l) => `${l.label} ${l.qty.toFixed(3)}${l.unit}`).join(", ");
 
   // ---- adding items
@@ -1054,15 +1057,27 @@ export default function CounterApp() {
             <div className="ctr-upi">
               {vpa ? (
                 <>
-                  <QrCode value={upiFor(upiDue, `Bill · ${itemsNote(lines)}`) || ""} moduleSize={4} />
+                  <button type="button" className="ctr-qrbtn" onClick={() => setQrBig(true)} aria-label={k("Show the QR big for the customer", "ಗ್ರಾಹಕರಿಗೆ QR ದೊಡ್ಡದಾಗಿ ತೋರಿಸಿ")}>
+                    <QrCode value={upiFor(upiDue, `Bill · ${itemsNote(lines)}`) || ""} moduleSize={4} />
+                  </button>
                   <div>
                     <b>{rupees(upiDue)}</b>
-                    <small>{k("Customer scans: the exact amount fills in by itself", "ಗ್ರಾಹಕರು ಸ್ಕ್ಯಾನ್ ಮಾಡಲಿ — ಮೊತ್ತ ತಾನಾಗಿ ತುಂಬುತ್ತದೆ")}</small>
-                    <small>{vpa}</small>
+                    <small>{k("Any UPI app: PhonePe, Google Pay, Paytm, BHIM… The exact amount fills in by itself. Tap the QR to show it big.", "ಯಾವುದೇ UPI ಆ್ಯಪ್: PhonePe, Google Pay, Paytm, BHIM… ಮೊತ್ತ ತಾನಾಗಿ ತುಂಬುತ್ತದೆ. ದೊಡ್ಡದಾಗಿ ತೋರಿಸಲು QR ಒತ್ತಿ.")}</small>
+                    <small>{sp.pay.payee || shop.name} · {vpa}</small>
+                    {sp.pay.accounts.length > 1 && (
+                      <span className="ctr-upiacc" role="radiogroup" aria-label={k("Which UPI ID", "ಯಾವ UPI ID")}>
+                        {sp.pay.accounts.map((a) => (
+                          <button key={a.id} type="button" role="radio" aria-checked={a.vpa === vpa} className={a.vpa === vpa ? "on" : ""} onClick={() => { setAcct(a.id); write("counterUpiAcct", a.id); }}>{a.label}</button>
+                        ))}
+                      </span>
+                    )}
+                    <button type="button" className="ctr-copy" onClick={() => { void navigator.clipboard?.writeText(vpa).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1600); }).catch(() => {}); }}>
+                      {copied ? `✓ ${k("Copied", "ನಕಲಾಯಿತು")}` : `📋 ${k("Copy UPI ID", "UPI ID ನಕಲಿಸಿ")}`}
+                    </button>
                   </div>
                 </>
               ) : (
-                <small>{k("Add the shop's UPI ID in Settings → Shop to show a pay QR here.", "UPI QR ಗೆ ಸೆಟ್ಟಿಂಗ್ಸ್ → ಶಾಪ್‌ನಲ್ಲಿ UPI ID ಸೇರಿಸಿ.")}</small>
+                <small>{k("No UPI ID yet. Add it in the main app: Settings → 💳 UPI & QR. Then the pay QR shows here and on bills.", "UPI ID ಇನ್ನೂ ಇಲ್ಲ. ಮುಖ್ಯ ಆ್ಯಪ್: ಸೆಟ್ಟಿಂಗ್ಸ್ → 💳 UPI & QR ನಲ್ಲಿ ಸೇರಿಸಿ. ಆಗ ಇಲ್ಲಿ ಮತ್ತು ಬಿಲ್‌ನಲ್ಲಿ QR ಕಾಣುತ್ತದೆ.")}</small>
               )}
             </div>
           )}
@@ -1573,6 +1588,17 @@ export default function CounterApp() {
         </div>
       )}
 
+      {qrBig && vpa && upiDue > 0 && (
+        <div className="ctr-qrbig" role="dialog" aria-modal="true" onClick={() => setQrBig(false)}>
+          <div onClick={(e) => e.stopPropagation()}>
+            <b>{sp.pay.payee || shop.name}</b>
+            <QrCode value={upiFor(upiDue, `Bill · ${itemsNote(lines)}`) || ""} moduleSize={8} />
+            <strong>{rupees(upiDue)}</strong>
+            <small>{vpa}{appHint(vpa) ? ` · ${appHint(vpa)}` : ""}</small>
+            <button type="button" onClick={() => setQrBig(false)}>{k("Close", "ಮುಚ್ಚು")}</button>
+          </div>
+        </div>
+      )}
       {rcpt && <ReceiptSheet doc={rcpt.doc} autoPrint={rcpt.auto} quiet={!printPanel} onClose={() => setRcpt(null)} />}
     </div>
   );

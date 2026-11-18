@@ -7,13 +7,14 @@
 import ShareButton from "@/components/share/ShareButton";
 import "@/app/barrels/barrels.css";
 import "./print.css";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import PrintCenter from "@/components/barrels/PrintCenter";
 import QrCode from "@/components/barrels/QrCode";
 import { useSavedPrint } from "@/components/barrels/PrintKit";
 import { SLIP_SIZES, pageCss, slipLayout, type PaperSize } from "@/lib/printSizes";
-import { DEFAULT_SHOP, cleanReceipt, receiptName, type ReceiptDoc, type ShopInfo } from "@/lib/receipt";
+import { DEFAULT_SHOP, cleanReceipt, receiptName, rupees, type ReceiptDoc, type ShopInfo } from "@/lib/receipt";
+import { useShopPay } from "@/lib/useShopPay";
 
 const ROLLS = SLIP_SIZES.filter((s) => s.h == null);
 const rollFor = (id?: string): PaperSize => ROLLS.find((s) => s.id === id) ?? ROLLS[0];
@@ -95,7 +96,7 @@ export function ReceiptView({ doc, shop, widthMm }: { doc: ReceiptDoc; shop: Sho
   );
 }
 
-export default function ReceiptSheet({ doc, onClose, onPrinted, autoPrint = false, quiet = false }: { doc: ReceiptDoc; onClose: () => void; onPrinted?: () => void; /** one-click: print at once and close when it worked */ autoPrint?: boolean; /** with autoPrint: show only a small "Printing…" note; the full printer panel opens only if printing does not start or fails */ quiet?: boolean }) {
+export default function ReceiptSheet({ doc: docIn, onClose, onPrinted, autoPrint = false, quiet = false }: { doc: ReceiptDoc; onClose: () => void; onPrinted?: () => void; /** one-click: print at once and close when it worked */ autoPrint?: boolean; /** with autoPrint: show only a small "Printing…" note; the full printer panel opens only if printing does not start or fails */ quiet?: boolean }) {
   const [saved, save] = useSavedPrint();
   const [mounted, setMounted] = useState(false);
   const hidden0 = quiet && autoPrint;
@@ -109,6 +110,14 @@ export default function ReceiptSheet({ doc, onClose, onPrinted, autoPrint = fals
     return () => clearTimeout(t);
   }, [hidden0]);
   const shop = useShop();
+  // a receipt that says how much the customer still has to pay gets the shop's UPI pay QR (any UPI app can scan it)
+  const sp = useShopPay();
+  const doc = useMemo<ReceiptDoc>(() => {
+    if (docIn.qr || !(docIn.payDue && docIn.payDue > 0)) return docIn;
+    const link = sp.linkFor(docIn.payDue, `${docIn.title} ${docIn.no ?? ""}`.trim(), shop.name);
+    if (!link) return docIn;
+    return { ...docIn, qr: link, notes: [...(docIn.notes ?? []), `Scan to pay ${rupees(docIn.payDue)} by UPI · ${sp.vpaOf()}`] };
+  }, [docIn, sp, shop.name]);
   const size = rollFor(saved.slip);
   const lay = slipLayout(size);
   useEffect(() => setMounted(true), []);
@@ -151,7 +160,7 @@ export default function ReceiptSheet({ doc, onClose, onPrinted, autoPrint = fals
               <button key={r.id} type="button" className={`bd-chip${r.id === size.id ? " on" : ""}`} onClick={() => save({ slip: r.id })}>{r.name}</button>
             ))}
           </div>
-          <PrintCenter kind="slip" size={size} selector=".rc-portal .rc-slip" marginMm={lay.margin} count={1} label="Print" name={receiptName(doc)} saved={saved} onSave={save} autoPrint={autoPrint} onStart={() => { started.current = true; }} onFail={() => setHidden(false)} onDone={() => { onPrinted?.(); setState("ok"); if (autoPrint) setTimeout(onClose, 900); }} />
+          <PrintCenter kind="slip" size={size} selector=".rc-portal .rc-slip" marginMm={lay.margin} count={1} label="Print" name={receiptName(doc)} saved={saved} onSave={save} autoPrint={autoPrint && (sp.ready || !docIn.payDue)} onStart={() => { started.current = true; }} onFail={() => setHidden(false)} onDone={() => { onPrinted?.(); setState("ok"); if (autoPrint) setTimeout(onClose, 900); }} />
           <div className="bd-row"><ShareButton area=".rc-portal .rc-slip" className="bd-btn" title={receiptName(doc)} url={false} label="📤 Share receipt (WhatsApp, picture…)" /></div>
         </div>
         <div className="rc-preview">

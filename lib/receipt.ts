@@ -32,6 +32,8 @@ export interface ReceiptDoc {
   pre?: string;
   /** text encoded in a QR at the bottom (a link or a code), optional */
   qr?: string;
+  /** rupees the customer still has to pay (UPI / udhaar): the receipt sheet adds the shop's UPI pay QR for this amount when a UPI ID is set */
+  payDue?: number;
 }
 
 export interface ShopInfo {
@@ -75,6 +77,7 @@ export function cleanReceipt(doc: ReceiptDoc): ReceiptDoc {
     notes: (doc.notes || []).map((n) => t(n, 200)).filter(Boolean).slice(0, 12),
     pre: typeof doc.pre === "string" ? doc.pre.slice(0, 6000) : undefined,
     qr: t(doc.qr, 300) || undefined,
+    payDue: typeof doc.payDue === "number" && doc.payDue > 0 && Number.isFinite(doc.payDue) ? Math.round(doc.payDue * 100) / 100 : undefined,
   };
 }
 
@@ -127,11 +130,12 @@ export function billReceipt(b: {
     })),
     totals,
     notes: [b.paymentMode ? `Paid by: ${modeText(b.paymentMode)}` : "", b.notes ?? ""].filter(Boolean),
+    payDue: b.paymentMode === "UPI" || b.paymentMode === "CREDIT" ? b.totalInr : undefined,
   };
 }
 
 /** One Quick Register entry (a sale, udhaar received, payment...) as a receipt. */
-export function entryReceipt(e: { title: string; id?: string; when?: string; party?: string | null; what?: string; detail?: string; amountInr: number; mode?: string; notes?: string | null }): ReceiptDoc {
+export function entryReceipt(e: { title: string; id?: string; when?: string; party?: string | null; what?: string; detail?: string; amountInr: number; mode?: string; notes?: string | null; /** rupees the customer still owes on this entry (an udhaar sale): the pay QR is added for it */ payDue?: number }): ReceiptDoc {
   return {
     title: e.title,
     no: e.id ? e.id.slice(-6).toUpperCase() : undefined,
@@ -140,5 +144,6 @@ export function entryReceipt(e: { title: string; id?: string; when?: string; par
     rows: [{ name: e.what || e.title, detail: e.detail, amount: rupees(e.amountInr) }],
     totals: [{ label: "AMOUNT", value: rupees(e.amountInr), strong: true }],
     notes: [e.mode ? `Mode: ${modeText(e.mode)}` : "", e.notes ?? ""].filter(Boolean),
+    payDue: e.payDue && e.payDue > 0 ? e.payDue : undefined,
   };
 }

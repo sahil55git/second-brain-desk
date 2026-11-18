@@ -1,20 +1,19 @@
 "use client";
 
 // Extras on the printed GST invoice: HSN-wise tax summary, amount in words, a UPI "scan to pay"
-// QR (when the shop's UPI id is set in Insights → Udhaar), and the e-way bill JSON for bills over
+// QR (when the shop's UPI id is set in Settings → UPI & QR), and the e-way bill JSON for bills over
 // ₹50,000. The e-way JSON is for upload at ewaybillgst.gov.in → Generate Bulk; check it there.
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import QrCode from "@/components/barrels/QrCode";
-import { amountInWords, ewayJson, ewayNeeded, ewayProblems, hsnSummary, upiPay, validVpa } from "@/lib/money";
+import { amountInWords, ewayJson, ewayNeeded, ewayProblems, hsnSummary } from "@/lib/money";
+import { useShopPay } from "@/lib/useShopPay";
 import { useFeatures } from "@/lib/useFeatures";
 import type { BusinessSettingsDTO, PartyDTO, SalesInvoiceDTO } from "@/lib/types";
 
-let shopCache: Promise<{ upi?: string; name?: string } | null> | null = null;
-const loadShop = () => (shopCache ||= fetch("/api/settings/app?key=shop").then((r) => r.json()).then((j) => j.data || null).catch(() => null));
 
 export function InvoiceTaxBlock({ invoice, settings }: { invoice: SalesInvoiceDTO; settings: BusinessSettingsDTO | null }) {
-  const [vpa, setVpa] = useState<string | null>(null);
-  useEffect(() => { void loadShop().then((s) => setVpa(validVpa(s?.upi) ? s!.upi!.trim() : null)); }, []);
+  const sp = useShopPay();
+  const vpa = sp.vpaOf() || null;
   const f = useFeatures();
   const rows = hsnSummary(invoice.lineItems, invoice.interState);
   const due = invoice.paymentMode !== "CASH" && f.on("upiQr");
@@ -50,7 +49,7 @@ export function InvoiceTaxBlock({ invoice, settings }: { invoice: SalesInvoiceDT
         </div> : <span />}
         {vpa && due && (
           <div className="text-center">
-            <QrCode value={upiPay(vpa, settings?.businessName || "Shop", invoice.totalInr, invoice.invoiceNo)} moduleSize={3} />
+            <QrCode value={sp.linkFor(invoice.totalInr, invoice.invoiceNo, settings?.businessName || "Shop") || ""} moduleSize={3} />
             <div className="text-[10px] text-gray-600">Scan to pay ₹{invoice.totalInr.toFixed(2)}<br />{vpa}</div>
           </div>
         )}
