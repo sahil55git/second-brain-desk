@@ -3,14 +3,15 @@
 // Cashier desk: for the person who takes the money (manager) on a separate device. Held bills wait here;
 // type what the customer gave, see the change, one tap records the cash and releases the goods.
 // Same data and permissions as the counter; nothing is stored on this device except the language and print choice.
-import OilIcon from "./OilIcon";
+import { parseTheme } from "@/lib/counterTheme";
+import OilIcon, { BookIcon, CashOut, CoinIcon, OilOut, PayIcon, PhoneIcon, PrinterIcon, TickIcon } from "./OilIcon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ReceiptSheet from "@/components/print/ReceiptSheet";
 import { cashReceived, changeFor, noteChips } from "@/lib/cashDesk";
 import { billMatches, billsSummary, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
 import { daySummaryDoc } from "@/lib/counterShare";
 import { handoverOf, heldNeed, heldQueue, isTracked, payStatus, waitText } from "@/lib/counterTrack";
-import { billName, qtyText } from "@/lib/counterName";
+import { billName, qtyText, oilKgText } from "@/lib/counterName";
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
 import { businessDate } from "@/lib/register";
 import "./cashier.css";
@@ -142,7 +143,7 @@ export default function CashierDesk() {
 
           {ps.cashDue > 0 && (
             <div className="cd-cash">
-              <div className="due">{k("Cash to receive", "ಪಡೆಯಬೇಕಾದ ನಗದು")} <b>{rupees(ps.cashDue)}</b></div>
+              <div className="due"><CoinIcon size={30} /> {k("Cash in", "ನಗದು ಬರಬೇಕು")} – <b>{rupees(ps.cashDue)}</b></div>
               <label>{k("Customer gave", "ಗ್ರಾಹಕರು ಕೊಟ್ಟದ್ದು")} ₹
                 <input className={!g ? "cd-next" : ""} inputMode="decimal" value={given} onChange={(e) => { setGiven(e.target.value.replace(/[^\d.]/g, "")); setMsg(null); }} placeholder="0" autoFocus />
               </label>
@@ -151,31 +152,31 @@ export default function CashierDesk() {
               </div>
               {g > 0 && (short > 0
                 ? <div className="ret short">{k("Short by", "ಕಡಿಮೆ")} {rupees(short)}</div>
-                : <div className="ret">{change > 0 ? <>{k("Return", "ಹಿಂತಿರುಗಿಸಿ")} <b>{rupees(change)}</b></> : k("No change to return", "ಚಿಲ್ಲರೆ ಇಲ್ಲ")}</div>)}
+                : <div className="ret">{change > 0 ? <><CashOut size={0.9} /> {k("Cash out", "ನಗದು ಹೊರಗೆ")} – <b>{rupees(change)}</b></> : k("No change to return", "ಚಿಲ್ಲರೆ ಇಲ್ಲ")}</div>)}
             </div>
           )}
 
           {upiLeft && (
             <div className="cd-upi">
-              <span>📲 {k("UPI waiting", "UPI ಕಾಯುತ್ತಿದೆ")} <b>{rupees(ps.upiDue)}</b></span>
+              <span><PhoneIcon size={26} /> {k("UPI in", "UPI ಬರಬೇಕು")} – <b>{rupees(ps.upiDue)}</b></span>
               <button type="button" className={armed === "upi" ? "on" : ""} disabled={busy} onClick={() => (armed === "upi" ? void act(bill, "upiOk", {}, `#${bill.no} · UPI ${k("received", "ಬಂದಿದೆ")}`) : setArmed("upi"))}>
-                {armed === "upi" ? k("Tap again: money is in my app", "ಮತ್ತೆ ಒತ್ತಿ: ಹಣ ನನ್ನ ಆ್ಯಪ್‌ನಲ್ಲಿ ಬಂದಿದೆ") : `✓ ${k("UPI received", "UPI ಬಂದಿದೆ")}`}
+                {armed === "upi" ? k("Tap again: money is in my app", "ಮತ್ತೆ ಒತ್ತಿ: ಹಣ ನನ್ನ ಆ್ಯಪ್‌ನಲ್ಲಿ ಬಂದಿದೆ") : `✓ ${k("UPI in", "UPI ಬಂತು")}`}
               </button>
             </div>
           )}
 
-          {ps.cashDue === 0 && !upiLeft && !held && <p className="cd-ok">✅ {k("Paid and given", "ಹಣ ಬಂದಿದೆ, ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ")}</p>}
+          {ps.cashDue === 0 && !upiLeft && !held && <p className="cd-ok"><TickIcon size={24} /> <CoinIcon size={22} /> {k("Cash in", "ನಗದು ಬಂತು")} · <OilIcon size={22} /> {k("Oil out", "ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ")}</p>}
           {msg && !msg.ok && <p className="cd-err">{msg.text}</p>}
 
           <div className="cd-acts">
-            {ps.cashDue > 0 && <button type="button" className={`go${g > 0 && short === 0 ? " cd-next" : ""}`} disabled={busy} onClick={onCash}>✓ {upiLeft ? k("Cash received", "ನಗದು ಬಂದಿದೆ") : k("Cash received — release oil", "ನಗದು ಬಂದಿದೆ — ಎಣ್ಣೆ ಕೊಡಿ")}</button>}
-            {ps.cashDue === 0 && held && need === "READY" && <button type="button" className="go cd-next" disabled={busy} onClick={() => void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("oil given", "ಎಣ್ಣೆ ಬಿಡುಗಡೆ")}`)}><OilIcon size={22} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</button>}
+            {ps.cashDue > 0 && <button type="button" className={`go${g > 0 && short === 0 ? " cd-next" : ""}`} disabled={busy} onClick={onCash}><CoinIcon size={24} /> {upiLeft ? k("Cash in", "ನಗದು ಬಂತು") : k("Cash in – oil out", "ನಗದು ಬಂತು – ಎಣ್ಣೆ ಕೊಡಿ")} – {rupees(ps.cashDue)}</button>}
+            {ps.cashDue === 0 && held && need === "READY" && <button type="button" className="go cd-next" disabled={busy} onClick={() => void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("oil given", "ಎಣ್ಣೆ ಬಿಡುಗಡೆ")}`)}><OilOut kg={oilKgText(bill.lines)} size={0.7} /></button>}
             {held && need !== "READY" && (
               <button type="button" className={`ghost${armed === "give" ? " on" : ""}`} disabled={busy} onClick={() => (armed === "give" ? void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("oil given without payment", "ಹಣವಿಲ್ಲದೆ ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ")}`) : setArmed("give"))}>
                 {armed === "give" ? k("Money NOT received — tap again to give anyway", "ಹಣ ಬಂದಿಲ್ಲ — ಆದರೂ ಕೊಡಲು ಮತ್ತೆ ಒತ್ತಿ") : <><OilIcon size={20} /> {k("Give anyway", "ಆದರೂ ಕೊಡಿ")}</>}
               </button>
             )}
-            <button type="button" className="ghost" onClick={() => setRcpt(slip(bill, g > 0 && short === 0 ? g : undefined))}>🖨️ {k("Receipt", "ರಸೀದಿ")}</button>
+            <button type="button" className="ghost" onClick={() => setRcpt(slip(bill, g > 0 && short === 0 ? g : undefined))}><PrinterIcon size={24} /> {k("Receipt", "ರಸೀದಿ")}</button>
           </div>
         </div>
       </div>
@@ -183,15 +184,26 @@ export default function CashierDesk() {
   })();
 
   const state = (b: SavedBill) => {
-    if (!isTracked(b.track)) return { cls: "paid", text: `✅ ${k("Paid", "ಪಾವತಿ")}` };
+    if (!isTracked(b.track)) return { cls: "paid", text: <><TickIcon size={18} /> {k("Paid", "ಪಾವತಿ")}</> };
     const ps = payStatus(b.modes, b.track);
     if (handoverOf(b.track) === "HELD") return { cls: ps.state === "PAID" ? "ready" : "wait", text: ps.state === "PAID" ? <><OilIcon size={18} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</> : `⏳ ${k("Held", "ಹಿಡಿದಿದೆ")}` };
-    if (ps.creditDue > 0) return { cls: "wait", text: `📒 ${k("Udhaar", "ಉದ್ರಿ")} ${rupees(ps.creditDue)}` };
-    return { cls: "paid", text: `✅ ${k("Paid", "ಪಾವತಿ")}` };
+    if (ps.creditDue > 0) return { cls: "wait", text: <><BookIcon size={18} /> {k("Udhaar", "ಉದ್ರಿ")} – {rupees(ps.creditDue)}</> };
+    return { cls: "paid", text: <><TickIcon size={18} /> {k("Paid", "ಪಾವತಿ")}</> };
   };
 
   const shown = bills.filter((b) => billMatches(b, q)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const TABS: [Tab, string, number | null][] = [
+const [clockMs, setClockMs] = useState(0);
+  useEffect(() => { setClockMs(Date.now()); const t = setInterval(() => setClockMs(Date.now()), 20_000); return () => clearInterval(t); }, []);
+  const clockTime = clockMs ? new Date(clockMs).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }).toUpperCase() : "";
+const txtStyle = useMemo(() => {
+    let t = parseTheme(null);
+    try { t = parseTheme(JSON.parse(localStorage.getItem("counterTheme") || "null")); } catch { /* default */ }
+    const st: Record<string, string> = {};
+    if (t.ink) st["--tx"] = t.ink;
+    if (t.soft) st["--mut"] = t.soft;
+    return st as React.CSSProperties;
+  }, []);
+    const TABS: [Tab, string, number | null][] = [
     ["queue", k("Queue", "ಸಾಲು"), queue.length],
     ["parked", k("Parked", "ನಿಲ್ಲಿಸಿದ"), parked.length],
     ["bills", k("Bills", "ಬಿಲ್‌ಗಳು"), null],
@@ -199,10 +211,10 @@ export default function CashierDesk() {
   ];
 
   return (
-    <div className="cd">
+    <div className="cd" style={txtStyle}>
       <header className="cd-top">
-        <b>💰 {k("Cashier desk", "ಕ್ಯಾಷಿಯರ್ ಡೆಸ್ಕ್")}</b>
-        <span className="cd-date">{today}</span>
+        <b><CoinIcon size={28} /> {k("Cashier desk", "ಕ್ಯಾಷಿಯರ್ ಡೆಸ್ಕ್")}</b>
+        <span className="cd-date"><b>{clockTime}</b> <small>{today}</small></span>
         <button type="button" onClick={() => void load()} aria-label="Refresh">🔄</button>
         <button type="button" onClick={() => { const n = !kn; setKn(n); try { localStorage.setItem("counterLang", JSON.stringify(n ? "kn" : "en")); } catch { /* ignore */ } }}>{kn ? "English" : "ಕನ್ನಡ"}</button>
       </header>
@@ -236,8 +248,8 @@ export default function CashierDesk() {
                       <span className="r2">{b.lines.map((l) => `${l.label}${qtyText(l.qty, l.unit) ? " " + qtyText(l.qty, l.unit) : ""}`).join(" · ")}</span>
                       <span className="r3">
                         <span>⏱ {waitText(age)}</span>
-                        {ps.cashDue > 0 && <span className="wait">💵 {rupees(ps.cashDue)} {k("to receive", "ಪಡೆಯಬೇಕು")}</span>}
-                        {ps.upiDue > 0 && <span className="wait">📲 {rupees(ps.upiDue)} {k("UPI waiting", "UPI ಕಾಯುತ್ತಿದೆ")}</span>}
+                        {ps.cashDue > 0 && <span className="wait"><CoinIcon size={20} /> {k("Cash in", "ನಗದು ಬರಬೇಕು")} – {rupees(ps.cashDue)} ⏳</span>}
+                        {ps.upiDue > 0 && <span className="wait"><PhoneIcon size={20} /> {k("UPI in", "UPI ಬರಬೇಕು")} – {rupees(ps.upiDue)} ⏳</span>}
                         {need === "READY" && <span className="okc"><OilIcon size={22} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</span>}
                       </span>
                     </button>
@@ -283,15 +295,15 @@ export default function CashierDesk() {
             <div className="cd-stats">
               <div><small>{k("Bills today", "ಇಂದಿನ ಬಿಲ್")}</small><b>{sum.count}</b></div>
               <div><small>{k("Sales", "ಮಾರಾಟ")}</small><b>{rupees(sum.total)}</b></div>
-              <div><small>{k("Cash received", "ಬಂದ ನಗದು")}</small><b>{rupees(cashIn)}</b></div>
+              <div><small>{k("Cash in", "ಬಂದ ನಗದು")}</small><b>{rupees(cashIn)}</b></div>
               <div><small>{k("Still to receive", "ಬರಬೇಕಾದದ್ದು")}</small><b>{rupees(r2(bills.reduce((a, b) => a + payStatus(b.modes, b.track).cashDue + payStatus(b.modes, b.track).upiDue, 0)))}</b></div>
             </div>
             <ul className="cd-list plain">
-              {Object.entries(sum.modes).map(([m, v]) => <li key={m}><div><span className="r1"><b>{m === "CASH" ? k("Cash", "ನಗದು") : m === "CREDIT" ? k("Udhaar", "ಉದ್ರಿ") : m}</b><strong>{rupees(v)}</strong></span></div></li>)}
+              {Object.entries(sum.modes).map(([m, v]) => <li key={m}><div><span className="r1"><b>{m === "CASH" || m === "UPI" || m === "CREDIT" ? <PayIcon mode={m} size={24} /> : null} {m === "CASH" ? k("Cash", "ನಗದು") : m === "CREDIT" ? k("Udhaar", "ಉದ್ರಿ") : m}</b><strong>{rupees(v)}</strong></span></div></li>)}
               <li><div><span className="r1"><b>{k("Weight sold", "ಮಾರಿದ ತೂಕ")}</b><strong>{sum.kg.toFixed(3)} kg</strong></span></div></li>
             </ul>
             <div className="cd-acts">
-              <button type="button" className="go" onClick={() => setRcpt(daySummaryDoc({ when: receiptTime(Date.now()), from: today, to: today, count: sum.count, total: sum.total, kg: sum.kg, modes: sum.modes, returned: 0 }))}>🖨️ {k("Print day summary", "ದಿನದ ಸಾರಾಂಶ ಮುದ್ರಿಸಿ")}</button>
+              <button type="button" className="go" onClick={() => setRcpt(daySummaryDoc({ when: receiptTime(Date.now()), from: today, to: today, count: sum.count, total: sum.total, kg: sum.kg, modes: sum.modes, returned: 0 }))}><PrinterIcon size={24} /> {k("Print day summary", "ದಿನದ ಸಾರಾಂಶ ಮುದ್ರಿಸಿ")}</button>
             </div>
             <label className="cd-set">
               <input type="checkbox" checked={autoPrint} onChange={(e) => { setAutoPrint(e.target.checked); try { localStorage.setItem("cashierAutoPrint", String(e.target.checked)); } catch { /* ignore */ } }} />

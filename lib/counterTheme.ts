@@ -23,6 +23,12 @@ export interface CounterTheme {
   icons: boolean;
   /** size of the PLU number on each item key (xl = readable from across the counter) */
   pluSize: PluSize;
+  /** main text colour: "" = automatic, or #rrggbb */
+  ink: string;
+  /** secondary (small, grey) text colour: "" = automatic, or #rrggbb */
+  soft: string;
+  /** stronger text contrast everywhere (default on) */
+  contrast: boolean;
 }
 
 export const PRESETS: { id: string; en: string; kn: string; hex: string }[] = [
@@ -39,7 +45,7 @@ export const PRESETS: { id: string; en: string; kn: string; hex: string }[] = [
 ];
 
 export const DEFAULT_THEME: CounterTheme = {
-  preset: "navy", custom: "#1d3557", mode: "auto", opacity: 100, corner: "md", density: "normal", keySize: "m", backdrop: "plain", lcd: "green", icons: true, pluSize: "m",
+  preset: "navy", custom: "#1d3557", mode: "auto", opacity: 100, corner: "md", density: "normal", keySize: "m", backdrop: "plain", lcd: "green", icons: true, pluSize: "m", ink: "", soft: "", contrast: true,
 };
 
 const pick = <T extends string>(v: unknown, all: readonly T[], d: T): T => (all.includes(v as T) ? (v as T) : d);
@@ -63,6 +69,9 @@ export function parseTheme(raw: unknown): CounterTheme {
     lcd: pick(o.lcd, ["green", "amber", "white", "cyan"] as const, "green"),
     icons: o.icons !== false,
     pluSize: pick(o.pluSize, ["m", "l", "xl"] as const, "m"),
+    ink: validHex(o.ink) ? o.ink.toLowerCase() : "",
+    soft: validHex(o.soft) ? o.soft.toLowerCase() : "",
+    contrast: o.contrast !== false,
   };
 }
 
@@ -88,6 +97,21 @@ const MODES = {
   black: { "--c-bg": "#000000", "--c-card": "#0b0b0b", "--c-ink": "#f5f5f5", "--c-soft": "#a3a3a3", "--c-line": "#2a2a2a" },
 } as const;
 
+/** Stronger text colours used when "high contrast text" is on (default). */
+const STRONG = {
+  light: { "--c-ink": "#0b1017", "--c-soft": "#334050" },
+  dark: { "--c-ink": "#ffffff", "--c-soft": "#d3dae3" },
+  black: { "--c-ink": "#ffffff", "--c-soft": "#d6d6d6" },
+} as const;
+
+/** Mix two #rrggbb colours: `pct` percent of `b` into `a`. */
+export function mixHex(a: string, b: string, pct: number): string {
+  const x = parseInt(a.slice(1), 16);
+  const y = parseInt(b.slice(1), 16);
+  const ch = (sh: number) => Math.round(((x >> sh) & 255) * (1 - pct / 100) + ((y >> sh) & 255) * (pct / 100));
+  return "#" + [16, 8, 0].map((sh) => ch(sh).toString(16).padStart(2, "0")).join("");
+}
+
 const LCD: Record<LcdColor, string> = { green: "#8ef0a2", amber: "#ffc857", white: "#f5f5f5", cyan: "#7dd3fc" };
 const RADIUS: Record<Corner, string> = { sq: "6px", md: "16px", rd: "26px" };
 const KEYW: Record<KeySize, string> = { s: "112px", m: "140px", l: "184px" };
@@ -103,11 +127,18 @@ export function themeStyle(t: CounterTheme): Record<string, string> {
     "--keyw": KEYW[t.keySize],
     "--card-a": String(t.opacity),
   };
-  if (t.mode !== "auto") Object.assign(s, MODES[t.mode]);
+  if (t.mode !== "auto") {
+    Object.assign(s, MODES[t.mode]);
+    if (t.contrast) Object.assign(s, STRONG[t.mode]);
+    // accent-coloured text: lighter on dark pages, darker on light pages, so it can always be read
+    s["--c-acc-text"] = t.mode === "light" ? mixHex(acc, "#000000", 25) : mixHex(acc, "#ffffff", 60);
+  }
+  if (validHex(t.ink)) s["--c-ink"] = t.ink;
+  if (validHex(t.soft)) s["--c-soft"] = t.soft;
   return s;
 }
 
 /** Class names for the counter root (density and background style). */
 export function themeClass(t: CounterTheme): string {
-  return `d-${t.density}${t.backdrop === "tint" ? " tint" : t.backdrop === "glass" ? " glass" : ""}${t.icons ? "" : " no-ic"} plu-${t.pluSize}`;
+  return `d-${t.density}${t.backdrop === "tint" ? " tint" : t.backdrop === "glass" ? " glass" : ""}${t.icons ? "" : " no-ic"} plu-${t.pluSize}${t.contrast ? " hc" : ""}`;
 }

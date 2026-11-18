@@ -33,11 +33,11 @@ describe("counter theme", () => {
     expect(parseTheme({ pluSize: "xl" }).pluSize).toBe("xl");
     expect(parseTheme({ pluSize: "huge" }).pluSize).toBe("m");
     expect(themeClass({ ...DEFAULT_THEME, pluSize: "xl" })).toContain("plu-xl");
-    expect(themeClass({ ...DEFAULT_THEME, icons: false })).toBe("d-normal no-ic plu-m");
+    expect(themeClass({ ...DEFAULT_THEME, icons: false })).toBe("d-normal no-ic plu-m hc");
   });
   it("root classes", () => {
-    expect(themeClass(DEFAULT_THEME)).toBe("d-normal plu-m");
-    expect(themeClass({ ...DEFAULT_THEME, density: "roomy", backdrop: "tint" })).toBe("d-roomy tint plu-m");
+    expect(themeClass(DEFAULT_THEME)).toBe("d-normal plu-m hc");
+    expect(themeClass({ ...DEFAULT_THEME, density: "roomy", backdrop: "tint" })).toBe("d-roomy tint plu-m hc");
   });
 });
 
@@ -46,5 +46,31 @@ describe("glass backdrop", () => {
     expect(parseTheme({ backdrop: "glass" }).backdrop).toBe("glass");
     expect(themeClass({ ...DEFAULT_THEME, backdrop: "glass" })).toContain("glass");
     expect(themeClass({ ...DEFAULT_THEME, backdrop: "tint" })).not.toContain("glass");
+  });
+});
+
+import { mixHex } from "../counterTheme";
+describe("text colours", () => {
+  it("defaults to automatic colours with strong contrast on", () => {
+    const t = parseTheme({});
+    expect(t).toMatchObject({ ink: "", soft: "", contrast: true });
+    expect(parseTheme({ contrast: false }).contrast).toBe(false);
+  });
+  it("keeps only real hex text colours", () => {
+    expect(parseTheme({ ink: "#FFE08A", soft: "red" })).toMatchObject({ ink: "#ffe08a", soft: "" });
+  });
+  it("custom text colours win over the mode colours", () => {
+    const st = themeStyle({ ...DEFAULT_THEME, mode: "dark", ink: "#ffe08a", soft: "#cccccc" });
+    expect(st["--c-ink"]).toBe("#ffe08a");
+    expect(st["--c-soft"]).toBe("#cccccc");
+  });
+  it("strong contrast sets near-white text on dark and near-black on light", () => {
+    expect(themeStyle({ ...DEFAULT_THEME, mode: "dark" })["--c-ink"]).toBe("#ffffff");
+    expect(themeStyle({ ...DEFAULT_THEME, mode: "light" })["--c-ink"]).toBe("#0b1017");
+    expect(themeStyle({ ...DEFAULT_THEME, mode: "dark", contrast: false })["--c-ink"]).toBe("#e7ebf0");
+  });
+  it("accent text is lightened on dark pages", () => {
+    expect(mixHex("#000000", "#ffffff", 50)).toBe("#808080");
+    expect(themeStyle({ ...DEFAULT_THEME, mode: "dark" })["--c-acc-text"]).not.toBe(DEFAULT_THEME.custom);
   });
 });

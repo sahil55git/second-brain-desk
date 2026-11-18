@@ -1,5 +1,5 @@
-.cd{--bg:#f7f7f5;--card:#fff;--tx:#1a1a18;--mut:#6b6b66;--line:#d9d9d3;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;min-height:100vh;background:var(--bg);color:var(--tx);font-size:17px;padding-bottom:40px}
-@media (prefers-color-scheme:dark){.cd{--bg:#121211;--card:#1c1c1a;--tx:#f1f1ee;--mut:#a3a39d;--line:#383834;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171}}
+.cd{--bg:#f7f7f5;--card:#fff;--tx:#1a1a18;--mut:#3f3f3b;--line:#d9d9d3;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;min-height:100vh;background:var(--bg);color:var(--tx);font-size:17px;padding-bottom:40px}
+@media (prefers-color-scheme:dark){.cd{--bg:#121211;--card:#1c1c1a;--tx:#f1f1ee;--mut:#d2d2cb;--line:#383834;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171}}
 .cd button{font:inherit;color:inherit;cursor:pointer}
 .cd-top{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);font-size:19px}
 .cd-top .cd-date{margin-left:auto;color:var(--mut);font-size:14px}
@@ -79,3 +79,15 @@
 .cd-lines li>span{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
 .cd-lines li>span em{font-style:normal;font-weight:700;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:1px 8px;font-size:14px}
 .cd-list .r2{font-weight:500;color:var(--tx);opacity:.85}
+
+.cd-acts .go { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 64px; }
+.cd-acts .go .oil-out { flex-wrap: nowrap; }
+
+.cd .due { display: flex; align-items: center; gap: 8px; font-size: 20px; }
+.cd .ret { display: flex; align-items: center; gap: 10px; }
+.cd .cd-upi > span, .cd .cd-ok { display: inline-flex; align-items: center; gap: 8px; }
+.cd .cd-top > b { display: inline-flex; align-items: center; gap: 8px; }
+.cd .cd-date { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.cd .cd-date b { font-size: 16px; font-weight: 700; } .cd .cd-date small { font-size: 11px; opacity: .75; }
+.cd .chips span, .cd .r3 span { display: inline-flex; align-items: center; gap: 5px; }
+.cd-acts .ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }

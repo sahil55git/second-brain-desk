@@ -26,11 +26,11 @@ import { billText, daySummaryDoc, mobileOf, whatsappLink } from "@/lib/counterSh
 import { DEFAULT_GST_PCT, DEFAULT_HSN, taxInvoiceDoc, validGstin } from "@/lib/counterGst";
 import { defaultRefundMode, refundFor, returnBody, returnables, returnedByBill, type RefundMode, type ReturnItem, type ReturnedSoFar } from "@/lib/counterReturn";
 import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
-import OilIcon from "./OilIcon";
+import OilIcon, { CashOut, CoinIcon, CrossIcon, OilIn, OilOut, PauseIcon, PayIcon, PhoneIcon, PrinterIcon, TickIcon, BookIcon } from "./OilIcon";
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
 import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
 import { billGuide, counterStep } from "@/lib/counterGuide";
-import { billIcon, billName, qtyText } from "@/lib/counterName";
+import { billIcon, billName, qtyText, oilKgText } from "@/lib/counterName";
 import { LAYOUTS, LAYOUT_INFO, layoutShow, pickLayout, type Layout } from "@/lib/counterLayout";
 import { defaultHandover, handoverOf, heldNeed, heldQueue, isTracked, payStatus, upiLine, waitText, type Handover } from "@/lib/counterTrack";
 import { fitsBill, parseUpi, planUpi, samePayment, type UpiEvent } from "@/lib/upiNotify";
@@ -984,12 +984,17 @@ export default function CounterApp() {
   };
 
   // ======================================================================================
+  const [nowMs, setNowMs] = useState(0);
+  useEffect(() => { setNowMs(Date.now()); const t = setInterval(() => setNowMs(Date.now()), 20_000); return () => clearInterval(t); }, []);
+  const clock = !nowMs ? { time: "", date: "" } : { time: new Date(nowMs).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }).toUpperCase(), date: new Date(nowMs).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) };
+
   return (
     <div className={`ctr ${themeClass(theme)} lay-${layout}`} data-view={stepsView ?? undefined} lang={lang} style={{ ["--u" as string]: zoom, ...themeStyle(theme) } as React.CSSProperties}>
       {/* ---------- top bar ---------- */}
       <header className="ctr-top">
         {!kiosk?.on && show.deskLink && <Link href="/register/pos" className="ctr-back">← {k("Desk", "ಡೆಸ್ಕ್")}</Link>}
         <b className="ctr-title">⚖️ {k("Weigh & Bill", "ತೂಕ & ಬಿಲ್")}</b>
+        <span className="ctr-clock" aria-label={k("Date and time", "ದಿನಾಂಕ ಮತ್ತು ಸಮಯ")}><b>{clock.time}</b><small>{clock.date}</small></span>
         {show.scaleStatus && <span className={`ctr-chip ${connected ? (fresh ? "ok" : "mid") : "bad"}`}>{connected ? bt.config?.name || reading?.scale_source || k("Scale", "ತಕ್ಕಡಿ") : k("No scale", "ತಕ್ಕಡಿ ಇಲ್ಲ")}</span>}
         {show.scaleSetup && !connected && !kiosk?.on && <Link href="/?desk=scales" className="ctr-link">{k("Set up scale", "ತಕ್ಕಡಿ ಹೊಂದಿಸಿ")}</Link>}
         <span className="ctr-sp" />
@@ -1149,7 +1154,7 @@ export default function CounterApp() {
           <div className={`ctr-pay${nextStep === "pay" ? " ctr-next" : ""}`} role="radiogroup">
             {(["CASH", "UPI", "CREDIT", "SPLIT"] as CounterPay[]).filter((p) => (p !== "CREDIT" || can("udhaar")) && (p === pay || show[PAY_KEY[p]])).map((p) => (
               <button key={p} type="button" role="radio" aria-checked={pay === p} className={pay === p ? "on" : ""} onClick={() => { setPay(p); setReceived(0); setHandPick(null); setPayTouched(true); }}>
-                {p === "SPLIT" ? `➗ ${k("Split", "ಹಂಚಿಕೆ")}` : `${CHAN_TEXT[p as Chan][2]} ${k(CHAN_TEXT[p as Chan][0], CHAN_TEXT[p as Chan][1])}`}
+                <PayIcon mode={p as "CASH" | "UPI" | "CREDIT" | "SPLIT"} size={30} /> <span>{p === "SPLIT" ? k("Split", "ಹಂಚಿಕೆ") : k(CHAN_TEXT[p as Chan][0], CHAN_TEXT[p as Chan][1])}</span>
               </button>
             ))}
           </div>
@@ -1158,7 +1163,7 @@ export default function CounterApp() {
             <div className="ctr-split">
               {(["CASH", "UPI", "CREDIT"] as Chan[]).filter((c) => c !== "CREDIT" || can("udhaar")).map((c) => (
                 <div key={c} className="row">
-                  <span>{CHAN_TEXT[c][2]} {k(CHAN_TEXT[c][0], CHAN_TEXT[c][1])}</span>
+                  <span><PayIcon mode={c} size={24} /> {k(CHAN_TEXT[c][0], CHAN_TEXT[c][1])}</span>
                   <button type="button" className="amt" onClick={() => openPad({ kind: "split", chan: c })}>{rupees(split[c] || 0)}</button>
                   <button type="button" className="rest" disabled={splitLeft <= 0} onClick={() => setSplit((s) => ({ ...s, [c]: r2((s[c] || 0) + splitLeft) }))}>+ {k("rest", "ಉಳಿದದ್ದು")}</button>
                 </div>
@@ -1231,11 +1236,11 @@ export default function CounterApp() {
             </div>
           )}
           <div className="ctr-act">
-            <button type="button" className="clr" onClick={clearBill} disabled={busy || !lines.length}>{holdId ? k("Close", "ಮುಚ್ಚು") : k("Clear", "ಅಳಿಸಿ")}</button>
-            {show.hold && <button type="button" className="hold" onClick={() => void holdBill()} disabled={busy || !lines.length}>🅿️ {k("Hold", "ಹಿಡಿ")}</button>}
+            <button type="button" className="clr" onClick={clearBill} disabled={busy || !lines.length}><CrossIcon size={26} /><span>{holdId ? k("Close", "ಮುಚ್ಚು") : k("Clear", "ಅಳಿಸಿ")}</span></button>
+            {show.hold && <button type="button" className="hold" onClick={() => void holdBill()} disabled={busy || !lines.length}><PauseIcon size={26} /><span>{k("Hold", "ಹಿಡಿ")}</span></button>}
             {!autoPrint && <button type="button" className="sv" onClick={() => void save(false)} disabled={busy || !lines.length}>{k("Save", "ಉಳಿಸಿ")}</button>}
             <button type="button" className={`go${nextStep === "save" ? " ctr-next" : ""}`} onClick={() => void save(autoPrint)} disabled={busy || !lines.length}>
-              {busy ? "…" : `🖨️ ${autoPrint ? k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ") : k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ")}`}
+              {busy ? "…" : <span className="sv-ico" aria-label={k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ")}><PrinterIcon size={30} /><TickIcon size={26} /></span>}
               <small>{rupees(total)}</small>
             </button>
           </div>
@@ -1282,7 +1287,7 @@ export default function CounterApp() {
         <div className="ctr-modal" role="dialog" aria-label="Return items" onClick={() => !ret.busy && setRet(null)}>
           <div className="ctr-sheet wide" onClick={(e) => e.stopPropagation()}>
             <div className="ctr-sheethead">
-              <b>↩️ {k(`Return from bill #${ret.bill.no}`, `ಬಿಲ್ #${ret.bill.no} ರಿಂದ ರಿಟರ್ನ್`)}</b>
+              <b><OilIn size={0.8} /> {k(`Oil in · bill #${ret.bill.no}`, `ಎಣ್ಣೆ ವಾಪಸ್ · ಬಿಲ್ #${ret.bill.no}`)}</b>
               <button type="button" onClick={() => setRet(null)} aria-label="Close">✕</button>
             </div>
             <ul className="ctr-list">
@@ -1304,7 +1309,7 @@ export default function CounterApp() {
             <div className="ctr-bact">
               {(["CASH", "UPI", "CREDIT"] as RefundMode[]).map((m) => (
                 <button key={m} type="button" className={ret.mode === m ? "on" : ""} onClick={() => setRet({ ...ret, mode: m, err: "" })}>
-                  {m === "CASH" ? k("💵 Cash back", "💵 ನಗದು ಹಿಂದೆ") : m === "UPI" ? k("📲 UPI back", "📲 UPI ಹಿಂದೆ") : k("📒 Cut udhaar", "📒 ಉದ್ರಿ ಕಡಿಮೆ")}
+                  {m === "CASH" ? <><CashOut size={0.8} /> {k("Cash out", "ನಗದು ಹೊರಗೆ")}</> : m === "UPI" ? <><PhoneIcon size={24} /> {k("UPI out", "UPI ಹೊರಗೆ")}</> : <><BookIcon size={24} /> {k("Cut udhaar", "ಉದ್ರಿ ಕಡಿಮೆ")}</>}
                 </button>
               ))}
             </div>
@@ -1314,7 +1319,7 @@ export default function CounterApp() {
             <div className="okrow">
               <button type="button" className="cancel" onClick={() => setRet(null)}>{k("Cancel", "ರದ್ದು")}</button>
               <button type="button" className="ok" disabled={ret.busy || !retPlan || "err" in retPlan} onClick={() => void saveReturn()}>
-                ✓ {k("Return", "ರಿಟರ್ನ್")} {retPlan && !("err" in retPlan) ? rupees(retPlan.amount) : ""}
+                ✓ {k("Oil in", "ಎಣ್ಣೆ ವಾಪಸ್")} {retPlan && !("err" in retPlan) ? rupees(retPlan.amount) : ""}
               </button>
             </div>
             <p className="ctr-hint">{k("Stock goes back in, and the cash book, udhaar and Daily Closing follow. The bill itself stays as it was.", "ಸ್ಟಾಕ್ ಮರಳುತ್ತದೆ; ಕ್ಯಾಶ್ ಬುಕ್, ಉದ್ರಿ, ಡೈಲಿ ಕ್ಲೋಸಿಂಗ್ ಅನುಸರಿಸುತ್ತವೆ. ಬಿಲ್ ಹಾಗೇ ಇರುತ್ತದೆ.")}</p>
@@ -1442,17 +1447,17 @@ export default function CounterApp() {
                       <div className="br-ticks">
                         <div className="br-col" aria-label={k("Money", "ಹಣ")}>
                           {part("CASH") && (cashOkNow ? (
-                            <span className="tick on"><i className="box">✓</i><span className="ico" aria-hidden>💵</span><b>{rupees(b.modes.CASH)}</b><small>{k("Received", "ಬಂದಿದೆ")}</small></span>
+                            <span className="tick on"><i className="box">✓</i><span className="ico" aria-hidden><CoinIcon size={26} /></span><b>{rupees(b.modes.CASH)}</b><small>{k("Cash in", "ನಗದು ಬಂತು")}</small></span>
                           ) : ps.cashDue > 0 ? (
                             <button type="button" className={`tick${armed === `${b.key}:cash` ? " armed" : ""}${gd === "money" ? " ctr-next" : ""}`} onClick={() => (armed === `${b.key}:cash` ? void trackAct(b, "cashOk") : setArmed(`${b.key}:cash`))}>
-                              <i className="box">{armed === `${b.key}:cash` ? "✓?" : ""}</i><span className="ico" aria-hidden>💵</span><b>{rupees(ps.cashDue)}</b><small>{armed === `${b.key}:cash` ? k("Tap again", "ಮತ್ತೆ ಒತ್ತಿ") : k("Not received", "ಬಂದಿಲ್ಲ")}</small>
+                              <i className="box">{armed === `${b.key}:cash` ? "✓?" : ""}</i><span className="ico" aria-hidden><CoinIcon size={26} /></span><b>{rupees(ps.cashDue)}</b><small>{armed === `${b.key}:cash` ? k("Tap again", "ಮತ್ತೆ ಒತ್ತಿ") : k("Cash not in", "ನಗದು ಬಂದಿಲ್ಲ")}</small>
                             </button>
                           ) : null)}
                           {part("UPI") && (upiOkNow ? (
-                            <span className="tick on"><i className="box">✓</i><span className="ico" aria-hidden>📲</span><b>{rupees(b.modes.UPI)}</b><small>{k("Received", "ಬಂದಿದೆ")}</small></span>
+                            <span className="tick on"><i className="box">✓</i><span className="ico" aria-hidden>📲</span><b>{rupees(b.modes.UPI)}</b><small>{k("UPI in", "UPI ಬಂತು")}</small></span>
                           ) : ps.upiDue > 0 ? (
                             <button type="button" className={`tick${armed === `${b.key}:upi` ? " armed" : ""}${gd === "money" ? " ctr-next" : ""}`} onClick={() => (paymentsFor(b).length ? setPickFor(pickFor === b.key ? null : b.key) : armed === `${b.key}:upi` ? void trackAct(b, "upiOk") : setArmed(`${b.key}:upi`))}>
-                              <i className="box">{armed === `${b.key}:upi` ? "✓?" : ""}</i><span className="ico" aria-hidden>📲</span><b>{rupees(ps.upiDue)}</b><small>{armed === `${b.key}:upi` ? k("Tap again", "ಮತ್ತೆ ಒತ್ತಿ") : k("Not received", "ಬಂದಿಲ್ಲ")}</small>
+                              <i className="box">{armed === `${b.key}:upi` ? "✓?" : ""}</i><span className="ico" aria-hidden>📲</span><b>{rupees(ps.upiDue)}</b><small>{armed === `${b.key}:upi` ? k("Tap again", "ಮತ್ತೆ ಒತ್ತಿ") : k("UPI not in", "UPI ಬಂದಿಲ್ಲ")}</small>
                             </button>
                           ) : null)}
                           {ps.creditDue > 0 && (["CASH", "UPI"] as const).map((m) => (
@@ -1464,11 +1469,11 @@ export default function CounterApp() {
                         {ho === "HELD" ? (
                           <button type="button" className={`tick goods${armed === `${b.key}:give` ? " armed" : ""}${gd === "goods" ? " ctr-next" : ""}${gd === "money" ? " locked" : ""}`} onClick={() => (gd === "money" && armed !== `${b.key}:give` ? setArmed(`${b.key}:give`) : void trackAct(b, "handover", { value: "GIVEN" }))}>
                             <i className="box">{armed === `${b.key}:give` ? "✓?" : ""}</i><span className="ico" aria-hidden>{gd === "money" ? "🔒" : <OilIcon size={26} />}</span>
-                            <b>{gd === "money" ? k("Held", "ಹಿಡಿದಿದೆ") : k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</b>
-                            <small>{armed === `${b.key}:give` ? (gd === "money" ? k("No money yet — tap to give", "ಹಣ ಬಂದಿಲ್ಲ — ಕೊಡಲು ಒತ್ತಿ") : k("Tap again", "ಮತ್ತೆ ಒತ್ತಿ")) : k("Not given", "ಕೊಟ್ಟಿಲ್ಲ")}</small>
+                            <b>{gd === "money" ? k("Held", "ಹಿಡಿದಿದೆ") : `${k("Oil", "ಎಣ್ಣೆ")} ${oilKgText(b.lines)}`.trim()}</b>
+                            <small>{armed === `${b.key}:give` ? (gd === "money" ? k("No money yet — tap to give", "ಹಣ ಬಂದಿಲ್ಲ — ಕೊಡಲು ಒತ್ತಿ") : k("Tap again", "ಮತ್ತೆ ಒತ್ತಿ")) : k("Oil not out", "ಎಣ್ಣೆ ಕೊಟ್ಟಿಲ್ಲ")}</small>
                           </button>
                         ) : (
-                          <span className="tick goods on"><i className="box">✓</i><span className="ico" aria-hidden><OilIcon size={26} /></span><b>{k("Given", "ಕೊಟ್ಟಿದೆ")}</b></span>
+                          <span className="tick goods on"><i className="box">✓</i><span className="ico" aria-hidden><OilIcon size={26} /></span><b>{k("Oil out", "ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ")}</b></span>
                         )}
                       </div>
                     )}
@@ -1522,24 +1527,24 @@ export default function CounterApp() {
                       </div>
                       <span className="br-items">{b.lines.map((l, i) => <span className="it" key={i}><b>{l.label}</b>{qtyText(l.qty, l.unit) && <em>{qtyText(l.qty, l.unit)}</em>}</span>)}</span>
                       <div className="chips">
-                        {(b.modes.CASH || 0) > 0 && <span className={ps.cashDue > 0 ? "wait" : "okc"}>💵 {rupees(b.modes.CASH)} {ps.cashDue > 0 ? k("to receive", "ಪಡೆಯಬೇಕು") : "✓"}</span>}
-                        {(b.modes.UPI || 0) > 0 && <span className={ps.upiDue > 0 ? "wait" : "okc"}>📲 {rupees(b.modes.UPI)} {ps.upiDue > 0 ? k("waiting", "ಕಾಯುತ್ತಿದೆ") : `✓${b.track.upiOk?.payer ? ` ${b.track.upiOk.payer}` : ""}`}</span>}
-                        {(b.modes.CREDIT || 0) > 0 && <span>📒 {rupees(b.modes.CREDIT)} {k("udhaar", "ಉದ್ರಿ")}</span>}
+                        {(b.modes.CASH || 0) > 0 && <span className={ps.cashDue > 0 ? "wait" : "okc"}><CoinIcon size={20} /> {k("Cash in", "ನಗದು ಬಂತು")} – {rupees(b.modes.CASH)} {ps.cashDue > 0 ? "⏳" : "✓"}</span>}
+                        {(b.modes.UPI || 0) > 0 && <span className={ps.upiDue > 0 ? "wait" : "okc"}><PhoneIcon size={20} /> {k("UPI in", "UPI ಬಂತು")} – {rupees(b.modes.UPI)} {ps.upiDue > 0 ? "⏳" : `✓${b.track.upiOk?.payer ? ` ${b.track.upiOk.payer}` : ""}`}</span>}
+                        {(b.modes.CREDIT || 0) > 0 && <span><BookIcon size={20} /> {k("Udhaar", "ಉದ್ರಿ")} – {rupees(b.modes.CREDIT)}</span>}
                       </div>
                       {pickBox(b)}
                       <div className="acts">
                         {ps.cashDue > 0 && (
                           <button type="button" className={`big ctr-next${armed === `${b.key}:cash` ? " on" : ""}`} onClick={() => (armed === `${b.key}:cash` ? void trackAct(b, "cashOk") : setArmed(`${b.key}:cash`))}>
-                            {armed === `${b.key}:cash` ? k("Tap again: cash received", "ಮತ್ತೆ ಒತ್ತಿ: ನಗದು ಬಂದಿದೆ") : `💵 ${k("Cash received", "ನಗದು ಬಂದಿದೆ")} ${rupees(ps.cashDue)}`}
+                            {armed === `${b.key}:cash` ? k("Tap again: cash received", "ಮತ್ತೆ ಒತ್ತಿ: ನಗದು ಬಂದಿದೆ") : <><CoinIcon size={26} /> {k("Cash in", "ನಗದು ಬಂತು")} – {rupees(ps.cashDue)}</>}
                           </button>
                         )}
                         {ps.upiDue > 0 && (
                           <button type="button" className={`big ctr-next${armed === `${b.key}:upi` ? " on" : ""}`} onClick={() => (paymentsFor(b).length ? setPickFor(pickFor === b.key ? null : b.key) : armed === `${b.key}:upi` ? void trackAct(b, "upiOk") : setArmed(`${b.key}:upi`))}>
-                            {armed === `${b.key}:upi` ? k("Tap again: UPI received", "ಮತ್ತೆ ಒತ್ತಿ: UPI ಬಂದಿದೆ") : `✓ ${k("UPI received", "UPI ಬಂದಿದೆ")} ${rupees(ps.upiDue)}`}
+                            {armed === `${b.key}:upi` ? k("Tap again: UPI received", "ಮತ್ತೆ ಒತ್ತಿ: UPI ಬಂದಿದೆ") : `✓ ${k("UPI in", "UPI ಬಂತು")} – ${rupees(ps.upiDue)}`}
                           </button>
                         )}
                         {need === "READY" ? (
-                          <button type="button" className="big give ctr-next" onClick={() => void trackAct(b, "handover", { value: "GIVEN" })}><OilIcon size={24} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</button>
+                          <button type="button" className="big give ctr-next" onClick={() => void trackAct(b, "handover", { value: "GIVEN" })}><OilOut kg={oilKgText(b.lines)} size={0.8} /></button>
                         ) : (
                           <button type="button" className={`ghost${armed === `${b.key}:give` ? " on" : ""}`} onClick={() => (armed === `${b.key}:give` ? void trackAct(b, "handover", { value: "GIVEN" }) : setArmed(`${b.key}:give`))}>
                             {armed === `${b.key}:give` ? k("Money NOT received — tap again to give anyway", "ಹಣ ಬಂದಿಲ್ಲ — ಆದರೂ ಕೊಡಲು ಮತ್ತೆ ಒತ್ತಿ") : <><OilIcon size={20} /> {k("Give anyway", "ಆದರೂ ಕೊಡಿ")}</>}
@@ -1615,6 +1620,27 @@ export default function CounterApp() {
                 <button key={p.id} type="button" title={k(p.en, p.kn)} aria-label={p.en} className={theme.preset === p.id ? "on" : ""} style={{ background: p.hex }} onClick={() => setLook({ preset: p.id })} />
               ))}
               <input type="color" aria-label={k("Pick any colour", "ಯಾವುದೇ ಬಣ್ಣ ಆರಿಸಿ")} value={accentOf(theme)} onChange={(e) => validHex(e.target.value) && setLook({ preset: "custom", custom: e.target.value })} />
+            </div>
+            <h4>{k("Text colour", "ಅಕ್ಷರ ಬಣ್ಣ")}</h4>
+            <div className="ctr-seg">
+              <button type="button" className={theme.contrast ? "on" : ""} onClick={() => setLook({ contrast: true })}>{k("Strong (clear)", "ಸ್ಪಷ್ಟ")}</button>
+              <button type="button" className={!theme.contrast ? "on" : ""} onClick={() => setLook({ contrast: false })}>{k("Soft", "ಮೃದು")}</button>
+            </div>
+            <p className="ctr-look-note">{k("Main text (names, amounts)", "ಮುಖ್ಯ ಅಕ್ಷರ (ಹೆಸರು, ಮೊತ್ತ)")}</p>
+            <div className="ctr-sw txt">
+              <button type="button" className={!theme.ink ? "on auto" : "auto"} aria-label="Auto" title="Auto" onClick={() => setLook({ ink: "" })}>A</button>
+              {["#ffffff", "#fff3d6", "#ffe08a", "#8be9fd", "#b9f6ca", "#000000", "#1a212b"].map((c) => (
+                <button key={c} type="button" aria-label={c} className={theme.ink === c ? "on" : ""} style={{ background: c }} onClick={() => setLook({ ink: c })} />
+              ))}
+              <input type="color" aria-label={k("Pick any text colour", "ಯಾವುದೇ ಅಕ್ಷರ ಬಣ್ಣ")} value={theme.ink || "#ffffff"} onChange={(e) => validHex(e.target.value) && setLook({ ink: e.target.value })} />
+            </div>
+            <p className="ctr-look-note">{k("Small text (labels, notes)", "ಸಣ್ಣ ಅಕ್ಷರ (ಲೇಬಲ್, ಟಿಪ್ಪಣಿ)")}</p>
+            <div className="ctr-sw txt">
+              <button type="button" className={!theme.soft ? "on auto" : "auto"} aria-label="Auto" title="Auto" onClick={() => setLook({ soft: "" })}>A</button>
+              {["#ffffff", "#d3dae3", "#ffd58a", "#9be0b4", "#8a94a3", "#334050", "#000000"].map((c) => (
+                <button key={c} type="button" aria-label={c} className={theme.soft === c ? "on" : ""} style={{ background: c }} onClick={() => setLook({ soft: c })} />
+              ))}
+              <input type="color" aria-label={k("Pick any small-text colour", "ಯಾವುದೇ ಸಣ್ಣ ಅಕ್ಷರ ಬಣ್ಣ")} value={theme.soft || "#d3dae3"} onChange={(e) => validHex(e.target.value) && setLook({ soft: e.target.value })} />
             </div>
             <h4>{k("Light or dark", "ಬೆಳಕು / ಕತ್ತಲೆ")}</h4>
             <div className="ctr-seg">
