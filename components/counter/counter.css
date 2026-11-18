@@ -800,3 +800,24 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 
 .ctr-sw.txt button { width: 34px; height: 34px; }
 .ctr-sw.txt button.auto { background: var(--c-card); color: var(--c-ink); font-weight: 800; border-radius: 50%; }
+
+/* ---- Option A symbols: Cash in (coin + arrow down), Oil button (bottle + arrow up), Hold with pause */
+.ctr-cash .recv { gap: 12px; }
+.ctr-cash .recv .lbl { display: inline-flex; align-items: center; gap: 10px; }
+.ctr-cash .recv .lbl em { font-style: normal; font-size: 22px; font-weight: 700; }
+.ctr-cash .recv b { font-size: 26px; }
+.ctr-hand { align-items: stretch; }
+.ctr-hand button.give { flex: 1.5; display: flex; flex-direction: row; align-items: center; justify-content: center; padding: 10px 12px; min-height: 64px; }
+.ctr-hand button.give.on { background: var(--c-ok); border-color: var(--c-ok); color: #fff; }
+.ctr-hand button.give:not(.on) { opacity: .85; }
+.ctr-hand button[aria-checked] span { font-size: 15px; }
+
+/* ---- dark-green action button (Save / Oil), colour changeable in Appearance */
+.ctr { --c-go: #1f6b45; --c-on-go: #ffffff; --c-print: #1f6b45; --c-on-print: #ffffff; }
+.ctr .ctr-act .go, .ctr.glass .ctr-act .go { background: linear-gradient(180deg, color-mix(in srgb, var(--c-print) 92%, #fff), var(--c-print)); color: var(--c-on-print); border-color: var(--c-print); }
+.ctr .ctr-act .go svg { color: var(--c-on-print); }
+.ctr-queue .acts button.give, .ctr .ctr-hand button.give.on { background: var(--c-go); border-color: var(--c-go); color: var(--c-on-go); }
+.ctr .ctr-hand button.give:not(.on) { background: var(--c-card); color: var(--c-ink); }
+.ctr.hold-c .ctr-act .hold, .ctr.hold-c .ctr-tbtn.has { color: var(--c-on-hold); }
+.ctr.hold-c .ctr-act .hold svg { color: var(--c-on-hold); }
+.ctr-sw.btn button { width: 34px; height: 34px; }

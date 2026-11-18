@@ -26,7 +26,7 @@ import { billText, daySummaryDoc, mobileOf, whatsappLink } from "@/lib/counterSh
 import { DEFAULT_GST_PCT, DEFAULT_HSN, taxInvoiceDoc, validGstin } from "@/lib/counterGst";
 import { defaultRefundMode, refundFor, returnBody, returnables, returnedByBill, type RefundMode, type ReturnItem, type ReturnedSoFar } from "@/lib/counterReturn";
 import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
-import OilIcon, { CashOut, CoinIcon, CrossIcon, OilIn, OilOut, PauseIcon, PayIcon, PhoneIcon, PrinterIcon, TickIcon, BookIcon } from "./OilIcon";
+import OilIcon, { CashIn, CashOut, CoinIcon, CrossIcon, OilIn, OilOut, PauseIcon, PayIcon, PhoneIcon, PrinterIcon, TickIcon, BookIcon } from "./OilIcon";
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
 import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
 import { billGuide, counterStep } from "@/lib/counterGuide";
@@ -1137,7 +1137,7 @@ export default function CounterApp() {
           {cashDue > 0 && show.cashReceived && lines.length > 0 && (
             <div className="ctr-cash">
               <button type="button" className="recv" onClick={() => openPad({ kind: "received" })}>
-                <span className="lbl"><i aria-hidden>💵</i>{k("Cash paid by customer", "ಗ್ರಾಹಕ ಕೊಟ್ಟ ನಗದು")}</span>
+                <span className="lbl" title={k("Cash paid by customer", "ಗ್ರಾಹಕ ಕೊಟ್ಟ ನಗದು")}><CashIn size={1.3} /><em>{k("Cash in", "ನಗದು ಬಂತು")}</em></span>
                 <b className={received > 0 ? "typed" : "exact"}>{received > 0 ? rupees(received) : "₹ —"}</b>
                 <span className="edit" aria-hidden>✎</span>
               </button>
@@ -1230,9 +1230,8 @@ export default function CounterApp() {
 
           {(upiDue > 0 || creditDue > 0 || (holdCash && cashDue > 0)) && lines.length > 0 && (
             <div className="ctr-hand" role="radiogroup" aria-label={k("Oil", "ಎಣ್ಣೆ")}>
-              <span aria-hidden><OilIcon size={30} /></span>
-              <button type="button" role="radio" aria-checked={hand === "GIVEN"} className={hand === "GIVEN" ? "on" : ""} onClick={() => setHandPick("GIVEN")}><i aria-hidden>✅</i> {k("Give now", "ಈಗ ಕೊಡಿ")}</button>
-              <button type="button" role="radio" aria-checked={hand === "HELD"} className={hand === "HELD" ? "on hold" : ""} onClick={() => setHandPick("HELD")}><i aria-hidden>🔒</i> {k("Hold bill", "ಬಿಲ್ ಹಿಡಿಯಿರಿ")}</button>
+              <button type="button" role="radio" aria-checked={hand === "GIVEN"} aria-label={k("Give oil now", "ಈಗ ಎಣ್ಣೆ ಕೊಡಿ")} className={`give${hand === "GIVEN" ? " on" : ""}`} onClick={() => setHandPick("GIVEN")}><OilOut kg={oilKgText(lines)} size={0.8} /></button>
+              <button type="button" role="radio" aria-checked={hand === "HELD"} className={hand === "HELD" ? "on hold" : ""} onClick={() => setHandPick("HELD")}><PauseIcon size={26} /> <span>{k("Hold bill", "ಬಿಲ್ ಹಿಡಿಯಿರಿ")}</span></button>
             </div>
           )}
           <div className="ctr-act">
@@ -1447,7 +1446,7 @@ export default function CounterApp() {
                       <div className="br-ticks">
                         <div className="br-col" aria-label={k("Money", "ಹಣ")}>
                           {part("CASH") && (cashOkNow ? (
-                            <span className="tick on"><i className="box">✓</i><span className="ico" aria-hidden><CoinIcon size={26} /></span><b>{rupees(b.modes.CASH)}</b><small>{k("Cash in", "ನಗದು ಬಂತು")}</small></span>
+                            <span className="tick on"><i className="box">✓</i><span className="ico" aria-hidden><CashIn size={0.87} /></span><b>{rupees(b.modes.CASH)}</b><small>{k("Cash in", "ನಗದು ಬಂತು")}</small></span>
                           ) : ps.cashDue > 0 ? (
                             <button type="button" className={`tick${armed === `${b.key}:cash` ? " armed" : ""}${gd === "money" ? " ctr-next" : ""}`} onClick={() => (armed === `${b.key}:cash` ? void trackAct(b, "cashOk") : setArmed(`${b.key}:cash`))}>
                               <i className="box">{armed === `${b.key}:cash` ? "✓?" : ""}</i><span className="ico" aria-hidden><CoinIcon size={26} /></span><b>{rupees(ps.cashDue)}</b><small>{armed === `${b.key}:cash` ? k("Tap again", "ಮತ್ತೆ ಒತ್ತಿ") : k("Cash not in", "ನಗದು ಬಂದಿಲ್ಲ")}</small>
@@ -1527,7 +1526,7 @@ export default function CounterApp() {
                       </div>
                       <span className="br-items">{b.lines.map((l, i) => <span className="it" key={i}><b>{l.label}</b>{qtyText(l.qty, l.unit) && <em>{qtyText(l.qty, l.unit)}</em>}</span>)}</span>
                       <div className="chips">
-                        {(b.modes.CASH || 0) > 0 && <span className={ps.cashDue > 0 ? "wait" : "okc"}><CoinIcon size={20} /> {k("Cash in", "ನಗದು ಬಂತು")} – {rupees(b.modes.CASH)} {ps.cashDue > 0 ? "⏳" : "✓"}</span>}
+                        {(b.modes.CASH || 0) > 0 && <span className={ps.cashDue > 0 ? "wait" : "okc"}><CashIn size={0.67} /> {k("Cash in", "ನಗದು ಬಂತು")} – {rupees(b.modes.CASH)} {ps.cashDue > 0 ? "⏳" : "✓"}</span>}
                         {(b.modes.UPI || 0) > 0 && <span className={ps.upiDue > 0 ? "wait" : "okc"}><PhoneIcon size={20} /> {k("UPI in", "UPI ಬಂತು")} – {rupees(b.modes.UPI)} {ps.upiDue > 0 ? "⏳" : `✓${b.track.upiOk?.payer ? ` ${b.track.upiOk.payer}` : ""}`}</span>}
                         {(b.modes.CREDIT || 0) > 0 && <span><BookIcon size={20} /> {k("Udhaar", "ಉದ್ರಿ")} – {rupees(b.modes.CREDIT)}</span>}
                       </div>
@@ -1535,7 +1534,7 @@ export default function CounterApp() {
                       <div className="acts">
                         {ps.cashDue > 0 && (
                           <button type="button" className={`big ctr-next${armed === `${b.key}:cash` ? " on" : ""}`} onClick={() => (armed === `${b.key}:cash` ? void trackAct(b, "cashOk") : setArmed(`${b.key}:cash`))}>
-                            {armed === `${b.key}:cash` ? k("Tap again: cash received", "ಮತ್ತೆ ಒತ್ತಿ: ನಗದು ಬಂದಿದೆ") : <><CoinIcon size={26} /> {k("Cash in", "ನಗದು ಬಂತು")} – {rupees(ps.cashDue)}</>}
+                            {armed === `${b.key}:cash` ? k("Tap again: cash received", "ಮತ್ತೆ ಒತ್ತಿ: ನಗದು ಬಂದಿದೆ") : <><CashIn size={0.87} /> {k("Cash in", "ನಗದು ಬಂತು")} – {rupees(ps.cashDue)}</>}
                           </button>
                         )}
                         {ps.upiDue > 0 && (
@@ -1642,6 +1641,59 @@ export default function CounterApp() {
               ))}
               <input type="color" aria-label={k("Pick any small-text colour", "ಯಾವುದೇ ಸಣ್ಣ ಅಕ್ಷರ ಬಣ್ಣ")} value={theme.soft || "#d3dae3"} onChange={(e) => validHex(e.target.value) && setLook({ soft: e.target.value })} />
             </div>
+            <h4>{k("Button colours", "ಬಟನ್ ಬಣ್ಣ")}</h4>
+            <p className="ctr-look-note">{k("Green button (Save, Oil)", "ಹಸಿರು ಬಟನ್ (ಸೇವ್, ಎಣ್ಣೆ)")}</p>
+            <div className="ctr-sw btn">
+              <button type="button" className={!theme.go ? "on auto" : "auto"} aria-label="Auto" title="Auto" onClick={() => setLook({ go: "" })}>A</button>
+              {["#1f6b45", "#14532d", "#0f766e", "#1d4ed8", "#7c2d12", "#111827"].map((c) => (
+                <button key={c} type="button" aria-label={c} className={theme.go === c ? "on" : ""} style={{ background: c }} onClick={() => setLook({ go: c })} />
+              ))}
+              <input type="color" aria-label={k("Pick any button colour", "ಯಾವುದೇ ಬಟನ್ ಬಣ್ಣ")} value={theme.go || "#1f6b45"} onChange={(e) => validHex(e.target.value) && setLook({ go: e.target.value })} />
+            </div>
+            <p className="ctr-look-note">{k("Hold button", "ಹೋಲ್ಡ್ ಬಟನ್")}</p>
+            <div className="ctr-sw btn">
+              <button type="button" className={!theme.hold ? "on auto" : "auto"} aria-label="Auto" title="Auto" onClick={() => setLook({ hold: "" })}>A</button>
+              {["#f4d35e", "#e8dcb8", "#fb923c", "#94a3b8", "#7c3aed", "#4a4128"].map((c) => (
+                <button key={c} type="button" aria-label={c} className={theme.hold === c ? "on" : ""} style={{ background: c }} onClick={() => setLook({ hold: c })} />
+              ))}
+              <input type="color" aria-label={k("Pick any hold colour", "ಯಾವುದೇ ಹೋಲ್ಡ್ ಬಣ್ಣ")} value={theme.hold || "#f4d35e"} onChange={(e) => validHex(e.target.value) && setLook({ hold: e.target.value })} />
+            </div>
+            <p className="ctr-look-note">{k("Tabs and selected buttons use the Main colour above.", "ಟ್ಯಾಬ್ ಮತ್ತು ಆಯ್ದ ಬಟನ್ ಮೇಲಿನ ಮುಖ್ಯ ಬಣ್ಣ ಬಳಸುತ್ತವೆ.")}</p>
+            <h4>{k("Button colours", "ಬಟನ್ ಬಣ್ಣ")}</h4>
+            <p className="ctr-look-note">{k("Oil button", "ಎಣ್ಣೆ ಬಟನ್")}</p>
+            <div className="ctr-sw btn">
+              <button type="button" className={!theme.go ? "on auto" : "auto"} aria-label="Auto" title="Auto" onClick={() => setLook({ go: "" })}>A</button>
+              <button type="button" aria-label="#1f6b45" className={theme.go === "#1f6b45" ? "on" : ""} style={{ background: "#1f6b45" }} onClick={() => setLook({ go: "#1f6b45" })} />
+              <button type="button" aria-label="#14532d" className={theme.go === "#14532d" ? "on" : ""} style={{ background: "#14532d" }} onClick={() => setLook({ go: "#14532d" })} />
+              <button type="button" aria-label="#0f766e" className={theme.go === "#0f766e" ? "on" : ""} style={{ background: "#0f766e" }} onClick={() => setLook({ go: "#0f766e" })} />
+              <button type="button" aria-label="#1d4ed8" className={theme.go === "#1d4ed8" ? "on" : ""} style={{ background: "#1d4ed8" }} onClick={() => setLook({ go: "#1d4ed8" })} />
+              <button type="button" aria-label="#7c2d12" className={theme.go === "#7c2d12" ? "on" : ""} style={{ background: "#7c2d12" }} onClick={() => setLook({ go: "#7c2d12" })} />
+              <button type="button" aria-label="#111827" className={theme.go === "#111827" ? "on" : ""} style={{ background: "#111827" }} onClick={() => setLook({ go: "#111827" })} />
+              <input type="color" aria-label="Oil button" value={theme.go || "#1f6b45"} onChange={(e) => validHex(e.target.value) && setLook({ go: e.target.value })} />
+            </div>
+            <p className="ctr-look-note">{k("Save and print button", "ಸೇವ್ ಮತ್ತು ಪ್ರಿಂಟ್ ಬಟನ್")}</p>
+            <div className="ctr-sw btn">
+              <button type="button" className={!theme.print ? "on auto" : "auto"} aria-label="Auto" title="Auto" onClick={() => setLook({ print: "" })}>A</button>
+              <button type="button" aria-label="#1f6b45" className={theme.print === "#1f6b45" ? "on" : ""} style={{ background: "#1f6b45" }} onClick={() => setLook({ print: "#1f6b45" })} />
+              <button type="button" aria-label="#14532d" className={theme.print === "#14532d" ? "on" : ""} style={{ background: "#14532d" }} onClick={() => setLook({ print: "#14532d" })} />
+              <button type="button" aria-label="#1d4ed8" className={theme.print === "#1d4ed8" ? "on" : ""} style={{ background: "#1d4ed8" }} onClick={() => setLook({ print: "#1d4ed8" })} />
+              <button type="button" aria-label="#7c3aed" className={theme.print === "#7c3aed" ? "on" : ""} style={{ background: "#7c3aed" }} onClick={() => setLook({ print: "#7c3aed" })} />
+              <button type="button" aria-label="#b45309" className={theme.print === "#b45309" ? "on" : ""} style={{ background: "#b45309" }} onClick={() => setLook({ print: "#b45309" })} />
+              <button type="button" aria-label="#111827" className={theme.print === "#111827" ? "on" : ""} style={{ background: "#111827" }} onClick={() => setLook({ print: "#111827" })} />
+              <input type="color" aria-label="Save and print button" value={theme.print || "#1f6b45"} onChange={(e) => validHex(e.target.value) && setLook({ print: e.target.value })} />
+            </div>
+            <p className="ctr-look-note">{k("Hold button", "ಹೋಲ್ಡ್ ಬಟನ್")}</p>
+            <div className="ctr-sw btn">
+              <button type="button" className={!theme.hold ? "on auto" : "auto"} aria-label="Auto" title="Auto" onClick={() => setLook({ hold: "" })}>A</button>
+              <button type="button" aria-label="#f4d35e" className={theme.hold === "#f4d35e" ? "on" : ""} style={{ background: "#f4d35e" }} onClick={() => setLook({ hold: "#f4d35e" })} />
+              <button type="button" aria-label="#e8dcb8" className={theme.hold === "#e8dcb8" ? "on" : ""} style={{ background: "#e8dcb8" }} onClick={() => setLook({ hold: "#e8dcb8" })} />
+              <button type="button" aria-label="#fb923c" className={theme.hold === "#fb923c" ? "on" : ""} style={{ background: "#fb923c" }} onClick={() => setLook({ hold: "#fb923c" })} />
+              <button type="button" aria-label="#94a3b8" className={theme.hold === "#94a3b8" ? "on" : ""} style={{ background: "#94a3b8" }} onClick={() => setLook({ hold: "#94a3b8" })} />
+              <button type="button" aria-label="#7c3aed" className={theme.hold === "#7c3aed" ? "on" : ""} style={{ background: "#7c3aed" }} onClick={() => setLook({ hold: "#7c3aed" })} />
+              <button type="button" aria-label="#4a4128" className={theme.hold === "#4a4128" ? "on" : ""} style={{ background: "#4a4128" }} onClick={() => setLook({ hold: "#4a4128" })} />
+              <input type="color" aria-label="Hold button" value={theme.hold || "#f4d35e"} onChange={(e) => validHex(e.target.value) && setLook({ hold: e.target.value })} />
+            </div>
+            <p className="ctr-look-note">{k("Tabs and selected buttons use the Main colour above.", "ಟ್ಯಾಬ್ ಮತ್ತು ಆಯ್ದ ಬಟನ್ ಮೇಲಿನ ಮುಖ್ಯ ಬಣ್ಣ ಬಳಸುತ್ತವೆ.")}</p>
             <h4>{k("Light or dark", "ಬೆಳಕು / ಕತ್ತಲೆ")}</h4>
             <div className="ctr-seg">
               {([["auto", "Auto", "ಸ್ವಯಂ"], ["light", "Light", "ಬೆಳಕು"], ["dark", "Dark", "ಕತ್ತಲೆ"], ["black", "Black", "ಕಪ್ಪು"]] as const).map(([v, en, kn]) => (

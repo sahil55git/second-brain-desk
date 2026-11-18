@@ -31,7 +31,7 @@
 .cd-stats b{font-size:24px}
 .cd-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .cd-acts button{min-height:54px;padding:8px 16px;border-radius:14px;border:2px solid var(--line);background:var(--card);font-weight:600;flex:1 1 140px}
-.cd-acts .go{background:var(--ok);border-color:var(--ok);color:#fff;flex:2 1 240px;font-size:18px}
+.cd-acts .go{background:var(--go,#1f6b45);border-color:var(--go,#1f6b45);color:var(--on-go,#fff);flex:2 1 240px;font-size:18px}
 .cd-acts .ghost{font-weight:500}
 .cd-acts .on{border-color:var(--bad);color:var(--bad)}
 .cd-set{display:flex;gap:10px;align-items:center;margin:16px 2px}
