@@ -829,3 +829,10 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr .ctr-hand button.on.hold { border-color: #c99a1b; background: color-mix(in srgb, #c99a1b 16%, var(--c-card)); color: #f2c94c; }
 .ctr-queue .acts .ghost .ctr-locked { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; color: var(--c-ink); }
 .ctr-queue .acts .ghost .ctr-locked small { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: #f2c94c; font-weight: 700; }
+
+/* Held row: green Oil button (locked until paid) + side status tile */
+.ctr-queue .acts button.give.locked{background:#26332d;border-color:#3a4a42;color:#8a978f}
+.ctr-queue .acts button.give.locked.on{background:color-mix(in srgb,var(--c-bad) 12%,transparent);border-color:var(--c-bad);color:var(--c-bad)}
+.ctr-queue .acts .ctr-side{flex:1 1 150px;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:2px solid var(--c-line);border-radius:12px;padding:4px 8px}
+.ctr-queue .acts .ctr-side.paid{border-color:var(--c-ok);color:var(--c-ok);font-size:16px}
+.ctr-queue .acts .ctr-side small{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#d98a00}

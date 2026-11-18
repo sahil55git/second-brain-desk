@@ -1543,11 +1543,17 @@ export default function CounterApp() {
                           </button>
                         )}
                         {need === "READY" ? (
-                          <button type="button" className="big give ctr-next" onClick={() => void trackAct(b, "handover", { value: "GIVEN" })}><OilOut kg={oilKgText(b.lines)} size={0.8} /></button>
+                          <>
+                            <button type="button" className="big give ctr-next" onClick={() => void trackAct(b, "handover", { value: "GIVEN" })}><OilOut kg={oilKgText(b.lines)} size={0.8} /></button>
+                            <span className="ctr-side paid"><TickIcon size={26} /><b>{k("Paid", "ಹಣ ಬಂದಿದೆ")}</b></span>
+                          </>
                         ) : (
-                          <button type="button" className={`ghost${armed === `${b.key}:give` ? " on" : ""}`} onClick={() => (armed === `${b.key}:give` ? void trackAct(b, "handover", { value: "GIVEN" }) : setArmed(`${b.key}:give`))}>
-                            {armed === `${b.key}:give` ? k("Money NOT received — tap again to give anyway", "ಹಣ ಬಂದಿಲ್ಲ — ಆದರೂ ಕೊಡಲು ಮತ್ತೆ ಒತ್ತಿ") : <span className="ctr-locked"><OilOutWait size={0.7} /><small>{ps.cashDue > 0 ? <><CashIn size={0.55} /> {k("Wait for Cash in", "ನಗದಿಗಾಗಿ ಕಾಯಿರಿ")}</> : k("Wait for UPI in", "UPI ಗಾಗಿ ಕಾಯಿರಿ")}</small></span>}
-                          </button>
+                          <>
+                            <button type="button" className={`big give locked${armed === `${b.key}:give` ? " on" : ""}`} aria-label={k("Oil — money not received yet", "ಎಣ್ಣೆ — ಹಣ ಬಂದಿಲ್ಲ")} onClick={() => (armed === `${b.key}:give` ? void trackAct(b, "handover", { value: "GIVEN" }) : setArmed(`${b.key}:give`))}>
+                              {armed === `${b.key}:give` ? k("Money NOT received — tap again to give anyway", "ಹಣ ಬಂದಿಲ್ಲ — ಆದರೂ ಕೊಡಲು ಮತ್ತೆ ಒತ್ತಿ") : <OilOut kg={oilKgText(b.lines)} size={0.8} />}
+                            </button>
+                            <span className="ctr-side ctr-locked"><OilOutWait size={0.7} /><small>{ps.cashDue > 0 ? <><CashIn size={0.55} /> {k("Wait for Cash in", "ನಗದಿಗಾಗಿ ಕಾಯಿರಿ")}</> : k("Wait for UPI in", "UPI ಗಾಗಿ ಕಾಯಿರಿ")}</small></span>
+                          </>
                         )}
                         <button type="button" className="ghost" onClick={() => setRcpt({ doc: billDoc(b), auto: true })} aria-label={k("Re-print", "ಮತ್ತೆ ಮುದ್ರಿಸಿ")}>🖨️</button>
                       </div>
