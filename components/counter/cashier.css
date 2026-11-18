@@ -82,3 +82,12 @@
 
 .cd-acts .go { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 64px; }
 .cd-acts .go .oil-out { flex-wrap: nowrap; }
+
+.cd .due { display: flex; align-items: center; gap: 8px; font-size: 20px; }
+.cd .ret { display: flex; align-items: center; gap: 10px; }
+.cd .cd-upi > span, .cd .cd-ok { display: inline-flex; align-items: center; gap: 8px; }
+.cd .cd-top > b { display: inline-flex; align-items: center; gap: 8px; }
+.cd .cd-date { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.cd .cd-date b { font-size: 16px; font-weight: 700; } .cd .cd-date small { font-size: 11px; opacity: .75; }
+.cd .chips span, .cd .r3 span { display: inline-flex; align-items: center; gap: 5px; }
+.cd-acts .ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
