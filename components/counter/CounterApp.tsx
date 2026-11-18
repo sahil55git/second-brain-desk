@@ -85,11 +85,13 @@ interface Hold {
 type UiSize = "auto" | "s" | "m" | "l";
 const UI_NEXT: Record<UiSize, UiSize> = { auto: "s", s: "m", m: "l", l: "auto" };
 /** Auto: phones and tablets show at 100%, a big monitor is zoomed up so the keys stay finger-sized. */
-function uiZoom(s: UiSize, vw: number): number {
+function uiZoom(s: UiSize, vw: number, vh = 900): number {
   if (s === "s") return 0.88;
   if (s === "m") return 1;
   if (s === "l") return 1.18;
-  return vw >= 1700 ? 1.25 : vw >= 1400 ? 1.12 : 1;
+  // Auto on a tablet or monitor: a short screen is zoomed OUT a little so the whole counter fits in one view
+  const fit = vw >= 821 && vh < 800 ? Math.max(0.7, vh / 800) : 1;
+  return (vw >= 1700 ? 1.25 : vw >= 1400 ? 1.12 : 1) * fit;
 }
 const read = <V,>(k: string, d: V): V => {
   try {
@@ -137,14 +139,15 @@ export default function CounterApp() {
   // Screen size: Auto fits the device (phone stacks, tablet splits, big monitors zoom up); the A± button nudges it
   const [uiSize, setUiSize] = useState<UiSize>("auto");
   const [vw, setVw] = useState(1024);
+  const [vh, setVh] = useState(900);
   useEffect(() => {
     setUiSize(read<UiSize>("counterUi", "auto"));
-    const on = () => setVw(window.innerWidth);
+    const on = () => { setVw(window.innerWidth); setVh(window.innerHeight); };
     on();
     window.addEventListener("resize", on);
     return () => window.removeEventListener("resize", on);
   }, []);
-  const zoom = uiZoom(uiSize, vw);
+  const zoom = uiZoom(uiSize, vw, vh);
   const [theme, setTheme] = useState<CounterTheme>(DEFAULT_THEME);
   useEffect(() => { setTheme(parseTheme(read<unknown>("counterTheme", null))); }, []);
   const [showBase, setShow] = useState<ShowCfg>(SHOW_ALL);
