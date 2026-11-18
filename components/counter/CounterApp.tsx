@@ -160,6 +160,7 @@ export default function CounterApp() {
   useEffect(() => { setTabOpts(parseTabletOpts(read<unknown>("counterTabletOpts", null))); }, []);
   const setTab = (p: Partial<TabletOpts>) => { const n = { ...tabOpts, ...p }; setTabOpts(n); write("counterTabletOpts", n); };
   const noRead = tablet && tabOpts.hideRead;
+  const noTare = tablet && tabOpts.hideTare;
   const noTotal = tablet && tabOpts.hideTotal;
   const noOil = tablet && tabOpts.hideOil;
   const show = useMemo(() => layoutShow(layout, showBase), [layout, showBase]);
@@ -1011,7 +1012,7 @@ export default function CounterApp() {
   );
 
   return (
-    <div className={`ctr ${themeClass(theme)} lay-${layout}${noRead ? " tb-noread" : ""}${noTotal ? " tb-nototal" : ""}${noOil ? " tb-nooil" : ""}`} data-view={stepsView ?? undefined} lang={lang} style={{ ["--u" as string]: zoom, ...themeStyle(theme) } as React.CSSProperties}>
+    <div className={`ctr ${themeClass(theme)} lay-${layout}${noRead ? " tb-noread" : ""}${noTare ? " tb-notare" : ""}${noTotal ? " tb-nototal" : ""}${noOil ? " tb-nooil" : ""}`} data-view={stepsView ?? undefined} lang={lang} style={{ ["--u" as string]: zoom, ...themeStyle(theme) } as React.CSSProperties}>
       {/* ---------- top bar ---------- */}
       <header className="ctr-top">
         {!kiosk?.on && show.deskLink && <Link href="/register/pos" className="ctr-back">← {k("Desk", "ಡೆಸ್ಕ್")}</Link>}
@@ -1037,10 +1038,10 @@ export default function CounterApp() {
           <small>{frozen != null ? "📖 " : ""}{k("Weight", "ತೂಕ")} (kg){isBt && bt.tareKg > 0 ? ` · ${k("net", "ನಿವ್ವಳ")}` : ""}{noRead ? ` · ${frozen != null ? k("tap to let go", "ಬಿಡಲು ಒತ್ತಿ") : k("tap to read", "ಓದಲು ಒತ್ತಿ")}` : ""}</small>
           <span>{fresh || frozen != null ? kg.toFixed(3) : "0.000"}</span>
         </div>
-        {show.tare && <div className={`ctr-tarewin${bt.tareKg > 0 ? " on" : ""}`}>
+        {show.tare && <div className={`ctr-tarewin${bt.tareKg > 0 ? " on" : ""}${tablet && isBt ? " tap" : ""}`} {...(tablet && isBt ? { role: "button", tabIndex: 0, onClick: () => { if (bt.tareKg > 0) bt.setTare(0); else if (bt.live && bt.live.grossKg > 0) bt.setTare(bt.live.grossKg); }, title: k("Tap to tare with the empty container on the scale; tap again to clear", "ಖಾಲಿ ಡಬ್ಬಿ ಇಟ್ಟು ಒತ್ತಿ ಟೇರ್; ತೆಗೆಯಲು ಮತ್ತೆ ಒತ್ತಿ") } : {})}>
           <small>{k("Tare", "ಟೇರ್")} (kg)</small>
           <b>{bt.tareKg > 0 ? bt.tareKg.toFixed(3) : "0.000"}</b>
-          <small className="nm">{bt.container || (bt.tareKg > 0 ? k("manual", "ಕೈಯಿಂದ") : k("none", "ಇಲ್ಲ"))}</small>
+          <small className="nm">{bt.container || (bt.tareKg > 0 ? k("manual", "ಕೈಯಿಂದ") : k("none", "ಇಲ್ಲ"))}{noTare && isBt ? ` · ${bt.tareKg > 0 ? k("tap to clear", "ತೆಗೆಯಲು ಒತ್ತಿ") : k("tap to tare", "ಟೇರ್‌ಗೆ ಒತ್ತಿ")}` : ""}</small>
         </div>}
         {show.totalBox && !noTotal && <div className="ctr-lcd small">
           <small>{k("Total", "ಒಟ್ಟು")} ₹</small>
@@ -1060,9 +1061,9 @@ export default function CounterApp() {
           )}
           {!show.tare ? null : isBt ? (
             <>
-              <button type="button" className="big" disabled={!bt.live || bt.live.grossKg <= 0} onClick={() => bt.live && bt.setTare(bt.live.grossKg)} title={k("Put the empty container on the scale, then press", "ಖಾಲಿ ಡಬ್ಬಿ ಇಟ್ಟು ಒತ್ತಿ")}>
+              {!noTare && <button type="button" className="big" disabled={!bt.live || bt.live.grossKg <= 0} onClick={() => bt.live && bt.setTare(bt.live.grossKg)} title={k("Put the empty container on the scale, then press", "ಖಾಲಿ ಡಬ್ಬಿ ಇಟ್ಟು ಒತ್ತಿ")}>
                 ⚖️ {k("Tare", "ಟೇರ್")}
-              </button>
+              </button>}
               {bt.tareKg > 0 && <button type="button" onClick={() => bt.setTare(0)}>{k("Clear tare", "ಟೇರ್ ತೆಗೆ")}</button>}
               {bt.containers.map((c) => (
                 <button type="button" key={c.name} className={bt.container === c.name ? "on" : ""} onClick={() => bt.pickContainer(bt.container === c.name ? null : c.name)}>
@@ -1769,6 +1770,7 @@ export default function CounterApp() {
                   <>
                     <h4>{k("Tablet big items: what to hide", "ಟ್ಯಾಬ್ಲೆಟ್: ಏನು ಮರೆಮಾಡಬೇಕು")}</h4>
                     <label className="ctr-set"><input type="checkbox" checked={tabOpts.hideRead} onChange={(e) => setTab({ hideRead: e.target.checked })} /><span>{k("Hide the Read weight button (tap the weight to read it)", "ತೂಕ ಓದಿ ಬಟನ್ ಮರೆಮಾಡಿ (ತೂಕವನ್ನು ಒತ್ತಿ)")}</span></label>
+                    <label className="ctr-set"><input type="checkbox" checked={tabOpts.hideTare} onChange={(e) => setTab({ hideTare: e.target.checked })} /><span>{k("Hide the Tare button (tap the Tare box to tare; tap again to clear)", "ಟೇರ್ ಬಟನ್ ಮರೆಮಾಡಿ (ಟೇರ್ ಬಾಕ್ಸ್ ಒತ್ತಿ)")}</span></label>
                     <label className="ctr-set"><input type="checkbox" checked={tabOpts.hideTotal} onChange={(e) => setTab({ hideTotal: e.target.checked })} /><span>{k("Hide the Total box (Parked, Bills, Held move up; total stays on Save)", "ಒಟ್ಟು ಬಾಕ್ಸ್ ಮರೆಮಾಡಿ (ಒಟ್ಟು ಉಳಿಸಿ ಬಟನ್‌ನಲ್ಲಿ ಇರುತ್ತದೆ)")}</span></label>
                     <label className="ctr-set"><input type="checkbox" checked={tabOpts.hideOil} onChange={(e) => setTab({ hideOil: e.target.checked })} /><span>{k("Hide Oil kg / Wait", "ಎಣ್ಣೆ ಕೆಜಿ / ಕಾಯಿರಿ ಮರೆಮಾಡಿ")}</span></label>
                   </>

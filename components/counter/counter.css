@@ -878,3 +878,4 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
   .ctr.lay-tablet .ctr-tot b { font-size: 24px; }
   .ctr.lay-tablet .ctr-bill { gap: 6px; }
 }
+.ctr-tarewin.tap { cursor: pointer; }

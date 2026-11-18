@@ -38,13 +38,15 @@ export function layoutShow(layout: Layout, base: ShowCfg): ShowCfg {
 export interface TabletOpts {
   /** no Read weight button: tap the weight display to read it */
   hideRead: boolean;
+  /** no Tare button: tap the Tare display to tare (tap again to clear) */
+  hideTare: boolean;
   /** no Total box at the top; Parked / Bills / Held move up beside Tare (the total stays on the Save button) */
   hideTotal: boolean;
   /** no Oil kg / Wait row */
   hideOil: boolean;
 }
-export const TABLET_DEFAULT: TabletOpts = { hideRead: false, hideTotal: false, hideOil: false };
+export const TABLET_DEFAULT: TabletOpts = { hideRead: false, hideTare: false, hideTotal: false, hideOil: false };
 export function parseTabletOpts(raw: unknown): TabletOpts {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-  return { hideRead: o.hideRead === true, hideTotal: o.hideTotal === true, hideOil: o.hideOil === true };
+  return { hideRead: o.hideRead === true, hideTare: o.hideTare === true, hideTotal: o.hideTotal === true, hideOil: o.hideOil === true };
 }
