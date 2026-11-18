@@ -1174,10 +1174,9 @@ export default function CounterApp() {
                   <button type="button" className="ctr-qrbtn" onClick={() => setQrBig(true)} aria-label={k("Show the QR big for the customer", "ಗ್ರಾಹಕರಿಗೆ QR ದೊಡ್ಡದಾಗಿ ತೋರಿಸಿ")}>
                     <QrCode value={upiFor(upiDue, `Bill · ${itemsNote(lines)}`) || ""} moduleSize={4} />
                   </button>
-                  <div>
+                  <div className="upi-side">
+                    <span className="upi-lbl">{k("Pay by UPI", "UPI ಪಾವತಿ")}</span>
                     <b>{rupees(upiDue)}</b>
-                    <small>{k("Any UPI app: PhonePe, Google Pay, Paytm, BHIM… The exact amount fills in by itself. Tap the QR to show it big.", "ಯಾವುದೇ UPI ಆ್ಯಪ್: PhonePe, Google Pay, Paytm, BHIM… ಮೊತ್ತ ತಾನಾಗಿ ತುಂಬುತ್ತದೆ. ದೊಡ್ಡದಾಗಿ ತೋರಿಸಲು QR ಒತ್ತಿ.")}</small>
-                    <small>{sp.pay.payee || shop.name} · {vpa}</small>
                     {sp.pay.accounts.length > 1 && (
                       <span className="ctr-upiacc" role="radiogroup" aria-label={k("Which UPI ID", "ಯಾವ UPI ID")}>
                         {sp.pay.accounts.map((a) => (
@@ -1186,12 +1185,12 @@ export default function CounterApp() {
                       </span>
                     )}
                     <button type="button" className="ctr-copy" onClick={() => { void navigator.clipboard?.writeText(vpa).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1600); }).catch(() => {}); }}>
-                      {copied ? `✓ ${k("Copied", "ನಕಲಾಯಿತು")}` : `📋 ${k("Copy UPI ID", "UPI ID ನಕಲಿಸಿ")}`}
+                      {copied ? `✓ ${k("Copied", "ನಕಲಾಯಿತು")}` : `📋 ${vpa}`}
                     </button>
                   </div>
                 </>
               ) : (
-                <small>{k("No UPI ID yet. Add it in the main app: Settings → 💳 UPI & QR. Then the pay QR shows here and on bills.", "UPI ID ಇನ್ನೂ ಇಲ್ಲ. ಮುಖ್ಯ ಆ್ಯಪ್: ಸೆಟ್ಟಿಂಗ್ಸ್ → 💳 UPI & QR ನಲ್ಲಿ ಸೇರಿಸಿ. ಆಗ ಇಲ್ಲಿ ಮತ್ತು ಬಿಲ್‌ನಲ್ಲಿ QR ಕಾಣುತ್ತದೆ.")}</small>
+                <small>{k("No UPI ID yet. Add it in Settings → UPI & QR.", "UPI ID ಇಲ್ಲ. ಸೆಟ್ಟಿಂಗ್ಸ್ → UPI & QR ನಲ್ಲಿ ಸೇರಿಸಿ.")}</small>
               )}
             </div>
           )}

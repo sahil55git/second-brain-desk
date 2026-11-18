@@ -734,3 +734,17 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
   .ctr.plu-l .ctr-key { --plu-fs: 32px; --plu-h: 44px; }
   .ctr.plu-xl .ctr-key { --plu-fs: 42px; --plu-h: 56px; }
 }
+
+/* ---- UPI box: themed card, QR on its own small light plate (needed to scan), amount + copy-ID only */
+.ctr .ctr-upi { background: color-mix(in srgb, var(--c-acc) 7%, var(--c-bg)); color: var(--c-ink); border: 1.5px solid color-mix(in srgb, var(--c-acc) 35%, var(--c-line)); border-radius: var(--r, 16px); padding: 12px; gap: 14px; align-items: center; box-shadow: var(--shadow); }
+.ctr .ctr-upi .ctr-qrbtn { background: #fff; border-radius: 12px; padding: 7px; line-height: 0; flex: none; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.ctr .ctr-upi .ctr-qrbtn svg { width: 116px; height: 116px; }
+.ctr .ctr-upi .upi-side { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.ctr .ctr-upi .upi-lbl { color: var(--c-soft); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.ctr .ctr-upi b { font-size: 34px; line-height: 1; color: var(--c-ink); font-variant-numeric: tabular-nums; }
+.ctr .ctr-upi small { color: var(--c-soft); }
+.ctr .ctr-upi .ctr-copy { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: transparent; color: var(--c-ink); border: 1.5px solid var(--c-line); border-radius: 999px; padding: 8px 12px; font-size: 13px; font-weight: 600; }
+.ctr .ctr-upi .ctr-copy:active { background: color-mix(in srgb, var(--c-acc) 14%, transparent); }
+.ctr .ctr-upiacc button { background: transparent; color: var(--c-ink); border-color: var(--c-line); }
+.ctr .ctr-upiacc button.on { background: var(--c-acc); color: var(--c-on-acc, #fff); border-color: var(--c-acc); }
+@media (max-width: 380px) { .ctr .ctr-upi .ctr-qrbtn svg { width: 96px; height: 96px; } .ctr .ctr-upi b { font-size: 28px; } }
