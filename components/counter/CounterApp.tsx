@@ -984,12 +984,17 @@ export default function CounterApp() {
   };
 
   // ======================================================================================
+  const [nowMs, setNowMs] = useState(0);
+  useEffect(() => { setNowMs(Date.now()); const t = setInterval(() => setNowMs(Date.now()), 20_000); return () => clearInterval(t); }, []);
+  const clock = !nowMs ? { time: "", date: "" } : { time: new Date(nowMs).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }).toUpperCase(), date: new Date(nowMs).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) };
+
   return (
     <div className={`ctr ${themeClass(theme)} lay-${layout}`} data-view={stepsView ?? undefined} lang={lang} style={{ ["--u" as string]: zoom, ...themeStyle(theme) } as React.CSSProperties}>
       {/* ---------- top bar ---------- */}
       <header className="ctr-top">
         {!kiosk?.on && show.deskLink && <Link href="/register/pos" className="ctr-back">← {k("Desk", "ಡೆಸ್ಕ್")}</Link>}
         <b className="ctr-title">⚖️ {k("Weigh & Bill", "ತೂಕ & ಬಿಲ್")}</b>
+        <span className="ctr-clock" aria-label={k("Date and time", "ದಿನಾಂಕ ಮತ್ತು ಸಮಯ")}><b>{clock.time}</b><small>{clock.date}</small></span>
         {show.scaleStatus && <span className={`ctr-chip ${connected ? (fresh ? "ok" : "mid") : "bad"}`}>{connected ? bt.config?.name || reading?.scale_source || k("Scale", "ತಕ್ಕಡಿ") : k("No scale", "ತಕ್ಕಡಿ ಇಲ್ಲ")}</span>}
         {show.scaleSetup && !connected && !kiosk?.on && <Link href="/?desk=scales" className="ctr-link">{k("Set up scale", "ತಕ್ಕಡಿ ಹೊಂದಿಸಿ")}</Link>}
         <span className="ctr-sp" />
