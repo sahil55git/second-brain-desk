@@ -30,7 +30,7 @@ export interface BillTrack {
   /** this bill's goods were held for the cash too: the cash part counts as "to receive" until the counter confirms it */
   cashWait?: boolean;
   /** cash part confirmed in the drawer by whoever sits at the counter */
-  cashOk?: { at: string; by: string };
+  cashOk?: { at: string; by: string; given?: number; change?: number };
   /** udhaar part collected later (an UDHAAR_IN entry was made) */
   paidLater?: { at: string; by: string; mode: "CASH" | "UPI"; amount: number };
 }
@@ -45,8 +45,12 @@ export function trackOf(details: unknown): BillTrack {
   if (t.handover === "GIVEN" || t.handover === "HELD") out.handover = t.handover;
   if (typeof t.handedAt === "string") out.handedAt = t.handedAt;
   if (t.cashWait === true) out.cashWait = true;
-  const c = t.cashOk as { at?: unknown; by?: unknown } | undefined;
-  if (c && typeof c.at === "string") out.cashOk = { at: c.at, by: typeof c.by === "string" ? c.by : "" };
+  const c = t.cashOk as { at?: unknown; by?: unknown; given?: unknown; change?: unknown } | undefined;
+  if (c && typeof c.at === "string") {
+    const g = Number(c.given);
+    const ch = Number(c.change);
+    out.cashOk = { at: c.at, by: typeof c.by === "string" ? c.by : "", ...(Number.isFinite(g) && g > 0 ? { given: g } : {}), ...(Number.isFinite(ch) && ch >= 0 && g > 0 ? { change: ch } : {}) };
+  }
   const u = t.upiOk as Record<string, unknown> | undefined;
   if (u && typeof u.at === "string") {
     const txt = (v: unknown, n: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : undefined);

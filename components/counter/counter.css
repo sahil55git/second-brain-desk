@@ -379,3 +379,11 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr-queue .acts button.give{background:var(--c-ok);border-color:var(--c-ok);color:#fff}
 .ctr-queue .acts button.ghost{opacity:.75;font-weight:500}
 .ctr-queue .acts button.on{background:color-mix(in srgb,var(--c-bad) 12%,transparent);border-color:var(--c-bad);color:var(--c-bad)}
+
+/* "Do this next" guide: the control to use next pulses */
+@keyframes ctrPulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, #f59e0b 65%, transparent); } 50% { box-shadow: 0 0 0 9px transparent; } }
+.ctr-next { outline: 3px solid #f59e0b; outline-offset: 3px; border-radius: 14px; animation: ctrPulse 1.2s ease-in-out infinite; }
+.ctr-steps { list-style: none; display: flex; gap: 6px; margin: 0 0 8px; padding: 0; font-size: 14px; }
+.ctr-steps li { flex: 1; text-align: center; padding: 6px 4px; border-radius: 10px; border: 1px solid var(--c-line, #ccc); opacity: .6; }
+.ctr-steps li.on { opacity: 1; font-weight: 700; border: 2px solid #f59e0b; }
+@media (prefers-reduced-motion: reduce) { .ctr-next { animation: none; outline-width: 4px; } }

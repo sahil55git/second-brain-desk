@@ -28,6 +28,7 @@ import { defaultRefundMode, refundFor, returnBody, returnables, returnedByBill, 
 import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
 import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
+import { counterStep } from "@/lib/counterGuide";
 import { defaultHandover, handoverOf, heldNeed, heldQueue, isTracked, payStatus, upiLine, waitText, type Handover } from "@/lib/counterTrack";
 import { fitsBill, parseUpi, planUpi, samePayment, type UpiEvent } from "@/lib/upiNotify";
 import { hasNativeUpi, MahadevUpi } from "@/lib/native";
@@ -174,6 +175,8 @@ export default function CounterApp() {
   const [autoPrint, setAutoPrint] = useState(true);
   // "Hold bill": goods of a cash bill also wait until the counter confirms the cash (this device)
   const [holdCash, setHoldCash] = useState(false);
+  // flashing "do this next" guide on the weight box, item keys and Save button (this device)
+  const [guide, setGuide] = useState(true);
   /** show the printer settings + preview sheet when printing (off = print straight away, small "Printing…" note) */
   const [printPanel, setPrintPanel] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
@@ -207,6 +210,7 @@ export default function CounterApp() {
     setLang(read<Lang>("counterLang", "en"));
     setAutoPrint(read<boolean>("counterAutoPrint", true));
     setHoldCash(read<boolean>("counterHoldCash", false));
+    setGuide(read<boolean>("counterGuide", true));
     setPrintPanel(read<boolean>("counterPrintPanel", false));
     setSettings({ ...DEFAULTS, ...read<Partial<Settings>>("counterSettings", {}) });
     setKiosk(readKiosk());
@@ -289,6 +293,7 @@ export default function CounterApp() {
   const kg = frozen ?? kgLive;
   const steady = frozen != null || (fresh && reading?.stable !== false);
   const usable = frozen != null || (fresh && kgLive > 0 && (steady || !!reading?.trusted));
+  const nextStep = guide && !busy ? counterStep({ lines: lines.length, kg: usable ? kg : 0, scaleOn: fresh }) : null;
   // Sell by amount: "₹100 of oil" → the kg to pour, with a beep when the scale gets there
   const [fill, setFill] = useState<{ amount: number; item?: CounterItem } | null>(null);
   const fillBeeped = useRef(false);
@@ -636,7 +641,7 @@ export default function CounterApp() {
           ...(modes.length > 1 ? modes.map(([m, v]) => ({ label: m, value: rupees(v) })) : []),
           ...(cashDue > 0 && received > 0 ? [{ label: "Cash received", value: rupees(received) }, ...(back > 0 ? [{ label: "Return to customer", value: rupees(back), strong: true }] : [])] : []),
         ],
-        notes: [`Mode: ${modes.map(([m]) => m).join(" + ")}`, ...(upiDue > 0 && vpa && settings.upiQr ? [`Scan to pay ${rupees(upiDue)} by UPI · ${vpa}`] : [])],
+        notes: [...(hand === "HELD" && holdCash && cashDue > 0 ? [`PAY ${rupees(cashDue)} AT THE CASH COUNTER · Bill #${no}`, "Goods are given after payment"] : []), `Mode: ${modes.map(([m]) => m).join(" + ")}`, ...(upiDue > 0 && vpa && settings.upiQr ? [`Scan to pay ${rupees(upiDue)} by UPI · ${vpa}`] : [])],
         qr: pay !== "CASH" && settings.upiQr ? upiFor(pay === "SPLIT" ? (split.UPI || 0) + (split.CREDIT || 0) : total, `Bill ${no} · ${itemsNote(lines)}`) : undefined,
       };
       // GST tax invoice instead of the plain receipt: same lines and amounts, GST taken out of each price
@@ -972,7 +977,7 @@ export default function CounterApp() {
 
       {/* ---------- weight strip ---------- */}
       <section className="ctr-weigh">
-        <div className={`ctr-lcd ${frozen != null ? "ok" : !fresh ? "off" : steady ? "ok" : "mid"}`} aria-live="polite">
+        <div className={`ctr-lcd ${frozen != null ? "ok" : !fresh ? "off" : steady ? "ok" : "mid"}${nextStep === "weigh" ? " ctr-next" : ""}`} aria-live="polite">
           <small>{frozen != null ? "📖 " : ""}{k("Weight", "ತೂಕ")} (kg){isBt && bt.tareKg > 0 ? ` · ${k("net", "ನಿವ್ವಳ")}` : ""}</small>
           <span>{fresh || frozen != null ? kg.toFixed(3) : "0.000"}</span>
         </div>
@@ -1195,7 +1200,7 @@ export default function CounterApp() {
             <button type="button" className="clr" onClick={clearBill} disabled={busy || !lines.length}>{holdId ? k("Close", "ಮುಚ್ಚು") : k("Clear", "ಅಳಿಸಿ")}</button>
             {show.hold && <button type="button" className="hold" onClick={() => void holdBill()} disabled={busy || !lines.length}>🅿️ {k("Hold", "ಹಿಡಿ")}</button>}
             {!autoPrint && <button type="button" className="sv" onClick={() => void save(false)} disabled={busy || !lines.length}>{k("Save", "ಉಳಿಸಿ")}</button>}
-            <button type="button" className="go" onClick={() => void save(autoPrint)} disabled={busy || !lines.length}>
+            <button type="button" className={`go${nextStep === "save" ? " ctr-next" : ""}`} onClick={() => void save(autoPrint)} disabled={busy || !lines.length}>
               {busy ? "…" : `🖨️ ${autoPrint ? k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ") : k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ")}`}
               <small>{rupees(total)}</small>
             </button>
@@ -1204,12 +1209,19 @@ export default function CounterApp() {
 
         {/* ---------- item keys ---------- */}
         <section className="ctr-items">
+          {nextStep && (
+            <ol className="ctr-steps" aria-label={k("Next step", "ಮುಂದಿನ ಹಂತ")}>
+              <li className={nextStep === "weigh" ? "on" : ""}>① {k("Put on scale", "ತೂಕಕ್ಕೆ ಇಡಿ")}</li>
+              <li className={nextStep === "pick" ? "on" : ""}>② {k("Tap the item", "ವಸ್ತು ಒತ್ತಿ")}</li>
+              <li className={nextStep === "save" ? "on" : ""}>③ {k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ")}</li>
+            </ol>
+          )}
           <div className="ctr-itemhead">
             {show.search ? <input className="ctr-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`🔍 ${k("Search item or PLU", "ವಸ್ತು ಅಥವಾ PLU ಹುಡುಕಿ")}`} /> : <span className="ctr-sp" />}
             {show.plu && <button type="button" className="ctr-plu" onClick={() => openPad({ kind: "plu" })}>⌨️ PLU</button>}
             {isOwner && <button type="button" className="ctr-plu" onClick={openItems}>✏️ {k("Items", "ವಸ್ತುಗಳು")}</button>}
           </div>
-          <div className="ctr-grid">
+          <div className={`ctr-grid${nextStep === "pick" ? " ctr-next" : ""}`}>
             {tiles.map((ci) => {
               const rate = rateOf(ci);
               return (
@@ -1450,6 +1462,7 @@ export default function CounterApp() {
               </p>
               {bErr && <p className="ctr-msg bad">{bErr}</p>}
               {askCards()}
+              <p className="ctr-hint"><a href="/register/cashier" target="_blank" rel="noreferrer">💰 {k("Open the Cashier desk on the manager's device", "ಮ್ಯಾನೇಜರ್ ಸಾಧನದಲ್ಲಿ ಕ್ಯಾಷಿಯರ್ ಡೆಸ್ಕ್ ತೆರೆಯಿರಿ")} ↗</a></p>
               <ul className="ctr-queue">
                 {q.map((b) => {
                   const ps = payStatus(b.modes, b.track);
@@ -1660,6 +1673,10 @@ export default function CounterApp() {
               </>
             )}
             <h4>{k("This device", "ಈ ಸಾಧನ")}</h4>
+            <label className="ctr-set">
+              <input type="checkbox" checked={guide} onChange={(e) => { setGuide(e.target.checked); write("counterGuide", e.target.checked); }} />
+              <span>{k("Flash the next step (weigh, tap item, save) for new staff", "ಮುಂದಿನ ಹಂತ ಮಿನುಗಲಿ (ತೂಕ, ವಸ್ತು, ಉಳಿಸಿ) — ಹೊಸ ಸಿಬ್ಬಂದಿಗೆ")}</span>
+            </label>
             <label className="ctr-set">
               <input type="checkbox" checked={holdCash} onChange={(e) => { setHoldCash(e.target.checked); write("counterHoldCash", e.target.checked); setHandPick(null); }} />
               <span>{k("Hold the goods of cash bills until the counter confirms the cash (Held queue)", "ನಗದು ಬಿಲ್‌ನ ಸರಕನ್ನು ಕೌಂಟರ್ ನಗದು ದೃಢಪಡಿಸುವವರೆಗೆ ಹಿಡಿಯಿರಿ (ಹಿಡಿದ ಸಾಲು)")}</span>

@@ -28,6 +28,9 @@ export async function POST(req: NextRequest) {
     amount: Number.isFinite(Number(body.amount)) && Number(body.amount) > 0 ? Math.round(Number(body.amount) * 100) / 100 : 0,
     evAt: Number.isFinite(Number(body.evAt)) && Number(body.evAt) > 0 ? Math.round(Number(body.evAt)) : 0,
   };
+  // cash counter: what the customer handed over, and release the goods in the same step
+  const given = Number.isFinite(Number(body.given)) && Number(body.given) > 0 ? Math.round(Number(body.given) * 100) / 100 : 0;
+  const release = body.release === true;
   const via = typeof body.via === "string" ? body.via.replace(/[^\w .,:₹/-]/g, "").slice(0, 60) : "";
 
   const found = await safeDbCall(() => prisma.registerEntry.findMany({ where: { id: { in: ids } }, orderBy: { createdAt: "asc" } }));
@@ -46,6 +49,8 @@ export async function POST(req: NextRequest) {
     if (!rows.some((r) => r.paymentMode === "CASH")) return NextResponse.json({ error: "This bill has no cash part." }, { status: 400 });
     if (!cur.cashWait) return NextResponse.json({ error: "This bill's cash was taken at once; nothing to confirm." }, { status: 400 });
     if (cur.cashOk) return NextResponse.json({ error: "Cash is already marked received." }, { status: 400 });
+    const cashTotal = Math.round(rows.filter((r) => r.paymentMode === "CASH").reduce((a, r) => a + r.amountInr, 0) * 100) / 100;
+    if (given && given < cashTotal - 0.005) return NextResponse.json({ error: `The customer gave ₹${given} but the cash due is ₹${cashTotal}.` }, { status: 400 });
   }
   if (action === "upiOk" && !upi) return NextResponse.json({ error: "This bill has no UPI part." }, { status: 400 });
   if (action === "upiOk" && cur.upiOk) return NextResponse.json({ error: "UPI is already marked received." }, { status: 400 });
@@ -81,7 +86,11 @@ export async function POST(req: NextRequest) {
           ...(proof.pkg ? { pkg: proof.pkg } : {}), ...(proof.evId ? { evId: proof.evId } : {}), ...(proof.evAt ? { evAt: proof.evAt } : {}),
         };
       }
-      if (action === "cashOk") patch.cashOk = { at: now, by };
+      if (action === "cashOk") {
+        const cashTotal = Math.round(rows.filter((r) => r.paymentMode === "CASH").reduce((a, r) => a + r.amountInr, 0) * 100) / 100;
+        patch.cashOk = { at: now, by, ...(given ? { given, change: Math.round((given - cashTotal) * 100) / 100 } : {}) };
+        if (release) Object.assign(patch, { handover: "GIVEN", handedAt: now });
+      }
       if (action === "paidLater") {
         // Collecting the udhaar is real money in: an "udhaar received" entry, so cash book and the customer's balance follow.
         await tx.registerEntry.create({
@@ -100,7 +109,7 @@ export async function POST(req: NextRequest) {
         await tx.registerEntry.update({ where: { id: rows[i].id }, data: { details: { ...prev, track: patch } as any } });
       }
       await writeAudit(tx, user, "EDIT", "RegisterEntry", rows[0].id,
-        `Bill ${billNo ? "#" + billNo + " " : ""}${action === "handover" ? (handover === "HELD" ? "goods held" : "goods handed over") : action === "cashOk" ? "cash received" : action === "upiOk" ? `UPI received${via ? " (" + via + ")" : ""}${proof.payer ? " from " + proof.payer : ""}${proof.ref ? " · Ref " + proof.ref : ""}` : `udhaar ${rupees(credit)} collected by ${mode}`}`);
+        `Bill ${billNo ? "#" + billNo + " " : ""}${action === "handover" ? (handover === "HELD" ? "goods held" : "goods handed over") : action === "cashOk" ? `cash received${given ? " ₹" + given : ""}${release ? ", goods released" : ""}` : action === "upiOk" ? `UPI received${via ? " (" + via + ")" : ""}${proof.payer ? " from " + proof.payer : ""}${proof.ref ? " · Ref " + proof.ref : ""}` : `udhaar ${rupees(credit)} collected by ${mode}`}`);
       return patch;
     })
   );
