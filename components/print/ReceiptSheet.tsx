@@ -7,7 +7,7 @@
 import ShareButton from "@/components/share/ShareButton";
 import "@/app/barrels/barrels.css";
 import "./print.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import PrintCenter from "@/components/barrels/PrintCenter";
 import QrCode from "@/components/barrels/QrCode";
@@ -95,9 +95,19 @@ export function ReceiptView({ doc, shop, widthMm }: { doc: ReceiptDoc; shop: Sho
   );
 }
 
-export default function ReceiptSheet({ doc, onClose, onPrinted, autoPrint = false }: { doc: ReceiptDoc; onClose: () => void; onPrinted?: () => void; /** one-click: print at once and close when it worked */ autoPrint?: boolean }) {
+export default function ReceiptSheet({ doc, onClose, onPrinted, autoPrint = false, quiet = false }: { doc: ReceiptDoc; onClose: () => void; onPrinted?: () => void; /** one-click: print at once and close when it worked */ autoPrint?: boolean; /** with autoPrint: show only a small "Printing…" note; the full printer panel opens only if printing does not start or fails */ quiet?: boolean }) {
   const [saved, save] = useSavedPrint();
   const [mounted, setMounted] = useState(false);
+  const hidden0 = quiet && autoPrint;
+  const [hidden, setHidden] = useState(hidden0);
+  const started = useRef(false);
+  const [state, setState] = useState<"wait" | "ok">("wait");
+  // quiet mode: no printer could be used within a few seconds → show the panel so it can be set up
+  useEffect(() => {
+    if (!hidden0) return;
+    const t = setTimeout(() => { if (!started.current) setHidden(false); }, 5000);
+    return () => clearTimeout(t);
+  }, [hidden0]);
   const shop = useShop();
   const size = rollFor(saved.slip);
   const lay = slipLayout(size);
@@ -121,7 +131,14 @@ export default function ReceiptSheet({ doc, onClose, onPrinted, autoPrint = fals
   }, [onClose]);
   if (!mounted) return null;
   return createPortal(
-    <div className="rc-portal" role="dialog" aria-modal="true" aria-label={`Print ${doc.title.toLowerCase()}`} onClick={(e) => { e.stopPropagation(); onClose(); }}>
+    <>
+    {hidden && (
+      <div className={`rc-toast${state === "ok" ? " ok" : ""}`} role="status">
+        <span>{state === "ok" ? "✅ Sent to the printer" : "🖨️ Printing…"}</span>
+        <button type="button" onClick={() => setHidden(false)}>⚙ Printer settings</button>
+      </div>
+    )}
+    <div className={`rc-portal${hidden ? " rc-quiet" : ""}`} role="dialog" aria-modal="true" aria-label={`Print ${doc.title.toLowerCase()}`} onClick={(e) => { e.stopPropagation(); onClose(); }}>
       <div className="rc-panel bd-printpage" onClick={(e) => e.stopPropagation()}>
         <div className="rc-ctl">
           <div className="rc-head">
@@ -134,14 +151,15 @@ export default function ReceiptSheet({ doc, onClose, onPrinted, autoPrint = fals
               <button key={r.id} type="button" className={`bd-chip${r.id === size.id ? " on" : ""}`} onClick={() => save({ slip: r.id })}>{r.name}</button>
             ))}
           </div>
-          <PrintCenter kind="slip" size={size} selector=".rc-portal .rc-slip" marginMm={lay.margin} count={1} label="Print" name={receiptName(doc)} saved={saved} onSave={save} autoPrint={autoPrint} onDone={() => { onPrinted?.(); if (autoPrint) setTimeout(onClose, 900); }} />
+          <PrintCenter kind="slip" size={size} selector=".rc-portal .rc-slip" marginMm={lay.margin} count={1} label="Print" name={receiptName(doc)} saved={saved} onSave={save} autoPrint={autoPrint} onStart={() => { started.current = true; }} onFail={() => setHidden(false)} onDone={() => { onPrinted?.(); setState("ok"); if (autoPrint) setTimeout(onClose, 900); }} />
           <div className="bd-row"><ShareButton area=".rc-portal .rc-slip" className="bd-btn" title={receiptName(doc)} url={false} label="📤 Share receipt (WhatsApp, picture…)" /></div>
         </div>
         <div className="rc-preview">
           <ReceiptView doc={doc} shop={shop} widthMm={lay.inner} />
         </div>
       </div>
-    </div>,
+    </div>
+    </>,
     document.body
   );
 }

@@ -171,6 +171,8 @@ export default function CounterApp() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [autoPrint, setAutoPrint] = useState(true);
+  /** show the printer settings + preview sheet when printing (off = print straight away, small "Printing…" note) */
+  const [printPanel, setPrintPanel] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
   const [panel, setPanel] = useState<null | "settings" | "items" | "holds" | "bills" | "look">(null);
   const [prev, setPrev] = useState<{ doc: ReceiptDoc; no: string; total: number; back: number } | null>(null);
@@ -195,6 +197,7 @@ export default function CounterApp() {
   useEffect(() => {
     setLang(read<Lang>("counterLang", "en"));
     setAutoPrint(read<boolean>("counterAutoPrint", true));
+    setPrintPanel(read<boolean>("counterPrintPanel", false));
     setSettings({ ...DEFAULTS, ...read<Partial<Settings>>("counterSettings", {}) });
     setKiosk(readKiosk());
     let d = read<string>("counterDevice", "");
@@ -1492,6 +1495,10 @@ export default function CounterApp() {
               <input type="checkbox" checked={autoPrint} onChange={(e) => { setAutoPrint(e.target.checked); write("counterAutoPrint", e.target.checked); }} />
               <span>{k("Print the receipt as soon as the bill is saved", "ಬಿಲ್ ಉಳಿಸಿದ ತಕ್ಷಣ ರಸೀದಿ ಮುದ್ರಿಸು")}</span>
             </label>
+            <label className="ctr-set">
+              <input type="checkbox" checked={printPanel} onChange={(e) => { setPrintPanel(e.target.checked); write("counterPrintPanel", e.target.checked); }} />
+              <span>{k("Show printer settings and receipt preview when printing (off = prints straight away)", "ಮುದ್ರಿಸುವಾಗ ಪ್ರಿಂಟರ್ ಸೆಟ್ಟಿಂಗ್ಸ್ ಮತ್ತು ಪ್ರಿವ್ಯೂ ತೋರಿಸು (ಆಫ್ = ನೇರವಾಗಿ ಮುದ್ರಿಸುತ್ತದೆ)")}</span>
+            </label>
             {(Object.keys(SETTING_TEXT) as (keyof Settings)[]).map((key) => (
               <label key={key} className="ctr-set">
                 <input type="checkbox" checked={settings[key]} onChange={(e) => setSetting(key, e.target.checked)} />
@@ -1566,7 +1573,7 @@ export default function CounterApp() {
         </div>
       )}
 
-      {rcpt && <ReceiptSheet doc={rcpt.doc} autoPrint={rcpt.auto} onClose={() => setRcpt(null)} />}
+      {rcpt && <ReceiptSheet doc={rcpt.doc} autoPrint={rcpt.auto} quiet={!printPanel} onClose={() => setRcpt(null)} />}
     </div>
   );
 }
