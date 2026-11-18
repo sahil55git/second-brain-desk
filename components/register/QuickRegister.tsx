@@ -5,6 +5,7 @@
 // routes, so every entry lands in the same Postgres database as the rest of
 // Second Brain Desk.
 
+import { trackOf, upiLine } from "@/lib/counterTrack";
 import EditEntry from "@/components/register/EditEntry";
 import { verdict } from "@/lib/outbox";
 import ShareButton from "@/components/share/ShareButton";
@@ -583,6 +584,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
             <span className="m"> ({payLabel(e, lang)})</span>
           )}
         </span>
+        {upiLine(trackOf(e.details).upiOk) && <span className="m"><br />✅ {upiLine(trackOf(e.details).upiOk)}</span>}
       </button>
     );
     if (!printable) return <Fragment key={e.id}>{card}</Fragment>;

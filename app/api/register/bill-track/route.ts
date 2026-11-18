@@ -15,9 +15,22 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const ids: string[] = Array.isArray(body.ids) ? body.ids.filter((x: unknown) => typeof x === "string").slice(0, 40) : [];
   const action = body.action;
-  if (!ids.length || !["handover", "upiOk", "paidLater"].includes(action)) return NextResponse.json({ error: "Nothing to do." }, { status: 400 });
+  if (!ids.length || !["handover", "upiOk", "cashOk", "paidLater"].includes(action)) return NextResponse.json({ error: "Nothing to do." }, { status: 400 });
   const mode: "CASH" | "UPI" = body.mode === "UPI" ? "UPI" : "CASH";
   const handover = body.value === "HELD" ? "HELD" : "GIVEN";
+  // details of the UPI payment this confirms (from the UPI app's notification), kept on the bill
+  const txt = (v: unknown, n: number) => (typeof v === "string" ? v.replace(/[^\w .,:@/#₹&'-]/g, "").trim().slice(0, n) : "");
+  const proof = {
+    ref: txt(body.ref, 40),
+    payer: txt(body.payer, 60),
+    pkg: txt(body.pkg, 80),
+    evId: txt(body.evId, 80),
+    amount: Number.isFinite(Number(body.amount)) && Number(body.amount) > 0 ? Math.round(Number(body.amount) * 100) / 100 : 0,
+    evAt: Number.isFinite(Number(body.evAt)) && Number(body.evAt) > 0 ? Math.round(Number(body.evAt)) : 0,
+  };
+  // cash counter: what the customer handed over, and release the goods in the same step
+  const given = Number.isFinite(Number(body.given)) && Number(body.given) > 0 ? Math.round(Number(body.given) * 100) / 100 : 0;
+  const release = body.release === true;
   const via = typeof body.via === "string" ? body.via.replace(/[^\w .,:₹/-]/g, "").slice(0, 60) : "";
 
   const found = await safeDbCall(() => prisma.registerEntry.findMany({ where: { id: { in: ids } }, orderBy: { createdAt: "asc" } }));
@@ -32,8 +45,29 @@ export async function POST(req: NextRequest) {
   const cur = trackOf(rows[0].details);
   const credit = Math.round(rows.filter((r) => r.paymentMode === "CREDIT").reduce((a, r) => a + r.amountInr, 0) * 100) / 100;
   const upi = rows.some((r) => r.paymentMode === "UPI");
+  if (action === "cashOk") {
+    if (!rows.some((r) => r.paymentMode === "CASH")) return NextResponse.json({ error: "This bill has no cash part." }, { status: 400 });
+    if (!cur.cashWait) return NextResponse.json({ error: "This bill's cash was taken at once; nothing to confirm." }, { status: 400 });
+    if (cur.cashOk) return NextResponse.json({ error: "Cash is already marked received." }, { status: 400 });
+    const cashTotal = Math.round(rows.filter((r) => r.paymentMode === "CASH").reduce((a, r) => a + r.amountInr, 0) * 100) / 100;
+    if (given && given < cashTotal - 0.005) return NextResponse.json({ error: `The customer gave ₹${given} but the cash due is ₹${cashTotal}.` }, { status: 400 });
+  }
   if (action === "upiOk" && !upi) return NextResponse.json({ error: "This bill has no UPI part." }, { status: 400 });
   if (action === "upiOk" && cur.upiOk) return NextResponse.json({ error: "UPI is already marked received." }, { status: 400 });
+  if (action === "upiOk") {
+    // a payment can pay one bill only: the amount must be this bill's UPI part, and its reference must not be on another bill
+    const upiTotal = Math.round(rows.filter((r) => r.paymentMode === "UPI").reduce((a, r) => a + r.amountInr, 0) * 100) / 100;
+    if (proof.amount && Math.abs(proof.amount - upiTotal) > 0.005) return NextResponse.json({ error: `That payment is ₹${proof.amount} but this bill's UPI part is ₹${upiTotal}.` }, { status: 400 });
+    if (proof.ref.length >= 8) {
+      const other = await safeDbCall(() =>
+        prisma.registerEntry.findFirst({ where: { id: { notIn: ids }, details: { path: ["track", "upiOk", "ref"], equals: proof.ref } } })
+      );
+      if (other.ok && other.data) {
+        const no = Number((other.data.details as { billNo?: unknown } | null)?.billNo) || null;
+        return NextResponse.json({ error: `This payment (Ref ${proof.ref}) is already linked to ${no ? "bill #" + no : "another bill"}.` }, { status: 409 });
+      }
+    }
+  }
   if (action === "paidLater") {
     if (credit <= 0) return NextResponse.json({ error: "This bill has no udhaar part." }, { status: 400 });
     if (cur.paidLater) return NextResponse.json({ error: "Already collected." }, { status: 400 });
@@ -45,7 +79,18 @@ export async function POST(req: NextRequest) {
     prisma.$transaction(async (tx) => {
       const patch: Record<string, unknown> = { ...cur };
       if (action === "handover") Object.assign(patch, { handover, handedAt: handover === "GIVEN" ? now : undefined });
-      if (action === "upiOk") patch.upiOk = { at: now, by: via ? `${by} · ${via}` : by };
+      if (action === "upiOk") {
+        patch.upiOk = {
+          at: now, by: via ? `${by} · ${via}` : by,
+          ...(proof.ref ? { ref: proof.ref } : {}), ...(proof.payer ? { payer: proof.payer } : {}), ...(proof.amount ? { amount: proof.amount } : {}),
+          ...(proof.pkg ? { pkg: proof.pkg } : {}), ...(proof.evId ? { evId: proof.evId } : {}), ...(proof.evAt ? { evAt: proof.evAt } : {}),
+        };
+      }
+      if (action === "cashOk") {
+        const cashTotal = Math.round(rows.filter((r) => r.paymentMode === "CASH").reduce((a, r) => a + r.amountInr, 0) * 100) / 100;
+        patch.cashOk = { at: now, by, ...(given ? { given, change: Math.round((given - cashTotal) * 100) / 100 } : {}) };
+        if (release) Object.assign(patch, { handover: "GIVEN", handedAt: now });
+      }
       if (action === "paidLater") {
         // Collecting the udhaar is real money in: an "udhaar received" entry, so cash book and the customer's balance follow.
         await tx.registerEntry.create({
@@ -64,7 +109,7 @@ export async function POST(req: NextRequest) {
         await tx.registerEntry.update({ where: { id: rows[i].id }, data: { details: { ...prev, track: patch } as any } });
       }
       await writeAudit(tx, user, "EDIT", "RegisterEntry", rows[0].id,
-        `Bill ${billNo ? "#" + billNo + " " : ""}${action === "handover" ? (handover === "HELD" ? "goods held" : "goods handed over") : action === "upiOk" ? `UPI received${via ? " (" + via + ")" : ""}` : `udhaar ${rupees(credit)} collected by ${mode}`}`);
+        `Bill ${billNo ? "#" + billNo + " " : ""}${action === "handover" ? (handover === "HELD" ? "goods held" : "goods handed over") : action === "cashOk" ? `cash received${given ? " ₹" + given : ""}${release ? ", goods released" : ""}` : action === "upiOk" ? `UPI received${via ? " (" + via + ")" : ""}${proof.payer ? " from " + proof.payer : ""}${proof.ref ? " · Ref " + proof.ref : ""}` : `udhaar ${rupees(credit)} collected by ${mode}`}`);
       return patch;
     })
   );

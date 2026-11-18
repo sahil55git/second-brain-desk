@@ -6,8 +6,8 @@ import { getUser } from "@/lib/registerServer";
 import { shopProblem } from "@/lib/shopPay";
 
 export const dynamic = "force-dynamic";
-const KEYS = ["profit", "shop", "rates", "budgets", "cashplan", "features", "costs", "deposits", "rules", "backup", "approvals", "stockLedger", "counter"];
-const READ_ANY = ["shop", "rates", "features", "counter"];
+const KEYS = ["profit", "shop", "rates", "budgets", "cashplan", "features", "costs", "deposits", "rules", "backup", "approvals", "stockLedger", "counter", "counterLayout"];
+const READ_ANY = ["shop", "rates", "features", "counter", "counterLayout"];
 
 export async function GET(req: NextRequest) {
   const user = await getUser(req);

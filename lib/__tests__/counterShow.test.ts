@@ -35,3 +35,16 @@ describe("counter buttons shown", () => {
     expect(SHOW_SIMPLE.payCash && SHOW_SIMPLE.payUpi && SHOW_SIMPLE.payCredit).toBe(true);
   });
 });
+
+describe("header items can be hidden", () => {
+  it("scale status, Set up scale, Items and the Desk link are separate switches", () => {
+    for (const k of ["scaleStatus", "scaleSetup", "itemsBtn", "deskLink"] as const) {
+      expect(SHOW_KEYS).toContain(k);
+      expect(parseShow({ [k]: false })[k]).toBe(false);
+      expect(parseShow({})[k]).toBe(true);
+    }
+  });
+  it("the simple screen hides them", () => {
+    expect(SHOW_SIMPLE.scaleStatus || SHOW_SIMPLE.scaleSetup || SHOW_SIMPLE.itemsBtn || SHOW_SIMPLE.deskLink).toBe(false);
+  });
+});

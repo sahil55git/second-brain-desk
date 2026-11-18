@@ -59,6 +59,12 @@ public class MainActivity extends BridgeActivity {
         }
         String path = intent.getStringExtra(WidgetData.EXTRA_PATH);
         if (url == null && path != null && path.startsWith("/")) url = WidgetData.baseUrl(this) + path;
+        if (url == null && intent.getComponent() != null) {
+            // the second / third home-screen icons open straight on the counter / cashier desk
+            String cls = intent.getComponent().getClassName();
+            if (cls.endsWith(".CounterLauncher")) url = WidgetData.baseUrl(this) + "/register/counter";
+            else if (cls.endsWith(".CashierLauncher")) url = WidgetData.baseUrl(this) + "/register/cashier";
+        }
         if (url == null) return;
         final String target = url;
         if (getBridge() == null) return;

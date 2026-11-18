@@ -1,7 +1,7 @@
 // Which optional buttons the counter shows on this device (pure, tested). The owner can hide the ones
 // staff do not need so the screen stays simple. At least one of Cash / UPI / Udhaar, Save & Print, Clear and the item keys are always there.
 
-export const SHOW_KEYS = ["byAmount", "totalBox", "tare", "readWeight", "held", "bills", "plu", "search", "customer", "gst", "hold", "lang", "size", "payCash", "payUpi", "payCredit", "paySplit", "discount", "cashReceived"] as const;
+export const SHOW_KEYS = ["byAmount", "totalBox", "tare", "readWeight", "held", "bills", "plu", "search", "customer", "gst", "hold", "lang", "size", "payCash", "payUpi", "payCredit", "paySplit", "discount", "cashReceived", "scaleStatus", "scaleSetup", "itemsBtn", "deskLink"] as const;
 export type ShowKey = (typeof SHOW_KEYS)[number];
 export type ShowCfg = Record<ShowKey, boolean>;
 
@@ -25,12 +25,16 @@ export const SHOW_LABELS: Record<ShowKey, [string, string]> = {
   paySplit: ["Split payment button", "ಹಂಚಿಕೆ ಬಟನ್"],
   discount: ["Bill discount button", "ಬಿಲ್ ರಿಯಾಯಿತಿ ಬಟನ್"],
   cashReceived: ["Cash received / change box", "ಪಡೆದ ನಗದು / ಚಿಲ್ಲರೆ ಬಾಕ್ಸ್"],
+  scaleStatus: ["Scale status chip (No scale / scale name)", "ತಕ್ಕಡಿ ಸ್ಥಿತಿ (ತಕ್ಕಡಿ ಇಲ್ಲ / ಹೆಸರು)"],
+  scaleSetup: ["Set up scale link", "ತಕ್ಕಡಿ ಹೊಂದಿಸಿ ಲಿಂಕ್"],
+  itemsBtn: ["Items edit button (owner)", "ವಸ್ತುಗಳು ತಿದ್ದುವ ಬಟನ್ (ಮಾಲೀಕ)"],
+  deskLink: ["← Desk link at the top", "ಮೇಲಿನ ← ಡೆಸ್ಕ್ ಲಿಂಕ್"],
 };
 
 export const SHOW_ALL: ShowCfg = Object.fromEntries(SHOW_KEYS.map((k) => [k, true])) as ShowCfg;
 
 /** A plain screen for new staff: no By amount, no Total box, no PLU key, no GST tick, no size / language buttons. */
-export const SHOW_SIMPLE: ShowCfg = { ...SHOW_ALL, byAmount: false, totalBox: false, plu: false, gst: false, lang: false, size: false, paySplit: false, discount: false };
+export const SHOW_SIMPLE: ShowCfg = { ...SHOW_ALL, byAmount: false, totalBox: false, plu: false, gst: false, lang: false, size: false, paySplit: false, discount: false, scaleStatus: false, scaleSetup: false, itemsBtn: false, deskLink: false };
 
 export const PAY_SHOW_KEYS = ["payCash", "payUpi", "payCredit"] as const;
 

@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
     billNo = seq.data;
   }
   // Counter bills may carry a goods hand-over mark (given now / held until the money is checked).
-  const trackInit = body.counterBill === true && kind === "SALE" && (body.handover === "HELD" || body.handover === "GIVEN") ? { handover: body.handover as string, handedAt: body.handover === "GIVEN" ? new Date().toISOString() : undefined } : null;
+  const trackInit = body.counterBill === true && kind === "SALE" && (body.handover === "HELD" || body.handover === "GIVEN") ? { handover: body.handover as string, handedAt: body.handover === "GIVEN" ? new Date().toISOString() : undefined, ...(body.handover === "HELD" && body.cashWait === true ? { cashWait: true } : {}) } : null;
   const result = await safeDbCall(async () => {
     // 1. Library: learn a typed "Other" item and remember the rate used.
     let cfg = await loadConfig();
