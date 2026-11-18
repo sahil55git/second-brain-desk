@@ -179,7 +179,7 @@ export function CashOut({ size = 1 }: { size?: number }) {
 export function CashIn({ size = 1 }: { size?: number }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: `${6 * size}px` }}>
-      <CoinIcon size={Math.round(30 * size)} /><ArrowDownIcon size={Math.round(26 * size)} /><HandIcon size={Math.round(28 * size)} />
+      <CoinIcon size={Math.round(30 * size)} /><ArrowDownIcon size={Math.round(26 * size)} />
     </span>
   );
 }
