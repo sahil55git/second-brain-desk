@@ -4,6 +4,7 @@
 // scale's own display, and see today's saved weights.
 import { useCallback, useEffect, useState } from "react";
 import { useScale } from "@/components/ScaleProvider";
+import SavedBtScales from "@/components/scale/SavedBtScales";
 import { linkLabel } from "@/lib/scaleLink";
 import { businessDate } from "@/lib/register";
 import type { NativeScaleDevice } from "@/lib/native";
@@ -101,6 +102,7 @@ export default function BluetoothScalePanel() {
 
   return (
     <section className="rounded-xl border border-black/10 dark:border-white/10 p-4 space-y-3">
+      <SavedBtScales />
       <div className="flex flex-wrap items-center gap-2">
         <span className={`h-2.5 w-2.5 rounded-full ${DOT[s.status]}`} />
         <strong className="text-sm">Bluetooth scale{bt.config ? ` · ${bt.config.name}` : ""}</strong>
