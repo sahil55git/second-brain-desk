@@ -360,3 +360,22 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr-upiask button.ghost,.ctr-upipick button.ghost{opacity:.7;font-weight:500}
 .ctr-upiline{display:block;color:#15803d;font-weight:600}
 .ctr-twin{display:block;color:#b45309}
+
+/* Held queue */
+.ctr-queue{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:10px}
+.ctr-queue li{border:2px solid var(--c-line);border-radius:14px;padding:10px 12px;display:grid;gap:6px;background:var(--c-card,transparent)}
+.ctr-queue li.late{border-color:#f59e0b}
+.ctr-queue li.ready{border-color:var(--c-ok)}
+.ctr-queue .top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font-size:18px}
+.ctr-queue .top strong{margin-left:auto;font-size:20px}
+.ctr-queue .wait{font-size:14px;opacity:.8}
+.ctr-queue .chips{display:flex;gap:6px;flex-wrap:wrap}
+.ctr-queue .chips span{padding:3px 10px;border-radius:999px;border:1px solid var(--c-line);font-size:14px;font-weight:600}
+.ctr-queue .chips span.wait{border-color:#f59e0b;color:#b45309;opacity:1}
+.ctr-queue .chips span.okc{border-color:var(--c-ok);color:var(--c-ok)}
+.ctr-queue .acts{display:flex;gap:8px;flex-wrap:wrap}
+.ctr-queue .acts button{min-height:48px;padding:8px 14px;border-radius:12px;border:2px solid currentColor;background:transparent;color:inherit;font-weight:700}
+.ctr-queue .acts button.big{flex:1 1 160px;font-size:16px}
+.ctr-queue .acts button.give{background:var(--c-ok);border-color:var(--c-ok);color:#fff}
+.ctr-queue .acts button.ghost{opacity:.75;font-weight:500}
+.ctr-queue .acts button.on{background:color-mix(in srgb,var(--c-bad) 12%,transparent);border-color:var(--c-bad);color:var(--c-bad)}

@@ -27,6 +27,10 @@ export interface BillTrack {
   handedAt?: string;
   /** UPI part checked on the shop's phone / bank app; when it came from a UPI notification, which payment it was */
   upiOk?: UpiProof;
+  /** this bill's goods were held for the cash too: the cash part counts as "to receive" until the counter confirms it */
+  cashWait?: boolean;
+  /** cash part confirmed in the drawer by whoever sits at the counter */
+  cashOk?: { at: string; by: string };
   /** udhaar part collected later (an UDHAAR_IN entry was made) */
   paidLater?: { at: string; by: string; mode: "CASH" | "UPI"; amount: number };
 }
@@ -40,6 +44,9 @@ export function trackOf(details: unknown): BillTrack {
   const out: BillTrack = {};
   if (t.handover === "GIVEN" || t.handover === "HELD") out.handover = t.handover;
   if (typeof t.handedAt === "string") out.handedAt = t.handedAt;
+  if (t.cashWait === true) out.cashWait = true;
+  const c = t.cashOk as { at?: unknown; by?: unknown } | undefined;
+  if (c && typeof c.at === "string") out.cashOk = { at: c.at, by: typeof c.by === "string" ? c.by : "" };
   const u = t.upiOk as Record<string, unknown> | undefined;
   if (u && typeof u.at === "string") {
     const txt = (v: unknown, n: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : undefined);
@@ -64,21 +71,23 @@ export function trackOf(details: unknown): BillTrack {
 }
 
 /** Cash / other money is in the drawer at once; UPI waits for a check; udhaar waits for the customer. */
-export function payStatus(modes: Record<string, number>, track: BillTrack): { state: PayState; due: number; upiDue: number; creditDue: number } {
+export function payStatus(modes: Record<string, number>, track: BillTrack): { state: PayState; due: number; upiDue: number; creditDue: number; cashDue: number } {
   const upi = r2(modes.UPI || 0);
   const credit = r2(modes.CREDIT || 0);
   const upiDue = upi > 0 && !track.upiOk ? upi : 0;
   const creditDue = credit > 0 && !track.paidLater ? credit : 0;
-  const due = r2(upiDue + creditDue);
+  const cash = r2(modes.CASH || 0);
+  const cashDue = cash > 0 && track.cashWait && !track.cashOk ? cash : 0;
+  const due = r2(upiDue + creditDue + cashDue);
   const total = r2(Object.values(modes).reduce((a, v) => a + v, 0));
-  if (due <= 0) return { state: "PAID", due: 0, upiDue: 0, creditDue: 0 };
-  if (due >= total) return { state: creditDue > 0 ? "UNPAID" : "PENDING", due, upiDue, creditDue };
-  return { state: creditDue > 0 ? "PARTLY" : "PENDING", due, upiDue, creditDue };
+  if (due <= 0) return { state: "PAID", due: 0, upiDue: 0, creditDue: 0, cashDue: 0 };
+  if (due >= total) return { state: creditDue > 0 ? "UNPAID" : "PENDING", due, upiDue, creditDue, cashDue };
+  return { state: creditDue > 0 ? "PARTLY" : "PENDING", due, upiDue, creditDue, cashDue };
 }
 
-/** Suggested hand-over when the bill is made: cash → give; UPI part → hold until it is checked; udhaar only → give. */
-export function defaultHandover(modes: Record<string, number>): Handover {
-  return (modes.UPI || 0) > 0 ? "HELD" : "GIVEN";
+/** Suggested hand-over when the bill is made: UPI part → hold until it is checked; cash → hold too when the shop works that way ("hold bill"), else give; udhaar only → give. */
+export function defaultHandover(modes: Record<string, number>, holdCash = false): Handover {
+  return (modes.UPI || 0) > 0 || (holdCash && (modes.CASH || 0) > 0) ? "HELD" : "GIVEN";
 }
 
 /** Bills saved before this feature have no hand-over mark: treated as given. */
@@ -101,4 +110,34 @@ export function upiLine(u: UpiProof | undefined): string {
   if (!u || (!u.ref && !u.payer && !u.amount)) return "";
   const rs = u.amount ? `₹${u.amount % 1 ? u.amount.toFixed(2) : u.amount}` : "";
   return ["UPI", rs, u.payer, u.ref ? `Ref ${u.ref}` : ""].filter(Boolean).join(" · ").replace(/^UPI · /, "UPI ");
+}
+
+/** What a held bill is waiting for before the goods may go: the cash, the UPI, both, or nothing (money is in: just give the goods). */
+export type HeldNeed = "CASH" | "UPI" | "CASH+UPI" | "READY";
+export function heldNeed(modes: Record<string, number>, track: BillTrack): HeldNeed {
+  const ps = payStatus(modes, track);
+  if (ps.cashDue > 0 && ps.upiDue > 0) return "CASH+UPI";
+  if (ps.cashDue > 0) return "CASH";
+  if (ps.upiDue > 0) return "UPI";
+  return "READY";
+}
+
+/** The held queue: bills whose goods are still inside, longest-waiting first. Bills with money still to receive come before bills that are ready to give. */
+export function heldQueue<T extends { createdAt: string; modes: Record<string, number>; track: BillTrack }>(bills: T[]): T[] {
+  return bills
+    .filter((b) => isTracked(b.track) && handoverOf(b.track) === "HELD")
+    .sort((a, b) => {
+      const ra = heldNeed(a.modes, a.track) === "READY" ? 1 : 0;
+      const rb = heldNeed(b.modes, b.track) === "READY" ? 1 : 0;
+      return ra - rb || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+}
+
+/** "just now", "5 min", "1 h 20 min" for how long a bill has been waiting. */
+export function waitText(ms: number): string {
+  const m = Math.max(0, Math.floor(ms / 60_000));
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  return m % 60 ? `${h} h ${m % 60} min` : `${h} h`;
 }

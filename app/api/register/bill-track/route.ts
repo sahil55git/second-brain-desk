@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const ids: string[] = Array.isArray(body.ids) ? body.ids.filter((x: unknown) => typeof x === "string").slice(0, 40) : [];
   const action = body.action;
-  if (!ids.length || !["handover", "upiOk", "paidLater"].includes(action)) return NextResponse.json({ error: "Nothing to do." }, { status: 400 });
+  if (!ids.length || !["handover", "upiOk", "cashOk", "paidLater"].includes(action)) return NextResponse.json({ error: "Nothing to do." }, { status: 400 });
   const mode: "CASH" | "UPI" = body.mode === "UPI" ? "UPI" : "CASH";
   const handover = body.value === "HELD" ? "HELD" : "GIVEN";
   // details of the UPI payment this confirms (from the UPI app's notification), kept on the bill
@@ -42,6 +42,11 @@ export async function POST(req: NextRequest) {
   const cur = trackOf(rows[0].details);
   const credit = Math.round(rows.filter((r) => r.paymentMode === "CREDIT").reduce((a, r) => a + r.amountInr, 0) * 100) / 100;
   const upi = rows.some((r) => r.paymentMode === "UPI");
+  if (action === "cashOk") {
+    if (!rows.some((r) => r.paymentMode === "CASH")) return NextResponse.json({ error: "This bill has no cash part." }, { status: 400 });
+    if (!cur.cashWait) return NextResponse.json({ error: "This bill's cash was taken at once; nothing to confirm." }, { status: 400 });
+    if (cur.cashOk) return NextResponse.json({ error: "Cash is already marked received." }, { status: 400 });
+  }
   if (action === "upiOk" && !upi) return NextResponse.json({ error: "This bill has no UPI part." }, { status: 400 });
   if (action === "upiOk" && cur.upiOk) return NextResponse.json({ error: "UPI is already marked received." }, { status: 400 });
   if (action === "upiOk") {
@@ -76,6 +81,7 @@ export async function POST(req: NextRequest) {
           ...(proof.pkg ? { pkg: proof.pkg } : {}), ...(proof.evId ? { evId: proof.evId } : {}), ...(proof.evAt ? { evAt: proof.evAt } : {}),
         };
       }
+      if (action === "cashOk") patch.cashOk = { at: now, by };
       if (action === "paidLater") {
         // Collecting the udhaar is real money in: an "udhaar received" entry, so cash book and the customer's balance follow.
         await tx.registerEntry.create({
@@ -94,7 +100,7 @@ export async function POST(req: NextRequest) {
         await tx.registerEntry.update({ where: { id: rows[i].id }, data: { details: { ...prev, track: patch } as any } });
       }
       await writeAudit(tx, user, "EDIT", "RegisterEntry", rows[0].id,
-        `Bill ${billNo ? "#" + billNo + " " : ""}${action === "handover" ? (handover === "HELD" ? "goods held" : "goods handed over") : action === "upiOk" ? `UPI received${via ? " (" + via + ")" : ""}${proof.payer ? " from " + proof.payer : ""}${proof.ref ? " · Ref " + proof.ref : ""}` : `udhaar ${rupees(credit)} collected by ${mode}`}`);
+        `Bill ${billNo ? "#" + billNo + " " : ""}${action === "handover" ? (handover === "HELD" ? "goods held" : "goods handed over") : action === "cashOk" ? "cash received" : action === "upiOk" ? `UPI received${via ? " (" + via + ")" : ""}${proof.payer ? " from " + proof.payer : ""}${proof.ref ? " · Ref " + proof.ref : ""}` : `udhaar ${rupees(credit)} collected by ${mode}`}`);
       return patch;
     })
   );
