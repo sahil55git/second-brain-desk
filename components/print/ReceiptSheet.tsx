@@ -12,6 +12,9 @@ import { createPortal } from "react-dom";
 import PrintCenter from "@/components/barrels/PrintCenter";
 import QrCode from "@/components/barrels/QrCode";
 import { useSavedPrint } from "@/components/barrels/PrintKit";
+import SlipPrinterSetup from "@/components/print/SlipPrinterSetup";
+import { isNative } from "@/lib/native";
+import { dropUnprinted, explainSlipError, getSlipPrinter, keepUnprinted, printSlip, resolveSlipPrinter, slipId, turnOnBluetooth, type SlipPrinterCfg } from "@/lib/slipPrinter";
 import { SLIP_SIZES, pageCss, slipLayout, type PaperSize } from "@/lib/printSizes";
 import { DEFAULT_SHOP, cleanReceipt, receiptName, rupees, type ReceiptDoc, type ShopInfo } from "@/lib/receipt";
 import { useShopPay } from "@/lib/useShopPay";
@@ -121,6 +124,58 @@ export default function ReceiptSheet({ doc: docIn, onClose, onPrinted, autoPrint
   const size = rollFor(saved.slip);
   const lay = slipLayout(size);
   useEffect(() => setMounted(true), []);
+
+  // ---- Android app: the counter slip printer of this device, straight over Bluetooth (no print window)
+  const native = useMemo(() => isNative(), []);
+  /** undefined = still looking, null = none chosen (and none found by itself) */
+  const [direct, setDirect] = useState<SlipPrinterCfg | null | undefined>(native ? undefined : null);
+  const [dState, setDState] = useState<"idle" | "printing" | "ok" | "fail">("idle");
+  const [dErr, setDErr] = useState<ReturnType<typeof explainSlipError> | null>(null);
+  const directFired = useRef(false);
+  useEffect(() => {
+    if (!native) return;
+    let live = true;
+    void resolveSlipPrinter().then((c) => live && setDirect(c));
+    const h = () => setDirect(getSlipPrinter());
+    window.addEventListener("md-slip-printer", h);
+    return () => {
+      live = false;
+      window.removeEventListener("md-slip-printer", h);
+    };
+  }, [native]);
+  const printDirect = async (cfg: SlipPrinterCfg | null | undefined = direct) => {
+    if (!cfg) return;
+    started.current = true;
+    setDState("printing");
+    setDErr(null);
+    const id = slipId(doc);
+    try {
+      await printSlip(doc, shop, cfg);
+      dropUnprinted(id);
+      setDState("ok");
+      onPrinted?.();
+      if (autoPrint) setTimeout(onClose, 900);
+    } catch (e) {
+      const x = explainSlipError(e);
+      setDErr(x);
+      setDState("fail");
+      // the bill is saved; keep the slip so it can be printed again from the red bar
+      keepUnprinted({ id, at: Date.now(), doc, shop, error: x.en });
+    }
+  };
+  // Save & Print: print as soon as the printer is known (and the UPI QR is ready when the bill needs one)
+  useEffect(() => {
+    if (!autoPrint || directFired.current || !direct) return;
+    if (docIn.payDue && docIn.payDue > 0 && !sp.ready) return;
+    directFired.current = true;
+    void printDirect(direct);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPrint, direct, sp.ready]);
+  // in the app with no slip printer chosen yet: open the sheet at once to choose one (never the Android print window)
+  useEffect(() => {
+    if (native && direct === null) setHidden(false);
+  }, [native, direct]);
+  const directBusy = dState === "printing";
   // while the sheet is open, the print window prints only the slip, at the roll width
   useEffect(() => {
     const html = document.documentElement;
@@ -141,10 +196,19 @@ export default function ReceiptSheet({ doc: docIn, onClose, onPrinted, autoPrint
   if (!mounted) return null;
   return createPortal(
     <>
-    {hidden && (
-      <div className={`rc-toast${state === "ok" ? " ok" : ""}`} role="status">
-        <span>{state === "ok" ? "✅ Sent to the printer" : "🖨️ Printing…"}</span>
-        <button type="button" onClick={() => setHidden(false)}>⚙ Printer settings</button>
+    {hidden && native && direct && dState === "fail" && dErr && (
+      <div className="rc-toast bad" role="alert">
+        <span className="rc-why">🧾✗ {dErr.en}<small>{dErr.kn}</small></span>
+        {dErr.fix === "bt-on" && <button type="button" onClick={async () => { await turnOnBluetooth(); setTimeout(() => void printDirect(), 3000); }}>Turn on Bluetooth</button>}
+        <button type="button" className="big" onClick={() => void printDirect()}>🔁 Print again</button>
+        <button type="button" onClick={() => setHidden(false)}>⚙</button>
+        <button type="button" onClick={onClose} aria-label="Close">✕</button>
+      </div>
+    )}
+    {hidden && !(native && direct && dState === "fail") && (
+      <div className={`rc-toast${state === "ok" || dState === "ok" ? " ok" : ""}`} role="status">
+        <span>{state === "ok" || dState === "ok" ? "✅ Printed · ಮುದ್ರಣ ಆಯಿತು" : "🖨️ Printing… ಮುದ್ರಿಸುತ್ತಿದೆ"}</span>
+        <button type="button" onClick={() => setHidden(false)}>⚙</button>
       </div>
     )}
     <div className={`rc-portal${hidden ? " rc-quiet" : ""}`} role="dialog" aria-modal="true" aria-label={`Print ${doc.title.toLowerCase()}`} onClick={(e) => { e.stopPropagation(); onClose(); }}>
@@ -154,13 +218,27 @@ export default function ReceiptSheet({ doc: docIn, onClose, onPrinted, autoPrint
             <b>🧾 Print {doc.title.toLowerCase()}</b>
             <button type="button" className="bd-btn" onClick={onClose} aria-label="Close">✕</button>
           </div>
+          {native && (
+            <>
+              {direct && (
+                <div className="bd-row">
+                  <button type="button" className="bd-btn primary" style={{ fontSize: 18, padding: "10px 18px" }} disabled={directBusy} onClick={() => void printDirect()}>
+                    {directBusy ? "Printing… ಮುದ್ರಿಸುತ್ತಿದೆ" : `🖨️ Print on ${direct.name}`}
+                  </button>
+                  {dState === "ok" && <span className="bd-m">✅ Printed</span>}
+                </div>
+              )}
+              {dState === "fail" && dErr && <div className="sp-msg">{dErr.en} · {dErr.kn}</div>}
+              <SlipPrinterSetup shop={shop} compact={!!direct} onChange={(c) => setDirect(c)} />
+            </>
+          )}
           <div className="bd-row">
             <span className="bd-m small">Roll</span>
             {ROLLS.map((r) => (
               <button key={r.id} type="button" className={`bd-chip${r.id === size.id ? " on" : ""}`} onClick={() => save({ slip: r.id })}>{r.name}</button>
             ))}
           </div>
-          <PrintCenter kind="slip" size={size} selector=".rc-portal .rc-slip" marginMm={lay.margin} count={1} label="Print" name={receiptName(doc)} saved={saved} onSave={save} autoPrint={autoPrint && (sp.ready || !docIn.payDue)} onStart={() => { started.current = true; }} onFail={() => setHidden(false)} onDone={() => { onPrinted?.(); setState("ok"); if (autoPrint) setTimeout(onClose, 900); }} />
+          <PrintCenter kind="slip" size={size} selector=".rc-portal .rc-slip" marginMm={lay.margin} count={1} label="Print" name={receiptName(doc)} saved={saved} onSave={save} autoPrint={!native && autoPrint && (sp.ready || !docIn.payDue)} onStart={() => { started.current = true; }} onFail={() => setHidden(false)} onDone={() => { onPrinted?.(); setState("ok"); if (autoPrint) setTimeout(onClose, 900); }} />
           <div className="bd-row"><ShareButton area=".rc-portal .rc-slip" className="bd-btn" title={receiptName(doc)} url={false} label="📤 Share receipt (WhatsApp, picture…)" /></div>
         </div>
         <div className="rc-preview">

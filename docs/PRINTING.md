@@ -1,5 +1,38 @@
 # Printing labels and slips
 
+## Counter slips in the Android app: Save & Print goes straight to the printer
+
+In the Mahadev Desk app (1.3.39 or newer) a bill slip does **not** use the print window or Android's
+print service ("This printer isn't available right now"). It goes straight to the tablet's **slip
+printer** over Bluetooth:
+
+1. Pair the receipt printer once in Android Settings → Bluetooth (PIN 0000 or 1234).
+2. The app picks it by itself when it is the only paired receipt printer. Label printers (Helett H30C…)
+   are never used for slips. To choose or change it: ☰ → Android app → **Counter slip printer**, or the
+   ⚙ on the printing note. Pick 58 mm or 80 mm and tap **Test print**.
+3. Save & Print: the bill is saved first, then the slip prints in about a second.
+
+How it stays reliable:
+
+- The slip is sent as printer text (ESC/POS), 1–5 KB, not as a picture of the page (60–150 KB).
+  Kannada words and the UPI QR go as small pictures.
+- The phone sends the whole slip in one go on its own print queue: connects with a time limit, asks
+  the printer for paper (printers that answer), sends in small paced pieces, and reconnects and tries
+  again up to 3 times **only while nothing has printed yet**, so a slip is never printed twice by itself.
+- The link is opened while the bill is being made and let go 2 minutes after the last print.
+- If a slip cannot print, the bill is still saved and the slip waits in a red **“slip not printed”**
+  bar on the counter and cashier desk: tap **Print now** when the printer is ready.
+
+| Message | What to do |
+|---|---|
+| Bluetooth is off | Tap **Turn on Bluetooth** |
+| No paper / cover open | New roll, close the cover, **Print again** |
+| Printer not answering | Switch it on, keep it near, disconnect it from other phones and from the printer's own app |
+| Not paired any more | Pair it again in Bluetooth settings |
+| Slip may be cut short | Look at the slip; print again only if it is short |
+
+The rest of this page is about labels and the other ways to print (PC, browser).
+
 Every label and slip page (barrel labels, barrel slips, receiving labels, receiving slips) has a **How to print** panel with six ways to print. Pick one; the app remembers the choice on that device.
 
 | Way | Use it on | What it does | Needs |

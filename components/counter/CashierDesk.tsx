@@ -7,6 +7,7 @@ import { onAccent, parseTheme } from "@/lib/counterTheme";
 import OilIcon, { BookIcon, CashIn, CashOut, CoinIcon, OilOut, PayIcon, PhoneIcon, PrinterIcon, TickIcon } from "./OilIcon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ReceiptSheet from "@/components/print/ReceiptSheet";
+import UnprintedSlips from "@/components/print/UnprintedSlips";
 import { cashReceived, changeFor, noteChips } from "@/lib/cashDesk";
 import { billMatches, billsSummary, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
 import { daySummaryDoc } from "@/lib/counterShare";
@@ -248,6 +249,7 @@ const txtStyle = useMemo(() => {
         <button type="button" onClick={() => void load()} aria-label="Refresh">🔄</button>
         <button type="button" onClick={() => { const n = !kn; setKn(n); try { localStorage.setItem("counterLang", JSON.stringify(n ? "kn" : "en")); } catch { /* ignore */ } }}>{kn ? "English" : "ಕನ್ನಡ"}</button>
       </header>
+      <UnprintedSlips kn={kn} />
       <nav className="cd-tabs" role="tablist">
         {TABS.map(([t, label, n]) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
