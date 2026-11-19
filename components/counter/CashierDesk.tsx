@@ -16,6 +16,7 @@ import { billName, qtyText, oilKgText } from "@/lib/counterName";
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
 import { businessDate } from "@/lib/register";
 import ReceivePayment from "./ReceivePayment";
+import BillDetails from "./BillDetails";
 import "./cashier.css";
 
 type Tab = "queue" | "parked" | "bills" | "report";
@@ -38,6 +39,7 @@ export default function CashierDesk() {
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");
   const [rcpt, setRcpt] = useState<ReceiptDoc | null>(null);
+  const [detFor, setDetFor] = useState<SavedBill | null>(null);
   const [autoPrint, setAutoPrint] = useState(false);
   const [, setTick] = useState(0);
   const today = businessDate(Date.now());
@@ -201,6 +203,7 @@ export default function CashierDesk() {
             {ps.cashDue > 0 && <button type="button" className={`go${g > 0 && short === 0 ? " cd-next" : ""}`} disabled={busy} onClick={onCash}><CashIn size={0.8} /> {upiLeft ? k("Cash in", "ನಗದು ಬಂತು") : k("Cash in – oil out", "ನಗದು ಬಂತು – ಎಣ್ಣೆ ಕೊಡಿ")} – {rupees(ps.cashDue)}</button>}
             {ps.cashDue === 0 && held && need === "READY" && <button type="button" className="go cd-next" disabled={busy} onClick={() => void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("oil given", "ಎಣ್ಣೆ ಬಿಡುಗಡೆ")}`)}><OilOut kg={oilKgText(bill.lines)} size={0.7} /></button>}
             
+            <button type="button" className="ghost" onClick={() => setDetFor(bill)}>👤 {k("Customer / note", "ಗ್ರಾಹಕ / ಟಿಪ್ಪಣಿ")}</button>
             <button type="button" className="ghost" onClick={() => setRcpt(slip(bill, g > 0 && short === 0 ? g : undefined))}><PrinterIcon size={24} /> {k("Receipt", "ರಸೀದಿ")}</button>
           </div>
         </div>
@@ -341,6 +344,28 @@ const txtStyle = useMemo(() => {
         )}
       </main>
       {sheet}
+      {detFor && (
+        <BillDetails
+          no={detFor.no}
+          party={detFor.party}
+          note={detFor.custNote}
+          locked={(detFor.modes.CREDIT || 0) > 0}
+          k={k}
+          onClose={() => setDetFor(null)}
+          onSave={async (p, n) => {
+            try {
+              const res = await fetch("/api/register/bill-track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: detFor.ids, action: "details", partyName: p, custNote: n }) });
+              const j = await res.json().catch(() => ({}));
+              if (!res.ok) return j.error || "Could not update the bill.";
+              setDetFor(null);
+              await load();
+              return null;
+            } catch (e) {
+              return e instanceof Error ? e.message : "Could not update the bill.";
+            }
+          }}
+        />
+      )}
       {rcpt && <ReceiptSheet doc={rcpt} onClose={() => setRcpt(null)} />}
     </div>
   );

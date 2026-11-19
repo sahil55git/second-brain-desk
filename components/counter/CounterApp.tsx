@@ -1590,6 +1590,7 @@ export default function CounterApp() {
                       </div>
                       {pickBox(b)}
                       <div className="acts">
+                        <button type="button" className="big" onClick={() => setDetFor(b)}>👤 {k("Customer / note", "ಗ್ರಾಹಕ / ಟಿಪ್ಪಣಿ")}</button>
                         {b.track.payPending && (
                           <button type="button" className="big ctr-next rcv" onClick={() => setRecvFor(b)}>💰 {k("Receive payment", "ಹಣ ಪಡೆಯಿರಿ")} – {rupees(b.total)}</button>
                         )}
