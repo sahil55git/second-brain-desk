@@ -1521,10 +1521,8 @@ export default function CounterApp() {
                           oilBlocked ? (
                           <span className="tick goods locked"><i className="box" /><span className="ico" aria-hidden>🔒</span><b>{k("Held", "ಹಿಡಿದಿದೆ")}</b><small>{k("Receive money first", "ಮೊದಲು ಹಣ ಪಡೆಯಿರಿ")}</small></span>
                         ) : (
-                          <button type="button" className={`tick goods${gd === "goods" ? " ctr-next" : ""}`} onClick={() => void trackAct(b, "handover", { value: "GIVEN" })}>
-                            <i className="box"></i><span className="ico" aria-hidden><OilIcon size={26} /></span>
-                            <b>{`${k("Oil", "ಎಣ್ಣೆ")} ${oilKgText(b.lines)}`.trim()}</b>
-                            <small>{k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</small>
+                          <button type="button" className={`tick goods give-out${gd === "goods" ? " ctr-next" : ""}`} aria-label={k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")} onClick={() => void trackAct(b, "handover", { value: "GIVEN" })}>
+                            <OilOut kg={oilKgText(b.lines)} size={0.62} />
                           </button>
                         )
                         ) : (
