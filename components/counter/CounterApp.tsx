@@ -11,6 +11,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useScale } from "@/components/ScaleProvider";
 import { useAccess } from "@/components/AccessProvider";
 import ReceiptSheet, { useShop } from "@/components/print/ReceiptSheet";
+import UnprintedSlips from "@/components/print/UnprintedSlips";
+import { warmSlipPrinter } from "@/lib/slipPrinter";
 import QrCode from "@/components/barrels/QrCode";
 import { useShopPay } from "@/lib/useShopPay";
 import { appHint } from "@/lib/shopPay";
@@ -342,6 +344,8 @@ export default function CounterApp() {
   const nextStep = (guide || layout === "steps") && !busy ? counterStep({ lines: lines.length, kg: waitingKg, scaleOn: fresh, payChosen: payTouched }) : null;
   const stepsView: "bill" | "items" | null = layout === "steps" ? ((nextStep === "save" || nextStep === "pay") && !moreItems ? "bill" : "items") : null;
   useEffect(() => { if (!lines.length) setMoreItems(false); }, [lines.length]);
+  // open the slip printer's Bluetooth link while the bill is being made, so Save & Print does not wait for it
+  useEffect(() => { if (lines.length <= 1) warmSlipPrinter(); }, [lines.length]);
   // Sell by amount: "₹100 of oil" → the kg to pour, with a beep when the scale gets there
   const [fill, setFill] = useState<{ amount: number; item?: CounterItem } | null>(null);
   const fillBeeped = useRef(false);
@@ -1047,6 +1051,8 @@ export default function CounterApp() {
           {lang === "en" ? "ಕನ್ನಡ" : "English"}
         </button>}
       </header>
+
+      <UnprintedSlips kn={lang !== "en"} />
 
       {/* ---------- weight strip ---------- */}
       <section className="ctr-weigh">

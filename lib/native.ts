@@ -41,6 +41,19 @@ interface MahadevPrinterPlugin {
   list(): Promise<{ printers: NativePrinter[]; bluetoothOn: boolean }>;
   write(o: { id: string; base64: string }): Promise<{ sent: number }>;
   close(): Promise<void>;
+  /**
+   * App 1.3.39+: a whole slip in one call, sent by the phone itself (timed connect, paper check, paced
+   * send, reconnect-and-retry only when nothing was printed yet). Rejects with `code`: BT_OFF,
+   * NO_PERMISSION, NOT_PAIRED, NO_ANSWER, PAPER_OUT, COVER_OPEN, PARTIAL, BAD_DATA, UNKNOWN_PRINTER.
+   * Older apps reject with "not implemented".
+   */
+  printJob(o: { id: string; base64: string; chunk?: number; delayMs?: number; status?: boolean; keepMs?: number }): Promise<{ sent: number; confirmed: boolean; attempts?: number; ms?: number }>;
+  /** open the link ahead of time (1.3.39+) */
+  prepare(o: { id: string; keepMs?: number }): Promise<{ ok: boolean }>;
+  /** Android's "Turn on Bluetooth?" (1.3.39+) */
+  enableBluetooth(): Promise<void>;
+  /** Android Bluetooth settings, to pair a printer (1.3.39+) */
+  openBluetoothSettings(): Promise<void>;
 }
 export interface NativeScaleDevice {
   /** the scale's Bluetooth address */
