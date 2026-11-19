@@ -879,3 +879,7 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
   .ctr.lay-tablet .ctr-bill { gap: 6px; }
 }
 .ctr-tarewin.tap { cursor: pointer; }
+
+/* Bills: oil button once the money is in — the same "bottle · Oil kg → customer" picture on green */
+.tick.goods.give-out { display: flex; align-items: center; justify-content: center; min-height: 72px; padding: 8px 10px; background: var(--c-go); border-color: var(--c-go); color: var(--c-on-go, #fff); }
+.tick.goods.give-out .oil-out { flex-wrap: nowrap; }

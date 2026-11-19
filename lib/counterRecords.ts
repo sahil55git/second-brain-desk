@@ -42,6 +42,8 @@ export interface SavedBill {
   party: string | null;
   by: string | null;
   notes: string | null;
+  /** a note the shop typed on the saved bill (separate from the automatic notes) */
+  custNote: string;
   total: number;
   /** amount per payment mode, e.g. { CASH: 400, UPI: 220 } */
   modes: Record<string, number>;
@@ -66,6 +68,12 @@ function meta(d: unknown): { split?: { id: string; i: number }; bill?: { line: n
 export function billNoOf(d: unknown): string | null {
   const n = Number((d as { billNo?: unknown } | null)?.billNo);
   return Number.isInteger(n) && n > 0 ? String(n) : null;
+}
+
+/** The note typed on a saved bill (kept in the first row's details). */
+export function custNoteOf(d: unknown): string {
+  const n = (d as { custNote?: unknown } | null)?.custNote;
+  return typeof n === "string" ? n : "";
 }
 
 /** Sale rows → bills, newest first. labelOf turns an item key into its name. */
@@ -106,6 +114,7 @@ export function groupBills(rows: SaleRow[], labelOf: (item: string | null, label
       party: first.partyName,
       by: first.createdByName,
       notes: first.notes,
+      custNote: custNoteOf(first.details),
       total: r2(g.reduce((a, r) => a + r.amountInr, 0)),
       modes,
       track: trackOf(first.details),
@@ -119,18 +128,26 @@ export function groupBills(rows: SaleRow[], labelOf: (item: string | null, label
 export function billMatches(b: SavedBill, q: string): boolean {
   const s = q.trim().toLowerCase();
   if (!s) return true;
-  const hay = [b.no, b.party || "", b.notes || "", b.by || "", String(b.total), ...b.lines.map((l) => l.label)].join(" ").toLowerCase();
+  const hay = [b.no, b.party || "", b.notes || "", b.custNote || "", b.by || "", String(b.total), ...b.lines.map((l) => l.label)].join(" ").toLowerCase();
   return s.split(/\s+/).every((w) => hay.includes(w));
 }
 
-/** Day / range summary for the bills shown. */
+/** A printed bill nobody has paid yet ("pay at the queue") is saved as a CASH row; in totals it is "PENDING", not cash. */
+export const PENDING_MODE = "PENDING";
+export const isBillPending = (b: { track?: { payPending?: boolean } }) => b.track?.payPending === true;
+
+/** Day / range summary for the bills shown. Bills still waiting for their payment are counted apart as PENDING, not as cash. */
 export function billsSummary(bills: SavedBill[]) {
   const modes: Record<string, number> = {};
   let total = 0;
   let kg = 0;
   for (const b of bills) {
     total += b.total;
-    for (const [m, v] of Object.entries(b.modes)) modes[m] = r2((modes[m] || 0) + v);
+    const pend = isBillPending(b);
+    for (const [m, v] of Object.entries(b.modes)) {
+      const key = pend && m === "CASH" ? PENDING_MODE : m;
+      modes[key] = r2((modes[key] || 0) + v);
+    }
     for (const l of b.lines) if (l.unit === "kg" && l.qty) kg += l.qty;
   }
   return { count: bills.length, total: r2(total), kg: Math.round(kg * 1000) / 1000, modes };

@@ -16,6 +16,7 @@ import { billName, qtyText, oilKgText } from "@/lib/counterName";
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
 import { businessDate } from "@/lib/register";
 import ReceivePayment from "./ReceivePayment";
+import BillDetails from "./BillDetails";
 import "./cashier.css";
 
 type Tab = "queue" | "parked" | "bills" | "report";
@@ -38,6 +39,7 @@ export default function CashierDesk() {
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");
   const [rcpt, setRcpt] = useState<ReceiptDoc | null>(null);
+  const [detFor, setDetFor] = useState<SavedBill | null>(null);
   const [autoPrint, setAutoPrint] = useState(false);
   const [, setTick] = useState(0);
   const today = businessDate(Date.now());
@@ -200,11 +202,8 @@ export default function CashierDesk() {
           <div className="cd-acts">
             {ps.cashDue > 0 && <button type="button" className={`go${g > 0 && short === 0 ? " cd-next" : ""}`} disabled={busy} onClick={onCash}><CashIn size={0.8} /> {upiLeft ? k("Cash in", "ನಗದು ಬಂತು") : k("Cash in – oil out", "ನಗದು ಬಂತು – ಎಣ್ಣೆ ಕೊಡಿ")} – {rupees(ps.cashDue)}</button>}
             {ps.cashDue === 0 && held && need === "READY" && <button type="button" className="go cd-next" disabled={busy} onClick={() => void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("oil given", "ಎಣ್ಣೆ ಬಿಡುಗಡೆ")}`)}><OilOut kg={oilKgText(bill.lines)} size={0.7} /></button>}
-            {held && need !== "READY" && (
-              <button type="button" className={`ghost${armed === "give" ? " on" : ""}`} disabled={busy} onClick={() => (armed === "give" ? void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("oil given without payment", "ಹಣವಿಲ್ಲದೆ ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ")}`) : setArmed("give"))}>
-                {armed === "give" ? k("Money NOT received — tap again to give anyway", "ಹಣ ಬಂದಿಲ್ಲ — ಆದರೂ ಕೊಡಲು ಮತ್ತೆ ಒತ್ತಿ") : <><OilIcon size={20} /> {k("Give anyway", "ಆದರೂ ಕೊಡಿ")}</>}
-              </button>
-            )}
+            
+            <button type="button" className="ghost" onClick={() => setDetFor(bill)}>👤 {k("Customer / note", "ಗ್ರಾಹಕ / ಟಿಪ್ಪಣಿ")}</button>
             <button type="button" className="ghost" onClick={() => setRcpt(slip(bill, g > 0 && short === 0 ? g : undefined))}><PrinterIcon size={24} /> {k("Receipt", "ರಸೀದಿ")}</button>
           </div>
         </div>
@@ -331,7 +330,7 @@ const txtStyle = useMemo(() => {
               <div><small>{k("Still to receive", "ಬರಬೇಕಾದದ್ದು")}</small><b>{rupees(r2(bills.reduce((a, b) => a + payStatus(b.modes, b.track).cashDue + payStatus(b.modes, b.track).upiDue, 0)))}</b></div>
             </div>
             <ul className="cd-list plain">
-              {Object.entries(sum.modes).map(([m, v]) => <li key={m}><div><span className="r1"><b>{m === "CASH" || m === "UPI" || m === "CREDIT" ? <PayIcon mode={m} size={24} /> : null} {m === "CASH" ? k("Cash", "ನಗದು") : m === "CREDIT" ? k("Udhaar", "ಉದ್ರಿ") : m}</b><strong>{rupees(v)}</strong></span></div></li>)}
+              {Object.entries(sum.modes).map(([m, v]) => <li key={m}><div><span className="r1"><b>{m === "CASH" || m === "UPI" || m === "CREDIT" ? <PayIcon mode={m} size={24} /> : null} {m === "CASH" ? k("Cash", "ನಗದು") : m === "CREDIT" ? k("Udhaar", "ಉದ್ರಿ") : m === "PENDING" ? k("To collect", "ಬಾಕಿ ಹಣ") : m}</b><strong>{rupees(v)}</strong></span></div></li>)}
               <li><div><span className="r1"><b>{k("Weight sold", "ಮಾರಿದ ತೂಕ")}</b><strong>{sum.kg.toFixed(3)} kg</strong></span></div></li>
             </ul>
             <div className="cd-acts">
@@ -345,6 +344,29 @@ const txtStyle = useMemo(() => {
         )}
       </main>
       {sheet}
+      {detFor && (
+        <BillDetails
+          no={detFor.no}
+          party={detFor.party}
+          note={detFor.custNote}
+          locked={(detFor.modes.CREDIT || 0) > 0 && !!detFor.track.paidLater}
+          needName={(detFor.modes.CREDIT || 0) > 0}
+          k={k}
+          onClose={() => setDetFor(null)}
+          onSave={async (p, n) => {
+            try {
+              const res = await fetch("/api/register/bill-track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: detFor.ids, action: "details", partyName: p, custNote: n }) });
+              const j = await res.json().catch(() => ({}));
+              if (!res.ok) return j.error || "Could not update the bill.";
+              setDetFor(null);
+              await load();
+              return null;
+            } catch (e) {
+              return e instanceof Error ? e.message : "Could not update the bill.";
+            }
+          }}
+        />
+      )}
       {rcpt && <ReceiptSheet doc={rcpt} onClose={() => setRcpt(null)} />}
     </div>
   );

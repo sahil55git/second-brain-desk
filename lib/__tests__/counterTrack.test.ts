@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isTracked, defaultHandover, handoverOf, needsAttention, payStatus, trackOf, upiLine } from "../counterTrack";
+import { isTracked, defaultHandover, handoverOf, needsAttention, oilBlockedAmount, payStatus, trackOf, upiLine } from "../counterTrack";
 
 describe("counter bill tracking", () => {
   it("cash bill is paid and nothing is held", () => {
@@ -96,5 +96,16 @@ describe("hold bill for cash and the held queue", () => {
     expect(waitText(5 * 60_000)).toBe("5 min");
     expect(waitText(80 * 60_000)).toBe("1 h 20 min");
     expect(waitText(120 * 60_000)).toBe("2 h");
+  });
+
+  it("keeps the oil in until cash or UPI is received (udhaar does not block)", () => {
+    expect(oilBlockedAmount({ CASH: 260 }, { handover: "HELD", cashWait: true })).toBe(260);
+    expect(oilBlockedAmount({ CASH: 260 }, { handover: "HELD", cashWait: true, cashOk: { at: "t", by: "x" } })).toBe(0);
+    expect(oilBlockedAmount({ CASH: 260 }, { handover: "HELD", cashWait: true, payPending: true })).toBe(260);
+    expect(oilBlockedAmount({ UPI: 191 }, { handover: "HELD" })).toBe(191);
+    expect(oilBlockedAmount({ UPI: 191 }, { handover: "HELD", upiOk: { at: "t", by: "x" } })).toBe(0);
+    expect(oilBlockedAmount({ CASH: 100, UPI: 50 }, { handover: "HELD", cashWait: true, cashOk: { at: "t", by: "x" } })).toBe(50);
+    expect(oilBlockedAmount({ CREDIT: 400 }, { handover: "HELD" })).toBe(0);
+    expect(oilBlockedAmount({ CASH: 500 }, { handover: "HELD" })).toBe(0);
   });
 });

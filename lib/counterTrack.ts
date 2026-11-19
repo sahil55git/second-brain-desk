@@ -97,6 +97,13 @@ export function defaultHandover(modes: Record<string, number>, holdCash = false)
   return (modes.UPI || 0) > 0 || (holdCash && (modes.CASH || 0) > 0) ? "HELD" : "GIVEN";
 }
 
+/** Shop rule: oil goes out only after the money is in. Cash or UPI still to receive (or an undecided pay-at-queue bill) blocks it; an udhaar part does not. Returns the amount still due, 0 when the oil may go. */
+export function oilBlockedAmount(modes: Record<string, number>, track: BillTrack): number {
+  const ps = payStatus(modes, track);
+  if (track.payPending) return r2(Object.values(modes).reduce((a, v) => a + v, 0));
+  return r2(ps.cashDue + ps.upiDue);
+}
+
 /** Printed, but the customer has not paid yet and no payment mode is chosen. */
 export const isPayPending = (t: BillTrack) => t.payPending === true;
 
