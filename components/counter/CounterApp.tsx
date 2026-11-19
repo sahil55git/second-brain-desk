@@ -35,6 +35,7 @@ import { billGuide, counterStep } from "@/lib/counterGuide";
 import { billIcon, billName, qtyText, oilKgText } from "@/lib/counterName";
 import { LAYOUTS, LAYOUT_INFO, layoutShow, parseTabletOpts, pickLayout, type Layout, type TabletOpts } from "@/lib/counterLayout";
 import ReceivePayment, { type ReceiveArgs } from "./ReceivePayment";
+import CashReceived from "./CashReceived";
 import { defaultHandover, handoverOf, heldNeed, heldQueue, isTracked, payStatus, upiLine, waitText, type Handover } from "@/lib/counterTrack";
 import { fitsBill, parseUpi, planUpi, samePayment, type UpiEvent } from "@/lib/upiNotify";
 import { hasNativeUpi, MahadevUpi } from "@/lib/native";
@@ -754,6 +755,7 @@ export default function CounterApp() {
     .filter((b) => bFilter === "all" || (isTracked(b.track) && (bFilter === "open" ? payStatus(b.modes, b.track).state !== "PAID" : handoverOf(b.track) === "HELD")));
   // mark UPI received / collect the udhaar money / give or hold the goods
   const [recvFor, setRecvFor] = useState<SavedBill | null>(null);
+  const [cashFor, setCashFor] = useState<SavedBill | null>(null);
   const settleBill = async (b: SavedBill, a: ReceiveArgs): Promise<string | null> => {
     const e = await trackAct(b, "settle", { parts: a.parts, given: a.given, partyName: a.partyName, upiConfirmed: a.upiConfirmed, release: a.release });
     if (!e) { setRecvFor(null); void load(); setMsg({ ok: true, text: `#${b.no} · ${k("payment recorded", "ಪಾವತಿ ದಾಖಲಾಗಿದೆ")}${a.given && a.parts.some((p) => p.mode === "CASH") ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(Math.max(0, a.given - (a.parts.find((p) => p.mode === "CASH")?.amount || 0)))}` : ""}` }); }
@@ -1493,8 +1495,8 @@ export default function CounterApp() {
                           {!b.track.payPending && part("CASH") && (cashOkNow ? (
                             <span className="tick on"><i className="box">✓</i><span className="ico" aria-hidden><CashIn size={0.87} /></span><b>{rupees(b.modes.CASH)}</b><small>{k("Cash in", "ನಗದು ಬಂತು")}</small></span>
                           ) : ps.cashDue > 0 ? (
-                            <button type="button" className={`tick${armed === `${b.key}:cash` ? " armed" : ""}${gd === "money" ? " ctr-next" : ""}`} onClick={() => (armed === `${b.key}:cash` ? void trackAct(b, "cashOk") : setArmed(`${b.key}:cash`))}>
-                              <i className="box">{armed === `${b.key}:cash` ? "✓?" : ""}</i><span className="ico" aria-hidden><CoinIcon size={26} /></span><b>{rupees(ps.cashDue)}</b><small>{armed === `${b.key}:cash` ? k("Tap again", "ಮತ್ತೆ ಒತ್ತಿ") : k("Cash not in", "ನಗದು ಬಂದಿಲ್ಲ")}</small>
+                            <button type="button" className={`tick${gd === "money" ? " ctr-next" : ""}`} onClick={() => setCashFor(b)}>
+                              <i className="box"></i><span className="ico" aria-hidden><CoinIcon size={26} /></span><b>{rupees(ps.cashDue)}</b><small>{k("Cash not in", "ನಗದು ಬಂದಿಲ್ಲ")}</small>
                             </button>
                           ) : null)}
                           {part("UPI") && (upiOkNow ? (
@@ -1618,6 +1620,19 @@ export default function CounterApp() {
         );
       })()}
 
+      {cashFor && (
+        <CashReceived
+          no={cashFor.no}
+          due={payStatus(cashFor.modes, cashFor.track).cashDue}
+          k={k}
+          onClose={() => setCashFor(null)}
+          onConfirm={async (g) => {
+            const e = await trackAct(cashFor, "cashOk", g > 0 ? { given: g } : {});
+            if (!e) setCashFor(null);
+            return e;
+          }}
+        />
+      )}
       {recvFor && (
         <ReceivePayment
           no={recvFor.no}
