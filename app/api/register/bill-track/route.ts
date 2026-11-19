@@ -55,9 +55,17 @@ export async function POST(req: NextRequest) {
     const clean = (v: unknown, n: number) => (typeof v === "string" ? v.replace(/[\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, n) : "");
     const newParty = clean(body.partyName, 80);
     const newNote = clean(body.custNote, 200);
-    const partyChanged = !hasCredit && newParty !== (rows[0].partyName || "");
+    const nameChanged = newParty !== (rows[0].partyName || "");
+    if (hasCredit && !newParty) return NextResponse.json({ error: "An udhaar bill needs the customer's name." }, { status: 400 });
+    if (hasCredit && nameChanged && cur.paidLater) return NextResponse.json({ error: "This udhaar is already collected under the old name; only the note can change." }, { status: 400 });
     const res = await safeDbCall(() =>
       prisma.$transaction(async (tx) => {
+        // udhaar bill: the ledger follows the name, so link (or create) the customer for the new name
+        let partyId = rows[0].partyId;
+        if (hasCredit && nameChanged) {
+          const ex = await tx.party.findFirst({ where: { name: { equals: newParty, mode: "insensitive" } }, select: { id: true } });
+          partyId = ex?.id || (await tx.party.create({ data: { name: newParty, type: "CUSTOMER", notes: "Added from Quick Register" }, select: { id: true } })).id;
+        }
         for (const r of rows) {
           const prev = (r.details && typeof r.details === "object" ? r.details : {}) as Record<string, unknown>;
           const nextDetails = { ...prev, custNote: newNote };
@@ -65,11 +73,11 @@ export async function POST(req: NextRequest) {
           await tx.registerEntry.update({
             where: { id: r.id },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            data: { details: nextDetails as any, ...(hasCredit ? {} : { partyName: newParty || null }) },
+            data: { details: nextDetails as any, partyName: newParty || null, ...(hasCredit && nameChanged ? { partyId } : {}) },
           });
         }
         const bn = Number((rows[0].details as { billNo?: unknown } | null)?.billNo) || null;
-        await writeAudit(tx, user, "EDIT", "RegisterEntry", rows[0].id, `Bill ${bn ? "#" + bn + " " : ""}details: ${partyChanged ? `customer "${newParty || "-"}"` : "customer same"}${newNote ? `, note "${newNote}"` : ""}`);
+        await writeAudit(tx, user, "EDIT", "RegisterEntry", rows[0].id, `Bill ${bn ? "#" + bn + " " : ""}details: ${nameChanged ? `customer "${newParty || "-"}"` : "customer same"}${newNote ? `, note "${newNote}"` : ""}`);
       })
     );
     if (!res.ok) return NextResponse.json({ error: res.error }, { status: 503 });

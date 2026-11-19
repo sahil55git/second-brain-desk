@@ -16,13 +16,15 @@ export function splitParty(party: string | null): { name: string; mobile: string
 export const joinParty = (name: string, mobile: string) => [name.trim(), mobile.trim()].filter(Boolean).join(" ");
 
 export default function BillDetails({
-  no, party, note, locked, k, onSave, onClose,
+  no, party, note, locked, needName, k, onSave, onClose,
 }: {
   no: string;
   party: string | null;
   note: string;
-  /** udhaar bills: the customer is tied to the ledger, so only the note can change */
+  /** udhaar already collected under this name: only the note can change */
   locked: boolean;
+  /** udhaar bill: the customer's name is required (it is the ledger name) */
+  needName?: boolean;
   k: (en: string, ka: string) => string;
   onSave: (partyName: string, custNote: string) => Promise<string | null>;
   onClose: () => void;
@@ -36,6 +38,7 @@ export default function BillDetails({
 
   const save = async () => {
     if (mobile && !/^[6-9]\d{9}$/.test(mobile)) return setErr(k("Mobile must be 10 digits.", "ಮೊಬೈಲ್ 10 ಅಂಕೆ ಇರಬೇಕು."));
+    if (needName && !locked && !name.trim()) return setErr(k("Udhaar needs the customer name.", "ಉದ್ರಿಗೆ ಗ್ರಾಹಕರ ಹೆಸರು ಬೇಕು."));
     setBusy(true);
     const e = await onSave(locked ? (party || "") : joinParty(name, mobile), text);
     setBusy(false);
@@ -49,7 +52,7 @@ export default function BillDetails({
           <b>#{no} · {k("Customer and note", "ಗ್ರಾಹಕ ಮತ್ತು ಟಿಪ್ಪಣಿ")}</b>
           <button type="button" onClick={onClose} aria-label="Close">✕</button>
         </div>
-        {locked && <p className="rp-err">{k("Udhaar bill: the customer name is fixed. You can add a note.", "ಉದ್ರಿ ಬಿಲ್: ಹೆಸರು ಬದಲಿಸಲಾಗದು. ಟಿಪ್ಪಣಿ ಸೇರಿಸಬಹುದು.")}</p>}
+        {locked && <p className="rp-err">{k("Udhaar already collected: the name is fixed. You can add a note.", "ಉದ್ರಿ ಹಣ ಬಂದಿದೆ: ಹೆಸರು ಬದಲಿಸಲಾಗದು. ಟಿಪ್ಪಣಿ ಸೇರಿಸಬಹುದು.")}</p>}
         <label className="rp-name">
           <span>{k("Customer name", "ಗ್ರಾಹಕರ ಹೆಸರು")}</span>
           <input value={name} disabled={locked} onChange={(e) => setName(e.target.value)} />

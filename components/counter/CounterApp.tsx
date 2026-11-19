@@ -1632,7 +1632,8 @@ export default function CounterApp() {
           no={detFor.no}
           party={detFor.party}
           note={detFor.custNote}
-          locked={(detFor.modes.CREDIT || 0) > 0}
+          locked={(detFor.modes.CREDIT || 0) > 0 && !!detFor.track.paidLater}
+          needName={(detFor.modes.CREDIT || 0) > 0}
           k={k}
           onClose={() => setDetFor(null)}
           onSave={async (p, n) => {
