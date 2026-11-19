@@ -123,14 +123,22 @@ export function billMatches(b: SavedBill, q: string): boolean {
   return s.split(/\s+/).every((w) => hay.includes(w));
 }
 
-/** Day / range summary for the bills shown. */
+/** A printed bill nobody has paid yet ("pay at the queue") is saved as a CASH row; in totals it is "PENDING", not cash. */
+export const PENDING_MODE = "PENDING";
+export const isBillPending = (b: { track?: { payPending?: boolean } }) => b.track?.payPending === true;
+
+/** Day / range summary for the bills shown. Bills still waiting for their payment are counted apart as PENDING, not as cash. */
 export function billsSummary(bills: SavedBill[]) {
   const modes: Record<string, number> = {};
   let total = 0;
   let kg = 0;
   for (const b of bills) {
     total += b.total;
-    for (const [m, v] of Object.entries(b.modes)) modes[m] = r2((modes[m] || 0) + v);
+    const pend = isBillPending(b);
+    for (const [m, v] of Object.entries(b.modes)) {
+      const key = pend && m === "CASH" ? PENDING_MODE : m;
+      modes[key] = r2((modes[key] || 0) + v);
+    }
     for (const l of b.lines) if (l.unit === "kg" && l.qty) kg += l.qty;
   }
   return { count: bills.length, total: r2(total), kg: Math.round(kg * 1000) / 1000, modes };

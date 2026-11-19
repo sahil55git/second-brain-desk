@@ -27,7 +27,7 @@ import type { HoldData } from "@/lib/counterHold";
 import { billText, daySummaryDoc, mobileOf, whatsappLink } from "@/lib/counterShare";
 import { DEFAULT_GST_PCT, DEFAULT_HSN, taxInvoiceDoc, validGstin } from "@/lib/counterGst";
 import { defaultRefundMode, refundFor, returnBody, returnables, returnedByBill, type RefundMode, type ReturnItem, type ReturnedSoFar } from "@/lib/counterReturn";
-import { billMatches, billsSummary, billToLines, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
+import { billMatches, billsSummary, billToLines, groupBills, isBillPending, type SaleRow, type SavedBill } from "@/lib/counterRecords";
 import OilIcon, { CashIn, CashOut, CoinIcon, CrossIcon, OilIn, OilOut, OilOutWait, OilWait, PauseIcon, PayIcon, PhoneIcon, PrinterIcon, TickIcon, BookIcon } from "./OilIcon";
 import { allowed, findPlu, nextPlu, parseCounterConfig, registerItem, STAFF_LOCKS, type CounterConfig, type CounterItem, type StaffLock } from "@/lib/counterConfig";
 import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, validHex, type CounterTheme } from "@/lib/counterTheme";
@@ -904,7 +904,7 @@ export default function CounterApp() {
   const bSum = billsSummary(shownBills);
   const billLabel = (b: { party?: string | null; modes: Record<string, number> }) => billName(b.party, b.modes, lang === "kn");
   const readyN = heldQueue(bills).filter((b) => heldNeed(b.modes, b.track) === "READY").length;
-  const modeName = (m: string) => (m === "CREDIT" ? k("Udhaar", "ಉದ್ರಿ") : m === "UPI" ? "UPI" : m === "CASH" ? k("Cash", "ನಗದು") : m);
+  const modeName = (m: string) => (m === "CREDIT" ? k("Udhaar", "ಉದ್ರಿ") : m === "UPI" ? "UPI" : m === "CASH" ? k("Cash", "ನಗದು") : m === "PENDING" ? k("To collect", "ಬಾಕಿ ಹಣ") : m);
   /** HSN code and GST % of a counter item (the owner's value, else the shop default). */
   function gstOf(itemKey: string | null): { hsn: string; pct: number } {
     const it = cfg.items.find((i) => i.key === itemKey);
@@ -959,7 +959,7 @@ export default function CounterApp() {
         b.lines.map((l) => `${l.label} ${l.qty ?? ""}${l.unit ?? ""} @${l.rate ?? ""}`).join("; "),
         b.lines.reduce((a, l) => a + (l.unit === "kg" && l.qty ? l.qty : 0), 0).toFixed(3),
         b.total.toFixed(2),
-        Object.entries(b.modes).map(([m, v]) => `${modeName(m)} ${v}`).join(" + "),
+        isBillPending(b) ? `${modeName("PENDING")} ${b.total}` : Object.entries(b.modes).map(([m, v]) => `${modeName(m)} ${v}`).join(" + "),
         b.by || "",
       ]);
     }

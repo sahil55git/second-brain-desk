@@ -331,7 +331,7 @@ const txtStyle = useMemo(() => {
               <div><small>{k("Still to receive", "ಬರಬೇಕಾದದ್ದು")}</small><b>{rupees(r2(bills.reduce((a, b) => a + payStatus(b.modes, b.track).cashDue + payStatus(b.modes, b.track).upiDue, 0)))}</b></div>
             </div>
             <ul className="cd-list plain">
-              {Object.entries(sum.modes).map(([m, v]) => <li key={m}><div><span className="r1"><b>{m === "CASH" || m === "UPI" || m === "CREDIT" ? <PayIcon mode={m} size={24} /> : null} {m === "CASH" ? k("Cash", "ನಗದು") : m === "CREDIT" ? k("Udhaar", "ಉದ್ರಿ") : m}</b><strong>{rupees(v)}</strong></span></div></li>)}
+              {Object.entries(sum.modes).map(([m, v]) => <li key={m}><div><span className="r1"><b>{m === "CASH" || m === "UPI" || m === "CREDIT" ? <PayIcon mode={m} size={24} /> : null} {m === "CASH" ? k("Cash", "ನಗದು") : m === "CREDIT" ? k("Udhaar", "ಉದ್ರಿ") : m === "PENDING" ? k("To collect", "ಬಾಕಿ ಹಣ") : m}</b><strong>{rupees(v)}</strong></span></div></li>)}
               <li><div><span className="r1"><b>{k("Weight sold", "ಮಾರಿದ ತೂಕ")}</b><strong>{sum.kg.toFixed(3)} kg</strong></span></div></li>
             </ul>
             <div className="cd-acts">

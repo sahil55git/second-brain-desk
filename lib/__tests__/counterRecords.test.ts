@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { billMatches, billToLines, billsSummary, groupBills, type SaleRow } from "../counterRecords";
+import { billMatches, billToLines, billsSummary, groupBills, isBillPending, type SaleRow } from "../counterRecords";
 
 const row = (p: Partial<SaleRow>): SaleRow => ({
   id: "x", date: "2026-11-16", kind: "SALE", item: "karadi", itemLabel: null, qty: null, unit: null, rateInr: null,
@@ -28,6 +28,13 @@ describe("counter records", () => {
     ]);
     expect(billsSummary(bills)).toEqual({ count: 2, total: 884.75, kg: 3.75, modes: { CASH: 660, UPI: 224.75 } });
     expect(billToLines(b)[1]).toMatchObject({ item: "sunflower", qty: 0.95, rate: 165, source: "typed" });
+  });
+  it("counts bills that are not paid yet as PENDING, not as cash", () => {
+    const paid = groupBills([row({ id: "p1", amountInr: 500, details: { billNo: 1, track: { handover: "GIVEN" } } })], lab);
+    const open = groupBills([row({ id: "p2", amountInr: 260, details: { billNo: 2, track: { handover: "HELD", cashWait: true, payPending: true } } })], lab);
+    expect(isBillPending(paid[0])).toBe(false);
+    expect(isBillPending(open[0])).toBe(true);
+    expect(billsSummary([...paid, ...open])).toEqual({ count: 2, total: 760, kg: 0, modes: { CASH: 500, PENDING: 260 } });
   });
   it("finds bills by number, name, item or amount", () => {
     const [b] = groupBills([row({ id: "zz9xy1", partyName: "Ramesh", qty: 1, unit: "kg", rateInr: 260, amountInr: 260 })], lab);
