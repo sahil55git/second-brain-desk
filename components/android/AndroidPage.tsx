@@ -3,6 +3,8 @@
 // /app — in a browser: get the Android app (download, install steps). Inside the app: this
 // phone's settings — home-screen widgets (on / off, add, style), alerts and daily reminders,
 // printers the phone can reach, keep the screen on, and the widget keys of every phone.
+import SlipPrinterSetup from "@/components/print/SlipPrinterSetup";
+import { useShop } from "@/components/print/ReceiptSheet";
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
@@ -90,6 +92,7 @@ function PhoneSettings() {
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [printers, setPrinters] = useState<NativePrinter[] | null>(null);
+  const shop = useShop();
   const [notify, setNotify] = useState<string>("");
   const [keys, setKeys] = useState<Key[] | null>(null);
   const [wp, setWp] = useState<WPrefs | null>(null);
@@ -352,6 +355,8 @@ function PhoneSettings() {
       </section>
 
       <section className="hub-card">
+        <h3>🧾 Counter slip printer (Save &amp; Print)</h3>
+        <SlipPrinterSetup shop={shop} />
         <h3>🖨️ Printers this phone can reach</h3>
         <p className="hub-m">Pair Bluetooth printers in Android Settings → Bluetooth first (PIN usually 0000 or 1234). USB printers need an OTG cable. On the labels and receipt pages they appear in <b>Print to</b>; the first print saves the one you used.</p>
         <button className="hub-btn primary" disabled={busy} onClick={findPrinters}>🔍 Find printers</button>

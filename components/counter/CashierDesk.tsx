@@ -7,6 +7,7 @@ import { onAccent, parseTheme } from "@/lib/counterTheme";
 import OilIcon, { BookIcon, CashIn, CashOut, CoinIcon, OilOut, PayIcon, PhoneIcon, PrinterIcon, TickIcon } from "./OilIcon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ReceiptSheet from "@/components/print/ReceiptSheet";
+import UnprintedSlips from "@/components/print/UnprintedSlips";
 import { cashReceived, changeFor, noteChips } from "@/lib/cashDesk";
 import { billMatches, billsSummary, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
 import { daySummaryDoc } from "@/lib/counterShare";
@@ -14,6 +15,7 @@ import { handoverOf, heldNeed, heldQueue, isTracked, payStatus, waitText } from 
 import { billName, qtyText, oilKgText } from "@/lib/counterName";
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
 import { businessDate } from "@/lib/register";
+import ReceivePayment from "./ReceivePayment";
 import "./cashier.css";
 
 type Tab = "queue" | "parked" | "bills" | "report";
@@ -118,6 +120,33 @@ export default function CashierDesk() {
 
   const sheet = (() => {
     if (!bill) return null;
+    if (bill.track.payPending) {
+      return (
+        <ReceivePayment
+          no={bill.no}
+          total={bill.total}
+          party={bill.party}
+          items={bill.lines.map((l) => l.label).join(", ")}
+          k={k}
+          onClose={close}
+          onSubmit={async (a) => {
+            try {
+              const res = await fetch("/api/register/bill-track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: bill.ids, action: "settle", ...a }) });
+              const j = await res.json().catch(() => ({}));
+              if (!res.ok) return (j.error as string) || "Could not record the payment.";
+              const cashPart = a.parts.find((p) => p.mode === "CASH")?.amount || 0;
+              const ch = a.given && cashPart ? changeFor(cashPart, a.given).change : 0;
+              setMsg({ ok: true, text: `#${bill.no} · ${k("payment recorded", "ಪಾವತಿ ದಾಖಲಾಗಿದೆ")}${ch > 0 ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(ch)}` : ""} · ${k("oil given", "ಎಣ್ಣೆ ಬಿಡುಗಡೆ")}` });
+              close();
+              await load();
+              return null;
+            } catch (e) {
+              return e instanceof Error ? e.message : "Could not record the payment.";
+            }
+          }}
+        />
+      );
+    }
     const ps = payStatus(bill.modes, bill.track);
     const need = isTracked(bill.track) ? heldNeed(bill.modes, bill.track) : "READY";
     const held = isTracked(bill.track) && handoverOf(bill.track) === "HELD";
@@ -186,6 +215,7 @@ export default function CashierDesk() {
   const state = (b: SavedBill) => {
     if (!isTracked(b.track)) return { cls: "paid", text: <><TickIcon size={18} /> {k("Paid", "ಪಾವತಿ")}</> };
     const ps = payStatus(b.modes, b.track);
+    if (b.track.payPending) return { cls: "wait", text: <>💰 {k("Receive payment", "ಹಣ ಪಡೆಯಿರಿ")}</> };
     if (handoverOf(b.track) === "HELD") return { cls: ps.state === "PAID" ? "ready" : "wait", text: ps.state === "PAID" ? <><OilIcon size={18} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</> : `⏳ ${k("Held", "ಹಿಡಿದಿದೆ")}` };
     if (ps.creditDue > 0) return { cls: "wait", text: <><BookIcon size={18} /> {k("Udhaar", "ಉದ್ರಿ")} – {rupees(ps.creditDue)}</> };
     return { cls: "paid", text: <><TickIcon size={18} /> {k("Paid", "ಪಾವತಿ")}</> };
@@ -219,6 +249,7 @@ const txtStyle = useMemo(() => {
         <button type="button" onClick={() => void load()} aria-label="Refresh">🔄</button>
         <button type="button" onClick={() => { const n = !kn; setKn(n); try { localStorage.setItem("counterLang", JSON.stringify(n ? "kn" : "en")); } catch { /* ignore */ } }}>{kn ? "English" : "ಕನ್ನಡ"}</button>
       </header>
+      <UnprintedSlips kn={kn} />
       <nav className="cd-tabs" role="tablist">
         {TABS.map(([t, label, n]) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>

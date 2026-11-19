@@ -44,9 +44,11 @@ export interface TabletOpts {
   hideTotal: boolean;
   /** no Oil kg / Wait row */
   hideOil: boolean;
+  /** "Pay at the queue": Weigh & Bill only presses Save & Print; the slip shows the total, bill number and UPI QR, and the cash / UPI / udhaar / split is recorded later in the queue */
+  payInQueue: boolean;
 }
-export const TABLET_DEFAULT: TabletOpts = { hideRead: false, hideTare: false, hideTotal: false, hideOil: false };
+export const TABLET_DEFAULT: TabletOpts = { hideRead: false, hideTare: false, hideTotal: false, hideOil: false, payInQueue: false };
 export function parseTabletOpts(raw: unknown): TabletOpts {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-  return { hideRead: o.hideRead === true, hideTare: o.hideTare === true, hideTotal: o.hideTotal === true, hideOil: o.hideOil === true };
+  return { hideRead: o.hideRead === true, hideTare: o.hideTare === true, hideTotal: o.hideTotal === true, hideOil: o.hideOil === true, payInQueue: o.payInQueue === true };
 }
