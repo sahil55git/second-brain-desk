@@ -68,6 +68,8 @@ export interface BtScaleApi {
   chooseSerial(): Promise<void>;
   listNative(): Promise<{ devices: NativeScaleDevice[]; bluetoothOn: boolean }>;
   pickNative(d: NativeScaleDevice): void;
+  /** use a saved scale profile on this device and connect */
+  applyConfig(cfg: BtConfig): void;
   setBaud(baud: number): void;
   connect(): void;
   disconnect(): void;
@@ -297,6 +299,7 @@ export function useBtScale(): BtScaleApi {
   }, [config, saveConfig]);
   const listNative = useCallback(() => MahadevScale.list(), []);
   const pickNative = useCallback((d: NativeScaleDevice) => saveConfig({ kind: "native", id: d.id, name: d.name, baud: 9600 }, true), [saveConfig]);
+  const applyConfig = useCallback((cfg: BtConfig) => saveConfig(cfg, true), [saveConfig]);
   const setBaud = useCallback((baud: number) => { if (config) saveConfig({ ...config, baud }, wanted); }, [config, wanted, saveConfig]);
   const connect = useCallback(() => { write(K_WANTED, true); setWanted(true); }, []);
   const disconnect = useCallback(() => { write(K_WANTED, false); setWanted(false); }, []);
@@ -358,7 +361,7 @@ export function useBtScale(): BtScaleApi {
   }, [state.status, enqueue]);
 
   return useMemo(
-    () => ({ support, config, source, state, live, lines, checked, autoRecord, queued, lastSaved, tareKg, beep, saveBlock, containers, container, chooseSerial, listNative, pickNative, setBaud, connect, disconnect, retryNow, forget, setChecked, setAutoRecord, setTare, setBeep, saveNow, addContainer, removeContainer, pickContainer }),
-    [support, config, source, state, live, lines, checked, autoRecord, queued, lastSaved, tareKg, beep, saveBlock, containers, container, chooseSerial, listNative, pickNative, setBaud, connect, disconnect, retryNow, forget, setChecked, setAutoRecord, setTare, setBeep, saveNow, addContainer, removeContainer, pickContainer]
+    () => ({ support, config, source, state, live, lines, checked, autoRecord, queued, lastSaved, tareKg, beep, saveBlock, containers, container, chooseSerial, listNative, pickNative, applyConfig, setBaud, connect, disconnect, retryNow, forget, setChecked, setAutoRecord, setTare, setBeep, saveNow, addContainer, removeContainer, pickContainer }),
+    [support, config, source, state, live, lines, checked, autoRecord, queued, lastSaved, tareKg, beep, saveBlock, containers, container, chooseSerial, listNative, pickNative, applyConfig, setBaud, connect, disconnect, retryNow, forget, setChecked, setAutoRecord, setTare, setBeep, saveNow, addContainer, removeContainer, pickContainer]
   );
 }
