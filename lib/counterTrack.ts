@@ -29,6 +29,8 @@ export interface BillTrack {
   upiOk?: UpiProof;
   /** this bill's goods were held for the cash too: the cash part counts as "to receive" until the counter confirms it */
   cashWait?: boolean;
+  /** "Pay at the queue": the bill was printed with no payment mode yet (saved as cash, waiting); the counter / cashier chooses Cash, UPI, Udhaar or Split when the money comes */
+  payPending?: boolean;
   /** cash part confirmed in the drawer by whoever sits at the counter */
   cashOk?: { at: string; by: string; given?: number; change?: number };
   /** udhaar part collected later (an UDHAAR_IN entry was made) */
@@ -45,6 +47,7 @@ export function trackOf(details: unknown): BillTrack {
   if (t.handover === "GIVEN" || t.handover === "HELD") out.handover = t.handover;
   if (typeof t.handedAt === "string") out.handedAt = t.handedAt;
   if (t.cashWait === true) out.cashWait = true;
+  if (t.payPending === true) out.payPending = true;
   const c = t.cashOk as { at?: unknown; by?: unknown; given?: unknown; change?: unknown } | undefined;
   if (c && typeof c.at === "string") {
     const g = Number(c.given);
@@ -93,6 +96,9 @@ export function payStatus(modes: Record<string, number>, track: BillTrack): { st
 export function defaultHandover(modes: Record<string, number>, holdCash = false): Handover {
   return (modes.UPI || 0) > 0 || (holdCash && (modes.CASH || 0) > 0) ? "HELD" : "GIVEN";
 }
+
+/** Printed, but the customer has not paid yet and no payment mode is chosen. */
+export const isPayPending = (t: BillTrack) => t.payPending === true;
 
 /** Bills saved before this feature have no hand-over mark: treated as given. */
 export function handoverOf(track: BillTrack): Handover {

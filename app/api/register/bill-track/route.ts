@@ -6,6 +6,7 @@ import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
 import { businessDate } from "@/lib/register";
 import { trackOf } from "@/lib/counterTrack";
+import { planSettle } from "@/lib/billSettle";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const ids: string[] = Array.isArray(body.ids) ? body.ids.filter((x: unknown) => typeof x === "string").slice(0, 40) : [];
   const action = body.action;
-  if (!ids.length || !["handover", "upiOk", "cashOk", "paidLater"].includes(action)) return NextResponse.json({ error: "Nothing to do." }, { status: 400 });
+  if (!ids.length || !["handover", "upiOk", "cashOk", "paidLater", "settle"].includes(action)) return NextResponse.json({ error: "Nothing to do." }, { status: 400 });
   const mode: "CASH" | "UPI" = body.mode === "UPI" ? "UPI" : "CASH";
   const handover = body.value === "HELD" ? "HELD" : "GIVEN";
   // details of the UPI payment this confirms (from the UPI app's notification), kept on the bill
@@ -43,6 +44,81 @@ export async function POST(req: NextRequest) {
   const by = user.name || user.username;
   const now = new Date().toISOString();
   const cur = trackOf(rows[0].details);
+  if (action === "settle") {
+    // "Pay at the queue": choose how a printed, unpaid bill was paid (cash / UPI / udhaar / split)
+    if (!cur.payPending) return NextResponse.json({ error: "This bill already has its payment mode." }, { status: 400 });
+    const dOf = (r: (typeof rows)[number]) => (r.details && typeof r.details === "object" ? r.details : {}) as { split?: { id?: string; i?: number }; bill?: { line?: number; lines?: number } };
+    const ordered = [...rows].sort((a, b) => (dOf(a).split?.i ?? 0) - (dOf(b).split?.i ?? 0) || a.createdAt.getTime() - b.createdAt.getTime());
+    const partsIn: { mode: string; amount: number }[] = Array.isArray(body.parts) ? body.parts.map((p: { mode?: unknown; amount?: unknown }) => ({ mode: String(p?.mode), amount: Number(p?.amount) })) : [];
+    const plan = planSettle(ordered.map((r) => ({ id: r.id, amountInr: r.amountInr, paymentMode: r.paymentMode, line: dOf(r).bill?.line })), partsIn);
+    if (!plan.ok) return NextResponse.json({ error: plan.error }, { status: 400 });
+    const cashPart = Math.round(partsIn.filter((p) => p.mode === "CASH").reduce((a, p) => a + p.amount, 0) * 100) / 100;
+    const upiPart = partsIn.some((p) => p.mode === "UPI" && p.amount > 0);
+    const creditPart = partsIn.some((p) => p.mode === "CREDIT" && p.amount > 0);
+    const gv = Number.isFinite(Number(body.given)) && Number(body.given) > 0 ? Math.round(Number(body.given) * 100) / 100 : 0;
+    if (cashPart > 0 && gv && gv < cashPart - 0.005) return NextResponse.json({ error: `The customer gave ₹${gv} but the cash due is ₹${cashPart}.` }, { status: 400 });
+    const pname = typeof body.partyName === "string" && body.partyName.trim() ? body.partyName.trim().slice(0, 120) : rows[0].partyName;
+    if (creditPart && !pname) return NextResponse.json({ error: "Enter the customer's name for the udhaar part." }, { status: 400 });
+    const upiOkNow = body.upiConfirmed === true && upiPart;
+    const wantRelease = body.release === true && !(upiPart && !upiOkNow);
+    const billNoS = Number((rows[0].details as { billNo?: unknown } | null)?.billNo) || null;
+    const res = await safeDbCall(() =>
+      prisma.$transaction(async (tx) => {
+        let partyId = rows[0].partyId;
+        if (creditPart && pname) {
+          const ex = await tx.party.findFirst({ where: { name: { equals: pname, mode: "insensitive" } }, select: { id: true } });
+          partyId = ex?.id || (await tx.party.create({ data: { name: pname, type: "CUSTOMER", notes: "Added from Quick Register" }, select: { id: true } })).id;
+        }
+        const partyData = creditPart ? { partyName: pname, partyId } : {};
+        const first = ordered[0];
+        const gid = dOf(first).split?.id || `bl_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+        const n = plan.items.length;
+        const lines = Math.max(1, ...ordered.map((r) => dOf(r).bill?.lines ?? 0), ...plan.items.map((x) => x.line));
+        const multi = ordered.some((r) => dOf(r).bill);
+        const track: Record<string, unknown> = { ...cur };
+        delete track.payPending;
+        if (cashPart > 0) {
+          track.cashWait = true;
+          track.cashOk = { at: now, by, ...(gv ? { given: gv, change: Math.round((gv - cashPart) * 100) / 100 } : {}) };
+        } else delete track.cashWait;
+        if (upiOkNow) track.upiOk = { at: now, by: via ? `${by} · ${via}` : by };
+        if (wantRelease) Object.assign(track, { handover: "GIVEN", handedAt: now });
+        for (const it of plan.items) {
+          const src = ordered.find((r) => r.id === it.copyOf)!;
+          const prev = (src.details && typeof src.details === "object" ? src.details : {}) as Record<string, unknown>;
+          const base = { ...prev, split: { id: gid, i: it.i, n, total: plan.total }, ...(multi ? { bill: { line: it.line, lines } } : {}) };
+          if (it.id) {
+            const isFirst = it.id === first.id;
+            await tx.registerEntry.update({
+              where: { id: it.id },
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              data: { amountInr: it.amountInr, paymentMode: it.paymentMode, ...partyData, details: { ...base, ...(isFirst ? { track } : {}) } as any },
+            });
+          } else {
+            const { billNo: _b, track: _t, clientId: _c, ...rest } = base as Record<string, unknown>;
+            void _b; void _t; void _c;
+            await tx.registerEntry.create({
+              data: {
+                date: src.date, kind: src.kind, item: src.item, itemLabel: src.itemLabel, qty: null, unit: null, rateInr: null,
+                amountInr: it.amountInr, paymentMode: it.paymentMode, totalSale: false,
+                partyName: creditPart ? pname : src.partyName, partyId: creditPart ? partyId : src.partyId, notes: src.notes,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                details: rest as any, createdByName: src.createdByName,
+              },
+            });
+          }
+        }
+        // the first row of the bill must carry the bill number and the track
+        if (!plan.items.some((x) => x.id === first.id)) throw new Error("Settle lost the first row.");
+        await writeAudit(tx, user, "EDIT", "RegisterEntry", first.id,
+          `Bill ${billNoS ? "#" + billNoS + " " : ""}payment received: ${partsIn.filter((p) => p.amount > 0).map((p) => `${p.mode} ${rupees(p.amount)}`).join(" + ")}${gv ? `, cash given ₹${gv}` : ""}${wantRelease ? ", goods released" : ""}`);
+        return track;
+      })
+    );
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: 503 });
+    return NextResponse.json({ data: { track: res.data } });
+  }
+
   const credit = Math.round(rows.filter((r) => r.paymentMode === "CREDIT").reduce((a, r) => a + r.amountInr, 0) * 100) / 100;
   const upi = rows.some((r) => r.paymentMode === "UPI");
   if (action === "cashOk") {
