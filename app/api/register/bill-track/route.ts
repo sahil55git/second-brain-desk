@@ -44,6 +44,11 @@ export async function POST(req: NextRequest) {
   const by = user.name || user.username;
   const now = new Date().toISOString();
   const cur = trackOf(rows[0].details);
+  // a printed bill with no payment mode yet: the money is recorded through "Receive payment" only, so the cash book,
+  // UPI and udhaar always follow what was really paid (no ticking "cash in" or giving the oil on an undecided bill)
+  if (cur.payPending && action !== "settle" && !(action === "handover" && handover === "HELD")) {
+    return NextResponse.json({ error: "Choose how the customer paid first: tap Receive payment." }, { status: 400 });
+  }
   if (action === "settle") {
     // "Pay at the queue": choose how a printed, unpaid bill was paid (cash / UPI / udhaar / split)
     if (!cur.payPending) return NextResponse.json({ error: "This bill already has its payment mode." }, { status: 400 });

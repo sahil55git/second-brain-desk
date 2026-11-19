@@ -373,11 +373,18 @@ export function fmtEstimateQty(qty: number, unit: string): string {
   return `${n} ${u}`;
 }
 
+/** "Pay at the queue": the bill is printed and saved as a CASH row, but the customer has not paid and no payment mode is chosen yet. */
+export function isPayPendingEntry(e: { details?: unknown }): boolean {
+  const t = (e.details as { track?: { payPending?: unknown } } | null | undefined)?.track;
+  return !!t && t.payPending === true;
+}
+
 /** Effect of one register entry on the physical counter cash. */
 export function entryCashEffect(e: RegisterEntryLike): number {
   const side = KIND_SIDE[e.kind];
   if (side === "oth") return -e.amountInr; // pigmee / owner draw always leave as cash
   if (e.paymentMode !== "CASH") return 0;
+  if (isPayPendingEntry(e)) return 0; // printed but not paid yet: not in the drawer until "Receive payment"
   return side === "in" ? e.amountInr : -e.amountInr;
 }
 
