@@ -5,7 +5,7 @@ import { rupees, writeAudit } from "@/lib/auditServer";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
 import { businessDate } from "@/lib/register";
-import { trackOf } from "@/lib/counterTrack";
+import { oilBlockedAmount, trackOf } from "@/lib/counterTrack";
 import { planSettle } from "@/lib/billSettle";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +48,16 @@ export async function POST(req: NextRequest) {
   // UPI and udhaar always follow what was really paid (no ticking "cash in" or giving the oil on an undecided bill)
   if (cur.payPending && action !== "settle" && !(action === "handover" && handover === "HELD")) {
     return NextResponse.json({ error: "Choose how the customer paid first: tap Receive payment." }, { status: 400 });
+  }
+  // the shop rule: oil goes out only after the money is in. Cash or UPI still to receive blocks the hand-over
+  // (udhaar is the shop's own credit decision, so an udhaar part does not block it).
+  if (action === "handover" && handover === "GIVEN") {
+    const modes: Record<string, number> = {};
+    for (const r of rows) modes[r.paymentMode] = Math.round(((modes[r.paymentMode] || 0) + r.amountInr) * 100) / 100;
+    const due = oilBlockedAmount(modes, cur);
+    if (due > 0) {
+      return NextResponse.json({ error: `Money not received yet (₹${due} due). Receive the payment first, then give the oil.` }, { status: 400 });
+    }
   }
   if (action === "settle") {
     // "Pay at the queue": choose how a printed, unpaid bill was paid (cash / UPI / udhaar / split)

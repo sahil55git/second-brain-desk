@@ -200,11 +200,7 @@ export default function CashierDesk() {
           <div className="cd-acts">
             {ps.cashDue > 0 && <button type="button" className={`go${g > 0 && short === 0 ? " cd-next" : ""}`} disabled={busy} onClick={onCash}><CashIn size={0.8} /> {upiLeft ? k("Cash in", "ನಗದು ಬಂತು") : k("Cash in – oil out", "ನಗದು ಬಂತು – ಎಣ್ಣೆ ಕೊಡಿ")} – {rupees(ps.cashDue)}</button>}
             {ps.cashDue === 0 && held && need === "READY" && <button type="button" className="go cd-next" disabled={busy} onClick={() => void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("oil given", "ಎಣ್ಣೆ ಬಿಡುಗಡೆ")}`)}><OilOut kg={oilKgText(bill.lines)} size={0.7} /></button>}
-            {held && need !== "READY" && (
-              <button type="button" className={`ghost${armed === "give" ? " on" : ""}`} disabled={busy} onClick={() => (armed === "give" ? void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("oil given without payment", "ಹಣವಿಲ್ಲದೆ ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ")}`) : setArmed("give"))}>
-                {armed === "give" ? k("Money NOT received — tap again to give anyway", "ಹಣ ಬಂದಿಲ್ಲ — ಆದರೂ ಕೊಡಲು ಮತ್ತೆ ಒತ್ತಿ") : <><OilIcon size={20} /> {k("Give anyway", "ಆದರೂ ಕೊಡಿ")}</>}
-              </button>
-            )}
+            
             <button type="button" className="ghost" onClick={() => setRcpt(slip(bill, g > 0 && short === 0 ? g : undefined))}><PrinterIcon size={24} /> {k("Receipt", "ರಸೀದಿ")}</button>
           </div>
         </div>
