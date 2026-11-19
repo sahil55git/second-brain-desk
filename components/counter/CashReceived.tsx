@@ -22,6 +22,14 @@ export default function CashReceived({
   const g = parseFloat(given) || 0;
   const { change, short } = changeFor(due, g);
 
+  /** "Exact": the customer paid the bill amount, no change; one tap finishes. */
+  const exact = async () => {
+    setBusy(true);
+    const e = await onConfirm(0);
+    setBusy(false);
+    if (e) setErr(e);
+  };
+
   const go = async () => {
     if (g > 0 && short > 0) return setErr(k(`₹${short} short. Ask for the rest.`, `₹${short} ಕಡಿಮೆ ಇದೆ. ಉಳಿದದ್ದು ಕೇಳಿ.`));
     setBusy(true);
@@ -44,7 +52,7 @@ export default function CashReceived({
             <input inputMode="decimal" value={given} placeholder={String(Math.ceil(due))} onChange={(e) => { setGiven(e.target.value.replace(/[^0-9.]/g, "")); setErr(""); }} />
           </label>
           <div className="rp-chips">
-            {noteChips(due).map((v) => <button key={v} type="button" onClick={() => { setGiven(String(v)); setErr(""); }}>{v === Math.ceil(due) ? k("Exact", "ಸರಿಯಾಗಿ") : `₹${v}`}</button>)}
+            {noteChips(due).map((v) => <button key={v} type="button" onClick={() => { if (v === Math.ceil(due)) { setGiven(""); void exact(); } else { setGiven(String(v)); setErr(""); } }}>{v === Math.ceil(due) ? k("Exact", "ಸರಿಯಾಗಿ") : `₹${v}`}</button>)}
           </div>
           {g > 0 && (short > 0
             ? <p className="rp-short">{k("Short", "ಕಡಿಮೆ")} {rupees(short)}</p>

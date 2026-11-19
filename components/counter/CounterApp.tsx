@@ -747,7 +747,7 @@ export default function CounterApp() {
   };
 
   const [bFilter, setBFilter] = useState<"all" | "open" | "held">("all");
-  const [armed, setArmed] = useState<string | null>(null);
+  const [, setArmed] = useState<string | null>(null);
   const openN = bills.filter((b) => isTracked(b.track) && payStatus(b.modes, b.track).state !== "PAID").length;
   /** With "Take payment in the queue" the Bills page is the one place to finish bills (Held queue button hidden; Bills opens on the oil-held filter). */
   const queueInBills = tablet && tabOpts.payInQueue;
@@ -1505,13 +1505,13 @@ export default function CounterApp() {
                           {part("UPI") && (upiOkNow ? (
                             <span className="tick on"><i className="box">✓</i><span className="ico" aria-hidden>📲</span><b>{rupees(b.modes.UPI)}</b><small>{k("UPI in", "UPI ಬಂತು")}</small></span>
                           ) : ps.upiDue > 0 ? (
-                            <button type="button" className={`tick${armed === `${b.key}:upi` ? " armed" : ""}${gd === "money" ? " ctr-next" : ""}`} onClick={() => (paymentsFor(b).length ? setPickFor(pickFor === b.key ? null : b.key) : armed === `${b.key}:upi` ? void trackAct(b, "upiOk") : setArmed(`${b.key}:upi`))}>
-                              <i className="box">{armed === `${b.key}:upi` ? "✓?" : ""}</i><span className="ico" aria-hidden>📲</span><b>{rupees(ps.upiDue)}</b><small>{armed === `${b.key}:upi` ? k("Tap again", "ಮತ್ತೆ ಒತ್ತಿ") : k("UPI not in", "UPI ಬಂದಿಲ್ಲ")}</small>
+                            <button type="button" className={`tick${gd === "money" ? " ctr-next" : ""}`} onClick={() => (paymentsFor(b).length ? setPickFor(pickFor === b.key ? null : b.key) : void trackAct(b, "upiOk"))}>
+                              <i className="box"></i><span className="ico" aria-hidden>📲</span><b>{rupees(ps.upiDue)}</b><small>{k("UPI not in", "UPI ಬಂದಿಲ್ಲ")}</small>
                             </button>
                           ) : null)}
                           {ps.creditDue > 0 && (["CASH", "UPI"] as const).map((m) => (
-                            <button key={m} type="button" className={`tick${armed === `${b.key}:${m}` ? " armed" : ""}`} onClick={() => (armed === `${b.key}:${m}` ? void trackAct(b, "paidLater", { mode: m }) : setArmed(`${b.key}:${m}`))}>
-                              <i className="box">{armed === `${b.key}:${m}` ? "✓?" : ""}</i><span className="ico" aria-hidden>{m === "CASH" ? "💵" : "📲"}</span><b>{rupees(ps.creditDue)}</b><small>{armed === `${b.key}:${m}` ? k("Tap again", "ಮತ್ತೆ ಒತ್ತಿ") : k("Udhaar paid", "ಉದ್ರಿ ಬಂತು")}</small>
+                            <button key={m} type="button" className="tick" onClick={() => void trackAct(b, "paidLater", { mode: m })}>
+                              <i className="box"></i><span className="ico" aria-hidden>{m === "CASH" ? "💵" : "📲"}</span><b>{rupees(ps.creditDue)}</b><small>{k("Udhaar paid", "ಉದ್ರಿ ಬಂತು")}</small>
                             </button>
                           ))}
                         </div>
@@ -1598,8 +1598,8 @@ export default function CounterApp() {
                           </button>
                         )}
                         {ps.upiDue > 0 && (
-                          <button type="button" className={`big ctr-next${armed === `${b.key}:upi` ? " on" : ""}`} onClick={() => (paymentsFor(b).length ? setPickFor(pickFor === b.key ? null : b.key) : armed === `${b.key}:upi` ? void trackAct(b, "upiOk") : setArmed(`${b.key}:upi`))}>
-                            {armed === `${b.key}:upi` ? k("Tap again: UPI received", "ಮತ್ತೆ ಒತ್ತಿ: UPI ಬಂದಿದೆ") : `✓ ${k("UPI in", "UPI ಬಂತು")} – ${rupees(ps.upiDue)}`}
+                          <button type="button" className="big ctr-next" onClick={() => (paymentsFor(b).length ? setPickFor(pickFor === b.key ? null : b.key) : void trackAct(b, "upiOk"))}>
+                            {`✓ ${k("UPI in", "UPI ಬಂತು")} – ${rupees(ps.upiDue)}`}
                           </button>
                         )}
                         {b.track.payPending ? null : need === "READY" ? (
