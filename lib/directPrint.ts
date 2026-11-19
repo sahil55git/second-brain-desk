@@ -640,12 +640,19 @@ export const isNativeId = (id: string | null | undefined) => !!id && (id.startsW
 
 /** Printers the phone knows: paired Bluetooth printers and plugged-in USB ones. Printer-like first. */
 export async function nativePrinters(): Promise<NativePrinter[]> {
-  if (!isNative()) return [];
+  return (await nativePrinterScan()).printers;
+}
+
+/** Same list, plus why it may be empty: permission refused, Bluetooth off, or nothing paired. */
+export async function nativePrinterScan(): Promise<{ printers: NativePrinter[]; reason: "ok" | "permission" | "off" | "none" | "error" }> {
+  if (!isNative()) return { printers: [], reason: "none" };
   try {
     const r = await MahadevPrinter.list();
-    return [...r.printers].sort((a, b) => Number(b.printer) - Number(a.printer));
+    const printers = [...r.printers].sort((a, b) => Number(b.printer) - Number(a.printer));
+    const reason = r.permission === false ? "permission" : r.bluetoothOn === false && !printers.length ? "off" : printers.length ? "ok" : "none";
+    return { printers, reason };
   } catch {
-    return [];
+    return { printers: [], reason: "error" };
   }
 }
 
@@ -687,11 +694,16 @@ export async function connectNative(id: string, name?: string): Promise<DirectCo
 
 /** "＋ Bluetooth printer" / "＋ USB printer" in the app: the first printer of that kind the phone knows. */
 async function connectNativeFirst(kind: "bluetooth" | "usb"): Promise<DirectConnection> {
-  const list = (await nativePrinters()).filter((p) => p.kind === kind);
+  const scan = await nativePrinterScan();
+  const list = scan.printers.filter((p) => p.kind === kind);
   const p = list.find((x) => x.printer) ?? list[0];
   if (!p) {
     throw new Error(
-      kind === "bluetooth"
+      kind === "bluetooth" && scan.reason === "permission"
+        ? "Allow Nearby devices for Mahadev Desk: Android Settings → Apps → Mahadev Desk → Permissions → Nearby devices → Allow. Then try again."
+        : kind === "bluetooth" && scan.reason === "off"
+        ? "Bluetooth is off on this tablet. Turn it on, then try again."
+        : kind === "bluetooth"
         ? "No paired Bluetooth printer. Switch the printer on, pair it in Android Settings → Bluetooth (PIN is usually 0000 or 1234), then come back and pick it in Print to."
         : "No USB printer found. Plug the printer into the phone with an OTG cable, allow the app to use it, then try again.",
     );

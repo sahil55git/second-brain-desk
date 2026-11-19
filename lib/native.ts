@@ -38,7 +38,7 @@ interface MahadevNativePlugin {
   openUrl(o: { url: string }): Promise<void>;
 }
 interface MahadevPrinterPlugin {
-  list(): Promise<{ printers: NativePrinter[]; bluetoothOn: boolean }>;
+  list(): Promise<{ printers: NativePrinter[]; bluetoothOn: boolean; permission?: boolean }>;
   write(o: { id: string; base64: string }): Promise<{ sent: number }>;
   close(): Promise<void>;
 }
