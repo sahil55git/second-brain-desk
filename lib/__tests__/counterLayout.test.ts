@@ -32,6 +32,20 @@ describe("counter layouts", () => {
   });
   it("a layout never turns a hidden button back on", () => {
     expect(layoutShow("big", { ...SHOW_ALL, bills: false }).bills).toBe(false);
-    expect(LAYOUTS.length).toBe(4);
+    expect(LAYOUTS.length).toBe(5);
+  });
+});
+
+import { parseTabletOpts } from "../counterLayout";
+describe("tablet layout", () => {
+  it("is a valid layout and keeps every button", () => {
+    expect(parseLayout("tablet")).toBe("tablet");
+    expect(layoutShow("tablet", { ...SHOW_ALL, bills: false }).bills).toBe(false);
+    expect(layoutShow("tablet", SHOW_ALL)).toEqual(SHOW_ALL);
+  });
+  it("reads hideTare", () => { expect(parseTabletOpts({ hideTare: true }).hideTare).toBe(true); });
+  it("reads the hide options safely", () => {
+    expect(parseTabletOpts(null)).toEqual({ hideRead: false, hideTare: false, hideTotal: false, hideOil: false });
+    expect(parseTabletOpts({ hideRead: true, hideOil: "yes" })).toEqual({ hideRead: true, hideTare: false, hideTotal: false, hideOil: false });
   });
 });
