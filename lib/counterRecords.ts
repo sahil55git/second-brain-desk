@@ -42,6 +42,8 @@ export interface SavedBill {
   party: string | null;
   by: string | null;
   notes: string | null;
+  /** a note the shop typed on the saved bill (separate from the automatic notes) */
+  custNote: string;
   total: number;
   /** amount per payment mode, e.g. { CASH: 400, UPI: 220 } */
   modes: Record<string, number>;
@@ -66,6 +68,12 @@ function meta(d: unknown): { split?: { id: string; i: number }; bill?: { line: n
 export function billNoOf(d: unknown): string | null {
   const n = Number((d as { billNo?: unknown } | null)?.billNo);
   return Number.isInteger(n) && n > 0 ? String(n) : null;
+}
+
+/** The note typed on a saved bill (kept in the first row's details). */
+export function custNoteOf(d: unknown): string {
+  const n = (d as { custNote?: unknown } | null)?.custNote;
+  return typeof n === "string" ? n : "";
 }
 
 /** Sale rows → bills, newest first. labelOf turns an item key into its name. */
@@ -106,6 +114,7 @@ export function groupBills(rows: SaleRow[], labelOf: (item: string | null, label
       party: first.partyName,
       by: first.createdByName,
       notes: first.notes,
+      custNote: custNoteOf(first.details),
       total: r2(g.reduce((a, r) => a + r.amountInr, 0)),
       modes,
       track: trackOf(first.details),
@@ -119,7 +128,7 @@ export function groupBills(rows: SaleRow[], labelOf: (item: string | null, label
 export function billMatches(b: SavedBill, q: string): boolean {
   const s = q.trim().toLowerCase();
   if (!s) return true;
-  const hay = [b.no, b.party || "", b.notes || "", b.by || "", String(b.total), ...b.lines.map((l) => l.label)].join(" ").toLowerCase();
+  const hay = [b.no, b.party || "", b.notes || "", b.custNote || "", b.by || "", String(b.total), ...b.lines.map((l) => l.label)].join(" ").toLowerCase();
   return s.split(/\s+/).every((w) => hay.includes(w));
 }
 

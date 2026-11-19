@@ -3,7 +3,7 @@ import { defaultRefundMode, refundFor, returnBody, returnables, returnedByBill }
 import type { SaleRow, SavedBill } from "../counterRecords";
 
 const bill: SavedBill = {
-  key: "k", ids: ["a"], firstId: "a", no: "12", date: "2026-11-17", createdAt: "2026-11-17T05:00:00Z", party: null, by: null, notes: null,
+  key: "k", ids: ["a"], firstId: "a", no: "12", date: "2026-11-17", createdAt: "2026-11-17T05:00:00Z", party: null, by: null, notes: null, custNote: "",
   total: 700, modes: { CASH: 700 }, track: {},
   lines: [
     { item: "karadi", label: "Karadi", qty: 2, unit: "kg", rate: 260, amount: 500 },

@@ -36,6 +36,7 @@ import { billIcon, billName, qtyText, oilKgText } from "@/lib/counterName";
 import { LAYOUTS, LAYOUT_INFO, layoutShow, parseTabletOpts, pickLayout, type Layout, type TabletOpts } from "@/lib/counterLayout";
 import ReceivePayment, { type ReceiveArgs } from "./ReceivePayment";
 import CashReceived from "./CashReceived";
+import BillDetails from "./BillDetails";
 import { defaultHandover, handoverOf, heldNeed, heldQueue, isTracked, oilBlockedAmount, payStatus, upiLine, waitText, type Handover } from "@/lib/counterTrack";
 import { fitsBill, parseUpi, planUpi, samePayment, type UpiEvent } from "@/lib/upiNotify";
 import { hasNativeUpi, MahadevUpi } from "@/lib/native";
@@ -758,12 +759,13 @@ export default function CounterApp() {
   // mark UPI received / collect the udhaar money / give or hold the goods
   const [recvFor, setRecvFor] = useState<SavedBill | null>(null);
   const [cashFor, setCashFor] = useState<SavedBill | null>(null);
+  const [detFor, setDetFor] = useState<SavedBill | null>(null);
   const settleBill = async (b: SavedBill, a: ReceiveArgs): Promise<string | null> => {
     const e = await trackAct(b, "settle", { parts: a.parts, given: a.given, partyName: a.partyName, upiConfirmed: a.upiConfirmed, release: a.release });
     if (!e) { setRecvFor(null); void load(); setMsg({ ok: true, text: `#${b.no} · ${k("payment recorded", "ಪಾವತಿ ದಾಖಲಾಗಿದೆ")}${a.given && a.parts.some((p) => p.mode === "CASH") ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(Math.max(0, a.given - (a.parts.find((p) => p.mode === "CASH")?.amount || 0)))}` : ""}` }); }
     return e;
   };
-  const trackAct = async (b: SavedBill, action: "handover" | "upiOk" | "cashOk" | "paidLater" | "settle", extra: Record<string, unknown> = {}): Promise<string | null> => {
+  const trackAct = async (b: SavedBill, action: "handover" | "upiOk" | "cashOk" | "paidLater" | "settle" | "details", extra: Record<string, unknown> = {}): Promise<string | null> => {
     setBErr("");
     setArmed(null);
     try {
@@ -1480,7 +1482,7 @@ export default function CounterApp() {
                       <b className="amt">{rupees(b.total)}</b>
                     </div>
                     <span className="br-items">{b.lines.map((l, i) => <span className="it" key={i}><b>{l.label}</b>{qtyText(l.qty, l.unit) && <em>{qtyText(l.qty, l.unit)}</em>}</span>)}</span>
-                    <small className="br-meta">{timeOf(b.createdAt)}{b.date !== date ? ` · ${b.date}` : ""}{b.by ? ` · ${b.by}` : ""}{b.notes ? ` · ${b.notes}` : ""}</small>
+                    <small className="br-meta">{timeOf(b.createdAt)}{b.date !== date ? ` · ${b.date}` : ""}{b.by ? ` · ${b.by}` : ""}{b.notes ? ` · ${b.notes}` : ""}{b.custNote ? ` · 📝 ${b.custNote}` : ""}</small>
                     {upiLn && <small className="ctr-upiline">✅ {upiLn}</small>}
                     {tracked && ps.upiDue > 0 && !b.party && (() => {
                       const twins = waitingUpi().filter((w) => w.key !== b.key && Math.abs(w.due - ps.upiDue) < 0.005);
@@ -1533,6 +1535,7 @@ export default function CounterApp() {
                     <div className="ctr-bact">
                       <button type="button" onClick={() => setRcpt({ doc: billDoc(b), auto: true })} aria-label={k("Re-print", "ಮತ್ತೆ ಮುದ್ರಿಸಿ")}>🖨️</button>
                       <button type="button" onClick={() => shareWhatsapp(billDoc(b), b.party)} aria-label="WhatsApp">💬</button>
+                      <button type="button" onClick={() => setDetFor(b)} aria-label={k("Customer, mobile, note", "ಗ್ರಾಹಕ, ಮೊಬೈಲ್, ಟಿಪ್ಪಣಿ")}>👤</button>
                       <button type="button" onClick={() => void openReturn(b)} aria-label={k("Return items", "ವಸ್ತು ಹಿಂತಿರುಗಿಸಿ")}>↩️</button>
                       {b.date === date && can("cancel") && <button type="button" onClick={() => void editBill(b)} aria-label={k("Edit", "ತಿದ್ದು")}>✏️</button>}
                       {can("cancel") && <button type="button" className="bad" onClick={() => void cancelBill(b)} aria-label={k("Cancel", "ರದ್ದು")}>🗑️</button>}
@@ -1623,6 +1626,21 @@ export default function CounterApp() {
         );
       })()}
 
+      {detFor && (
+        <BillDetails
+          no={detFor.no}
+          party={detFor.party}
+          note={detFor.custNote}
+          locked={(detFor.modes.CREDIT || 0) > 0}
+          k={k}
+          onClose={() => setDetFor(null)}
+          onSave={async (p, n) => {
+            const e = await trackAct(detFor, "details", { partyName: p, custNote: n });
+            if (!e) setDetFor(null);
+            return e;
+          }}
+        />
+      )}
       {cashFor && (
         <CashReceived
           no={cashFor.no}

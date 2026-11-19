@@ -36,6 +36,12 @@ describe("counter records", () => {
     expect(isBillPending(open[0])).toBe(true);
     expect(billsSummary([...paid, ...open])).toEqual({ count: 2, total: 760, kg: 0, modes: { CASH: 500, PENDING: 260 } });
   });
+  it("carries the note typed on a saved bill and finds the bill by it", () => {
+    const [b] = groupBills([row({ id: "n1", amountInr: 100, partyName: "Ramesh", details: { billNo: 7, custNote: "deliver tomorrow" } })], lab);
+    expect(b.custNote).toBe("deliver tomorrow");
+    expect(billMatches(b, "tomorrow")).toBe(true);
+    expect(groupBills([row({ id: "n2", amountInr: 100 })], lab)[0].custNote).toBe("");
+  });
   it("finds bills by number, name, item or amount", () => {
     const [b] = groupBills([row({ id: "zz9xy1", partyName: "Ramesh", qty: 1, unit: "kg", rateInr: 260, amountInr: 260 })], lab);
     expect(billMatches(b, "9xy1")).toBe(true);

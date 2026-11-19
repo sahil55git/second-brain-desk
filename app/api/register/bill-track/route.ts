@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const ids: string[] = Array.isArray(body.ids) ? body.ids.filter((x: unknown) => typeof x === "string").slice(0, 40) : [];
   const action = body.action;
-  if (!ids.length || !["handover", "upiOk", "cashOk", "paidLater", "settle"].includes(action)) return NextResponse.json({ error: "Nothing to do." }, { status: 400 });
+  if (!ids.length || !["handover", "upiOk", "cashOk", "paidLater", "settle", "details"].includes(action)) return NextResponse.json({ error: "Nothing to do." }, { status: 400 });
   const mode: "CASH" | "UPI" = body.mode === "UPI" ? "UPI" : "CASH";
   const handover = body.value === "HELD" ? "HELD" : "GIVEN";
   // details of the UPI payment this confirms (from the UPI app's notification), kept on the bill
@@ -46,8 +46,34 @@ export async function POST(req: NextRequest) {
   const cur = trackOf(rows[0].details);
   // a printed bill with no payment mode yet: the money is recorded through "Receive payment" only, so the cash book,
   // UPI and udhaar always follow what was really paid (no ticking "cash in" or giving the oil on an undecided bill)
-  if (cur.payPending && action !== "settle" && !(action === "handover" && handover === "HELD")) {
+  if (cur.payPending && action !== "settle" && action !== "details" && !(action === "handover" && handover === "HELD")) {
     return NextResponse.json({ error: "Choose how the customer paid first: tap Receive payment." }, { status: 400 });
+  }
+  if (action === "details") {
+    // customer name / mobile and a note, added or fixed after the bill is saved (money and oil are untouched)
+    const hasCredit = rows.some((r) => r.paymentMode === "CREDIT");
+    const clean = (v: unknown, n: number) => (typeof v === "string" ? v.replace(/[\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, n) : "");
+    const newParty = clean(body.partyName, 80);
+    const newNote = clean(body.custNote, 200);
+    const partyChanged = !hasCredit && newParty !== (rows[0].partyName || "");
+    const res = await safeDbCall(() =>
+      prisma.$transaction(async (tx) => {
+        for (const r of rows) {
+          const prev = (r.details && typeof r.details === "object" ? r.details : {}) as Record<string, unknown>;
+          const nextDetails = { ...prev, custNote: newNote };
+          if (!newNote) delete (nextDetails as Record<string, unknown>).custNote;
+          await tx.registerEntry.update({
+            where: { id: r.id },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            data: { details: nextDetails as any, ...(hasCredit ? {} : { partyName: newParty || null }) },
+          });
+        }
+        const bn = Number((rows[0].details as { billNo?: unknown } | null)?.billNo) || null;
+        await writeAudit(tx, user, "EDIT", "RegisterEntry", rows[0].id, `Bill ${bn ? "#" + bn + " " : ""}details: ${partyChanged ? `customer "${newParty || "-"}"` : "customer same"}${newNote ? `, note "${newNote}"` : ""}`);
+      })
+    );
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: 503 });
+    return NextResponse.json({ ok: true });
   }
   // the shop rule: oil goes out only after the money is in. Cash or UPI still to receive blocks the hand-over
   // (udhaar is the shop's own credit decision, so an udhaar part does not block it).
