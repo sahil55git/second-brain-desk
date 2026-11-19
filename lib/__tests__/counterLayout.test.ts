@@ -44,8 +44,9 @@ describe("tablet layout", () => {
     expect(layoutShow("tablet", SHOW_ALL)).toEqual(SHOW_ALL);
   });
   it("reads hideTare", () => { expect(parseTabletOpts({ hideTare: true }).hideTare).toBe(true); });
+  it("reads payInQueue", () => { expect(parseTabletOpts({ payInQueue: true }).payInQueue).toBe(true); });
   it("reads the hide options safely", () => {
-    expect(parseTabletOpts(null)).toEqual({ hideRead: false, hideTare: false, hideTotal: false, hideOil: false });
-    expect(parseTabletOpts({ hideRead: true, hideOil: "yes" })).toEqual({ hideRead: true, hideTare: false, hideTotal: false, hideOil: false });
+    expect(parseTabletOpts(null)).toEqual({ hideRead: false, hideTare: false, hideTotal: false, hideOil: false, payInQueue: false });
+    expect(parseTabletOpts({ hideRead: true, hideOil: "yes" })).toEqual({ hideRead: true, hideTare: false, hideTotal: false, hideOil: false, payInQueue: false });
   });
 });
