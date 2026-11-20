@@ -62,7 +62,7 @@ export default function MillDeskFrame() {
         dropUnprinted(doc.code);
         post({ type: "print-result", id, ok: true, text: `Printed${r.pages > 1 ? ` (${r.pages} labels)` : ""} · ${(r.ms / 1000).toFixed(1)} s` });
       } catch (e) {
-        const w = explainPrintError(e);
+        const w = explainPrintError(e, cfg.name);
         keepUnprinted({ id, at: Date.now(), doc, copies, error: w.text });
         post({ type: "print-result", id, ok: false, fix: w.fix, text: w.text });
       }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanCfg, cleanDoc, explainPrintError, jobBytes, layoutDoc, MillPrintError, paginate, planJob, TEST_DOC, wrapText, labelCandidates, type MillPrintDoc, type Op } from "@/lib/mill/millPrint";
+import { cleanCfg, cleanDoc, explainPrintError, jobBytes, layoutDoc, MillPrintError, paginate, planJob, TEST_DOC, wrapText, labelCandidates, isBleName, type MillPrintDoc, type Op } from "@/lib/mill/millPrint";
 import { mmToDots } from "@/lib/printerLang";
 
 const measure = (t: string, px: number, bold: boolean) => t.length * px * (bold ? 0.62 : 0.55);
@@ -133,6 +133,17 @@ describe("words for the person", () => {
       { id: "nusb:3", name: "USB", kind: "usb", printer: true },
     ]);
     expect(l.map((p) => p.name)).toEqual(["Helett H30C", "POS-80"]);
+  });
+  it("the low-energy twin of a printer goes last and is explained", () => {
+    const l = labelCandidates([
+      { id: "nbt:1", name: "H30C_F1BA_BLE", kind: "bluetooth", printer: false },
+      { id: "nbt:2", name: "MPT-III", kind: "bluetooth", printer: true },
+      { id: "nbt:3", name: "H30C_F1BA", kind: "bluetooth", printer: true },
+    ]);
+    expect(l.map((p) => p.name)).toEqual(["H30C_F1BA", "MPT-III", "H30C_F1BA_BLE"]);
+    expect(isBleName("H30C_F1BA_BLE")).toBe(true);
+    expect(isBleName("H30C_F1BA")).toBe(false);
+    expect(explainPrintError(new MillPrintError("NO_ANSWER", "x"), "H30C_F1BA_BLE").text).toMatch(/without “_BLE”/);
   });
   it("the test slip is a valid doc", () => {
     expect(cleanDoc(TEST_DOC)?.code).toBe("TEST-0001");
