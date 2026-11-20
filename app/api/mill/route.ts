@@ -4,6 +4,7 @@
 // the register, cash closing and job-work reports see them. Weights are never changed here: a waiting
 // weighing is only marked "sorted" when the counter person uses it.
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, dayRange } from "@/lib/registerServer";
 import { bizDate, cleanItem, intakeData, jobClosed, jobError, LIST_KINDS, MAX_BATCH, MILL_KIND, millMark, slipNo, tokNo, tokOf, validId, type MillEntity, type MillJob } from "@/lib/mill/millDesk";
@@ -18,7 +19,7 @@ async function readCounter(): Promise<Counter> {
   return { jw: Number(d.jw) || 0, ws: Number(d.ws) || 0 };
 }
 async function writeCounter(c: Counter, by: string) {
-  await prisma.appSetting.upsert({ where: { key: COUNTER_KEY }, create: { key: COUNTER_KEY, data: c, updatedBy: by }, update: { data: c, updatedBy: by } });
+  await prisma.appSetting.upsert({ where: { key: COUNTER_KEY }, create: { key: COUNTER_KEY, data: c as Prisma.InputJsonValue, updatedBy: by }, update: { data: c as Prisma.InputJsonValue, updatedBy: by } });
 }
 
 const data = (rows: { data: unknown }[]) => rows.map((r) => r.data as Record<string, unknown>);
@@ -114,8 +115,8 @@ export async function POST(req: NextRequest) {
           }
           if (existing && existing.status !== "open") continue; // already used by the counter person
         }
-        if (existing) await prisma.opsRecord.update({ where: { id: existing.id }, data: { data: item as object, status } });
-        else await prisma.opsRecord.create({ data: { kind: MILL_KIND[kind as MillEntity], ref: id, date: today, data: item as object, status, by } });
+        if (existing) await prisma.opsRecord.update({ where: { id: existing.id }, data: { data: item as Prisma.InputJsonValue, status } });
+        else await prisma.opsRecord.create({ data: { kind: MILL_KIND[kind as MillEntity], ref: id, date: today, data: item as Prisma.InputJsonValue, status, by } });
         if (kind === "job") await mirrorJob(item as unknown as MillJob, by, !existing).catch((e) => errors.push(`${item.tok}: not copied to job-work (${String(e?.message || e).slice(0, 80)})`));
       }
     }
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest) {
       if (!validId(o.id) || typeof o.key !== "string" || !/^[a-z]{2,12}$/.test(o.key)) continue;
       const v = Array.isArray(o.v) ? [Number(o.v[0]) || 0, String(o.v[1] || "").slice(0, 30)] : Number(o.v) || 0;
       const dup = await prisma.opsRecord.findFirst({ where: { kind: MILL_KIND.own, ref: o.id } });
-      if (!dup) await prisma.opsRecord.create({ data: { kind: MILL_KIND.own, ref: o.id, date: today, data: { key: o.key, v }, status: "open", by } });
+      if (!dup) await prisma.opsRecord.create({ data: { kind: MILL_KIND.own, ref: o.id, date: today, data: { key: o.key, v } as Prisma.InputJsonValue, status: "open", by } });
     }
     if (counterChanged) await writeCounter(counter, by || "");
     return { nextJw: counter.jw + 1 };
