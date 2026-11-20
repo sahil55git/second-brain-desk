@@ -6,6 +6,7 @@ import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, isValidDate } from "@/lib/registerServer";
 import { businessDate } from "@/lib/register";
 import { TABLE_HINT, missingTable } from "@/lib/attachmentServer";
+import { claimOp, releaseOp } from "@/lib/clientOp";
 import { MAX_BARRELS_PER_LOT, RECEIPT_INCLUDE, createReceipt, posNum, shapeReceipt, str } from "@/lib/barrelServer";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +68,9 @@ export async function POST(req: NextRequest) {
   if (!barrelCount || barrelCount < 1 || barrelCount > MAX_BARRELS_PER_LOT)
     return NextResponse.json({ error: `Number of barrels must be 1 to ${MAX_BARRELS_PER_LOT}.` }, { status: 400 });
 
+  // a tap sent twice (double tap, or a retry after a lost reply) must not start a second lot
+  if ((await claimOp(body.clientId, "barrel.lot")) === "duplicate") return NextResponse.json({ data: null, duplicate: true, message: "Already saved." }, { status: 200 });
+
   const result = await safeDbCall(async () => {
     let partyId: string | null = str(body.partyId, 40);
     if (partyId && !(await prisma.party.findUnique({ where: { id: partyId }, select: { id: true } }))) partyId = null;
@@ -86,6 +90,9 @@ export async function POST(req: NextRequest) {
       barrelCount,
     });
   });
-  if (!result.ok) return dbError(result.error);
+  if (!result.ok) {
+    await releaseOp(body.clientId);
+    return dbError(result.error);
+  }
   return NextResponse.json({ data: shapeReceipt(result.data, user.isOwner) }, { status: 201 });
 }

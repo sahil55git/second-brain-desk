@@ -58,6 +58,7 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "register", icon: "📒", title: "Quick Register", kn: "ಕ್ವಿಕ್ ರಿಜಿಸ್ಟರ್", desc: "Today's full screen", href: "/register", group: "entry" },
   // Job-work
   { id: "milldesk", icon: "⚖️", title: "Mill Desk", kn: "ಮಿಲ್ ಡೆಸ್ಕ್", desc: "Mill 1 scale · job-work tokens · our crushing", href: "/mill", group: "jobwork" },
+  { id: "millcounter", icon: "🛢️", title: "Mill Counter Desk", kn: "ಮಿಲ್ ಕೌಂಟರ್", desc: "Barrel lots received: gross, tare, net per barrel", href: "/mill/counter", group: "jobwork" },
   { id: "jwnew", icon: "🌾", title: "New job-work", kn: "ಹೊಸ ಜಾಬ್-ವರ್ಕ್", desc: "Customer seed received", href: "/register?open=jobwork", group: "jobwork" },
   { id: "jwsettle", icon: "💳", title: "Job-work settle", kn: "ಜಾಬ್-ವರ್ಕ್ ಪಾವತಿ", desc: "Open ledger, settle a customer", href: "/register?open=jwsettle", group: "jobwork" },
   { id: "tally-jw", icon: "🧾", title: "Customer seed count", kn: "ಗ್ರಾಹಕರ ಬೀಜ ಎಣಿಕೆ", desc: "Seed in shop vs challans", href: "/tallies?desk=JOBWORK", group: "jobwork" },
