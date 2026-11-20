@@ -47,3 +47,11 @@
  .grp{font-size:15px}
  .grp .gi{width:26px;height:26px}
 }
+
+/* mill label printer */
+#top .pill[data-f="pr"]{cursor:pointer}
+.prst{display:none;margin:8px 0;padding:10px 12px;border-radius:12px;font:700 16px var(--head);align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#142130;border:2px solid #2b3a4a;color:#cfe0f0}
+.prst.ok{background:#0d2a1a;border-color:#4a9a6b;color:#bdf0cf}.prst.bad{background:#3a1710;border-color:#E5604A;color:#ffd0c7}
+.prst button{min-height:44px;border-radius:10px;border:2px solid currentColor;background:transparent;color:inherit;font:700 15px var(--head);padding:0 12px}
+.prpend{position:absolute;left:12px;right:12px;top:64px;z-index:39;background:#3a2b10;border:2px solid #E9C46A;color:#ffe9b0;border-radius:14px;padding:10px 12px;font:700 16px var(--head);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.prpend button{min-height:44px;border-radius:10px;border:2px solid currentColor;background:transparent;color:inherit;font:700 15px var(--head);padding:0 14px}

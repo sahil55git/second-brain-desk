@@ -107,6 +107,33 @@ function paintLink(){const p=document.querySelector('#top .pill[data-f="bt"]');i
 window.millCounterOpen=function(){if(window.parent!==window)window.parent.postMessage({type:'open',to:'/mill/counter'},location.origin);else location.href='/mill/counter'};
 window.millScaleTap=function(){if(window.parent!==window)window.parent.postMessage({type:'scale-connect'},location.origin)};
 
+/* ---------- the mill label printer (Helett): ONE tap — Save prints at once, the app page sends it over Bluetooth ---------- */
+const PR=window.PR={native:false,name:'',ready:false,pending:0,id:'',doc:null,copies:1,busy:false,ok:null,text:'',fix:'',fallback:false,t:0};
+function paintPrint(){
+ const pill=document.querySelector('#top .pill[data-f="pr"]');
+ if(pill){const dot=pill.querySelector('.dot');if(dot)dot.style.background=!PR.native?'#8a96a3':!PR.ready?'#E5484D':PR.pending?'#E9C46A':'var(--okt)';
+  pill.title=!PR.native?'Printing uses the normal print window here (the Android app prints in one tap)':!PR.ready?'Printer not chosen · tap to pair':(PR.name||'Printer')+(PR.pending?' · '+PR.pending+' not printed':' · ready')}
+ const e=document.getElementById('prst');
+ if(e){const live=PR.busy||PR.ok!==null;
+  e.style.display=live?'flex':'none';e.className='prst'+(PR.busy?'':PR.ok?' ok':' bad');
+  e.innerHTML=(PR.busy?'<span>Printing…</span>':'<span>'+esc(PR.text)+'</span>')+(!PR.busy&&PR.ok===false&&PR.native?'<button onclick="millPrinterTap()">Printer set-up</button>':'')}
+ document.querySelectorAll('.prlbl').forEach(x=>{x.textContent=PR.native&&PR.doc?'Print again':'Print'});
+ let b=document.getElementById('prpend');
+ if(PR.native&&PR.pending>0&&PR.ready){if(!b){b=document.createElement('div');b.id='prpend';b.className='prpend';document.body.appendChild(b)}
+  b.innerHTML='<span>'+PR.pending+' slip'+(PR.pending>1?'s':'')+' not printed</span><button onclick="window.parent.postMessage({type:\'print-pending\'},location.origin)">Print now</button>'}
+ else if(b)b.remove()}
+function sendPrint(){PR.id=uid('p');PR.busy=true;PR.ok=null;PR.text='';PR.fix='';
+ window.parent.postMessage({type:'print',id:PR.id,doc:PR.doc,copies:PR.copies},location.origin);
+ clearTimeout(PR.t);PR.t=setTimeout(()=>{if(PR.busy){PR.busy=false;PR.ok=false;PR.text='The printer did not answer in time. Check it is on and near, then Print again.';paintPrint()}},60000);
+ setTimeout(paintPrint,0)}
+window.millPrintAuto=function(doc,copies){PR.doc=doc;PR.copies=Math.max(1,+copies||1);if(!PR.native){setTimeout(paintPrint,0);return}sendPrint()};
+window.printAgain=function(){if(PR.native&&PR.doc)sendPrint();else printPaper()};
+window.millPrinterTap=function(){if(window.parent!==window)window.parent.postMessage({type:'printer-setup'},location.origin)};
+window.addEventListener('message',e=>{if(e.origin!==location.origin)return;const d=e.data||{};
+ if(d.type==='printer'){PR.native=!!d.native;PR.name=d.name||'';PR.ready=!!d.ready;PR.pending=+d.pending||0;paintPrint()}
+ if(d.type==='print-result'&&d.id===PR.id){clearTimeout(PR.t);PR.busy=false;PR.ok=!!d.ok;PR.text=d.text||'';PR.fix=d.fix||'';PR.fallback=!!d.fallback;paintPrint()}});
+setInterval(paintPrint,2000);
+
 /* ---------- printing: the paper on screen goes to the printer ---------- */
 window.printPaper=function(){const p=document.querySelector('#layer .paper');if(!p)return;let a=$('#printarea');if(!a){a=document.createElement('div');a.id='printarea';document.body.appendChild(a)}
  const n=Math.max(1,+(window.__copies||1));a.innerHTML=Array.from({length:n},()=>p.outerHTML).join('<div class="pbrk"></div>');window.__copies=1;setTimeout(()=>window.print(),60)};

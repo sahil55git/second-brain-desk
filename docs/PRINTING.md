@@ -167,3 +167,24 @@ Not tested here: printing a designed layout on the real Helett H30C (the picture
 ## Label text
 
 On tall labels (50 × 75 mm, 4 × 6 in) the tare date, the code (BRL-01) and the QR are larger so they are readable on a 203 dpi thermal print.
+
+## Mill Desk (Helett H30C) — one-tap printing
+
+The Mill Desk prints its weight slip (`WS-…`) and job-work token (`JW-…`) on the
+Helett label printer the moment the operator taps Save, the same way Weigh & Bill does.
+
+- **Where it works:** inside the Mahadev Desk Android app (native Bluetooth). A normal
+  browser keeps the old Print window (`window.print`).
+- **One-time set-up:** pair the Helett in Android Bluetooth settings → in the Mill Desk tap
+  the printer pill → choose it → pick the label size → Test print → Save this printer.
+  Keep "Black on white fix" ticked for the Helett.
+- **What is sent:** a structured document (not HTML). `lib/mill/millPrint.ts` lays it out,
+  renders it to a bitmap (so Kannada prints) and builds TSPL via `lib/printerLang.ts`; the
+  native `printJob` call is made with `status:false`.
+- **Robustness:** a double tap on the same code is ignored; the link is kept warm every
+  2 minutes; text shrinks to fit then paginates; a failed print is kept in the outbox
+  (`mdMillOutbox.v1`) and the desk shows "N slips not printed · Print now"; errors say
+  what to do (Bluetooth off, not paired, paper out, no answer, link dropped mid-print).
+- **Not covered:** bag stickers are not printed by this path yet.
+- **Unverified on hardware:** classic-Bluetooth connection to the H30C (Rapid Label's
+  docs only confirm BLE). The Test print in the set-up sheet is the diagnostic.
