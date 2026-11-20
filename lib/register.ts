@@ -396,7 +396,12 @@ export interface JobWorkLike {
   settlementAmountInr: number | null;
   settledAt: string | Date | null;
   createdAt: string | Date;
+  /** "UPI" when the settlement was paid by UPI; anything else (or missing) is counter cash. */
+  settlementMode?: string | null;
 }
+
+/** True when this job-work settlement was paid by UPI, so the money never reached the drawer. */
+export const settledByUpi = (j: Pick<JobWorkLike, "settlementMode">) => String(j.settlementMode || "").toUpperCase() === "UPI";
 
 export interface CashEvent {
   at: number; // epoch ms
@@ -423,11 +428,19 @@ export function jobWorkCashEvents(j: JobWorkLike): CashEvent[] {
     const amount = sign * adv;
     events.push({ at: +new Date(j.createdAt), amount, bucket: amount >= 0 ? "jwIn" : "jwOut" });
   }
-  if (j.settled && j.settledAt && j.settlementAmountInr) {
+  // A UPI settlement never touches the drawer: it is in jobWorkUpiEvents(), not in the cash.
+  if (j.settled && j.settledAt && j.settlementAmountInr && !settledByUpi(j)) {
     const amount = sign * j.settlementAmountInr;
     events.push({ at: +new Date(j.settledAt), amount, bucket: amount >= 0 ? "jwIn" : "jwOut" });
   }
   return events;
+}
+
+/** The UPI side of a job-work settlement: money received (+) or paid (-) by UPI, not counter cash. */
+export function jobWorkUpiEvents(j: JobWorkLike): CashEvent[] {
+  if (!(j.settled && j.settledAt && j.settlementAmountInr && settledByUpi(j))) return [];
+  const amount = (j.cakeOwnership === "SHOP" ? -1 : 1) * j.settlementAmountInr;
+  return [{ at: +new Date(j.settledAt), amount, bucket: amount >= 0 ? "jwIn" : "jwOut" }];
 }
 
 /** Local "YYYY-MM-DD" for a timestamp in the given IANA zone (default IST). */
@@ -457,7 +470,7 @@ export interface DayTotals {
   byKind: Partial<Record<RegisterKind, number>>;
 }
 
-export function dayTotals(entries: RegisterEntryLike[], jwEvents: CashEvent[] = []): DayTotals {
+export function dayTotals(entries: RegisterEntryLike[], jwEvents: CashEvent[] = [], jwUpiEvents: CashEvent[] = []): DayTotals {
   const t: DayTotals = {
     cashIn: 0,
     cashOut: 0,
@@ -491,6 +504,10 @@ export function dayTotals(entries: RegisterEntryLike[], jwEvents: CashEvent[] = 
   for (const ev of jwEvents) {
     if (ev.amount >= 0) t.jwIn += ev.amount;
     else t.jwOut += -ev.amount;
+  }
+  for (const ev of jwUpiEvents) {
+    if (ev.amount >= 0) t.upiIn += ev.amount;
+    else t.upiOut += -ev.amount;
   }
   return t;
 }

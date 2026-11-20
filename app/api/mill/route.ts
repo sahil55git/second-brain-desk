@@ -1,13 +1,17 @@
 // Mill Desk data (/mill). GET → everything the screen shows today; POST → the changes one phone made
 // ({ up: {job, q, run, cust, barrel}, del: {q: ids}, own: [...] }). Each item is saved on its own, so a
-// worker phone and the counter phone can work at the same time. Jobs are mirrored to JobWorkIntake so
-// the register, cash closing and job-work reports see them. Weights are never changed here: a waiting
-// weighing is only marked "sorted" when the counter person uses it.
+// worker phone and the counter phone can work at the same time. Everything is kept ONCE and fed into the
+// app's own records (lib/mill/millSync.ts): jobs → JobWorkIntake (register, cash closing, job-work reports),
+// our oil → stock ledger (mill_transfer), runs → Manufacturing batches, barrels → barrel fleet. Payments made
+// on the Job-Work desk come back onto the mill job. Weights are never changed here: a waiting weighing is
+// only marked "sorted" when the counter person uses it.
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, dayRange } from "@/lib/registerServer";
-import { bizDate, cleanItem, intakeData, jobClosed, jobError, LIST_KINDS, MAX_BATCH, MILL_KIND, millMark, slipNo, tokNo, tokOf, validId, type MillEntity, type MillJob } from "@/lib/mill/millDesk";
+import { bizDate, cleanItem, jobClosed, jobError, LIST_KINDS, MAX_BATCH, MILL_KIND, millMark, slipNo, tokNo, tokOf, validId, type MillEntity, type MillJob } from "@/lib/mill/millDesk";
+import { ids, type MillBarrel, type MillRunLike } from "@/lib/mill/millMap";
+import { khaliNow, overlayPayments, runSerial, syncBarrel, syncJob, syncOil, syncRun } from "@/lib/mill/millSync";
 
 export const dynamic = "force-dynamic";
 const COUNTER_KEY = "mill_counter";
@@ -39,7 +43,7 @@ export async function GET(req: NextRequest) {
       prisma.opsRecord.findMany({ where: { kind: MILL_KIND.barrel }, orderBy: { ref: "asc" }, take: 200 }),
       readCounter(),
     ]);
-    const jobList = data(jobs);
+    const jobList = await overlayPayments(data(jobs));
     const maxTok = jobList.reduce((m, j) => Math.max(m, tokNo(String(j.tok || ""))), 0);
     return {
       me: { name: user.name, isOwner: user.isOwner },
@@ -52,6 +56,7 @@ export async function GET(req: NextRequest) {
       barrels: data(barrels),
       nextJw: Math.max(counter.jw, maxTok) + 1,
       wsn: counter.ws + 1,
+      khali: await khaliNow(),
     };
   });
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 503 });
@@ -69,6 +74,7 @@ export async function POST(req: NextRequest) {
   if (count > MAX_BATCH) return NextResponse.json({ error: "Too many changes at once." }, { status: 400 });
 
   const errors: string[] = [];
+  const notes: string[] = []; // things to do in the main app (not errors), e.g. a barrel that is not registered
   const remap: Record<string, string> = {};
   const r = await safeDbCall(async () => {
     const counter = await readCounter();
@@ -115,9 +121,21 @@ export async function POST(req: NextRequest) {
           }
           if (existing && existing.status !== "open") continue; // already used by the counter person
         }
-        if (existing) await prisma.opsRecord.update({ where: { id: existing.id }, data: { data: item as Prisma.InputJsonValue, status } });
-        else await prisma.opsRecord.create({ data: { kind: MILL_KIND[kind as MillEntity], ref: id, date: today, data: item as Prisma.InputJsonValue, status, by } });
-        if (kind === "job") await mirrorJob(item as unknown as MillJob, by, !existing).catch((e) => errors.push(`${item.tok}: not copied to job-work (${String(e?.message || e).slice(0, 80)})`));
+        let rec = existing;
+        if (existing) rec = await prisma.opsRecord.update({ where: { id: existing.id }, data: { data: item as Prisma.InputJsonValue, status } });
+        else {
+          try {
+            rec = await prisma.opsRecord.create({ data: { id: ids.own(`${kind}_${id}`), kind: MILL_KIND[kind as MillEntity], ref: id, date: today, data: item as Prisma.InputJsonValue, status, by } });
+          } catch (e) {
+            if ((e as { code?: string })?.code !== "P2002") throw e;
+            rec = (await prisma.opsRecord.findFirst({ where: { kind: MILL_KIND[kind as MillEntity], ref: id } })) // the same item arrived twice
+              ?? (await prisma.opsRecord.create({ data: { kind: MILL_KIND[kind as MillEntity], ref: id, date: today, data: item as Prisma.InputJsonValue, status, by } })); // a very long id that shortened to another's
+          }
+        }
+        const fail = (what: string) => (e: unknown) => errors.push(`${what}: not copied (${String((e as Error)?.message || e).slice(0, 80)})`);
+        if (kind === "job") await syncJob(item as unknown as MillJob, by).catch(fail(String(item.tok)));
+        else if (kind === "run" && rec) await runSerial(rec).then((n) => syncRun(item as unknown as MillRunLike, rec!.date, n)).catch(fail("Run"));
+        else if (kind === "barrel") await syncBarrel(item as unknown as MillBarrel, by).then((m) => { if (m !== "recorded") notes.push(`${item.id}: ${m}`); }).catch(fail(String(item.id)));
       }
     }
     // weighings the counter person has used: kept, marked sorted (weights are never deleted)
@@ -129,37 +147,22 @@ export async function POST(req: NextRequest) {
       const o = raw as { id?: unknown; key?: unknown; v?: unknown };
       if (!validId(o.id) || typeof o.key !== "string" || !/^[a-z]{2,12}$/.test(o.key)) continue;
       const v = Array.isArray(o.v) ? [Number(o.v[0]) || 0, String(o.v[1] || "").slice(0, 30)] : Number(o.v) || 0;
-      const dup = await prisma.opsRecord.findFirst({ where: { kind: MILL_KIND.own, ref: o.id } });
-      if (!dup) await prisma.opsRecord.create({ data: { kind: MILL_KIND.own, ref: o.id, date: today, data: { key: o.key, v } as Prisma.InputJsonValue, status: "open", by } });
+      let rec = await prisma.opsRecord.findFirst({ where: { kind: MILL_KIND.own, ref: o.id } });
+      if (!rec) {
+        try {
+          rec = await prisma.opsRecord.create({ data: { id: ids.own(o.id), kind: MILL_KIND.own, ref: o.id, date: today, data: { key: o.key, v } as Prisma.InputJsonValue, status: "open", by } });
+        } catch (e) {
+          if ((e as { code?: string })?.code !== "P2002") throw e;
+          rec = (await prisma.opsRecord.findFirst({ where: { kind: MILL_KIND.own, ref: o.id } })) // the same weighing arrived twice
+            ?? (await prisma.opsRecord.create({ data: { kind: MILL_KIND.own, ref: o.id, date: today, data: { key: o.key, v } as Prisma.InputJsonValue, status: "open", by } }));
+        }
+      }
+      // our oil goes into the stock ledger once (fixed id per weighing)
+      if (rec && o.key === "ooil") await syncOil({ id: o.id, v, date: rec.date, by: rec.by ?? by, createdAt: rec.createdAt }).catch((e) => errors.push(`oil ${String(e?.message || e).slice(0, 80)}`));
     }
     if (counterChanged) await writeCounter(counter, by || "");
     return { nextJw: counter.jw + 1 };
   });
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 503 });
-  return NextResponse.json({ ok: true, errors, remap, nextJw: r.data.nextJw });
-}
-
-/** Copy a Mill Desk job onto its JobWorkIntake (created on first save). A job already paid in the
- *  Job-Work desk is not overwritten by an unpaid state from the mill. */
-async function mirrorJob(j: MillJob, by: string | null, isNew: boolean) {
-  const mark = millMark(j.id);
-  const found = isNew ? null : await prisma.jobWorkIntake.findFirst({ where: { notes: { contains: mark } } });
-  const serial = found ? Number(found.notes?.match(/Token (\d+)/)?.[1]) || null : (await prisma.opsRecord.count({ where: { kind: MILL_KIND.job, date: bizDate() } })) || null;
-  const d = intakeData(j, by, serial);
-  if (!found) {
-    const { settledByName, ...rest } = d;
-    await prisma.jobWorkIntake.create({ data: { ...rest, settledByName, settledAt: j.settled ? new Date() : null, oilCollectedAt: j.given ? new Date() : null } });
-    return;
-  }
-  if (found.settled && !j.settled) return;
-  await prisma.jobWorkIntake.update({
-    where: { id: found.id },
-    data: {
-      ...d,
-      createdByName: found.createdByName ?? d.createdByName,
-      settledByName: j.settled ? found.settledByName ?? d.settledByName : null,
-      settledAt: j.settled ? found.settledAt ?? new Date() : null,
-      oilCollectedAt: j.given ? found.oilCollectedAt ?? new Date() : null,
-    },
-  });
+  return NextResponse.json({ ok: true, errors, notes, remap, nextJw: r.data.nextJw });
 }

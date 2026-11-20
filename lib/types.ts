@@ -19,6 +19,8 @@ export interface JobWorkIntakeDTO {
   settlementRatePerKg: number | null;
   settlementAmountInr: number | null;
   settledAt: string | null;
+  /** "CASH" | "UPI"; null = cash */
+  settlementMode?: string | null;
   createdByName?: string | null;
   settledByName?: string | null;
   oilCollectedAt?: string | null;

@@ -442,7 +442,7 @@ function render(){
 const weightCard=()=>`<div class="wrow"><div class="wcard"><div class="lbl"><span>WEIGHT (KG)</span><span>300 kg × 50 g</span></div><div class="wnum" id="wnum">0.000</div><div class="wstat" id="wstat"></div></div>
  <button class="rbtn" id="rbtn" onclick="readNow()">${ic('book')}<span>${t('read')}</span></button></div>`;
 function readNow(){if(!ready())return toast('Wait until the weight is steady','bad')}
-function ownLine(){const o=S.own;return `<div class="own" data-f="own"><span>${ownIcon(24)} Ours today · seed <b>${f1(sum(o.oseed))} kg</b></span><span>oil <b>${f1(sum(o.ooil.map(x=>x[0])))} kg</b> (${o.ooil.length} cans)</span><span>khali <b>${f1(sum(o.okhali))} kg</b> (${o.okhali.length} bags)</span>${o.sed.length?`<span>sediment <b>${f1(sum(o.sed))} kg</b></span>`:''}</div>`}
+function ownLine(){const o=S.own;return `<div class="own" data-f="own"><span>${ownIcon(24)} Ours today · seed <b>${f1(sum(o.oseed))} kg</b></span><span>oil <b>${f1(sum(o.ooil.map(x=>x[0])))} kg</b> (${o.ooil.length} cans)</span><span>khali <b>${f1(sum(o.okhali))} kg</b> (${o.okhali.length} bags)</span>${S.khali&&S.khali.bags?`<span title="All khali bags weighed minus khali sold">stack <b>${f1(S.khali.stackKg)} kg</b></span>`:''}${o.sed.length?`<span>sediment <b>${f1(sum(o.sed))} kg</b></span>`:''}</div>`}
 function art(i){const bk=i.b,ar=i.b==='in'?'down':i.b==='out'?'up':'';
  const badge=bk==='P'?`<i class="bdg" style="background:#5F82D4">${ic('user')}</i>`:bk==='F'?`<i class="bdg" style="background:#C98A25">${ic('mill')}</i>`:bk==='in'?`<i class="bdg in">${ic('down')}</i>`:bk==='out'?`<i class="bdg out">${ic('up')}</i>`:bk==='new'?`<i class="bdg" style="background:#3F9D63">${ic('spark')}</i>`:bk==='old'?`<i class="bdg" style="background:#C98A25">${ic('clock')}</i>`:'';
  return `<span class="ia">${icoSvg(i.ico)}${badge}</span>`}
@@ -1181,8 +1181,9 @@ const LS='milldesk.state.v1';
 // stable stringify (Postgres JSONB re-orders keys, so compare by sorted keys)
 const canon=v=>JSON.stringify(v,function(k,x){if(x&&typeof x==='object'&&!Array.isArray(x)){const o={};Object.keys(x).sort().forEach(y=>o[y]=x[y]);return o}return x});
 const ckey=c=>(String(c[0]||'')+'|'+String(c[1]||'')).toLowerCase();
-const SY={snap:{job:{},q:{},run:{},cust:{},barrel:{}},own:{},busy:false,again:false,pushSeq:0,online:true,pending:0,loaded:false,cur:null,next:null,needRender:false,timer:null};
+const SY={snap:{job:{},q:{},run:{},cust:{},barrel:{}},own:{},oid:{},busy:false,again:false,pushSeq:0,online:true,pending:0,loaded:false,cur:null,next:null,needRender:false,timer:null};
 window.SY=SY;
+S.khali=null;
 function lists(){return{job:S.jw,q:S.queue,run:S.runs,cust:CUSTS.map(c=>({id:ckey(c),name:c[0],place:c[1],mobile:c[2]||''})),
  barrel:Object.keys(S.barrels||{}).map(k=>Object.assign({id:k},S.barrels[k]))}}
 function ensureIds(){S.jw.forEach(j=>{if(!j.id)j.id=uid('J')});S.queue.forEach(x=>{if(!x.id||/^Q\d+$/.test(x.id))x.id=uid('Q')});S.runs.forEach(r=>{if(!r.id)r.id=uid('R')})}
@@ -1191,13 +1192,14 @@ function pendingCount(){let n=0;const L=lists();for(const k in L){const sn=SY.sn
 function batch(){ensureIds();const L=lists(),up={},del={};
  for(const k in L){const sn=SY.snap[k];const ids=new Set();up[k]=[];L[k].forEach(x=>{ids.add(x.id);const c=canon(x);if(sn[x.id]!==c)up[k].push(JSON.parse(c))});
   if(k==='q'){del.q=Object.keys(sn).filter(id=>!ids.has(id))}}
- const own=[];OWNK.forEach(k=>{const a=S.own[k]||[],n=SY.own[k]||0;a.slice(n).forEach((v,i)=>own.push({id:uid('O'),key:k,v,idx:n+i}))});
+ // an entry keeps the same id until the server has it, so a retry after a lost reply cannot save it twice
+ const own=[];OWNK.forEach(k=>{const a=S.own[k]||[],n=SY.own[k]||0;a.slice(n).forEach((v,i)=>{const q=k+'|'+(n+i);const id=SY.oid[q]||(SY.oid[q]=uid('O'));own.push({id,key:k,v,idx:n+i})})});
  const empty=!own.length&&!del.q.length&&Object.values(up).every(a=>!a.length);
  return empty?null:{up,del,own}}
-function save(){try{localStorage.setItem(LS,JSON.stringify({at:Date.now(),jw:S.jw,queue:S.queue,runs:S.runs,own:S.own,custs:CUSTS,barrels:S.barrels,snap:SY.snap,ownSnap:SY.own,nextJw:S.nextJw,wsn:S.wsn,me:S.me}))}catch(e){}}
+function save(){try{localStorage.setItem(LS,JSON.stringify({at:Date.now(),jw:S.jw,queue:S.queue,runs:S.runs,own:S.own,custs:CUSTS,barrels:S.barrels,snap:SY.snap,ownSnap:SY.own,oid:SY.oid,nextJw:S.nextJw,wsn:S.wsn,me:S.me}))}catch(e){}}
 function restore(){try{const d=JSON.parse(localStorage.getItem(LS)||'null');if(!d||Date.now()-d.at>3*86400000)return false;
  S.jw=d.jw||[];S.queue=d.queue||[];S.runs=d.runs||[];S.own=Object.assign(emptyOwn(),d.own||{});CUSTS.length=0;(d.custs||[]).forEach(c=>CUSTS.push(c));S.barrels=d.barrels||{};
- SY.snap=Object.assign(SY.snap,d.snap||{});SY.own=d.ownSnap||{};S.nextJw=d.nextJw||S.nextJw;S.wsn=d.wsn||S.wsn;if(d.me)S.me=d.me;return true}catch(e){return false}}
+ SY.snap=Object.assign(SY.snap,d.snap||{});SY.own=d.ownSnap||{};SY.oid=d.oid||{};S.nextJw=d.nextJw||S.nextJw;S.wsn=d.wsn||S.wsn;if(d.me)S.me=d.me;return true}catch(e){return false}}
 function emptyOwn(){return{cseedNote:0,oseed:[],ooil:[],okhali:[],sed:[],other:[]}}
 async function push(){if(!LIVE||!SY.loaded)return;if(SY.busy){SY.again=true;return}
  const b=batch();SY.pending=b?pendingCount():0;paintSync();if(!b)return;
@@ -1207,7 +1209,7 @@ async function push(){if(!LIVE||!SY.loaded)return;if(SY.busy){SY.again=true;retu
   const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Not saved');
   for(const k in b.up)b.up[k].forEach(x=>{SY.snap[k][x.id]=canon(x)});
   (b.del.q||[]).forEach(id=>{delete SY.snap.q[id]});
-  b.own.forEach(o=>{SY.own[o.key]=Math.max(SY.own[o.key]||0,o.idx+1)});
+  b.own.forEach(o=>{SY.own[o.key]=Math.max(SY.own[o.key]||0,o.idx+1);delete SY.oid[o.key+'|'+o.idx]});
   if(d.remap)Object.keys(d.remap).forEach(id=>{const j=S.jw.find(x=>x.id===id);if(j){toast('Invoice number changed to '+d.remap[id].replace('JW-','#')+' (another counter used it)');j.tok=d.remap[id];SY.snap.job[id]=canon(j)}});
   if(d.nextJw)S.nextJw=Math.max(S.nextJw,d.nextJw);
   SY.online=true;SY.pushSeq++}
@@ -1236,7 +1238,8 @@ async function pull(){if(!LIVE||document.hidden)return;const seq=SY.pushSeq;
   m=mergeList('barrel',lb,d.barrels||[]);if(m.ch){const b={};m.out.forEach(x=>{const y=Object.assign({},x);delete y.id;b[x.id]=y});S.barrels=b;ch=true}
   const ownDirty=OWNK.some(k=>(S.own[k]||[]).length>(SY.own[k]||0));
   if(!ownDirty&&d.own){const o=emptyOwn();d.own.forEach(x=>{(o[x.key]=o[x.key]||[]).push(x.v)});
-   if(canon(o)!==canon(Object.assign(emptyOwn(),S.own))){S.own=o;ch=true}SY.own={};Object.keys(o).forEach(k=>{if(Array.isArray(o[k]))SY.own[k]=o[k].length})}
+   if(canon(o)!==canon(Object.assign(emptyOwn(),S.own))){S.own=o;ch=true}SY.own={};SY.oid={};Object.keys(o).forEach(k=>{if(Array.isArray(o[k]))SY.own[k]=o[k].length})}
+  if(d.khali&&canon(d.khali)!==canon(S.khali||null)){S.khali=d.khali;ch=true}
   if(d.nextJw)S.nextJw=Math.max(S.nextJw||1,d.nextJw);
   if(d.wsn)S.wsn=Math.max(S.wsn||1,d.wsn);
   SY.online=true;
