@@ -4,6 +4,7 @@
 // (use as <MillIcon id="…"/> or pick it on a Quick-links tile). Search by English or Kannada name.
 import { useMemo, useState } from "react";
 import MillIcon from "@/components/icons/MillIcon";
+import IconUploader from "@/components/icons/IconUploader";
 import { ICON_GROUPS, iconRows, searchIcons } from "@/lib/millIcons";
 
 export default function IconGallery() {
@@ -22,6 +23,7 @@ export default function IconGallery() {
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search icons (oil, ಎಣ್ಣೆ, barrel…)" style={{ flex: 1, minWidth: 180, padding: "8px 10px", fontSize: 15 }} aria-label="Search icons" />
         <button className="hub-btn" onClick={() => setDark((d) => !d)}>{dark ? "☀️ Light" : "🌙 Dark"} background</button>
       </div>
+      <IconUploader />
       {ICON_GROUPS.map((g) => {
         const list = rows.filter((r) => r.group === g.id);
         if (!list.length) return null;
@@ -46,7 +48,7 @@ export default function IconGallery() {
         );
       })}
       {!rows.length && <div className="hub-banner">No icon matches “{q}”.</div>}
-      <div className="hub-m small">To add an icon: add one entry to <code>ICONS</code> in <code>lib/millIcons.ts</code> (48×48 outline, round caps); it shows up here and in the tile picker.</div>
+      <div className="hub-m small">To add a picture file: use <b>My icons</b> above. To add a drawn icon: add one entry to <code>ICONS</code> in <code>lib/millIcons.ts</code> (48×48 outline, round caps); it shows up here and in the tile picker.</div>
     </div>
   );
 }

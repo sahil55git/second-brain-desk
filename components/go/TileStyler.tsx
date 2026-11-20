@@ -2,9 +2,10 @@
 
 // "🎨 Tile look" panel of the Quick links page and the editor for one tile.
 // Everything is saved on this device only.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import MillIcon from "@/components/icons/MillIcon";
 import { ICON_GROUPS, iconRows } from "@/lib/millIcons";
+import { customIconsSnapshot, loadCustomIcons, subscribeCustomIcons } from "@/lib/customIcons";
 import { GROUP_META, GROUP_ORDER, type QuickLink } from "@/lib/quickLinks";
 import {
   DEFAULT_GROUP_COLORS, DEFAULT_TILE_LOOK, MAX_IMAGE_CHARS, SHAPES, SIZES, STYLES, SWATCHES, tileColor, withTile,
@@ -122,6 +123,8 @@ async function shrink(file: File): Promise<string> {
 export function TileEditor({ link, look, onChange, onClose }: { link: QuickLink; look: TileLook; onChange: (l: TileLook) => void; onClose: () => void }) {
   const own = look.tiles[link.id] ?? {};
   const fileRef = useRef<HTMLInputElement>(null);
+  const customList = useSyncExternalStore(subscribeCustomIcons, customIconsSnapshot, customIconsSnapshot);
+  useEffect(() => { void loadCustomIcons(); }, []);
   const [err, setErr] = useState("");
   const set = (p: Parameters<typeof withTile>[2]) => onChange(withTile(look, link.id, p));
   const upload = async (f: File | undefined) => {
@@ -149,7 +152,7 @@ export function TileEditor({ link, look, onChange, onClose }: { link: QuickLink;
         <div className="go-field">
           Library icon <span className="hub-m small">· <a href="/icons">see all icons</a></span>
           <div className="go-chips" style={{ maxHeight: 150, overflow: "auto" }}>
-            {ICON_GROUPS.filter((g) => g.id !== "groups").flatMap((g) => iconRows().filter((r) => r.group === g.id)).map((r) => (
+            {[...customList.map((c) => ({ id: c.id, name: c.name })), ...ICON_GROUPS.filter((g) => g.id !== "groups").flatMap((g) => iconRows().filter((r) => r.group === g.id))].map((r) => (
               <button key={r.id} type="button" className={`go-chip${own.icon === `mi:${r.id}` ? " on" : ""}`} title={r.name} onClick={() => set({ icon: `mi:${r.id}`, image: null })}>
                 <MillIcon id={r.id} size={28} />
               </button>
