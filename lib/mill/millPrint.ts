@@ -234,7 +234,23 @@ export function layoutDoc(doc: MillPrintDoc, widthDots: number, measure: Measure
     pair(doc.foot[0], doc.foot[1], Math.round(px * 0.85), false);
   }
   y += 8;
-  if (code128Ok(doc.code)) {
+  // The phones scan the QR with the camera, so the QR is what is printed (no barcode: nobody has a scanner),
+  // with the number under it. A barcode is only the fallback if the QR cannot be made, or when asked for (qr:false).
+  let qrDone = false;
+  if (doc.qr !== false) {
+    try {
+      const m = qrMatrix(doc.code, "M");
+      const want = Math.round(6 * Math.min(1, scale + 0.1));
+      const mod = Math.max(3, Math.min(want, Math.floor(Math.min(inner, widthDots * 0.55) / m.length)));
+      const side = m.length * mod;
+      ops.push({ t: "qr", x: Math.round((widthDots - side) / 2), y, h: side, matrix: m, mod });
+      y += side + 4;
+      qrDone = true;
+    } catch {
+      /* fall back to the barcode below */
+    }
+  }
+  if (!qrDone && code128Ok(doc.code)) {
     const modules = code128Modules(doc.code, 0);
     const mod = Math.max(1, Math.min(3, Math.floor(inner / modules.length)));
     const w = modules.length * mod;
@@ -243,18 +259,6 @@ export function layoutDoc(doc: MillPrintDoc, widthDots: number, measure: Measure
     y += h + 4;
   }
   centered(doc.code, px, true);
-  if (doc.qr) {
-    try {
-      const m = qrMatrix(doc.code, "M");
-      const mod = Math.max(2, Math.min(6, Math.floor(Math.min(inner, widthDots * 0.55) / m.length)));
-      const side = m.length * mod;
-      y += 6;
-      ops.push({ t: "qr", x: Math.round((widthDots - side) / 2), y, h: side, matrix: m, mod });
-      y += side + 4;
-    } catch {
-      /* the code is already printed as a barcode and as text */
-    }
-  }
   return { ops, height: y + 4 };
 }
 
@@ -294,22 +298,20 @@ export function planJob(doc: MillPrintDoc, cfg: Pick<MillPrinterCfg, "widthMm" |
   let scale = 1;
   let lay = layoutDoc(doc, widthDots, measure, scale);
   if (labelDots > 0 && lay.height > labelDots) {
-    // 1) shrink the text a little, 2) if it still does not fit and there is a QR as well as the barcode, drop the QR
-    //    (it repeats the barcode) so the slip stays on ONE label, 3) only then spill onto a second label
-    const tries: Array<{ d: MillPrintDoc; s: number }> = [0.9, 0.82, 0.75].map((s) => ({ d: doc, s }));
-    if (doc.qr) for (const s of [1, 0.9, 0.82, 0.75]) tries.push({ d: { ...doc, qr: false }, s });
+    // shrink the text and the QR a little; only then spill onto a second label
+    const tries = [0.9, 0.82, 0.75, 0.68, 0.62];
     let fitted = false;
     for (const t of tries) {
-      const l = layoutDoc(t.d, widthDots, measure, t.s);
+      const l = layoutDoc(doc, widthDots, measure, t);
       if (l.height <= labelDots) {
         lay = l;
-        scale = t.s;
+        scale = t;
         fitted = true;
         break;
       }
     }
     if (!fitted) {
-      scale = 0.75;
+      scale = 0.62;
       lay = layoutDoc(doc, widthDots, measure, scale);
     }
   }
