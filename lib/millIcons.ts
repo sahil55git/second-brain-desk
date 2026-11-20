@@ -85,7 +85,8 @@ const KHALI = `<ellipse cx="24" cy="17" rx="15" ry="6"/><path d="M9 17v10c0 3.3 
 
 export const ICONS: IconDef[] = [
   // oil seed (S0 is the one used so far; S1–S7 are candidates to choose from)
-  { id: "seed_wheat", group: "seed", name: "Seed, ear", kn: "ಬೀಜ", hint: "S0 · the icon used so far", inner: `<path d="M24 42V12"/><path d="M24 12c-3-2-4-5-4-8 3 1 4 4 4 8zM24 12c3-2 4-5 4-8-3 1-4 4-4 8zM24 20c-4-1-6-4-6-7 4 1 6 3 6 7zM24 20c4-1 6-4 6-7-4 1-6 3-6 7zM24 28c-4-1-6-4-6-7 4 1 6 3 6 7zM24 28c4-1 6-4 6-7-4 1-6 3-6 7z"/>` },
+  { id: "seed", group: "seed", name: "Seed", kn: "ಬೀಜ", hint: "Chosen icon — used on every Seed tile", inner: `<g transform="scale(2)"><path d="M12 21V9"/><path d="M12 9c-2.4-1-3.4-3-3.4-5.4 2.4.2 3.4 2.4 3.4 5.4zM12 9c2.4-1 3.4-3 3.4-5.4-2.4.2-3.4 2.4-3.4 5.4zM12 14c-2.4-1-3.4-3-3.4-5M12 14c2.4-1 3.4-3 3.4-5M12 19c-2.4-1-3.4-3-3.4-5M12 19c2.4-1 3.4-3 3.4-5"/></g>` },
+  { id: "seed_wheat", group: "seed", name: "Seed, ear", kn: "ಬೀಜ", hint: "S0 · option", candidate: true, inner: `<path d="M24 42V12"/><path d="M24 12c-3-2-4-5-4-8 3 1 4 4 4 8zM24 12c3-2 4-5 4-8-3 1-4 4-4 8zM24 20c-4-1-6-4-6-7 4 1 6 3 6 7zM24 20c4-1 6-4 6-7-4 1-6 3-6 7zM24 28c-4-1-6-4-6-7 4 1 6 3 6 7zM24 28c4-1 6-4 6-7-4 1-6 3-6 7z"/>` },
   { id: "seed_heap", group: "seed", name: "Seed heap", kn: "ಬೀಜದ ರಾಶಿ", hint: "S1 · pile of oilseed", candidate: true, inner: `<path d="M6 40h36"/><path d="M9 40c1-10 7-17 15-17s14 7 15 17"/>${oval(18, 34, -20)}${oval(25, 31, 15)}${oval(31, 35, -35)}${oval(22, 37, 40)}${oval(28, 27, -10)}${oval(15, 38, 10)}` },
   { id: "seed_sunflower", group: "seed", name: "Sunflower", kn: "ಸೂರ್ಯಕಾಂತಿ", hint: "S2 · sunflower head", candidate: true, inner: sunflower() },
   { id: "seed_groundnut", group: "seed", name: "Groundnut", kn: "ಶೇಂಗಾ", hint: "S3 · peanut pod", candidate: true, inner: `<g transform="rotate(30 24 24)"><path d="M24 4c6 0 9.5 4 9.5 9.5 0 3.2-2.2 5.4-3.5 7.5 1.3 2.1 3.5 4.3 3.5 7.5C33.5 34 30 44 24 44s-9.5-4-9.5-9.5c0-3.200 2.2-5.4 3.5-7.5-1.3-2.1-3.5-4.3-3.5-7.5C14.500 8 18 4 24 4z"/><path d="M20 12h.01M26 14h.01M22 17h.01M25 33h.01M21 36h.01M27 38h.01M20 31h.01" stroke-width="2"/></g>` },
@@ -135,13 +136,13 @@ const BADGES: Record<BadgeId, { color: string; icon: string }> = {
 /** The weighing tiles: a base icon + a small round badge. Same names as the Mill Desk. */
 export interface ComboDef { id: string; name: string; kn: string; base: string; badge?: BadgeId; hint?: string }
 export const COMBOS: ComboDef[] = [
-  { id: "jw_seed", name: "Job work · Seed", kn: "ಬೀಜ", base: "seed_wheat", badge: "person", hint: "Customer brings seed" },
+  { id: "jw_seed", name: "Job work · Seed", kn: "ಬೀಜ", base: "seed", badge: "person", hint: "Customer brings seed" },
   { id: "jw_oil", name: "Job work · Oil", kn: "ಎಣ್ಣೆ", base: "oil_drop", badge: "person" },
   { id: "jw_khali", name: "Job work · Khali", kn: "ಹಿಂಡಿ", base: "khali_disc", badge: "person" },
-  { id: "mill_seed", name: "Our mill · Seed", kn: "ಬೀಜ", base: "seed_wheat", badge: "factory", hint: "To the expeller" },
+  { id: "mill_seed", name: "Our mill · Seed", kn: "ಬೀಜ", base: "seed", badge: "factory", hint: "To the expeller" },
   { id: "mill_oil", name: "Our mill · Oil", kn: "ಎಣ್ಣೆ", base: "oil_drop", badge: "factory" },
   { id: "mill_khali", name: "Our mill · Khali", kn: "ಹಿಂಡಿ", base: "khali_disc", badge: "factory" },
-  { id: "buy_seed", name: "Seed buy", kn: "ಬೀಜ ಖರೀದಿ", base: "seed_wheat", badge: "in" },
+  { id: "buy_seed", name: "Seed buy", kn: "ಬೀಜ ಖರೀದಿ", base: "seed", badge: "in" },
   { id: "buy_khali", name: "Khali buy", kn: "ಹಿಂಡಿ ಖರೀದಿ", base: "khali_disc", badge: "in" },
   { id: "buy_oil", name: "Oil buy", kn: "ಎಣ್ಣೆ ಖರೀದಿ", base: "oil_drop", badge: "in" },
   { id: "sell_oil", name: "Oil sell", kn: "ಎಣ್ಣೆ ಮಾರಾಟ", base: "oil_drop", badge: "out" },
