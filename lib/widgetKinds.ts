@@ -4,7 +4,7 @@
 // components/android/AndroidPage.tsx.
 import { QUICK_LINKS, visibleLinks } from "@/lib/quickLinks";
 
-export type WidgetKind = "dashboard" | "summary" | "actions" | "barrels" | "cash" | "udhaar" | "jobwork" | "stock" | "alerts" | "note" | "chat" | "tips" | "tasks" | "keypad" | "me" | "approvals" | "staff";
+export type WidgetKind = "dashboard" | "summary" | "actions" | "barrels" | "cash" | "udhaar" | "jobwork" | "stock" | "alerts" | "note" | "chat" | "tips" | "tasks" | "keypad" | "me" | "approvals" | "staff" | "milldesk" | "millcounter" | "weighbill";
 
 export interface WidgetInfo {
   kind: WidgetKind;
@@ -38,6 +38,9 @@ export const WIDGETS: WidgetInfo[] = [
   { kind: "me", icon: "👷", name: "My work (staff)", what: "My entries today, what waits for the owner's OK, job-work lots, plus six form buttons", size: "4×3", interactive: true },
   { kind: "approvals", icon: "✅", name: "Waiting for my OK", what: "Owner: staff payments and expenses waiting for approval", size: "4×2", ownerOnly: true },
   { kind: "staff", icon: "👥", name: "Staff ledger & attendance", what: "What we owe each employee, and who is in, late or absent today", size: "4×3", ownerOnly: true },
+  { kind: "milldesk", icon: "⚖️", name: "Mill Desk", what: "One tap to the Mill Desk: Mill 1 scale, job-work tokens, our crushing", size: "2×1" },
+  { kind: "millcounter", icon: "🛢️", name: "Mill Counter Desk", what: "One tap to barrel lots received: gross, tare and net weight", size: "2×1" },
+  { kind: "weighbill", icon: "🧾", name: "Weigh & Bill counter", what: "One tap to the counter for selling by weight", size: "2×1" },
 ];
 
 export const NOTE_COLORS = [

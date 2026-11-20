@@ -20,6 +20,9 @@
     <string name="widget_keypad_desc">Type an amount on the widget, tap Sale, UPI, Expense or Udhaar in: the form opens filled, press Save</string>
     <string name="widget_me_desc">For staff: what I entered today, entries waiting for the owner\'s OK, job-work and barrels, with six form buttons</string>
     <string name="widget_staff_desc">Owner: what we owe each employee, who is in, late or absent today</string>
+    <string name="widget_milldesk_desc">One tap to the Mill Desk: Mill 1 scale, job-work tokens, our crushing</string>
+    <string name="widget_millcounter_desc">One tap to the Mill Counter Desk: barrel lots received, gross, tare and net weight</string>
+    <string name="widget_weighbill_desc">One tap to Weigh &amp; Bill: the counter for selling by weight</string>
     <string name="widget_approvals_desc">Owner: staff payments and expenses waiting for your OK</string>
     <string name="widget_actions_desc">Six one-tap buttons you choose in the app</string>
     <string name="sc_counter">Weigh &amp; Bill</string>

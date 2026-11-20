@@ -163,6 +163,27 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_staff_info" />
         </receiver>
+        <receiver android:name=".MillDeskWidget" android:label="Mahadev · Mill Desk" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="in.mahadevtraders.desk.REFRESH" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_milldesk_info" />
+        </receiver>
+        <receiver android:name=".MillCounterWidget" android:label="Mahadev · Mill Counter Desk" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="in.mahadevtraders.desk.REFRESH" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_millcounter_info" />
+        </receiver>
+        <receiver android:name=".WeighBillWidget" android:label="Mahadev · Weigh &amp; Bill" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="in.mahadevtraders.desk.REFRESH" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_weighbill_info" />
+        </receiver>
         <receiver android:name=".AlertsWidget" android:label="Mahadev · Alerts" android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
