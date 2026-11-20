@@ -111,6 +111,9 @@ rep("""onclick="S.own.ooil.push([${kg},'${x}']);closeLayer();toast('${f1(kg)} kg
 rep("function wOil(gi,tank){const g=takeG(gi);g.items.forEach(x=>S.own.ooil.push([x.kg,tank]));","function wOil(gi,tank){const g=takeG(gi);g.items.forEach(x=>{S.own.ooil.push([x.kg,tank]);oilToRun(x.kg,tank)});")
 # the khali stack from the server: bags weighed in minus khali sold at the counter (one figure, worked out there)
 rep("<span>khali <b>${f1(sum(o.okhali))} kg</b> (${o.okhali.length} bags)</span>","<span>khali <b>${f1(sum(o.okhali))} kg</b> (${o.okhali.length} bags)</span>${S.khali&&S.khali.bags?`<span title=\"All khali bags weighed minus khali sold\">stack <b>${f1(S.khali.stackKg)} kg</b></span>`:''}")
+# the counts in brackets are hidden on a phone (one short line); the kg stay
+rep("(${o.ooil.length} cans)","<i class=\"cn\">(${o.ooil.length} cans)</i>")
+rep("(${o.okhali.length} bags)</span>${S.khali","<i class=\"cn\">(${o.okhali.length} bags)</i></span>${S.khali")
 
 # ---- engine + app code before the final render()
 eng=open(D+'/voice_engine.js').read()
