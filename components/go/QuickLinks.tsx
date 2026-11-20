@@ -9,6 +9,7 @@ import { useSession } from "next-auth/react";
 import { GROUP_META, GROUP_ORDER, visibleLinks, type QuickLink } from "@/lib/quickLinks";
 import { TILE_LOOK_KEY, cleanLook, DEFAULT_TILE_LOOK, textOn, tileColor, type TileLook } from "@/lib/tileLook";
 import { TileEditor, TilePanel } from "@/components/go/TileStyler";
+import { TileGlyph } from "@/components/icons/MillIcon";
 
 const KEY = "mahadev-quick-links";
 
@@ -79,7 +80,7 @@ export default function QuickLinks() {
           // eslint-disable-next-line @next/next/no-img-element
           <img className="ic-img" src={own.image} alt="" />
         ) : (
-          <span className="ic" aria-hidden>{own.icon ?? l.icon}</span>
+          <span className="ic" aria-hidden><TileGlyph v={own.icon ?? l.icon} /></span>
         )}
         <span className="t">{own.title ?? l.title}</span>
         {look.showKn && <span className="k">{l.kn}</span>}
