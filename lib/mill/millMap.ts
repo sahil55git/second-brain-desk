@@ -27,7 +27,7 @@ export const runMark = (runId: string) => `[mill-run:${runId}]`;
 
 // --------------------------------------------------------------------------- oil to tank
 /** Which tank the oil counts into in the app's stock. Floor barrel and small tank hold the same Karadi oil. */
-export const tankKey = (_tank: unknown): "k2" => "k2";
+export const tankKey = (): "k2" => "k2";
 
 export interface OwnOil {
   id: string;
@@ -48,7 +48,7 @@ export function transferData(o: OwnOil) {
     mill: OWN_OIL.mill,
     batchId: null,
     batchLabel: null,
-    toTank: tankKey(o.tank),
+    toTank: tankKey(),
     oilKg: o.kg,
     note: `Mill Desk · ${o.tank}`.slice(0, 200),
     from: "mill-desk",

@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser, dayRange } from "@/lib/registerServer";
-import { bizDate, cleanItem, jobClosed, jobError, LIST_KINDS, MAX_BATCH, MILL_KIND, millMark, slipNo, tokNo, tokOf, validId, type MillEntity, type MillJob } from "@/lib/mill/millDesk";
+import { bizDate, cleanItem, jobClosed, jobError, LIST_KINDS, MAX_BATCH, MILL_KIND, slipNo, tokNo, tokOf, validId, type MillEntity, type MillJob } from "@/lib/mill/millDesk";
 import { ids, type MillBarrel, type MillRunLike } from "@/lib/mill/millMap";
 import { khaliNow, overlayPayments, runSerial, syncBarrel, syncJob, syncOil, syncRun } from "@/lib/mill/millSync";
 
