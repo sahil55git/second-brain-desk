@@ -44,7 +44,7 @@ export default function MillPrinterSheet({ onClose }: { onClose: () => void }) {
     });
   }, [native, scan]);
 
-  const paperId = draft ? MILL_PAPERS.find((x) => x.widthMm === draft.widthMm && x.heightMm === draft.heightMm)?.id ?? "50x75" : "50x75";
+  const paperId = draft ? MILL_PAPERS.find((x) => x.widthMm === draft.widthMm && x.heightMm === draft.heightMm)?.id ?? "custom" : "50x75";
   const pick = (d: NativePrinter) => {
     if (isBleName(d.name)) {
       setMsg({ ok: false, text: `“${d.name}” is the low-energy (BLE) entry; the app cannot print over it. Pair the one without “_BLE” (printer icon) in Bluetooth settings, press Refresh, and choose that.` });
@@ -132,7 +132,16 @@ export default function MillPrinterSheet({ onClose }: { onClose: () => void }) {
                 <b>3 · Label size and test</b>
                 <select style={{ ...btn, appearance: "auto" }} value={paperId} onChange={(e) => setPaper(e.target.value)}>
                   {MILL_PAPERS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {paperId === "custom" && <option value="custom">Custom size (below)</option>}
                 </select>
+                {draft.heightMm > 0 && (
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ opacity: 0.8 }}>Measure one label, in mm:</span>
+                    <label>Width <input type="number" inputMode="decimal" min={20} max={108} value={draft.widthMm} onChange={(e) => setDraft({ ...draft, widthMm: Math.max(20, Math.min(108, Number(e.target.value) || 50)) })} style={{ ...btn, width: 72 }} /></label>
+                    <label>Height <input type="number" inputMode="decimal" min={15} max={300} value={draft.heightMm} onChange={(e) => setDraft({ ...draft, heightMm: Math.max(15, Math.min(300, Number(e.target.value) || 75)) })} style={{ ...btn, width: 72 }} /></label>
+                    <span style={{ opacity: 0.65, fontSize: 13, flexBasis: "100%" }}>If the top line is cut off or the next label gets a few lines, the height here is more than the real label: lower it a little (e.g. 75 → 71) and test again.</span>
+                  </div>
+                )}
                 <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   Darkness {draft.density}
                   <input type="range" min={1} max={15} value={draft.density} onChange={(e) => setDraft({ ...draft, density: Number(e.target.value) })} style={{ flex: 1 }} />

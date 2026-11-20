@@ -293,10 +293,23 @@ export function planJob(doc: MillPrintDoc, cfg: Pick<MillPrinterCfg, "widthMm" |
   const labelDots = cfg.heightMm > 0 ? mmToDots(cfg.heightMm) : 0;
   let scale = 1;
   let lay = layoutDoc(doc, widthDots, measure, scale);
-  if (labelDots > 0) {
-    for (const s of [0.9, 0.82, 0.75]) {
-      if (lay.height <= labelDots) break;
-      scale = s;
+  if (labelDots > 0 && lay.height > labelDots) {
+    // 1) shrink the text a little, 2) if it still does not fit and there is a QR as well as the barcode, drop the QR
+    //    (it repeats the barcode) so the slip stays on ONE label, 3) only then spill onto a second label
+    const tries: Array<{ d: MillPrintDoc; s: number }> = [0.9, 0.82, 0.75].map((s) => ({ d: doc, s }));
+    if (doc.qr) for (const s of [1, 0.9, 0.82, 0.75]) tries.push({ d: { ...doc, qr: false }, s });
+    let fitted = false;
+    for (const t of tries) {
+      const l = layoutDoc(t.d, widthDots, measure, t.s);
+      if (l.height <= labelDots) {
+        lay = l;
+        scale = t.s;
+        fitted = true;
+        break;
+      }
+    }
+    if (!fitted) {
+      scale = 0.75;
       lay = layoutDoc(doc, widthDots, measure, scale);
     }
   }
@@ -434,7 +447,7 @@ export async function sendBytes(cfg: MillPrinterCfg, bytes: Uint8Array): Promise
   const t0 = Date.now();
   try {
     // status:false — a label printer is not asked the receipt-printer status question
-    await MahadevPrinter.printJob({ id: cfg.id, base64: toBase64(bytes), chunk: 240, delayMs: 15, status: false, keepMs: 300_000 });
+    await MahadevPrinter.printJob({ id: cfg.id, base64: toBase64(bytes), chunk: 480, delayMs: 8, status: false, keepMs: 300_000 });
     return { ms: Date.now() - t0 };
   } catch (e) {
     if (!notImplemented(e)) throw new MillPrintError((e as { code?: string })?.code || "NO_ANSWER", e instanceof Error ? e.message : String(e));

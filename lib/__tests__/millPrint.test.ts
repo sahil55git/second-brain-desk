@@ -145,6 +145,16 @@ describe("words for the person", () => {
     expect(isBleName("H30C_F1BA")).toBe(false);
     expect(explainPrintError(new MillPrintError("NO_ANSWER", "x"), "H30C_F1BA_BLE").text).toMatch(/without “_BLE”/);
   });
+  it("a token with a QR stays on ONE 50x75 label (the QR is dropped, the barcode stays) instead of using two labels", () => {
+    const plan = planJob(token, { widthMm: 50, heightMm: 75 }, measure);
+    expect(plan.pages).toHaveLength(1);
+    expect(plan.pages[0].some((o) => o.t === "bars")).toBe(true);
+    expect(plan.pages[0].some((o) => o.t === "qr")).toBe(false);
+    // a roomy label keeps the QR
+    const big = planJob(token, { widthMm: 75, heightMm: 100 }, measure);
+    expect(big.pages).toHaveLength(1);
+    expect(big.pages[0].some((o) => o.t === "qr")).toBe(true);
+  });
   it("the test slip is a valid doc", () => {
     expect(cleanDoc(TEST_DOC)?.code).toBe("TEST-0001");
   });
