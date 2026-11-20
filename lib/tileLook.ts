@@ -94,7 +94,11 @@ export function cleanOwn(raw: unknown): TileOwn {
   const t = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const out: TileOwn = {};
   if (isHex(t.color)) out.color = t.color.toLowerCase();
-  if (typeof t.icon === "string" && t.icon.trim()) out.icon = Array.from(t.icon.trim()).slice(0, 3).join("");
+  if (typeof t.icon === "string" && t.icon.trim()) {
+    const raw = t.icon.trim();
+    // "mi:<id>" = an icon from the icon library (/icons); anything else is an emoji or up to 3 letters
+    out.icon = /^mi:[a-z0-9_]{1,40}$/.test(raw) ? raw : Array.from(raw).slice(0, 3).join("");
+  }
   if (typeof t.image === "string" && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(t.image) && t.image.length <= MAX_IMAGE_CHARS) out.image = t.image;
   if (typeof t.title === "string" && t.title.trim()) out.title = t.title.trim().slice(0, 30);
   return out;
