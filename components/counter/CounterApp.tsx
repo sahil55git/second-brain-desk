@@ -41,6 +41,7 @@ import BillDetails from "./BillDetails";
 import { defaultHandover, handoverOf, heldNeed, heldQueue, isTracked, oilBlockedAmount, payStatus, upiLine, waitText, type Handover } from "@/lib/counterTrack";
 import { fitsBill, parseUpi, planUpi, samePayment, type UpiEvent } from "@/lib/upiNotify";
 import { hasNativeUpi, MahadevUpi } from "@/lib/native";
+import { useKeepAwake } from "@/lib/keepAwake";
 import { PAY_SHOW_KEYS, ensurePayOption, parseShow, SHOW_ALL, SHOW_KEYS, SHOW_LABELS, SHOW_SIMPLE, type ShowCfg } from "@/lib/counterShow";
 import { hashPin, KIOSK_EXTRAS, KIOSK_KEY, readKiosk, type KioskExtra, type KioskState } from "@/lib/counterKiosk";
 
@@ -138,6 +139,7 @@ const ago = (iso: string) => {
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" });
 
 export default function CounterApp() {
+  useKeepAwake();
   const { connected, selectedReading: reading, bt } = useScale();
   const { isOwner } = useAccess();
   const shop = useShop();

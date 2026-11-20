@@ -455,24 +455,42 @@ export async function sendBytes(cfg: MillPrinterCfg, bytes: Uint8Array): Promise
     if (!notImplemented(e)) throw new MillPrintError((e as { code?: string })?.code || "NO_ANSWER", e instanceof Error ? e.message : String(e));
   }
   // an app older than printJob: the same bytes in paced pieces through write()
+  let at = 0;
   try {
-    for (let at = 0; at < bytes.length; at += 240) {
+    for (; at < bytes.length; at += 240) {
       await MahadevPrinter.write({ id: cfg.id, base64: toBase64(bytes.subarray(at, at + 240)) });
       await new Promise((r) => setTimeout(r, 25));
     }
   } catch (e) {
-    throw new MillPrintError("NO_ANSWER", e instanceof Error ? e.message : String(e));
+    // part of the label already went out: say so (and never retry it by itself)
+    throw new MillPrintError(at > 0 ? "PARTIAL" : "NO_ANSWER", e instanceof Error ? e.message : String(e));
   }
   return { ms: Date.now() - t0 };
 }
 
 /** Prints one slip. Throws MillPrintError. */
-export async function printMillDoc(doc: MillPrintDoc, copies = 1, cfgIn?: MillPrinterCfg | null): Promise<{ ms: number; pages: number }> {
+/** NO_ANSWER = the app could not reach the printer and sent NOTHING, so trying again cannot print a second copy. */
+export function safeToRetry(e: unknown): boolean {
+  const code = e instanceof MillPrintError ? e.code : (e as { code?: string })?.code || "";
+  return code === "NO_ANSWER";
+}
+
+export async function printMillDoc(doc: MillPrintDoc, copies = 1, cfgIn?: MillPrinterCfg | null, wait = (ms: number) => new Promise((r) => setTimeout(r, ms))): Promise<{ ms: number; pages: number }> {
   const cfg = cfgIn ?? getMillPrinter();
   if (!cfg) throw new MillPrintError("NO_PRINTER", "No printer chosen.");
   const { bytes, pages } = buildMillJob(doc, cfg, copies);
-  const r = await sendBytes(cfg, bytes);
-  return { ms: r.ms, pages };
+  const t0 = Date.now();
+  try {
+    const r = await sendBytes(cfg, bytes);
+    return { ms: r.ms, pages };
+  } catch (e) {
+    // a printer that was asleep or busy with the scale's reconnect often answers a few seconds later:
+    // one more try, but only when nothing was sent (never a second copy) and the person is not kept waiting long
+    if (!safeToRetry(e) || Date.now() - t0 > 45_000) throw e;
+    await wait(2500);
+    await sendBytes(cfg, bytes);
+    return { ms: Date.now() - t0, pages };
+  }
 }
 
 /** Opens the link ahead of time so the first print does not wait for it (quiet; errors ignored). */

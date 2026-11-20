@@ -124,7 +124,7 @@ function paintPrint(){
  else if(b)b.remove()}
 function sendPrint(){PR.id=uid('p');PR.busy=true;PR.ok=null;PR.text='';PR.fix='';
  window.parent.postMessage({type:'print',id:PR.id,doc:PR.doc,copies:PR.copies},location.origin);
- clearTimeout(PR.t);PR.t=setTimeout(()=>{if(PR.busy){PR.busy=false;PR.ok=false;PR.text='The printer did not answer in time. Check it is on and near, then Print again.';paintPrint()}},60000);
+ clearTimeout(PR.t);PR.t=setTimeout(()=>{if(PR.busy){PR.busy=false;PR.ok=false;PR.text='The printer did not answer in time. Look at the printer first: if the slip did not come out, Print again.';paintPrint()}},150000);
  setTimeout(paintPrint,0)}
 window.millPrintAuto=function(doc,copies){PR.doc=doc;PR.copies=Math.max(1,+copies||1);if(!PR.native){setTimeout(paintPrint,0);return}sendPrint()};
 window.printAgain=function(){if(PR.native&&PR.doc)sendPrint();else printPaper()};

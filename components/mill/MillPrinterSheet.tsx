@@ -3,6 +3,7 @@
 // Pair the label printer (Helett H30C) for the Mill Desk: choose it from the phone's paired Bluetooth
 // devices, pick the label size, press Test print, Save. Opens over the desk; also opens by itself when a
 // slip is printed and no printer has been chosen yet.
+import BatteryWarning from "@/components/device/BatteryWarning";
 import { useCallback, useEffect, useState } from "react";
 import { MahadevPrinter, isNative, type NativePrinter } from "@/lib/native";
 import { nativePrinterScan } from "@/lib/directPrint";
@@ -104,6 +105,7 @@ export default function MillPrinterSheet({ onClose }: { onClose: () => void }) {
 
         {native && (
           <>
+            <BatteryWarning />
             <div style={card}>
               <b>1 · Pair the printer once</b>
               <span style={{ opacity: 0.8, fontSize: 14 }}>Switch the Helett on. Close its own app and disconnect it from any other phone. Pair it in Android Bluetooth settings (PIN 0000 or 1234). It shows twice: pair the one WITHOUT “_BLE” (printer icon), e.g. H30C_F1BA, not H30C_F1BA_BLE. Then come back and press Refresh.</span>

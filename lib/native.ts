@@ -70,6 +70,15 @@ interface MahadevScalePlugin {
   close(): Promise<void>;
   addListener(ev: "scaleBytes", f: (e: { base64: string }) => void): Promise<{ remove: () => void }>;
   addListener(ev: "scaleClosed", f: (e: { error: string }) => void): Promise<{ remove: () => void }>;
+  /** newer app: the app reconnected by itself */
+  addListener(ev: "scaleOpened", f: (e: { name: string }) => void): Promise<{ remove: () => void }>;
+  /** newer app: what the self-reconnecting link is doing (its presence = the app heals the link itself) */
+  status(): Promise<{ wanted: string; connected: boolean; name: string; failures: number; error: string; quietMs: number }>;
+  /** newer app: keep the screen on while a weighing screen is open */
+  keepAwake(o: { on: boolean }): Promise<void>;
+  /** newer app: may Android stop the app to save battery? */
+  batteryStatus(): Promise<{ unrestricted: boolean }>;
+  askBattery(): Promise<void>;
 }
 export interface UpiNotification {
   id: string;
