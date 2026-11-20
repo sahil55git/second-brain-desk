@@ -6,6 +6,7 @@
 import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useScale } from "@/components/ScaleProvider";
+import { scaleTapPlan } from "@/lib/mill/scaleTap";
 
 const FRESH_MS = 3000;
 
@@ -46,9 +47,12 @@ export default function MillDeskFrame() {
       }
       if (d.type === "open" && (e.data as { to?: string }).to === "/mill/counter") window.location.href = "/mill/counter"; // barrel counter desk
       if (d.type === "scale-connect") {
-        // a scale set up on this phone before: connect again; otherwise open scale set-up
-        if (bt.config) bt.connect();
-        else window.location.href = "/?desk=scales";
+        // tell the person what is going on, and do the one thing that can help
+        const plan = scaleTapPlan({ support: bt.support, hasConfig: !!bt.config, status: bt.state.status, error: bt.state.error, name: bt.config?.name || "" });
+        ref.current?.contentWindow?.postMessage({ type: "toast", text: plan.text, bad: plan.bad }, window.location.origin);
+        if (plan.act === "setup") setTimeout(() => (window.location.href = "/?desk=scales"), 900);
+        else if (plan.act === "connect") bt.connect();
+        else if (plan.act === "retry") bt.retryNow();
       }
     };
     window.addEventListener("message", on);
