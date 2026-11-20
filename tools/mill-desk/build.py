@@ -104,6 +104,14 @@ rep("""<div class="qrw">${qrSvg(tok)}</div></div>
 rep("Sent to the mill printer. The counter person sees these in Waiting.","Saved. Tap Print for the weight slip. The counter person sees these in Waiting.")
 rep("j={nb:sum(nbs),tok,customer:","j={id:uid('J'),nb:sum(nbs),tok,customer:")
 rep("""<span class="pill" data-f="bt" title="Bluetooth scale">""","""<span class="pill" data-f="bt" title="Bluetooth scale" onclick="millScaleTap()">""")
+# the mill label printer (Helett): a dot in the top bar, one-tap print of the slip and the token, a status line + Print again
+rep("""onclick="millScaleTap()"><span class="dot"></span>${ic('bt')}</span>""","""onclick="millScaleTap()"><span class="dot"></span>${ic('bt')}</span><span class="pill" data-f="pr" title="Printer" onclick="millPrinterTap()"><span class="dot"></span>${ic('printer')}</span>""")
+rep("""<button class="sbtn go next" onclick="printPaper()">${ic('printer')}Print</button>""","""<button class="sbtn go next" onclick="window.__copies=1;printAgain()">${ic('printer')}<span class="prlbl">Print</span></button>""")
+rep("""<button class="sbtn go next" onclick="window.__copies=${sp.copies||1};printPaper()">${ic('printer')}Print · ${sp.copies||1}</button>""","""<button class="sbtn go next" onclick="window.__copies=${sp.copies||1};printAgain()">${ic('printer')}<span class="prlbl">Print</span> · ${sp.copies||1}</button>""")
+rep("Saved. Tap Print for the weight slip. The counter person sees these in Waiting.</div>","Saved · the counter person sees these in Waiting.</div><div id=\"prst\" class=\"prst\"></div>")
+rep("The codes below are real and scan.</div>","The codes below are real and scan.</div><div id=\"prst\" class=\"prst\"></div>")
+rep("S.wtray=[];S.wdone={sn,n:tr.length};","S.wtray=[];S.wdone={sn,n:tr.length};millPrintAuto({kind:'slip',code:sn,shop:'MAHADEV TRADERS',title:'Mill 1 · WEIGHT SLIP',when:nowFull(),rows:tr.map(x=>[IT[x.k].wl+(x.cno?' · '+cnoL()+' '+x.cno:'')+(isBagK(x.k)?' · '+bagTxt(x.nb||1):''),f2(x.kg)+' kg']),foot:['By '+((S.me&&S.me.name)||'Worker'),nowFull()]},1);")
+rep(" clearSlip();\n layer('Token printed',"," clearSlip();\n millPrintAuto({kind:'token',code:tok,shop:'MAHADEV TRADERS',title:'JOB-WORK TOKEN',sub:'Bidar · Mill 1',when:nowFull(),rows:rows.map(r=>r[0]==='-'?'-':[r[0],r[1]]),total:['Estimate',inr(est)],foot:['Date · time',nowFull()],qr:true},sp.copies||1);\n layer('Token printed',")
 # our seed tapped at the counter starts a crushing run, like Waiting's "Add to today's crushing"
 rep(" const key=k;(S.own[key]=S.own[key]||[]).push(kg);toast(IT[k].wl+' '+f1(kg)+' kg saved');afterSave()}",
     " const key=k;(S.own[key]=S.own[key]||[]).push(kg);if(k==='oseed'){const r=newRun([{kg,nb:1,time:clock()}]);toast('Seed '+f1(kg)+' kg · Run '+rserial(r)+' to start')}else toast(IT[k].wl+' '+f1(kg)+' kg saved');afterSave()}")

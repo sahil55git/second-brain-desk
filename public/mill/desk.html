@@ -276,6 +276,14 @@ body.noic .sbtn>svg.ic,body.noic .cp>svg.ic,body.noic .ch>svg.ic,body.noic .mrow
  .grp{font-size:15px}
  .grp .gi{width:26px;height:26px}
 }
+
+/* mill label printer */
+#top .pill[data-f="pr"]{cursor:pointer}
+.prst{display:none;margin:8px 0;padding:10px 12px;border-radius:12px;font:700 16px var(--head);align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#142130;border:2px solid #2b3a4a;color:#cfe0f0}
+.prst.ok{background:#0d2a1a;border-color:#4a9a6b;color:#bdf0cf}.prst.bad{background:#3a1710;border-color:#E5604A;color:#ffd0c7}
+.prst button{min-height:44px;border-radius:10px;border:2px solid currentColor;background:transparent;color:inherit;font:700 15px var(--head);padding:0 12px}
+.prpend{position:absolute;left:12px;right:12px;top:64px;z-index:39;background:#3a2b10;border:2px solid #E9C46A;color:#ffe9b0;border-radius:14px;padding:10px 12px;font:700 16px var(--head);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.prpend button{min-height:44px;border-radius:10px;border:2px solid currentColor;background:transparent;color:inherit;font:700 15px var(--head);padding:0 14px}
 </style>
 </head>
 <body>
@@ -466,7 +474,7 @@ function render(){
  const demo=$('#demo');
  if(!demo.dataset.ready){demo.dataset.ready=1;demo.insertAdjacentHTML('beforeend',[['Seed bag 48.6',48.6],['Full barrel 192.4',192.4],['Empty barrel 12.3',12.3],['Next bag 49.2',49.2],['Can + oil 19.85',19.85],['Khali bag 44.3',44.3],['Moving…',130],['Over 300',312],['Empty',0]].map(([l,v])=>`<button onclick="simSet(${v})">${l}</button>`).join(''))}
  $('#top').innerHTML=`<h1><span class="tt">${ic('weigh')}Mill Desk</span><small><b style="color:var(--amber,#E9C46A)">${nowShort()}</b></small></h1>
-  <span class="pill" data-f="bt" title="Bluetooth scale" onclick="millScaleTap()"><span class="dot"></span>${ic('bt')}</span>
+  <span class="pill" data-f="bt" title="Bluetooth scale" onclick="millScaleTap()"><span class="dot"></span>${ic('bt')}</span><span class="pill" data-f="pr" title="Printer" onclick="millPrinterTap()"><span class="dot"></span>${ic('printer')}</span>
   <button class="pill" data-f="lang" onclick="S.lang=S.lang==='en'?'kn':'en';render()"><span class="gl">${ic('globe')}</span>${S.lang==='en'?'EN':'ಕನ್ನಡ'}</button>
   ${S.mode==='worker'?'':`<button class="pill" onclick="sheetSettings()" aria-label="Settings">${ic('gear')}</button>`}${S.mode==='worker'?'':`<button class="pill" onclick="millCounterOpen()" aria-label="Barrel counter desk">${icoSvg('bfull',22)}</button>`}<button class="pill on" data-f="mode" onclick="S.mode=S.mode==='worker'?'counter':'worker';S.view='pick';render()">${ic(S.mode==='worker'?'user':'rupee')}<span class="pl">${S.mode==='worker'?'Worker':'Counter'}</span><span class="pl">⇄</span></button>`;
  const cnt=(n,ico,key,fn,hl)=>`<button class="cp ${hl?'has':''}" data-f="tab-${key}" onclick="${fn}">${ico==='jc'?jcIcon(24):ico==='own'?ownIcon(24):ic(ico)}<span>${t(key)}</span><span class="n">${n}</span></button>`;
@@ -505,12 +513,12 @@ function workerHTML(){
   +`<div class="pane wk">${groupsHTML(ITEMS,true)}</div><div class="note">Worker: put it on the scale, wait for green, tap the picture. Tap more items if needed, then <b>Save &amp; Print</b>. Green ↓ comes in, red ↑ goes out.</div>`}
 function workerPrint(){const tr=S.wtray;if(!tr.length)return;const sn='WS-'+pad(S.wsn++),tm=clock();
  tr.forEach(x=>S.queue.push({id:uid('Q'),k:x.k,nb:x.nb||1,kg:x.kg,time:tm,by:(S.me&&S.me.name)||'Worker',cno:x.cno||0,slip:sn}));
- S.wtray=[];S.wdone={sn,n:tr.length};
- layer('Printed',`<div class="note">Saved. Tap Print for the weight slip. The counter person sees these in Waiting.</div>
+ S.wtray=[];S.wdone={sn,n:tr.length};millPrintAuto({kind:'slip',code:sn,shop:'MAHADEV TRADERS',title:'Mill 1 · WEIGHT SLIP',when:nowFull(),rows:tr.map(x=>[IT[x.k].wl+(x.cno?' · '+cnoL()+' '+x.cno:'')+(isBagK(x.k)?' · '+bagTxt(x.nb||1):''),f2(x.kg)+' kg']),foot:['By '+((S.me&&S.me.name)||'Worker'),nowFull()]},1);
+ layer('Printed',`<div class="note">Saved · the counter person sees these in Waiting.</div><div id="prst" class="prst"></div>
   <div class="paper"><div class="hd">MAHADEV TRADERS</div><div style="text-align:center">Mill 1 · WEIGHT SLIP</div><div style="text-align:center;font-weight:700">${nowFull()}</div><div class="hr"></div>
   ${tr.map(x=>`<div class="sr"><span>${esc(IT[x.k].wl)}${x.cno?' · '+cnoL()+' '+x.cno:''}${isBagK(x.k)?' · '+bagTxt(x.nb||1):''}</span><b>${f2(x.kg)} kg</b></div>`).join('')}<div class="hr"></div>
   <div class="sr"><span>By ${esc((S.me&&S.me.name)||'Worker')}</span><span>${nowFull()}</span></div><div class="bcw">${bcSvg(sn)}</div><div style="text-align:center;font-size:12px;letter-spacing:.1em">${sn}</div></div>
-  <button class="sbtn go next" onclick="printPaper()">${ic('printer')}Print</button><button class="sbtn" onclick="closeLayer()">${ic('check')}${t('done')}</button>`)}
+  <button class="sbtn go next" onclick="window.__copies=1;printAgain()">${ic('printer')}<span class="prlbl">Print</span></button><button class="sbtn" onclick="closeLayer()">${ic('check')}${t('done')}</button>`)}
 const slipEst=()=>{const sp=S.slip;return settlement({seedKg:sum(sp.lines),cake:sp.cake,advC:sp.advC,advA:sp.advA,cans:sp.cans})};
 function slipAmt(){return slipEst().due}
 const CANK=[['can15','tin15','15 kg tin'],['can5new','j_new','5 kg new'],['can5old','j_old','5 kg old']];
@@ -596,11 +604,12 @@ function confirmSlip(){const sp=S.slip;if(!sp.cust)return toast('Choose the cust
  S.jw.push(j);const est=Math.abs(settlement(j).due);
  const rows=[['Token no. (today)',String(jserial(j))],['Invoice no.',j.tok.replace('JW-','#')],['-'],['Customer',j.customer],['Village',j.place],...(j.mobile?[['Mobile',fmtMob(j.mobile)]]:[]),['-'],...sp.lines.map((x,i)=>[bagLabel(nbs,i)+(sp.cnos[i]?' · '+cnoL()+' '+sp.cnos[i]:''),f2(x)+' kg']),['Total seed',f1(kg)+' kg · '+bagTxt(sum(nbs))],['Khali',sp.cake==='SHOP'?'Shop keeps · ₹6/kg':'Customer takes · ₹10/kg'],sp.advC?['Customer advance',inr(sp.advC)]:null,sp.advA?['Tempo advance',inr(sp.advA)]:null,...CANK.filter(c=>sp.cans[c[0]]).map(c=>[c[2],'× '+sp.cans[c[0]]])].filter(Boolean);
  clearSlip();
- layer('Token printed',`<div class="note">${sp.copies} receipt(s): one for the customer, one stuck on the bags${sp.stick?' · stickers print per customer no.':''}. The codes below are real and scan.</div>
+ millPrintAuto({kind:'token',code:tok,shop:'MAHADEV TRADERS',title:'JOB-WORK TOKEN',sub:'Bidar · Mill 1',when:nowFull(),rows:rows.map(r=>r[0]==='-'?'-':[r[0],r[1]]),total:['Estimate',inr(est)],foot:['Date · time',nowFull()],qr:true},sp.copies||1);
+ layer('Token printed',`<div class="note">${sp.copies} receipt(s): one for the customer, one stuck on the bags${sp.stick?' · stickers print per customer no.':''}. The codes below are real and scan.</div><div id="prst" class="prst"></div>
   <div class="paper"><div class="hd">MAHADEV TRADERS</div><div style="text-align:center">Bidar · Mill 1</div><div class="hr"></div><div style="font-weight:800;font-size:16px">JOB-WORK TOKEN</div><div style="font-weight:700">${nowFull()}</div>
   ${rows.map(r=>r[0]==='-'?'<div class="hr"></div>':`<div class="sr"><span>${esc(r[0])}</span><b>${esc(r[1])}</b></div>`).join('')}<div class="hr"></div><div class="sr"><span>Estimate</span><span class="tot">${inr(est)}</span></div><div class="hr"></div><div class="sr"><span>Date · time</span><span>${nowFull()}</span></div>
   <div class="bcw">${bcSvg(tok)}</div><div style="text-align:center;font-size:12px;letter-spacing:.1em">${tok}</div><div class="qrw">${qrSvg(tok)}</div></div>
-  <button class="sbtn go next" onclick="window.__copies=${sp.copies||1};printPaper()">${ic('printer')}Print · ${sp.copies||1}</button><button class="sbtn" onclick="closeLayer()">${ic('check')}${t('done')}</button>`)}
+  <button class="sbtn go next" onclick="window.__copies=${sp.copies||1};printAgain()">${ic('printer')}<span class="prlbl">Print</span> · ${sp.copies||1}</button><button class="sbtn" onclick="closeLayer()">${ic('check')}${t('done')}</button>`)}
 function bcSvg(text){try{const s=document.createElementNS('http://www.w3.org/2000/svg','svg');JsBarcode(s,text,{format:'CODE128',displayValue:false,height:40,width:2,margin:0,background:'transparent'});const w=parseFloat(s.getAttribute('width')),h=parseFloat(s.getAttribute('height'));s.setAttribute('viewBox','0 0 '+w+' '+h);s.setAttribute('preserveAspectRatio','none');s.removeAttribute('width');s.removeAttribute('height');s.style.width='100%';s.style.height='100%';return s.outerHTML}catch(e){return ''}}
 function qrSvg(text){try{const q=qrcode(0,'M');q.addData(text);q.make();const n=q.getModuleCount();let d='';for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(q.isDark(r,c))d+=`M${c} ${r}h1v1h-1z`;return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" style="width:100%;display:block"><path d="${d}" fill="#000"/></svg>`}catch(e){return ''}}
 
@@ -1312,6 +1321,33 @@ function paintLink(){const p=document.querySelector('#top .pill[data-f="bt"]');i
 // the barrel counter desk (lots received: gross, tare, net) is its own full screen in the app
 window.millCounterOpen=function(){if(window.parent!==window)window.parent.postMessage({type:'open',to:'/mill/counter'},location.origin);else location.href='/mill/counter'};
 window.millScaleTap=function(){if(window.parent!==window)window.parent.postMessage({type:'scale-connect'},location.origin)};
+
+/* ---------- the mill label printer (Helett): ONE tap — Save prints at once, the app page sends it over Bluetooth ---------- */
+const PR=window.PR={native:false,name:'',ready:false,pending:0,id:'',doc:null,copies:1,busy:false,ok:null,text:'',fix:'',fallback:false,t:0};
+function paintPrint(){
+ const pill=document.querySelector('#top .pill[data-f="pr"]');
+ if(pill){const dot=pill.querySelector('.dot');if(dot)dot.style.background=!PR.native?'#8a96a3':!PR.ready?'#E5484D':PR.pending?'#E9C46A':'var(--okt)';
+  pill.title=!PR.native?'Printing uses the normal print window here (the Android app prints in one tap)':!PR.ready?'Printer not chosen · tap to pair':(PR.name||'Printer')+(PR.pending?' · '+PR.pending+' not printed':' · ready')}
+ const e=document.getElementById('prst');
+ if(e){const live=PR.busy||PR.ok!==null;
+  e.style.display=live?'flex':'none';e.className='prst'+(PR.busy?'':PR.ok?' ok':' bad');
+  e.innerHTML=(PR.busy?'<span>Printing…</span>':'<span>'+esc(PR.text)+'</span>')+(!PR.busy&&PR.ok===false&&PR.native?'<button onclick="millPrinterTap()">Printer set-up</button>':'')}
+ document.querySelectorAll('.prlbl').forEach(x=>{x.textContent=PR.native&&PR.doc?'Print again':'Print'});
+ let b=document.getElementById('prpend');
+ if(PR.native&&PR.pending>0&&PR.ready){if(!b){b=document.createElement('div');b.id='prpend';b.className='prpend';document.body.appendChild(b)}
+  b.innerHTML='<span>'+PR.pending+' slip'+(PR.pending>1?'s':'')+' not printed</span><button onclick="window.parent.postMessage({type:\'print-pending\'},location.origin)">Print now</button>'}
+ else if(b)b.remove()}
+function sendPrint(){PR.id=uid('p');PR.busy=true;PR.ok=null;PR.text='';PR.fix='';
+ window.parent.postMessage({type:'print',id:PR.id,doc:PR.doc,copies:PR.copies},location.origin);
+ clearTimeout(PR.t);PR.t=setTimeout(()=>{if(PR.busy){PR.busy=false;PR.ok=false;PR.text='The printer did not answer in time. Check it is on and near, then Print again.';paintPrint()}},60000);
+ setTimeout(paintPrint,0)}
+window.millPrintAuto=function(doc,copies){PR.doc=doc;PR.copies=Math.max(1,+copies||1);if(!PR.native){setTimeout(paintPrint,0);return}sendPrint()};
+window.printAgain=function(){if(PR.native&&PR.doc)sendPrint();else printPaper()};
+window.millPrinterTap=function(){if(window.parent!==window)window.parent.postMessage({type:'printer-setup'},location.origin)};
+window.addEventListener('message',e=>{if(e.origin!==location.origin)return;const d=e.data||{};
+ if(d.type==='printer'){PR.native=!!d.native;PR.name=d.name||'';PR.ready=!!d.ready;PR.pending=+d.pending||0;paintPrint()}
+ if(d.type==='print-result'&&d.id===PR.id){clearTimeout(PR.t);PR.busy=false;PR.ok=!!d.ok;PR.text=d.text||'';PR.fix=d.fix||'';PR.fallback=!!d.fallback;paintPrint()}});
+setInterval(paintPrint,2000);
 
 /* ---------- printing: the paper on screen goes to the printer ---------- */
 window.printPaper=function(){const p=document.querySelector('#layer .paper');if(!p)return;let a=$('#printarea');if(!a){a=document.createElement('div');a.id='printarea';document.body.appendChild(a)}

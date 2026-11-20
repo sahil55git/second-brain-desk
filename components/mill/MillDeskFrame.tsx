@@ -3,11 +3,14 @@
 // Shows the Mill Desk screen (public/mill/desk.html, built from tools/mill-desk) full-screen and
 // passes it the live scale reading from this phone's Bluetooth scale (or the Windows bridge).
 // The screen saves its own data through /api/mill with this login.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useScale } from "@/components/ScaleProvider";
 import { scaleTapPlan } from "@/lib/mill/scaleTap";
 import { scaleSetupHref } from "@/lib/scaleSetup";
+import { isNative } from "@/lib/native";
+import MillPrinterSheet from "@/components/mill/MillPrinterSheet";
+import { cleanDoc, dropUnprinted, explainPrintError, getMillPrinter, keepUnprinted, listUnprinted, onMillPrinterChange, onUnprintedChange, printMillDoc, warmMillPrinter } from "@/lib/mill/millPrint";
 
 const FRESH_MS = 3000;
 
@@ -15,6 +18,8 @@ export default function MillDeskFrame() {
   const ref = useRef<HTMLIFrameElement>(null);
   const { connected, selectedReading: reading, bt } = useScale();
   const { data: session } = useSession();
+  const [sheet, setSheet] = useState(false);
+  const busyCodes = useRef(new Set<string>());
   const latest = useRef({ connected, reading, name: "" });
   latest.current = { connected, reading, name: bt.config?.name || reading?.scale_source || "" };
 
@@ -31,6 +36,53 @@ export default function MillDeskFrame() {
     if (w && u) w.postMessage({ type: "me", me: { name: u.name || "", isOwner: u.role === "OWNER" } }, window.location.origin);
   };
 
+  const post = (m: Record<string, unknown>) => ref.current?.contentWindow?.postMessage(m, window.location.origin);
+  const sendPrinter = () => {
+    const c = getMillPrinter();
+    post({ type: "printer", native: isNative(), name: c?.name || "", ready: !!c, pending: listUnprinted().length });
+  };
+  // one tap: the desk sends the slip, it prints at once; a slip that cannot print is kept and printed again with one tap
+  const printOne = async (id: string, rawDoc: unknown, copies: number) => {
+    const doc = cleanDoc(rawDoc);
+    if (!doc) return post({ type: "print-result", id, ok: false, text: "Nothing to print." });
+    if (busyCodes.current.has(doc.code)) return; // a double tap while it is printing
+    busyCodes.current.add(doc.code);
+    try {
+      if (!isNative()) return post({ type: "print-result", id, ok: false, fallback: true, text: explainPrintError({ code: "NOT_APP" }).text });
+      const cfg = getMillPrinter();
+      if (!cfg) {
+        keepUnprinted({ id, at: Date.now(), doc, copies, error: "No printer chosen" });
+        post({ type: "print-result", id, ok: false, fix: "setup", text: explainPrintError({ code: "NO_PRINTER" }).text });
+        setSheet(true);
+        return;
+      }
+      try {
+        const r = await printMillDoc(doc, copies, cfg);
+        dropUnprinted(doc.code);
+        post({ type: "print-result", id, ok: true, text: `Printed${r.pages > 1 ? ` (${r.pages} labels)` : ""} · ${(r.ms / 1000).toFixed(1)} s` });
+      } catch (e) {
+        const w = explainPrintError(e);
+        keepUnprinted({ id, at: Date.now(), doc, copies, error: w.text });
+        post({ type: "print-result", id, ok: false, fix: w.fix, text: w.text });
+      }
+    } finally {
+      setTimeout(() => busyCodes.current.delete(doc.code), 1500);
+    }
+  };
+  const printPending = async () => {
+    for (const j of listUnprinted()) await printOne(`${j.id}r`, j.doc, j.copies);
+  };
+
+  useEffect(() => {
+    sendPrinter();
+    warmMillPrinter();
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") warmMillPrinter();
+    }, 120_000);
+    const a = onMillPrinterChange(() => { sendPrinter(); warmMillPrinter(); });
+    const b = onUnprintedChange(sendPrinter);
+    return () => { clearInterval(t); a(); b(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(send, [connected, reading]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const t = setInterval(send, 400); // keeps "fresh" right when the scale goes quiet
@@ -45,7 +97,14 @@ export default function MillDeskFrame() {
       if (d.type === "ready") {
         send();
         sendMe();
+        sendPrinter();
       }
+      if (d.type === "print") {
+        const m = e.data as { id?: string; doc?: unknown; copies?: number };
+        void printOne(String(m.id || `p${Date.now()}`), m.doc, Math.max(1, Math.min(10, Number(m.copies) || 1)));
+      }
+      if (d.type === "printer-setup") setSheet(true);
+      if (d.type === "print-pending") void printPending();
       if (d.type === "open" && (e.data as { to?: string }).to === "/mill/counter") window.location.href = "/mill/counter"; // barrel counter desk
       if (d.type === "scale-connect") {
         // tell the person what is going on, and do the one thing that can help
@@ -70,6 +129,8 @@ export default function MillDeskFrame() {
   }, []);
 
   return (
+    <>
+    {sheet && <MillPrinterSheet onClose={() => { setSheet(false); sendPrinter(); }} />}
     <iframe
       ref={ref}
       src="/mill/desk.html"
@@ -77,5 +138,6 @@ export default function MillDeskFrame() {
       allow="microphone; bluetooth; serial; clipboard-write"
       style={{ position: "fixed", inset: 0, width: "100%", height: "100dvh", border: 0, zIndex: 2147483000, background: "#05080C" }}
     />
+    </>
   );
 }
