@@ -102,6 +102,8 @@ window.addEventListener('message',e=>{if(e.origin!==location.origin)return;const
   const v=S.link.on&&S.link.fresh?w:0;s.from=v;s.to=v;s.t0=0;paintLink()}
  if(d.type==='me'&&d.me){S.me=d.me}});
 function paintLink(){const p=document.querySelector('#top .pill[data-f="bt"]');if(!p)return;const dot=p.querySelector('.dot');if(dot)dot.style.background=!LIVE||S.link.on&&S.link.fresh?'var(--okt)':S.link.on?'#E9C46A':'#E5484D';p.title=S.link.on?(S.link.name||'Scale')+(S.link.fresh?' · connected':' · no reading'):'Scale not connected · tap to connect'}
+// the barrel counter desk (lots received: gross, tare, net) is its own full screen in the app
+window.millCounterOpen=function(){if(window.parent!==window)window.parent.postMessage({type:'open',to:'/mill/counter'},location.origin);else location.href='/mill/counter'};
 window.millScaleTap=function(){if(window.parent!==window)window.parent.postMessage({type:'scale-connect'},location.origin)};
 
 /* ---------- printing: the paper on screen goes to the printer ---------- */

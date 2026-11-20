@@ -429,7 +429,7 @@ function render(){
  $('#top').innerHTML=`<h1><span class="tt">${ic('weigh')}Mill Desk</span><small>Mill 1 · ${S.mode==='worker'?'Worker (icons only)':'Counter'} · 300 kg scale<br><b style="color:var(--amber,#E9C46A)">${nowFull()}</b></small></h1>
   <span class="pill" data-f="bt" title="Bluetooth scale" onclick="millScaleTap()"><span class="dot"></span>${ic('bt')}</span>
   <button class="pill" data-f="lang" onclick="S.lang=S.lang==='en'?'kn':'en';render()">${ic('globe')}${S.lang==='en'?'EN':'ಕನ್ನಡ'}</button>
-  ${S.mode==='worker'?'':`<button class="pill" onclick="sheetSettings()" aria-label="Settings">${ic('gear')}</button>`}<button class="pill on" data-f="mode" onclick="S.mode=S.mode==='worker'?'counter':'worker';S.view='pick';render()">${ic(S.mode==='worker'?'user':'rupee')}${S.mode==='worker'?'Worker':'Counter'} ⇄</button>`;
+  ${S.mode==='worker'?'':`<button class="pill" onclick="sheetSettings()" aria-label="Settings">${ic('gear')}</button>`}${S.mode==='worker'?'':`<button class="pill" onclick="millCounterOpen()" aria-label="Barrel counter desk">${icoSvg('bfull',22)}</button>`}<button class="pill on" data-f="mode" onclick="S.mode=S.mode==='worker'?'counter':'worker';S.view='pick';render()">${ic(S.mode==='worker'?'user':'rupee')}${S.mode==='worker'?'Worker':'Counter'} ⇄</button>`;
  const cnt=(n,ico,key,fn,hl)=>`<button class="cp ${hl?'has':''}" data-f="tab-${key}" onclick="${fn}">${ico==='jc'?jcIcon(24):ico==='own'?ownIcon(24):ic(ico)}<span>${t(key)}</span><span class="n">${n}</span></button>`;
  $('#chips').innerHTML=cnt(S.queue.length,'hourg','waiting','sheetWaiting()',S.queue.length)+cnt(openCount()+held().length,'jc','jobs','sheetJobs()',0)+cnt(held().length,'lock','held','sheetHeld()',held().length)+cnt(runsActive(),'own','mill','sheetMill()',runsActive())+cnt(S.parked.length,'park','parked','sheetParked()',S.parked.length);
  const m=$('#main');const keep=m.scrollTop;
@@ -1269,6 +1269,8 @@ window.addEventListener('message',e=>{if(e.origin!==location.origin)return;const
   const v=S.link.on&&S.link.fresh?w:0;s.from=v;s.to=v;s.t0=0;paintLink()}
  if(d.type==='me'&&d.me){S.me=d.me}});
 function paintLink(){const p=document.querySelector('#top .pill[data-f="bt"]');if(!p)return;const dot=p.querySelector('.dot');if(dot)dot.style.background=!LIVE||S.link.on&&S.link.fresh?'var(--okt)':S.link.on?'#E9C46A':'#E5484D';p.title=S.link.on?(S.link.name||'Scale')+(S.link.fresh?' · connected':' · no reading'):'Scale not connected · tap to connect'}
+// the barrel counter desk (lots received: gross, tare, net) is its own full screen in the app
+window.millCounterOpen=function(){if(window.parent!==window)window.parent.postMessage({type:'open',to:'/mill/counter'},location.origin);else location.href='/mill/counter'};
 window.millScaleTap=function(){if(window.parent!==window)window.parent.postMessage({type:'scale-connect'},location.origin)};
 
 /* ---------- printing: the paper on screen goes to the printer ---------- */

@@ -44,6 +44,7 @@ export default function MillDeskFrame() {
         send();
         sendMe();
       }
+      if (d.type === "open" && (e.data as { to?: string }).to === "/mill/counter") window.location.href = "/mill/counter"; // barrel counter desk
       if (d.type === "scale-connect") {
         // a scale set up on this phone before: connect again; otherwise open scale set-up
         if (bt.config) bt.connect();
