@@ -119,6 +119,7 @@ export const ICONS: IconDef[] = [
   { id: "arrow_out", group: "badges", name: "Out (goes from us)", kn: "ಹೊರಗೆ", inner: `<path d="M24 40V8M12 20L24 8l12 12"/>` },
   { id: "spark", group: "badges", name: "New", kn: "ಹೊಸ", inner: `<path d="M24 6l4 12 12 4-12 4-4 12-4-12-12-4 12-4z"/>` },
   { id: "clock", group: "badges", name: "Old", kn: "ಹಳೆಯ", inner: `<circle cx="24" cy="24" r="18"/><path d="M24 14v10l6 4"/>` },
+  { id: "tempo", group: "badges", name: "Tempo / auto, advance", kn: "ಟೆಂಪೋ", hint: "Tempo advance on a job", inner: `<g transform="scale(2)" stroke-width="1"><path d="M2 16V9l4-4h8l3 4h4v7"/><path d="M6 9h8"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></g>` },
   { id: "rupee", group: "badges", name: "Rupee, cash", kn: "ರೂಪಾಯಿ", inner: `<path d="M14 10h20M14 18h20M14 10c10 0 14 3 14 8s-4 8-14 8l14 12"/>` },
   { id: "grid", group: "badges", name: "Other", kn: "ಇತರೆ", inner: `<rect x="8" y="8" width="14" height="14" rx="3"/><rect x="26" y="8" width="14" height="14" rx="3"/><rect x="8" y="26" width="14" height="14" rx="3"/><rect x="26" y="26" width="14" height="14" rx="3"/>` },
 ];
