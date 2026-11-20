@@ -9,3 +9,41 @@
  #printarea .paper{box-shadow:none!important;border:0!important;margin:0 auto!important;max-width:80mm;color:#000!important;background:#fff!important}
  #printarea .pbrk{page-break-after:always;break-after:page}
 }
+
+/* phone: keep the top as short as possible, so the tiles start higher (one-line header, small tabs, short weight card) */
+@media(max-width:520px){
+ .top{gap:5px;padding:5px 8px}
+ .top h1{font-size:17px;line-height:1.05}
+ .top h1 .ic{width:20px;height:20px;margin-right:3px;vertical-align:-3px}
+ .top h1 small{font-size:11px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .top .pill{height:34px;padding:0 8px;gap:4px;font-size:13px;border-radius:9px}
+ .top .pill svg.ic{width:20px;height:20px}
+ .top .pill .pl,.top .pill .gl{display:none}
+ .chips{gap:6px;padding:5px 8px;scrollbar-width:none}
+ .chips::-webkit-scrollbar{display:none}
+ .cp{gap:5px;padding:4px 9px;border-radius:11px;font-size:14px}
+ .cp svg.ic{width:20px;height:20px}
+ .cp .n{min-width:22px;height:22px;font-size:12.5px}
+ main{padding:6px 8px 84px;gap:6px}
+ .wrow{gap:6px}
+ .wcard{padding:3px 12px 4px;border-radius:14px}
+ .wcard .lbl{font-size:10.5px;letter-spacing:.06em}
+ .wnum{font-size:40px;line-height:1}
+ .wstat{font-size:12px;min-height:15px}
+ .rbtn{width:64px;border-radius:14px;font-size:12px;gap:1px;padding:3px}
+ .rbtn svg.ic{width:22px;height:22px}
+ .own{flex:none;flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;scrollbar-width:none;font-size:12px;gap:0 8px;padding:0 2px}
+ .own::-webkit-scrollbar{display:none}
+ .own>span{gap:5px;margin-right:6px}
+ .own .cn{display:none}
+ .own .jci{width:18px!important;height:18px!important;margin-right:2px}
+ .pane{padding:8px;gap:8px;border-radius:16px}
+ .search{padding:3px 8px 3px 12px;border-radius:12px;border-width:1.5px}
+ .search input{font-size:16px}
+ label.search .vbtn{width:32px;height:32px}
+ .tile{min-height:0}
+ .tile .no{font-size:24px;padding:3px 0 2px}
+ .tile .bd{padding:4px 3px 7px}
+ .grp{font-size:15px}
+ .grp .gi{width:26px;height:26px}
+}

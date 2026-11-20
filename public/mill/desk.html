@@ -238,6 +238,44 @@ body.noic .sbtn>svg.ic,body.noic .cp>svg.ic,body.noic .ch>svg.ic,body.noic .mrow
  #printarea .paper{box-shadow:none!important;border:0!important;margin:0 auto!important;max-width:80mm;color:#000!important;background:#fff!important}
  #printarea .pbrk{page-break-after:always;break-after:page}
 }
+
+/* phone: keep the top as short as possible, so the tiles start higher (one-line header, small tabs, short weight card) */
+@media(max-width:520px){
+ .top{gap:5px;padding:5px 8px}
+ .top h1{font-size:17px;line-height:1.05}
+ .top h1 .ic{width:20px;height:20px;margin-right:3px;vertical-align:-3px}
+ .top h1 small{font-size:11px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .top .pill{height:34px;padding:0 8px;gap:4px;font-size:13px;border-radius:9px}
+ .top .pill svg.ic{width:20px;height:20px}
+ .top .pill .pl,.top .pill .gl{display:none}
+ .chips{gap:6px;padding:5px 8px;scrollbar-width:none}
+ .chips::-webkit-scrollbar{display:none}
+ .cp{gap:5px;padding:4px 9px;border-radius:11px;font-size:14px}
+ .cp svg.ic{width:20px;height:20px}
+ .cp .n{min-width:22px;height:22px;font-size:12.5px}
+ main{padding:6px 8px 84px;gap:6px}
+ .wrow{gap:6px}
+ .wcard{padding:3px 12px 4px;border-radius:14px}
+ .wcard .lbl{font-size:10.5px;letter-spacing:.06em}
+ .wnum{font-size:40px;line-height:1}
+ .wstat{font-size:12px;min-height:15px}
+ .rbtn{width:64px;border-radius:14px;font-size:12px;gap:1px;padding:3px}
+ .rbtn svg.ic{width:22px;height:22px}
+ .own{flex:none;flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;scrollbar-width:none;font-size:12px;gap:0 8px;padding:0 2px}
+ .own::-webkit-scrollbar{display:none}
+ .own>span{gap:5px;margin-right:6px}
+ .own .cn{display:none}
+ .own .jci{width:18px!important;height:18px!important;margin-right:2px}
+ .pane{padding:8px;gap:8px;border-radius:16px}
+ .search{padding:3px 8px 3px 12px;border-radius:12px;border-width:1.5px}
+ .search input{font-size:16px}
+ label.search .vbtn{width:32px;height:32px}
+ .tile{min-height:0}
+ .tile .no{font-size:24px;padding:3px 0 2px}
+ .tile .bd{padding:4px 3px 7px}
+ .grp{font-size:15px}
+ .grp .gi{width:26px;height:26px}
+}
 </style>
 </head>
 <body>
@@ -259,6 +297,7 @@ const inr=n=>'₹'+Math.abs(Math.round(n)).toLocaleString('en-IN');
 const sum=a=>a.reduce((x,y)=>x+y,0);
 const pad=(n,l=4)=>String(n).padStart(l,'0');
 const t12=d=>{const h=d.getHours();return String((h%12)||12).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+' '+(h<12?'AM':'PM')};
+const nowShort=()=>{const d=new Date();return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+' · '+t12(d)};
 const nowFull=()=>{const d=new Date();return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+' · '+t12(d)};
 const clock=()=>{const d=new Date();return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+' '+t12(d)};
 const IC={
@@ -426,10 +465,10 @@ const whead=(n,tm,gi)=>`<div class="jh"><div class="snw"><b class="sn">${n}</b><
 function render(){
  const demo=$('#demo');
  if(!demo.dataset.ready){demo.dataset.ready=1;demo.insertAdjacentHTML('beforeend',[['Seed bag 48.6',48.6],['Full barrel 192.4',192.4],['Empty barrel 12.3',12.3],['Next bag 49.2',49.2],['Can + oil 19.85',19.85],['Khali bag 44.3',44.3],['Moving…',130],['Over 300',312],['Empty',0]].map(([l,v])=>`<button onclick="simSet(${v})">${l}</button>`).join(''))}
- $('#top').innerHTML=`<h1><span class="tt">${ic('weigh')}Mill Desk</span><small>Mill 1 · ${S.mode==='worker'?'Worker (icons only)':'Counter'} · 300 kg scale<br><b style="color:var(--amber,#E9C46A)">${nowFull()}</b></small></h1>
+ $('#top').innerHTML=`<h1><span class="tt">${ic('weigh')}Mill Desk</span><small><b style="color:var(--amber,#E9C46A)">${nowShort()}</b></small></h1>
   <span class="pill" data-f="bt" title="Bluetooth scale" onclick="millScaleTap()"><span class="dot"></span>${ic('bt')}</span>
-  <button class="pill" data-f="lang" onclick="S.lang=S.lang==='en'?'kn':'en';render()">${ic('globe')}${S.lang==='en'?'EN':'ಕನ್ನಡ'}</button>
-  ${S.mode==='worker'?'':`<button class="pill" onclick="sheetSettings()" aria-label="Settings">${ic('gear')}</button>`}${S.mode==='worker'?'':`<button class="pill" onclick="millCounterOpen()" aria-label="Barrel counter desk">${icoSvg('bfull',22)}</button>`}<button class="pill on" data-f="mode" onclick="S.mode=S.mode==='worker'?'counter':'worker';S.view='pick';render()">${ic(S.mode==='worker'?'user':'rupee')}${S.mode==='worker'?'Worker':'Counter'} ⇄</button>`;
+  <button class="pill" data-f="lang" onclick="S.lang=S.lang==='en'?'kn':'en';render()"><span class="gl">${ic('globe')}</span>${S.lang==='en'?'EN':'ಕನ್ನಡ'}</button>
+  ${S.mode==='worker'?'':`<button class="pill" onclick="sheetSettings()" aria-label="Settings">${ic('gear')}</button>`}${S.mode==='worker'?'':`<button class="pill" onclick="millCounterOpen()" aria-label="Barrel counter desk">${icoSvg('bfull',22)}</button>`}<button class="pill on" data-f="mode" onclick="S.mode=S.mode==='worker'?'counter':'worker';S.view='pick';render()">${ic(S.mode==='worker'?'user':'rupee')}<span class="pl">${S.mode==='worker'?'Worker':'Counter'}</span><span class="pl">⇄</span></button>`;
  const cnt=(n,ico,key,fn,hl)=>`<button class="cp ${hl?'has':''}" data-f="tab-${key}" onclick="${fn}">${ico==='jc'?jcIcon(24):ico==='own'?ownIcon(24):ic(ico)}<span>${t(key)}</span><span class="n">${n}</span></button>`;
  $('#chips').innerHTML=cnt(S.queue.length,'hourg','waiting','sheetWaiting()',S.queue.length)+cnt(openCount()+held().length,'jc','jobs','sheetJobs()',0)+cnt(held().length,'lock','held','sheetHeld()',held().length)+cnt(runsActive(),'own','mill','sheetMill()',runsActive())+cnt(S.parked.length,'park','parked','sheetParked()',S.parked.length);
  const m=$('#main');const keep=m.scrollTop;
@@ -442,7 +481,7 @@ function render(){
 const weightCard=()=>`<div class="wrow"><div class="wcard"><div class="lbl"><span>WEIGHT (KG)</span><span>300 kg × 50 g</span></div><div class="wnum" id="wnum">0.000</div><div class="wstat" id="wstat"></div></div>
  <button class="rbtn" id="rbtn" onclick="readNow()">${ic('book')}<span>${t('read')}</span></button></div>`;
 function readNow(){if(!ready())return toast('Wait until the weight is steady','bad')}
-function ownLine(){const o=S.own;return `<div class="own" data-f="own"><span>${ownIcon(24)} Ours today · seed <b>${f1(sum(o.oseed))} kg</b></span><span>oil <b>${f1(sum(o.ooil.map(x=>x[0])))} kg</b> (${o.ooil.length} cans)</span><span>khali <b>${f1(sum(o.okhali))} kg</b> (${o.okhali.length} bags)</span>${S.khali&&S.khali.bags?`<span title="All khali bags weighed minus khali sold">stack <b>${f1(S.khali.stackKg)} kg</b></span>`:''}${o.sed.length?`<span>sediment <b>${f1(sum(o.sed))} kg</b></span>`:''}</div>`}
+function ownLine(){const o=S.own;return `<div class="own" data-f="own"><span>${ownIcon(24)} Ours today · seed <b>${f1(sum(o.oseed))} kg</b></span><span>oil <b>${f1(sum(o.ooil.map(x=>x[0])))} kg</b> <i class="cn">(${o.ooil.length} cans)</i></span><span>khali <b>${f1(sum(o.okhali))} kg</b> <i class="cn">(${o.okhali.length} bags)</i></span>${S.khali&&S.khali.bags?`<span title="All khali bags weighed minus khali sold">stack <b>${f1(S.khali.stackKg)} kg</b></span>`:''}${o.sed.length?`<span>sediment <b>${f1(sum(o.sed))} kg</b></span>`:''}</div>`}
 function art(i){const bk=i.b,ar=i.b==='in'?'down':i.b==='out'?'up':'';
  const badge=bk==='P'?`<i class="bdg" style="background:#5F82D4">${ic('user')}</i>`:bk==='F'?`<i class="bdg" style="background:#C98A25">${ic('mill')}</i>`:bk==='in'?`<i class="bdg in">${ic('down')}</i>`:bk==='out'?`<i class="bdg out">${ic('up')}</i>`:bk==='new'?`<i class="bdg" style="background:#3F9D63">${ic('spark')}</i>`:bk==='old'?`<i class="bdg" style="background:#C98A25">${ic('clock')}</i>`:'';
  return `<span class="ia">${icoSvg(i.ico)}${badge}</span>`}
