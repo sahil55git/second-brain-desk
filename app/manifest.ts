@@ -21,6 +21,7 @@ export default function manifest(): MetadataRoute.Manifest {
       { name: "Quick card", url: "/quick" },
       { name: "Weigh full barrel", url: "/barrels?weigh=full" },
       { name: "Weigh & Bill", url: "/register/counter" },
+      { name: "Mill Desk", url: "/mill" },
       { name: "POS counter", url: "/register/pos" },
       { name: "Sale", url: "/register?open=sale" },
       { name: "Expense", url: "/register?open=expense" },
