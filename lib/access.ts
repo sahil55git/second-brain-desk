@@ -156,6 +156,8 @@ export function pagesForPath(pathname: string): PageKey[] | null {
   if (under("/api/sales") || under("/api/held-bills")) return ["sales", "register"];
   if (under("/api/parties") || under("/api/udhaar")) return ["parties", "register", "sales", "jobwork"];
   if (under("/api/job-work")) return ["jobwork", "register"];
+  // Mill Desk: the mill floor screen and its data (job-work tokens, our crushing runs)
+  if (under("/mill") || under("/api/mill")) return ["jobwork", "mfg", "register"];
   // Item list: readable for anyone who bills or counts stock. Adding or changing an item is owner-only in the route itself.
   if (under("/api/items")) return ["register", "sales", "stock"];
   if (under("/api/purchases")) return ["register", "stock", "mfg"];

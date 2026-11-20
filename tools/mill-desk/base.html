@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mill Desk — counter layout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+Tamma+2:wght@500;600;700;800&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+:root{--bg:#0B1017;--panel:#111A25;--panel2:#16212F;--line:#22304A;--ink:#EAF0F7;--soft:#8D9BAE;--gold:#D9A032;--gold2:#8A6420;--navy:#1F3057;--ok:#3F7D58;--okt:#7FCB95;--bad:#E5604A;--info:#7FA6D9;
+ --head:"Baloo Tamma 2","Noto Sans Kannada",system-ui,sans-serif;--body:"Noto Sans Kannada","Baloo Tamma 2",system-ui,sans-serif;--mono:"Share Tech Mono",ui-monospace,Menlo,monospace}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:#05080C;color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.35}
+button{font-family:inherit;font-size:inherit;color:inherit;touch-action:manipulation;cursor:pointer}
+#app{position:relative;height:100%;max-width:440px;margin:0 auto;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+@media(min-width:480px){#app{box-shadow:0 0 0 1px var(--line),0 12px 40px rgba(0,0,0,.5)}}
+svg.ic{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.demo{display:flex;gap:6px;align-items:center;padding:5px 8px;background:#1b1405;border-bottom:1px solid var(--gold2);overflow-x:auto;white-space:nowrap;font-size:12px;color:#E9C46A;flex:none}
+.demo b{font-size:11px;letter-spacing:.08em}
+.demo button{border:1px solid var(--gold2);background:#2a1f08;border-radius:8px;padding:4px 9px;font-size:12.5px;color:#F4D58D}
+.top{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);flex:none}
+.jh{display:flex;align-items:center;gap:12px;margin:0 0 8px}
+.jh .sn{display:block;min-width:48px;height:48px;border-radius:14px;background:#C98A25;color:#1a1204;font:800 28px/48px var(--head);text-align:center;flex:none}
+.jh .snw{text-align:center;flex:none}.jh .snw small{display:block;font:600 10px var(--body);color:var(--soft);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+.jh .jm{flex:1;min-width:0}.jh .dt{display:flex;align-items:center;gap:5px;font:700 15px var(--body);color:var(--gold,#E8B84A)}.jh .dt .ic{width:16px;height:16px}
+.jh .jn{font:700 21px/1.15 var(--head);overflow-wrap:anywhere}
+.jh .inv{font:500 12px/1.25 var(--body);color:var(--soft);text-align:right;flex:none}
+.top h1{margin:0;font:700 19px/1.1 var(--head);flex:1;min-width:0}
+.top h1 .ic{width:22px;height:22px;vertical-align:-4px;margin-right:4px}
+.top h1 .tt{white-space:nowrap}
+.top h1 small{display:block;font:500 11.5px var(--body);color:var(--soft)}
+.pill{border:1px solid var(--line);background:var(--panel);border-radius:10px;height:36px;padding:0 10px;font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:5px}
+.pill.on{background:var(--navy);border-color:#3b5392}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--okt);display:inline-block}
+.chips{display:flex;gap:8px;padding:8px 10px;overflow-x:auto;border-bottom:1px solid var(--line);flex:none}
+.cp{flex:none;display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:8px 12px;font:600 16px var(--head)}
+.cp.has{border-color:var(--gold2);background:#251c0a}
+.cp .n{min-width:26px;height:26px;border-radius:99px;background:var(--navy);display:grid;place-items:center;font:700 14px var(--head);padding:0 6px}
+.cp svg.ic{width:24px;height:24px}
+main{flex:1;overflow-y:auto;padding:10px 10px 90px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}
+.wrow{display:flex;gap:8px}
+.wcard{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:10px 14px;min-width:0}
+.wcard .lbl{font:600 12px var(--body);letter-spacing:.1em;color:var(--soft);display:flex;justify-content:space-between;gap:6px}
+.wnum{font:400 56px/1.05 var(--mono);text-align:right;color:var(--okt);transition:color .2s}
+.wnum.mv{color:#E7C25A}.wnum.ov{color:var(--bad)}
+.wstat{font:600 13px var(--body);text-align:right;min-height:19px;color:var(--soft)}
+.wstat.ok{color:var(--okt)}.wstat.bad{color:var(--bad)}.wstat.gd{color:#E7C25A}
+.rbtn{width:98px;flex:none;background:var(--panel2);border:1px solid var(--line);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:600 15px/1.15 var(--body);color:var(--soft);padding:6px;text-align:center}
+.own{font-size:12.5px;color:var(--soft);padding:0 4px;display:flex;flex-wrap:wrap;gap:4px 12px}
+.own b{color:var(--ink);font-weight:600}
+.pane{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:12px;display:flex;flex-direction:column;gap:12px}
+.search{display:flex;align-items:center;gap:10px;border:2px solid #2d3b55;border-radius:16px;padding:10px 14px;background:transparent}
+.search input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--ink);font:500 18px var(--head)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{position:relative;border:2px solid var(--gold2);background:#101823;border-radius:18px;overflow:hidden;padding:0;display:flex;flex-direction:column;text-align:center;min-height:178px;box-shadow:0 0 14px rgba(217,160,50,.12)}
+.tile .no{background:var(--navy);font:800 40px/1 var(--head);padding:8px 0 6px;text-shadow:0 2px 6px rgba(0,0,0,.5)}
+.tile .bd{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 4px 10px}
+.tile b{font:700 17px/1.15 var(--head)}
+.tile .kn{font:500 14px var(--body);color:#D7DEEA}
+.tile .rt{font:600 13px var(--body);color:#D8C79A;margin-top:3px}
+.tile:disabled{opacity:.42;box-shadow:none}
+.tile.cust .no{background:#1c4a35}
+.tile.our .no{background:#3a2c0f}
+.kn-on .tile b{font-size:16px}
+.slip{display:flex;flex-direction:column;gap:12px}
+.dash{border:2px dashed #3a4a66;border-radius:16px;min-height:62px;display:flex;align-items:center;justify-content:center;gap:10px;font:600 19px var(--head);background:transparent;color:var(--ink)}
+.li{display:flex;flex-direction:column;gap:8px;padding:2px 2px 10px;border-bottom:1px solid var(--line)}
+.li .r1{display:flex;align-items:center;gap:8px}
+.li .r1 b{font:700 20px var(--head);flex:1}
+.tag{font:600 13px var(--body);border:1.5px solid var(--gold2);color:#E9C46A;border-radius:99px;padding:1px 10px}
+.kgbox{border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:6px 10px;font:600 21px var(--mono);white-space:nowrap}
+.xbtn{border:0;background:none;color:var(--soft);padding:6px}
+.total{background:var(--navy);border-radius:18px;padding:16px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.total small{font:500 16px var(--body)}
+.total b{font:800 46px/1 var(--head)}
+.cake{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cake button{border:2px solid var(--line);background:var(--panel2);border-radius:14px;padding:10px 6px;text-align:center;font:600 14.5px/1.2 var(--head)}
+.cake button.sel{border-color:var(--gold);background:#2a210c}
+.cake button small{display:block;font:500 12px var(--body);color:var(--soft)}
+.mrow{display:flex;align-items:center;gap:12px;border:2px solid var(--line);background:var(--panel2);border-radius:16px;padding:12px 14px;font:700 24px var(--head);min-height:66px}
+.mrow .sp{flex:1}.mrow .amt{font:600 22px var(--mono);color:var(--soft)}
+.coin{width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#F3D275,#B8841F);display:grid;place-items:center;color:#5a3d06;font:800 24px var(--head);box-shadow:inset 0 0 0 3px #E7BC54;flex:none}
+.arr{font:800 30px/1 var(--head)}.arr.in{color:#4FCB6E}.arr.out{color:#F06C57}
+.meth{display:grid;grid-template-columns:1fr 1fr;gap:8px;border-radius:20px;padding:8px}
+.meth button{border:2px solid var(--line);background:var(--panel2);border-radius:16px;min-height:66px;display:flex;align-items:center;gap:12px;padding:0 14px;font:700 21px var(--head)}
+.meth button.sel{border-color:#6F89C9;background:#17223a}
+.two{display:grid;grid-template-columns:1.3fr 1fr;gap:8px}
+.sbtn{border:2px solid var(--line);background:var(--panel2);border-radius:16px;min-height:78px;display:flex;align-items:center;justify-content:center;gap:10px;padding:6px 10px;font:700 21px/1.1 var(--head);text-align:center}
+.sbtn small{display:block;font:500 13px var(--body);color:var(--soft)}
+.sbtn.wait{border-color:#6c5420;background:#2c2410;color:#F0CE79}
+.sbtn.go{background:var(--ok);border-color:#52a173;color:#fff}
+.sbtn.dis{opacity:.5}
+.act{display:grid;grid-template-columns:78px 78px 1fr;gap:8px}
+.act button{border-radius:16px;min-height:88px;border:2px solid var(--line);background:var(--panel2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:600 17px var(--head)}
+.act .hold{border-color:#5F82D4;background:#1a2748;color:#9DB6EE}
+.act .okb{background:var(--ok);border-color:#52a173;color:#fff;font-size:30px;gap:0;flex-direction:column}
+.act .okb span{display:flex;gap:10px;align-items:center}
+.bar{position:absolute;left:0;right:0;bottom:0;background:var(--navy);display:flex;align-items:center;justify-content:space-between;padding:14px 16px calc(14px + env(safe-area-inset-bottom));font:600 19px var(--head);z-index:5;border:0;color:var(--ink);width:100%}
+.bar b{font:800 28px var(--head)}
+.next{position:relative;outline:3px solid var(--gold);outline-offset:3px;animation:nxGlow 1.3s ease-in-out infinite;z-index:1}
+.next::after{content:"";position:absolute;top:50%;right:14px;width:34px;height:34px;transform:translateY(-10%);background:no-repeat center/contain url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M9 11V5.5a1.6 1.6 0 013.2 0V10l4 .8a2 2 0 011.6 2L17.5 19a2 2 0 01-2 1.7H11a2 2 0 01-1.6-.8L5.7 14.6a1.5 1.5 0 012.2-2L9 13.6z' fill='white' stroke='%23222' stroke-width='.9'/></svg>");animation:nxPoint .9s ease-in-out infinite;pointer-events:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+.tile.next::after{display:none}
+.sbtn.go.next{background-image:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.28) 50%,transparent 70%);background-size:60% 100%;background-repeat:no-repeat;animation:nxGlow 1.3s ease-in-out infinite,nxSheen 2.2s linear infinite}
+@keyframes nxGlow{0%,100%{outline-color:rgba(217,160,50,.45)}50%{outline-color:#FFC857}}
+@keyframes nxPoint{0%,100%{transform:translate(0,-10%)}50%{transform:translate(-6px,2%)}}
+@keyframes nxSheen{0%{background-position:-120% 0}100%{background-position:220% 0}}
+@media(prefers-reduced-motion:reduce){.next,.next::after{animation:none}}
+.layer{position:absolute;inset:0;z-index:20;display:none;flex-direction:column;background:var(--bg)}
+.layer.on{display:flex}
+.lh{display:flex;align-items:center;gap:10px;padding:14px 14px 8px;flex:none}
+.lh h2{flex:1;margin:0;font:700 25px/1.1 var(--head)}
+.lb{flex:1;overflow-y:auto;padding:0 12px 30px;display:flex;flex-direction:column;gap:12px}
+.note{font-size:15px;color:#C7D1DF;line-height:1.45}
+.card{border:2px solid var(--line);background:var(--panel);border-radius:22px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.card.done{border-color:#4a9a6b}
+.card h3{margin:0;display:flex;gap:10px;align-items:center;font:700 22px var(--head)}
+.card h3 .t{margin-left:auto;font:500 13px var(--body);color:var(--soft)}
+.pillrow{display:flex;gap:8px;flex-wrap:wrap}
+.pc{border:1px solid var(--line);background:var(--bg);border-radius:99px;padding:5px 14px;font:700 19px var(--head)}
+.pc.ok{border-color:#4a9a6b;color:var(--okt)}.pc.gd{border-color:var(--gold2);color:#E9C46A}
+.st{border:2px solid var(--gold2);border-radius:99px;display:flex;align-items:center;gap:10px;padding:5px 14px;font:600 20px var(--head);color:#E9A94A}
+.st.ok{border-color:#4a9a6b;color:var(--okt)}
+.inp{width:100%;border:2px solid #2d3b55;background:transparent;border-radius:14px;padding:11px 14px;color:var(--ink);font:600 19px var(--head);outline:0}
+.chrow{display:flex;gap:8px;flex-wrap:wrap}
+.ch{border:2px solid var(--line);background:var(--panel2);border-radius:14px;padding:10px 14px;font:600 17px var(--head)}
+.ch.sel{border-color:var(--gold);background:#2a210c}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pad button{min-height:62px;border:2px solid var(--line);background:var(--panel2);border-radius:14px;font:700 26px var(--head)}
+.toast{position:absolute;left:12px;right:12px;bottom:84px;z-index:40;background:#0d2a1a;border:2px solid #4a9a6b;color:#bdf0cf;border-radius:16px;padding:12px 14px;font:600 17px var(--head);display:none;gap:10px;align-items:center}
+.toast.on{display:flex}.toast.bad{background:#3a1710;border-color:#E5604A;color:#ffd0c7}
+.paper{background:#fff;color:#111;border-radius:6px;padding:14px 16px;font:13px/1.35 ui-monospace,Menlo,monospace;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+.paper .hd{text-align:center;font-weight:800;font-size:16px;letter-spacing:.06em}
+.paper .hr{border-top:1px dashed #777;margin:7px 0}
+.paper .sr{display:flex;justify-content:space-between;gap:10px}
+.paper .tot{font-weight:800;font-size:19px}
+.qrw{width:104px;margin:8px auto 0}.bcw{margin-top:8px;height:42px}
+.wk .tile{min-height:150px}
+.wk .tile .no{display:flex;justify-content:center;align-items:center;min-height:84px;padding:0}
+.wk .tile .no svg.ic{width:52px;height:52px;stroke-width:1.7}
+.wk .tile .bd{display:none}
+.wk .tile .bdw{display:flex;justify-content:center;padding:10px 4px;font:800 28px var(--head)}
+.badge{position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:50%;background:#2b8a5e;display:grid;place-items:center}
+.badge svg.ic{width:17px;height:17px;stroke-width:2.3}
+.wdone{border:2px solid #4a9a6b;background:#0d2a1a;border-radius:18px;padding:14px;display:flex;gap:12px;align-items:center}
+.wdone b{font:800 36px var(--mono);color:var(--okt)}
+.takeoff{background:#2c2410;border:2px solid var(--gold);border-radius:14px;padding:10px;text-align:center;font:700 20px var(--head);color:#FFD27A;animation:nxGlow 1.2s ease-in-out infinite}
+.grp{display:flex;align-items:center;gap:8px;font:700 17px var(--head);padding:2px 2px 0}
+.grp .gi{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff}.grp .gi svg.ic{width:19px;height:19px}.grp small{font:500 13px var(--body);color:var(--soft)}
+.tile .no{font:800 20px/1 var(--head);padding:7px 0 5px}
+.tile{min-height:148px}.tile.d-in .no{background:#173a28}.tile.d-out .no{background:#43201a}.tile.d-none .no{background:#222c3c}
+.tile .art{display:flex;justify-content:center;padding-top:10px}
+.tile .bd{padding:6px 4px 10px;flex:1;justify-content:flex-start}
+.ia{position:relative;width:58px;height:58px;border-radius:14px;background:#1a2433;display:grid;place-items:center}.ia svg.ic{width:32px;height:32px}
+.ia .bdg{position:absolute;right:-7px;bottom:-7px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff}.ia .bdg svg.ic{width:17px;height:17px;stroke-width:2.6}
+.bdg.in,.pb.in,.st3.in{--c:#3F9D63}.bdg.out,.pb.out,.st3.out{--c:#E5604A}.bdg{background:var(--c)}
+.pb{display:flex;align-items:center;gap:2px;padding:9px 11px;border-radius:14px;color:var(--c);background:color-mix(in srgb,var(--c) 18%,transparent);border:1.5px solid var(--c)}.pb svg.ic{width:30px;height:30px}
+.st3{width:62px;height:76px;border-radius:14px;color:var(--c);background:color-mix(in srgb,var(--c) 16%,transparent);border:2px solid var(--c);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0}.st3 svg.ic{width:28px;height:28px}
+.wk .tile{min-height:132px}.wk .tile .no{font-size:18px}
+.wk .tile .no{min-height:0;display:block;padding:7px 0 5px;font-size:20px}.wk .tile .art{flex:1;align-items:center;padding:6px 0 10px}.wk .ia{width:72px;height:72px}.wk .ia svg.ic{width:40px;height:40px}.wk .ia .bdg svg.ic{width:17px;height:17px}.wk .pb svg.ic{width:36px;height:36px}.wk .st3{width:70px;height:88px}.wk .st3 svg.ic{width:34px;height:34px}
+
+.wk .tile .bd{display:flex!important;padding:0 3px 9px;flex:0 0 auto}
+.wk .tile .bd b{font:700 13px/1.1 var(--head);color:#C9D3E3}
+.wk .tile .bd .kn,.wk .tile .bd .rt{display:none}
+.tray{border:2px solid var(--gold);background:#1c1707;border-radius:18px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.tray .th{display:flex;align-items:center;gap:8px;font:700 18px var(--head);color:#FFD27A}.tray .th .xbtn{margin-left:auto}
+.tl1{display:flex;align-items:center;gap:10px;background:#101823;border-radius:12px;padding:6px 10px 6px 8px}.tl1 b{flex:1;font:700 17px var(--head)}
+.tray .ia{width:44px;height:44px}.tray .ia svg.ic{width:26px;height:26px}.tray .ia .bdg{width:20px;height:20px;right:-5px;bottom:-5px}.tray .ia .bdg svg.ic{width:13px;height:13px}
+.card h3 .ia{width:48px;height:48px;flex:none}.card h3 .ia svg.ic{width:28px;height:28px}.card h3 .ia .bdg{width:20px;height:20px}.card h3 .ia .bdg svg.ic{width:13px;height:13px}
+.coin.sm{width:22px;height:22px;font-size:13px;box-shadow:inset 0 0 0 2px #E7BC54}.coin svg.ic{width:24px;height:24px;stroke:#5a3d06}
+.pc.tk{display:inline-flex;align-items:center;gap:6px;font:700 16px var(--head);padding:4px 12px}.pc.tk svg.ic{width:20px;height:20px}
+.steps{display:flex;align-items:center;justify-content:space-between}
+.stp{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--soft)}.stp span{width:46px;height:46px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center}.stp svg.ic{width:24px;height:24px}.stp small{font:600 12px var(--body)}
+.stp.ok{color:var(--okt)}.stp.ok span{border-color:#4a9a6b;background:#0d2a1a}.stp.cur{color:#FFD27A}.stp.cur span{border-color:var(--gold);background:#2a210c;animation:nxGlow 1.2s ease-in-out infinite}
+.sep{flex:1;height:2px;background:var(--line);margin:0 4px 16px}
+.trow{display:flex;align-items:center;gap:10px;border:2px solid var(--line);background:var(--panel2);border-radius:16px;padding:8px 12px;min-height:58px;color:var(--ink);text-align:left}
+.trow .ti{width:42px;display:grid;place-items:center;flex:none}.trow .tl{flex:1;font:700 18px var(--head)}.trow .tl small{display:block;font:500 13px var(--body);color:var(--soft)}.trow .tv{font:800 19px var(--head);min-width:64px;text-align:right}.trow svg.ic{width:22px;height:22px}
+.stp1{width:44px;height:44px;border-radius:12px;border:2px solid var(--line);background:var(--bg);font:800 24px var(--head);color:var(--ink);flex:none}.trow .q{font:800 24px var(--head);min-width:24px;text-align:center}
+.acct{display:flex;flex-direction:column}.acct .ar{display:flex;justify-content:space-between;gap:8px;font:600 17px var(--head);padding:5px 0;border-bottom:1px dashed var(--line)}.acct .ar.res{font:800 22px var(--head);color:#E9C46A;border:0;padding-top:9px}.acct .ar.neg b{color:#F06C57}
+.cans3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.sec .mrow{font-size:18px;gap:8px;padding:10px 12px}.sec .mrow .sp{text-align:left;line-height:1.1}.sec .mrow .amt{font-size:19px}.okb{font-size:18px}
+.cn3{border:2px solid var(--line);background:var(--panel2);border-radius:16px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:2px}.cn3.on{border-color:var(--gold);background:#2a210c}.cn3 b{font:700 15px var(--head)}.cn3 small{color:var(--soft);font:500 13px var(--body)}
+.stpr{display:flex;align-items:center;gap:4px;margin-top:4px}.stpr button{width:34px;height:34px;border-radius:10px;border:2px solid var(--line);background:var(--bg);font:800 22px var(--head);color:var(--ink)}.stpr b{font:800 22px var(--head);min-width:20px;text-align:center}
+.sec{display:flex;flex-direction:column;gap:8px}
+.sbtn svg.ic{width:24px;height:24px}
+.bagrow{display:flex;align-items:center;gap:5px;padding:0 2px 4px}.bagrow span{font:700 14px var(--head);color:#FFD27A;margin-right:2px}.bagrow button{flex:1;min-width:0;height:38px;border-radius:10px;border:2px solid var(--line);background:var(--bg);font:800 18px var(--head);color:var(--ink)}.bagrow button.sel{border-color:var(--gold);background:#2a210c;color:#FFD27A}
+.wsum,.wf{flex:none}.wsum{display:flex;gap:6px;flex-wrap:wrap}.wsum .pc{font-size:16px}
+.wf{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}.wf button{flex:none;display:flex;align-items:center;gap:6px;border:2px solid var(--line);background:var(--panel2);border-radius:99px;padding:6px 14px;font:700 16px var(--head);color:var(--ink)}.wf button.sel{border-color:var(--gold);background:#2a210c;color:#FFD27A}.wf button svg.ic{width:20px;height:20px}.wf b{font:800 14px var(--head);background:#223049;border-radius:99px;padding:1px 8px}
+.bagchip{display:inline-flex;align-items:center;gap:6px;background:#2a210c;border:2px solid var(--gold);color:#FFD27A;border-radius:12px;padding:4px 12px;font:800 20px var(--head)}
+.wl1{display:flex;align-items:center;gap:8px;font:600 15px var(--body);color:var(--soft);padding:4px 2px;border-bottom:1px dashed var(--line)}.wl1 b{font:800 19px var(--mono);color:var(--ink);margin-left:auto}.wl1 .vp{display:inline-flex;align-items:center;gap:4px;border:1px solid #4a9a6b;color:var(--okt);border-radius:99px;padding:2px 10px;font:700 13px var(--head);background:#0d2a1a}.wl1 .vp svg.ic{width:15px;height:15px}
+.wtot{display:flex;align-items:baseline;gap:8px}.wtot b{font:800 34px var(--mono)}.wtot small{color:var(--soft);font:500 14px var(--body)}
+.nbrow{display:flex;align-items:center;justify-content:space-between;padding:0 4px 2px}.nbrow>b{font:700 16px var(--head);color:#E9C46A}.tl1+.nbrow{margin-top:-4px}
+.cake button svg{vertical-align:middle;margin:0 2px}.cake button:disabled{opacity:.7}.sbtn svg,.ch svg{vertical-align:middle}
+.pstat{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}.ps{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;border-radius:12px;padding:8px 10px;font:600 14px/1.2 var(--head);border:2px solid var(--line)}.ps svg{width:20px;height:20px;flex:none}.ps span{flex-basis:100%;font:500 13px var(--body)}.ps.ok{border-color:#3F9D63;background:#10261a;color:#9fe0b8}.ps.no{color:var(--soft);background:var(--panel2);opacity:.85}
+.stp span{position:relative}.stp .tk{position:absolute;right:-5px;bottom:-5px;width:20px;height:20px;border-radius:50%;background:#3F9D63;display:grid;place-items:center;border:2px solid var(--bg,#0b1018)}.stp .tk svg.ic{width:12px;height:12px;color:#fff;stroke-width:3.4}.stp.ok span>svg.ic:first-child{color:var(--okt)}.jci{position:relative;display:inline-flex;width:var(--s);height:var(--s);flex:none}.jci>svg.ic{width:100%;height:100%}.jci i{position:absolute;right:-6px;bottom:-5px;width:60%;height:60%;border-radius:50%;background:#5F82D4;display:grid;place-items:center;border:2px solid var(--bg,#0b1018)}.own>span{display:inline-flex;align-items:center;gap:8px;margin-right:12px}.own .jci{margin-right:6px}.jci.own>svg.ic{color:#E8B84A}.jci.own i{background:#C98A25}.jci i svg.ic{width:80%;height:80%;color:#fff}
+</style>
+</head>
+<body>
+<div id="app">
+ <div class="demo" id="demo"><b>DEMO SCALE</b></div>
+ <div class="top" id="top"></div>
+ <div class="chips" id="chips"></div>
+ <main id="main"></main>
+ <div class="toast" id="toast"></div>
+ <div class="layer" id="layer"></div>
+</div>
+<script>
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const r2=n=>Math.round(n*100)/100,f1=n=>Number(n).toFixed(1),f2=n=>Number(n).toFixed(2);
+const inr=n=>'₹'+Math.abs(Math.round(n)).toLocaleString('en-IN');
+const sum=a=>a.reduce((x,y)=>x+y,0);
+const pad=(n,l=4)=>String(n).padStart(l,'0');
+const t12=d=>{const h=d.getHours();return String((h%12)||12).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+' '+(h<12?'AM':'PM')};
+const nowFull=()=>{const d=new Date();return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+' · '+t12(d)};
+const clock=()=>{const d=new Date();return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+' '+t12(d)};
+const IC={
+ seed:'<path d="M12 21V9"/><path d="M12 9c-2.4-1-3.4-3-3.4-5.4 2.4.2 3.4 2.4 3.4 5.4zM12 9c2.4-1 3.4-3 3.4-5.4-2.4.2-3.4 2.4-3.4 5.4zM12 14c-2.4-1-3.4-3-3.4-5M12 14c2.4-1 3.4-3 3.4-5M12 19c-2.4-1-3.4-3-3.4-5M12 19c2.4-1 3.4-3 3.4-5"/>',
+ bt:'<path d="M7 7l10 10-5 4V3l5 4L7 17"/>',
+ bag:'<ellipse cx="12" cy="8.5" rx="8" ry="3.2"/><path d="M4 8.5v5c0 1.8 3.6 3.2 8 3.2s8-1.4 8-3.2v-5"/><path d="M8.5 8.4h.01M12 9.6h.01M15.5 8.4h.01M10.5 12.6h.01M14 13h.01"/>',
+ arrowr:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+ weigh:'<path d="M4 20h16M12 20V8"/><path d="M5 8h14M5 8l-2.500 6h5zM19 8l-2.500 6h5z"/><circle cx="12" cy="5.500" r="1.500"/>',
+ crush:'<path fill="currentColor" stroke="none" fill-rule="evenodd" d="M4 2.500h8l-2 5.500H6z M7 4.600a.7.7 0 101.400 0 .7.7 0 10-1.400 0zM9 3.900a.7.7 0 101.400 0 .7.7 0 10-1.400 0z"/><path fill="currentColor" stroke="none" fill-rule="evenodd" d="M2.500 9.500h13.500v8h-13.500z M8.4 13.5L8.4 13.8L9.4 14.3L9.2 14.9L8.1 14.5L7.8 14.9L7.6 15.1L8.0 16.2L7.4 16.4L6.9 15.4L6.4 15.5L6.1 15.5L5.6 16.5L5.0 16.3L5.4 15.2L5.0 14.9L4.8 14.7L3.7 15.1L3.5 14.5L4.5 14.0L4.4 13.5L4.4 13.2L3.4 12.7L3.6 12.1L4.7 12.5L5.0 12.1L5.2 11.9L4.8 10.8L5.4 10.6L5.9 11.6L6.4 11.5L6.7 11.5L7.2 10.5L7.8 10.7L7.4 11.8L7.8 12.1L8.0 12.3L9.1 11.9L9.3 12.5L8.3 13.0z M5.5 13.5a0.9 0.9 0 1 0 1.8 0a0.9 0.9 0 1 0 -1.8 0z M11 10.500h1.400l1 6.500h-1.400zM13.800 10.500h1.200l.6 6.500h-1.200z"/><path fill="currentColor" stroke="none" d="M19.800 11.200s1.200 2.600 1.200 3.900a1.200 1.200 0 01-2.400 0c0-1.300 1.200-3.900 1.200-3.900z"/>',
+ oilout:'<path d="M9 4s4.5 4.8 4.5 8.2a4.5 4.5 0 01-9 0C4.5 8.8 9 4 9 4z"/><path d="M18 20V8M14.5 11.5L18 8l3.5 3.5"/>',
+ swap:'<path d="M5 8h13l-3-3M19 16H6l3 3"/>',shop:'<path d="M4 9l1.5-5h13L20 9"/><path d="M5 9v11h14V9"/><path d="M9.5 20v-6h5v6"/>',
+ pin:'<path d="M12 21s6-5.5 6-11a6 6 0 00-12 0c0 5.5 6 11 6 11z"/><circle cx="12" cy="10" r="2.2"/>',tank:'<path d="M6 4h12v16H6z"/><path d="M6 9h12M6 15h12"/>',
+ globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+ can:'<path d="M7 4h7l3 3v13H7z"/><path d="M14 4v3h3M10 4V2.5"/>',
+ cno:'<path d="M6 8h12l1 12H5z"/><path d="M9 8V6a3 3 0 016 0v2"/>',
+ drop:'<path d="M12 3s6 6.5 6 11a6 6 0 01-12 0c0-4.5 6-11 6-11z"/>',
+ grid:'<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+ user:'<circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.6 3-6 7-6s7 2.4 7 6"/>',
+ printer:'<path d="M7 9V3h10v6"/><rect x="3.5" y="9" width="17" height="8" rx="1.5"/><path d="M7 14h10v7H7z"/>',
+ check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',x:'<path d="M6 6l12 12M18 6L6 18"/>',plus:'<path d="M12 5v14M5 12h14"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',list:'<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>',
+ lock:'<path d="M7.5 10V7.2a4.5 4.5 0 019 0V10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path fill="currentColor" stroke="none" fill-rule="evenodd" d="M6 10h12a2 2 0 012 2v7a2 2 0 01-2 2H6a2 2 0 01-2-2v-7a2 2 0 012-2zM12 13.2a1.6 1.6 0 00-.8 3v1.8h1.6v-1.8a1.6 1.6 0 00-.8-3z"/>',
+ park:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M10 16V8h3a2.5 2.5 0 010 5h-3"/>',
+ pause:'<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>',
+ hourg:'<path d="M7 4h10M7 20h10M8 4c0 4 4 5 4 8s-4 4-4 8M16 4c0 4-4 5-4 8s4 4 4 8"/>',
+ search:'<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+ mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21"/>',
+ camera:'<path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+ book:'<path d="M3 5.5c3-1 6-1 9 1v13c-3-2-6-2-9-1zM21 5.5c-3-1-6-1-9 1v13c3-2 6-2 9-1z"/>',
+ edit:'<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
+ down:'<path d="M12 4v16M6 14l6 6 6-6"/>',up:'<path d="M12 20V4M6 10l6-6 6 6"/>',mill:'<path d="M3 21V10l6 3V10l6 3V5h5v16z"/><path d="M7 17h1M12 17h1M17 17h1"/>',rupee:'<path d="M7 5h10M7 9h10M7 5c5 0 7 1.5 7 4s-2 4-7 4l7 6"/>',
+ barrel:'<ellipse cx="12" cy="5.5" rx="6.5" ry="2.5"/><path d="M5.5 5.5v13c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5v-13"/><path d="M5.5 10.5c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5M5.5 15.5c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5"/>',spark:'<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>',
+ auto:'<path d="M2 16V9l4-4h8l3 4h4v7"/><path d="M6 9h8"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
+ rupee:'<path d="M7 5h10M7 9.5h10M9 5c4 0 6 1.5 6 4.5S13 14 9 14H7l7 6"/>',
+ hand:'<path d="M9 11V5.5a1.6 1.6 0 013.2 0V10l4 .8a2 2 0 011.6 2L17.5 19a2 2 0 01-2 1.7H11a2 2 0 01-1.6-.8L5.7 14.6a1.5 1.5 0 012.2-2L9 13.6z"/>'
+};
+const ic=(n,c='')=>`<svg class="ic ${c}" viewBox="0 0 24 24">${IC[n]||''}</svg>`;
+
+/* ---------- words (English + draft Kannada; Kannada to be checked with Nilkant) ---------- */
+const L={en:{waiting:'Waiting',jobs:'Jobs',held:'Held',parked:'Parked',read:'Read weight',search:'Search item or PLU',add:'Add another bag',cash:'Cash',upi:'UPI',udhaar:'Udhaar',wait:'Wait',clear:'Clear',hold:'Hold',
+ oil:'Oil',oilw:'Oil wait',done:'Done',pay:'Pay ↓',who:'Who is this customer?'},
+ kn:{waiting:'ಕಾಯುತ್ತಿದೆ',jobs:'ಕೆಲಸಗಳು',held:'ಬಾಕಿ',parked:'ನಿಲ್ಲಿಸಿದ',read:'ತೂಕ ಓದಿ',search:'ವಸ್ತು ಹುಡುಕಿ',add:'ಇನ್ನೊಂದು ಚೀಲ',cash:'ನಗದು',upi:'UPI',udhaar:'ಉದ್ರಿ',wait:'ಕಾಯಿ',clear:'ಅಳಿಸು',hold:'ನಿಲ್ಲಿಸು',oil:'ಎಣ್ಣೆ',oilw:'ಎಣ್ಣೆ ಕಾಯಿ',done:'ಆಯಿತು',pay:'ಪಾವತಿ ↓',who:'ಯಾವ ಗ್ರಾಹಕ?'}};
+const t=k=>(L[S.lang]||L.en)[k]||L.en[k]||k;
+
+const ITEMS=[
+ {n:1,k:'cseed',en:'Seed',wl:'Customer seed',kn:'ಬೀಜ',sub:'customer brings',g:'jw',ico:'seed',b:'P'},
+ {n:2,k:'coil',en:'Oil',wl:'Customer oil',kn:'ಎಣ್ಣೆ',sub:'to customer',g:'jw',ico:'oil',b:'P'},
+ {n:3,k:'ckhali',en:'Khali',wl:'Customer khali',kn:'ಹಿಂಡಿ',sub:'oil cake · customer takes',g:'jw',ico:'khali',b:'P'},
+ {n:4,k:'oseed',en:'Seed',wl:'Seed to crushing',kn:'ಬೀಜ',sub:'to expeller',g:'mill',ico:'seed',b:'F'},
+ {n:5,k:'ooil',en:'Oil',wl:'Our oil can',kn:'ಎಣ್ಣೆ',sub:'can −4.65 kg',g:'mill',ico:'oil',b:'F'},
+ {n:6,k:'okhali',en:'Khali',wl:'Our khali bag',kn:'ಹಿಂಡಿ',sub:'oil cake · to stack',g:'mill',ico:'khali',b:'F'},
+ {n:7,k:'pseed',en:'Seed buy',wl:'Seed buy',kn:'ಬೀಜ ಖರೀದಿ',sub:'we buy',g:'bs',ico:'seed',b:'in',d:'in'},
+ {n:8,k:'pkhali',en:'Khali buy',wl:'Khali buy',kn:'ಹಿಂಡಿ ಖರೀದಿ',sub:'oil cake · we buy',g:'bs',ico:'khali',b:'in',d:'in'},
+ {n:9,k:'poil',en:'Oil buy',wl:'Oil buy',kn:'ಎಣ್ಣೆ ಖರೀದಿ',sub:'we buy',g:'bs',ico:'oil',b:'in',d:'in'},
+ {n:10,k:'soil',en:'Oil sell',wl:'Oil sell',kn:'ಎಣ್ಣೆ ಮಾರಾಟ',sub:'we sell',g:'bs',ico:'oil',b:'out',d:'out'},
+ {n:11,k:'skhali',en:'Khali sell',wl:'Khali sell',kn:'ಹಿಂಡಿ ಮಾರಾಟ',sub:'oil cake · we sell',g:'bs',ico:'khali',b:'out',d:'out'},
+ {n:12,k:'can15',en:'15 kg tin',wl:'15 kg tin',kn:'೧೫ ಕೆಜಿ ಟಿನ್',sub:'₹50 · tap to count',g:'cans',ico:'tin15',b:'',nw:1},
+ {n:13,k:'can5new',en:'5 kg new',wl:'5 kg can, new',kn:'೫ ಕೆಜಿ ಹೊಸ',sub:'₹40 · tap to count',g:'cans',ico:'j_new',b:'new',nw:1},
+ {n:14,k:'can5old',en:'5 kg old',wl:'5 kg can, old',kn:'೫ ಕೆಜಿ ಹಳೆಯ',sub:'₹20 · tap to count',g:'cans',ico:'j_old',b:'old',nw:1},
+ {n:15,k:'bfull',en:'Barrel full',wl:'Barrel full',kn:'ಬ್ಯಾರೆಲ್ ತುಂಬಿದ',sub:'from supplier',g:'bar',ico:'bfull',b:'in',d:'in'},
+ {n:16,k:'bempty',en:'Barrel empty',wl:'Barrel empty',kn:'ಬ್ಯಾರೆಲ್ ಖಾಲಿ',sub:'gives net oil',g:'bar',ico:'bempty',b:''},
+ {n:17,k:'bout',en:'Barrel out',wl:'Barrel out',kn:'ಬ್ಯಾರೆಲ್ ಹೊರಗೆ',sub:'customer · refill',g:'bar',ico:'bfull',b:'out',d:'out'},
+ {n:18,k:'sed',en:'Sediment',wl:'Sediment',kn:'ಕೆಸರು',sub:'closes tank fill',g:'ot',ico:'sed',b:''},
+ {n:19,k:'other',en:'Other',wl:'Other',kn:'ಇತರೆ',sub:'',g:'ot',ico:'other',b:''}];
+const GROUPS=[{id:'jw',en:'Job work · customer',kn:'ಕೂಲಿ ಕೆಲಸ',icon:'user',c:'#2E7D5B'},{id:'mill',en:'Our mill · production',kn:'ನಮ್ಮ ಗಿರಣಿ',icon:'mill',c:'#B8841F'},{id:'bs',en:'Buy / Sell',kn:'ಖರೀದಿ / ಮಾರಾಟ',icon:'rupee',c:'#3F7D58'},{id:'cans',en:'Oil cans',kn:'ಎಣ್ಣೆ ಡಬ್ಬ',icon:'can',c:'#5F82D4'},{id:'bar',en:'Barrels',kn:'ಬ್ಯಾರೆಲ್',icon:'barrel',c:'#B5533C'},{id:'ot',en:'Other',kn:'ಇತರೆ',icon:'grid',c:'#6B7280'}];
+/* final icons: khali = round disc with dots; barrels show oil level; 15 kg tin = E3 top handle; 5 kg can = jerrycan; old = dull/rusty; sediment = crusty can with sludge */
+const OILC='#EF9F27',RUSTC='#9C4A17',MUDC='#6E6253',SLUDGEC='#4A3C2C';
+let _ic=0;
+const SVG48=(i,col='currentColor',sz=40)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 48 48" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${i}</svg>`;
+function barrelSvg(level){const id='cb'+(_ic++),BODY='M11 10v26c0 2.8 5.8 5 13 5s13-2.2 13-5V10',y=41-level*31;
+ const f=level>0?`<clipPath id="${id}"><path d="${BODY}z"/></clipPath><rect x="10" y="${y}" width="28" height="${42-y}" fill="${OILC}" stroke="none" opacity=".9" clip-path="url(#${id})"/>`:'';
+ const top=level>=1?`<ellipse cx="24" cy="10" rx="13" ry="5" fill="${OILC}" opacity=".95"/>`:`<ellipse cx="24" cy="10" rx="13" ry="5"/>`;
+ return SVG48(f+`<path d="${BODY}"/>`+top+`<path d="M11 19c0 2.8 5.8 5 13 5s13-2.2 13-5M11 28c0 2.8 5.8 5 13 5s13-2.2 13-5"/>`)}
+const CB={tin:{body:'M7 11h34v31a3 3 0 01-3 3H10a3 3 0 01-3-3z',win:[12,17,24,22],line:'<path d="M13 11V6h22v5"/><rect x="12" y="17" width="24" height="22" rx="1.5" stroke-width="1.5"/>'},
+ jerry:{body:'M13 18l4-5h14l4 5v20a4 4 0 01-4 4H17a4 4 0 01-4-4z',win:[17,22,9,16],line:'<path d="M18 13V8h10v5M31 13l4-4"/><rect x="17" y="22" width="9" height="16" rx="1" stroke-width="1.4"/>'}};
+function canSvg(shape,lvl,wear,sed){const d=CB[shape],id='kc'+(_ic++),old=wear>0,col=old?(sed?MUDC:'#8B8579'):'currentColor';let f='';
+ if(lvl>0){if(shape==='jerry'&&!sed){const y=42-lvl*29;f=`<clipPath id="${id}"><path d="${d.body}"/></clipPath><rect x="10" y="${y}" width="28" height="${44-y}" fill="${OILC}" stroke="none" opacity=".9" clip-path="url(#${id})"/>`}else{const q=d.win,y=q[1]+q[3]-lvl*q[3];f=`<clipPath id="${id}"><rect x="${q[0]}" y="${q[1]}" width="${q[2]}" height="${q[3]}"/></clipPath><rect x="${q[0]}" y="${y}" width="${q[2]}" height="${q[3]+2}" fill="${sed?SLUDGEC:OILC}" stroke="none" opacity=".9" clip-path="url(#${id})"/>`}}
+ const tint=old?`<path d="${d.body}" fill="${MUDC}" fill-opacity="${sed?.6:.28}" stroke="none"/>`:'';
+ let w='';
+ if(old){w=`<path d="M14 36l4-1 2 3-3 3-4-2zM30 22l4 1-1 4-4-1z" fill="${RUSTC}" stroke="none" opacity=".75"/><path d="M15 25l4 3-3 3 4 3-3 3" stroke="${MUDC}" stroke-width="1.6"/><path d="M18 20l9 4M17 30l9 3M30 16l4 5" stroke="${MUDC}" stroke-width="1.1" opacity=".9"/>`+[[20,41],[33,34],[14,29],[27,19]].map(q=>`<circle cx="${q[0]}" cy="${q[1]}" r="1.3" fill="${RUSTC}" stroke="none"/>`).join('');
+  if(sed)w=`<path d="M26 36l5-1 3 4-3 3-6-1zM15 21l3 1-1 3-3-1zM22 17l4 1-1 3-4-1zM30 30l3 2-2 4-3-2z" fill="${RUSTC}" stroke="none" opacity=".8"/><path d="M19 14v7M31 15v9" stroke="#C0692A" stroke-width="2.2" opacity=".75"/><path d="M13 38a4 4 0 004 4h14a4 4 0 004-4" stroke="${RUSTC}" stroke-width="3" opacity=".7" stroke-dasharray="3 2"/>`+w}
+ return SVG48(tint+f+`<path d="${d.body}"/>`+d.line+w,col)}
+function icoSvg(name,sz=40){const set=(h)=>h.replace(/width="40" height="40"/,`width="${sz}" height="${sz}"`);
+ switch(name){
+  case 'seed':return SVG48('<g transform="translate(1.5 1) scale(1.9)" stroke-width="1.15"><path d="M12 21V9"/><path d="M12 9c-2.4-1-3.4-3-3.4-5.4 2.4.2 3.4 2.4 3.4 5.4zM12 9c2.4-1 3.4-3 3.4-5.4-2.4.2-3.4 2.4-3.4 5.4zM12 14c-2.4-1-3.4-3-3.4-5M12 14c2.4-1 3.4-3 3.4-5M12 19c-2.4-1-3.4-3-3.4-5M12 19c2.4-1 3.4-3 3.4-5"/></g>','currentColor',sz);case 'oil':return ic('drop');case 'other':return ic('grid');
+  case 'khali':return SVG48('<ellipse cx="24" cy="17" rx="15" ry="6"/><path d="M9 17v10c0 3.3 6.7 6 15 6s15-2.7 15-6V17"/><path d="M17 17h.01M24 19h.01M31 17h.01M21 24h.01M28 25h.01"/>','currentColor',sz);
+  case 'bfull':return set(barrelSvg(1));case 'bempty':return set(barrelSvg(0));case 'bhalf':return set(barrelSvg(.5));
+  case 'tin15':return set(canSvg('tin',1,0,false));
+  case 'j_new':return set(canSvg('jerry',1,0,false));case 'j_old':return set(canSvg('jerry',1,1,false));
+  case 'sed':return set(canSvg('jerry',1,3,true));}
+ return ''}
+const IT=Object.fromEntries(ITEMS.map(i=>[i.k,i]));
+const iname=i=>S.lang==='kn'?i.kn:i.en;
+const CUSTS=[['Mohammed Ali','Bidar'],['Shivakumar Patil','Kamthana'],['Gundappa','Janawada'],['Sangamma','Bhalki'],['Ravi Kumar','Chitguppa'],['Mallamma','Chidri']];
+const PLACES=['Bidar','Kamthana','Chidri','Naubad','Janawada','Humnabad','Bhalki','Chitguppa'];
+const RATE={SHOP:6,CUSTOMER:10},CANS={can15:50,can5new:40,can5old:20};
+const canCharge=c=>sum(Object.entries(c||{}).map(([k,q])=>q*(CANS[k]||0)));
+function settlement(j){const rate=RATE[j.cake],gross=j.seedKg*rate,cans=canCharge(j.cans),adv=(j.advC||0)+(j.advA||0);
+ if(j.cake==='SHOP'){const half=gross/2;return{rate,gross,cans,adv,due:gross-adv-cans,dir:'out',cust:half-(j.advC||0)-cans,auto:half-(j.advA||0)}}
+ return{rate,gross,cans,adv,due:gross+cans-adv,dir:'in',cust:gross+cans-adv,auto:0}}
+
+/* ---------- state ---------- */
+const isBagK=k=>/seed|khali/.test(k)&&k!=='sed';
+const bagTxt=n=>n+(n===1?' bag':' bags');
+const bagsOf=j=>j.nb||j.lines.length;
+const bagLabel=(nbs,i)=>{const a=sum(nbs.slice(0,i))+1,n=nbs[i]||1;return n===1?'Bag '+a:'Bags '+a+'–'+(a+n-1)};
+const slipNbs=()=>{const sp=S.slip;sp.nbs=sp.nbs||[];sp.cnos=sp.cnos||[];while(sp.nbs.length<sp.lines.length)sp.nbs.push(1);while(sp.cnos.length<sp.lines.length)sp.cnos.push('');return sp.nbs};
+function slipNb(i,d){slipNbs();S.slip.nbs[i]=Math.max(1,S.slip.nbs[i]+d);render()}
+const cnoL=()=>S.lang==='kn'?'ಗ್ರಾಹಕ ನಂ.':'Customer no.';
+const S={lastCno:1,wf:'all',mode:'counter',istyle:'A',lang:'en',view:'pick',q:'',canTare:4.65,needZero:false,
+ scale:{w:0,from:0,to:0,t0:0,dur:900},st:{v:0,since:Date.now()},
+ slip:{cust:null,cake:'SHOP',lines:[],advC:0,advA:0,cans:{},stick:true,copies:2},wtray:[],wsn:31,parked:[],own:{cseedNote:0,oseed:[287.4,241.2],ooil:[[15.2,'Floor barrel'],[16.1,'Floor barrel'],[17.0,'Floor barrel']],okhali:[44.1,43.6,45.2],sed:[],other:[]},
+ nextJw:417,qn:20,
+ jw:[
+  {tok:'JW-0416',customer:'Mohammed Ali',place:'Bidar',lines:[85.0],nb:2,seedKg:85,cake:'SHOP',advC:0,advA:0,cans:{},time:'18 Nov 05:30 PM',crushed:true,settled:false,given:false,oilKg:18.7},
+  {tok:'JW-0412',customer:'Shivakumar Patil',place:'Kamthana',lines:[240.5],nb:5,seedKg:240.5,cake:'SHOP',advC:0,advA:0,cans:{can15:1},time:'20 Nov 08:10 AM',crushed:true,settled:true,given:true,oilKg:52.9},
+  {tok:'JW-0413',customer:'Gundappa',place:'Janawada',lines:[295,295.2],nb:12,seedKg:590.2,cake:'SHOP',advC:500,advA:200,cans:{can15:2},time:'20 Nov 08:55 AM',crushed:true,settled:false,given:false,oilKg:129.8},
+  {tok:'JW-0414',customer:'Sangamma',place:'Bhalki',lines:[120],nb:3,seedKg:120,cake:'CUSTOMER',advC:300,advA:0,cans:{can5new:1},time:'20 Nov 09:20 AM',crushed:true,settled:false,given:false,oilKg:26.4,khaliKg:92.4},
+  {tok:'JW-0415',customer:'Ravi Kumar',place:'Chitguppa',lines:[290.15,20.1],nb:7,seedKg:310.25,cake:'SHOP',advC:0,advA:0,cans:{},time:'20 Nov 09:48 AM',crushed:false,settled:false,given:false}],
+ queue:[
+  {id:'Q11',k:'cseed',nb:6,kg:285.4,time:'20 Nov 09:52 AM',by:'Raju',cno:1,voice:4,photo:false},
+  {id:'Q12',k:'cseed',nb:6,kg:290.2,time:'20 Nov 09:55 AM',by:'Raju',cno:1,voice:0,photo:true},
+  {id:'Q13',k:'cseed',nb:2,kg:96.0,time:'20 Nov 09:58 AM',by:'Raju',cno:1,voice:0,photo:false},
+  {id:'Q14',k:'ooil',kg:15.2,time:'20 Nov 10:05 AM',by:'Mahesh',cno:0},
+  {id:'Q15',k:'ooil',kg:14.8,time:'20 Nov 10:09 AM',by:'Mahesh',cno:0},
+  {id:'Q16',k:'okhali',kg:44.3,time:'20 Nov 10:20 AM',by:'Mahesh',cno:0},
+  {id:'Q17',k:'okhali',kg:42.9,time:'20 Nov 10:22 AM',by:'Mahesh',cno:0},
+  {id:'Q18',k:'ckhali',nb:2,kg:92.4,time:'20 Nov 10:31 AM',by:'Raju',cno:4,voice:3,photo:false}]};
+S.jw.forEach(j=>{j.method='cash'});
+
+/* ---------- scale simulation (iScale S-18: 300 kg x 50 g; steady = same value for 1 s, as the app decides) ---------- */
+function simSet(to){const s=S.scale;s.from=s.w;s.to=to;s.t0=Date.now()}
+const steady=()=>Date.now()-S.st.since>=1000&&S.scale.w>=0.4;
+const ready=()=>steady()&&!S.needZero&&S.scale.w<=300;
+setInterval(()=>{const s=S.scale,p=Math.min(1,(Date.now()-s.t0)/s.dur),e=1-Math.pow(1-p,3);
+ const base=s.from+(s.to-s.from)*e,amp=(1-p)*Math.min(6,Math.abs(s.to-s.from)*0.05+0.25);let w=base+(Math.random()-.5)*2*amp;if(p>=1)w=s.to;
+ s.w=Math.max(0,Math.round(w*20)/20);
+ if(Math.abs(s.w-S.st.v)>0.051){S.st.v=s.w;S.st.since=Date.now()}
+ if(S.needZero&&s.w<1){S.needZero=false;render()}
+ paintWeight()},100);
+function paintWeight(){const n=$('#wnum');if(!n)return;const w=S.scale.w,mv=!steady();
+ n.textContent=w.toFixed(3);n.className='wnum '+(w>300?'ov':mv&&w>0.4?'mv':'');
+ const st=$('#wstat');let msg='',cl='';
+ if(w>300){msg='Over 300 kg — take some off';cl='bad'}else if(S.needZero){msg='Take it off the scale';cl='gd'}else if(w<0.4){msg='Put the load on the scale';cl=''}else if(mv){msg='Settling…';cl='gd'}
+ else{msg=(w>285?'Near the 300 kg limit · ':'')+'Steady · tap the item';cl='ok'}
+ st.textContent=msg;st.className='wstat '+cl;
+ const rd=ready();document.querySelectorAll('.tile[data-k]:not([data-nw])').forEach(b=>b.disabled=!rd);
+ const rb=$('#rbtn');if(rb)rb.style.opacity=rd?1:.6}
+
+/* ---------- screens ---------- */
+function openCount(){return S.jw.filter(j=>!j.crushed).length}
+const sortJ=(a,b)=>a.tok.localeCompare(b.tok);
+const held=()=>S.jw.filter(j=>j.crushed&&!(j.settled&&j.given)).sort(sortJ);
+const jserial=j=>{const d=j.time.slice(0,6);return S.jw.filter(x=>x.time.slice(0,6)===d).sort(sortJ).findIndex(x=>x.tok===j.tok)+1};
+const dtHTML=tm=>{const d=tm.slice(0,6),h=tm.slice(7);return `<span class="dt">${ic('clock')}<b>${h}</b> · ${d}</span>`};
+const jhead=(j,place)=>`<div class="jh"><div class="snw"><b class="sn">${jserial(j)}</b><small>Token</small></div><div class="jm">${dtHTML(j.time)}<div class="jn">${j.customer===j.place?ic('pin')+' ':''}${esc(j.customer)}</div></div><span class="inv">Inv ${j.tok.replace('JW-','#')}${place&&j.customer!==j.place?'<br>'+esc(j.place):''}</span></div>`;
+const whead=(n,tm)=>`<div class="jh"><div class="snw"><b class="sn">${n}</b><small>Queue</small></div><div class="jm">${dtHTML(tm)}</div></div>`;
+function render(){
+ const demo=$('#demo');
+ if(!demo.dataset.ready){demo.dataset.ready=1;demo.insertAdjacentHTML('beforeend',[['Seed bag 48.6',48.6],['Full barrel 192.4',192.4],['Empty barrel 12.3',12.3],['Next bag 49.2',49.2],['Can + oil 19.85',19.85],['Khali bag 44.3',44.3],['Moving…',130],['Over 300',312],['Empty',0]].map(([l,v])=>`<button onclick="simSet(${v})">${l}</button>`).join(''))}
+ $('#top').innerHTML=`<h1><span class="tt">${ic('weigh')}Mill Desk</span><small>Mill 1 · ${S.mode==='worker'?'Worker (icons only)':'Counter'} · 300 kg scale<br><b style="color:var(--amber,#E9C46A)">${nowFull()}</b></small></h1>
+  <span class="pill"><span class="dot"></span>${ic('bt')}BT</span>
+  <button class="pill" onclick="S.lang=S.lang==='en'?'kn':'en';render()">${ic('globe')}${S.lang==='en'?'EN':'ಕನ್ನಡ'}</button>
+  <button class="pill on" onclick="S.mode=S.mode==='worker'?'counter':'worker';S.view='pick';render()">${ic(S.mode==='worker'?'user':'rupee')}${S.mode==='worker'?'Worker':'Counter'} ⇄</button>`;
+ const cnt=(n,ico,key,fn,hl)=>`<button class="cp ${hl?'has':''}" onclick="${fn}">${ico==='jc'?jcIcon(24):ic(ico)}<span>${t(key)}</span><span class="n">${n}</span></button>`;
+ $('#chips').innerHTML=cnt(S.queue.length,'hourg','waiting','sheetWaiting()',S.queue.length)+cnt(openCount()+held().length,'jc','jobs','sheetJobs()',0)+cnt(held().length,'lock','held','sheetHeld()',held().length)+cnt(S.parked.length,'park','parked','sheetParked()',S.parked.length);
+ const m=$('#main');const keep=m.scrollTop;
+ m.innerHTML=S.mode==='worker'?workerHTML():S.view==='slip'?slipHTML():pickHTML();
+ m.scrollTop=keep;
+ paintWeight();
+ const bar=$('#bar');if(bar)bar.remove();
+ if(S.mode==='counter'&&S.view==='slip'&&S.slip.lines.length){const tot=sum(S.slip.lines);$('#app').insertAdjacentHTML('beforeend',`<button class="bar" id="bar" onclick="$('#okb').scrollIntoView({block:'center'})"><span>${bagTxt(sum(slipNbs()))} · ${f1(tot)} kg</span><b>${inr(slipAmt())}</b><span>${t('pay')}</span></button>`)}
+}
+const weightCard=()=>`<div class="wrow"><div class="wcard"><div class="lbl"><span>WEIGHT (KG)</span><span>300 kg × 50 g</span></div><div class="wnum" id="wnum">0.000</div><div class="wstat" id="wstat"></div></div>
+ <button class="rbtn" id="rbtn" onclick="readNow()">${ic('book')}<span>${t('read')}</span></button></div>`;
+function readNow(){if(!ready())return toast('Wait until the weight is steady','bad')}
+function ownLine(){const o=S.own;return `<div class="own"><span>${ownIcon(24)} Ours today · seed <b>${f1(sum(o.oseed))} kg</b></span><span>oil <b>${f1(sum(o.ooil.map(x=>x[0])))} kg</b> (${o.ooil.length} cans)</span><span>khali <b>${f1(sum(o.okhali))} kg</b> (${o.okhali.length} bags)</span>${o.sed.length?`<span>sediment <b>${f1(sum(o.sed))} kg</b></span>`:''}</div>`}
+function art(i){const bk=i.b,ar=i.b==='in'?'down':i.b==='out'?'up':'';
+ const badge=bk==='P'?`<i class="bdg" style="background:#5F82D4">${ic('user')}</i>`:bk==='F'?`<i class="bdg" style="background:#C98A25">${ic('mill')}</i>`:bk==='in'?`<i class="bdg in">${ic('down')}</i>`:bk==='out'?`<i class="bdg out">${ic('up')}</i>`:bk==='new'?`<i class="bdg" style="background:#3F9D63">${ic('spark')}</i>`:bk==='old'?`<i class="bdg" style="background:#C98A25">${ic('clock')}</i>`:'';
+ return `<span class="ia">${icoSvg(i.ico)}${badge}</span>`}
+const tileBtn=(i,wk)=>`<button class="tile d-${i.d||'none'}" data-k="${i.k}" ${i.nw?'data-nw="1"':'disabled'} onclick="tapItem('${i.k}')"><div class="no">${i.n}</div><div class="art">${art(i)}</div>${wk?`<div class="bd"><b>${esc(iname(i))}</b></div>`:`<div class="bd"><b>${esc(iname(i))}</b>${S.lang==='en'?`<span class="kn">${i.kn}</span>`:''}<span class="rt">${esc(i.sub||'')}</span></div>`}</button>`;
+function groupsHTML(list,wk){return GROUPS.map(g=>{if(wk&&g.id==='cans')return '';const its=list.filter(i=>i.g===g.id);if(!its.length)return '';return `<div class="grp"><span class="gi" style="background:${g.c}">${ic(g.icon)}</span>${S.lang==='kn'?g.kn:g.en}</div><div class="grid">${its.map(i=>tileBtn(i,wk)).join('')}</div>`}).join('')}
+function pickHTML(){
+ const q=S.q.trim().toLowerCase(),list=ITEMS.filter(i=>!q||String(i.n)===q||i.wl.toLowerCase().includes(q)||i.en.toLowerCase().includes(q)||i.kn.includes(q));
+ return weightCard()+ownLine()+`<div class="pane"><label class="search">${ic('search')}<input id="q" placeholder="${t('search')}" value="${esc(S.q)}" oninput="S.q=this.value;render();const e=$('#q');e.focus();e.setSelectionRange(99,99)"></label>${groupsHTML(list,false)}</div>`}
+const isCust=k=>k==='cseed'||k==='ckhali';
+function trayAdd(k,kg){S.wtray.push({k,kg,nb:1,cno:isCust(k)?S.lastCno:0});S.wdone=null;afterSave()}
+function traySum(){const g={};S.wtray.filter(x=>x.k==='cseed').forEach(x=>{(g[x.cno]=g[x.cno]||{n:0,kg:0});g[x.cno].n+=x.nb||1;g[x.cno].kg+=x.kg});const e=Object.entries(g);return e.length?`<div class="wsum">${e.map(([c,v])=>`<span class="pc tk">${ic('user')}${cnoL()} ${c} · ${bagTxt(v.n)} · ${f1(v.kg)} kg</span>`).join('')}</div>`:''}
+function trayNb(i,d){S.wtray[i].nb=Math.max(1,(S.wtray[i].nb||1)+d);render()}
+function trayLabel(i){const x=S.wtray[i],before=S.wtray.slice(0,i).filter(y=>y.k===x.k&&y.cno===x.cno),a=sum(before.map(y=>y.nb||1))+1,n=x.nb||1;return n===1?'Bag '+a:'Bags '+a+'–'+(a+n-1)}
+function setCno(i,n){S.wtray[i].cno=n;S.lastCno=n;render()}
+function workerHTML(){
+ const tr=S.wtray,tray=tr.length?`<div class="tray"><div class="th">${ic('printer')}<span>To save · ${tr.length}</span><button class="xbtn" onclick="S.wtray=[];render()">${ic('x')}</button></div>${traySum()}
+  ${tr.map((x,i)=>`<div class="tl1">${art(IT[x.k])}<b>${esc(IT[x.k].wl)}</b><span class="kgbox">${f2(x.kg)} kg</span><button class="xbtn" onclick="S.wtray.splice(${i},1);render()">${ic('x')}</button></div>${isBagK(x.k)?`<div class="nbrow"><b>${trayLabel(i)}</b><span class="stpr"><button onclick="trayNb(${i},-1)">−</button><b>${x.nb||1}</b><button onclick="trayNb(${i},1)">+</button></span></div>`:''}${isCust(x.k)?`<div class="bagrow"><span>${cnoL()}</span>${[1,2,3,4,5,6,7,8,9].map(n=>`<button class="${x.cno===n?'sel':''}" onclick="setCno(${i},${n})">${n}</button>`).join('')}</div>`:''}`).join('')}
+  <button class="sbtn go next" style="min-height:74px;font-size:24px" onclick="workerPrint()"><span style="display:flex;gap:6px">${ic('printer')}${ic('check')}</span>Save &amp; Print</button></div>`:'';
+ return weightCard()+tray+(S.wdone?`<div class="wdone">${ic('check')}<div><b>${esc(S.wdone.sn)}</b><div class="note">${S.wdone.n} weighing(s) saved and printed · counter will see them in Waiting</div></div></div>`:'')
+  +(S.needZero?`<div class="takeoff">Take it off the scale</div>`:'')
+  +`<div class="pane wk">${groupsHTML(ITEMS,true)}</div><div class="note">Worker: put it on the scale, wait for green, tap the picture. Tap more items if needed, then <b>Save &amp; Print</b>. Green ↓ comes in, red ↑ goes out.</div>`}
+function workerPrint(){const tr=S.wtray;if(!tr.length)return;const sn='WS-'+pad(S.wsn++),tm=clock();
+ tr.forEach(x=>S.queue.push({id:'Q'+(S.qn++),k:x.k,nb:x.nb||1,kg:x.kg,time:tm,by:'Raju',cno:x.cno||0,slip:sn}));
+ S.wtray=[];S.wdone={sn,n:tr.length};
+ layer('Printed',`<div class="note">Sent to the mill printer. The counter person sees these in Waiting.</div>
+  <div class="paper"><div class="hd">MAHADEV TRADERS</div><div style="text-align:center">Mill 1 · WEIGHT SLIP</div><div style="text-align:center;font-weight:700">${nowFull()}</div><div class="hr"></div>
+  ${tr.map(x=>`<div class="sr"><span>${esc(IT[x.k].wl)}${x.cno?' · '+cnoL()+' '+x.cno:''}${isBagK(x.k)?' · '+bagTxt(x.nb||1):''}</span><b>${f2(x.kg)} kg</b></div>`).join('')}<div class="hr"></div>
+  <div class="sr"><span>By Raju</span><span>${nowFull()}</span></div><div class="bcw">${bcSvg(sn)}</div><div style="text-align:center;font-size:12px;letter-spacing:.1em">${sn}</div></div>
+  <button class="sbtn go next" onclick="closeLayer()">${ic('check')}${t('done')}</button>`)}
+const slipEst=()=>{const sp=S.slip;return settlement({seedKg:sum(sp.lines),cake:sp.cake,advC:sp.advC,advA:sp.advA,cans:sp.cans})};
+function slipAmt(){return slipEst().due}
+const CANK=[['can15','tin15','15 kg tin'],['can5new','j_new','5 kg new'],['can5old','j_old','5 kg old']];
+function slipCan(k,d){S.slip.cans[k]=Math.max(0,(S.slip.cans[k]||0)+d);render()}
+function slipHTML(){const sp=S.slip,kg=sum(sp.lines);
+ const nbs=slipNbs(),needCust=!sp.cust,est=slipEst();
+ return weightCard()+`<div class="pane slip">
+  <button class="dash" onclick="S.view='pick';render()">${ic('plus')}${t('add')}</button>
+  <button class="sbtn ${needCust?'next':''}" style="justify-content:flex-start;font-size:20px;min-height:64px" onclick="sheetCust()">${ic('user')}<span>${sp.cust?`<b>${esc(sp.cust[0])}</b> · ${esc(sp.cust[1])}<small>tap to change</small>`:t('who')}</span></button>
+  ${sp.lines.map((k,i)=>`<div class="li"><div class="r1"><span class="tag" style="border:0;color:var(--soft)">${i+1}</span><b>${bagLabel(nbs,i)}</b><span class="tag">steady</span><span class="kgbox">${f2(k)} kg</span></div><div class="r1"><span class="tag">${cnoL()} ${sp.cnos[i]||'—'}</span><span class="stpr" style="margin:0"><button onclick="slipNb(${i},-1)">−</button><b>${nbs[i]}</b><button onclick="slipNb(${i},1)">+</button></span><span style="flex:1"></span><button class="xbtn" onclick="slipNbs();S.slip.lines.splice(${i},1);S.slip.cnos.splice(${i},1);S.slip.nbs.splice(${i},1);if(!S.slip.lines.length)S.view='pick';render()">${ic('x')}</button></div></div>`).join('')}
+  <div class="total"><small>${bagTxt(sum(nbs))} · ${f1(kg)} kg<br><span style="color:#B8C6E6">${est.due<0?'Customer owes shop':sp.cake==='SHOP'?'Shop pays (estimate)':'Customer pays (estimate)'}</span></small><b>${inr(est.due)}</b></div>
+  <div class="note acct" style="padding:0 4px"><div class="ar"><span>Crushing ${f1(kg)} kg × ₹${est.rate}</span><b>${inr(est.gross)}</b></div>${sp.advC?`<div class="ar"><span>− customer advance</span><b>${inr(sp.advC)}</b></div>`:''}${sp.advA?`<div class="ar"><span>− tempo advance</span><b>${inr(sp.advA)}</b></div>`:''}${est.cans?`<div class="ar"><span>${sp.cake==='SHOP'?'− cans taken':'+ cans taken'}</span><b>${inr(est.cans)}</b></div>`:''}</div>
+  <div class="cake"><button class="${sp.cake==='SHOP'?'sel':''}" onclick="S.slip.cake='SHOP';render()">${icoSvg('khali',30)}${ic('shop')}<br>Shop keeps khali (oil cake)<small>₹6/kg · split customer/auto</small></button><button class="${sp.cake==='CUSTOMER'?'sel':''}" onclick="S.slip.cake='CUSTOMER';render()">${icoSvg('khali',30)}${ic('user')}<br>Customer takes khali (oil cake)<small>₹10/kg of seed</small></button></div>
+  <div class="sec"><div class="grp"><span class="gi" style="background:#C98A25">${ic('rupee')}</span>Taken by customer · advance and cans</div>
+  <button class="mrow" onclick="sheetNum('Customer advance (₹)',v=>{S.slip.advC=v;closeLayer()},'closeLayer()')"><span class="coin">₹</span><span class="arr out">↑</span><span class="sp">Customer advance</span><span class="amt">${sp.advC?inr(sp.advC):'₹ —'}</span>${ic('edit')}</button>
+  <button class="mrow" onclick="sheetNum('Tempo advance (₹)',v=>{S.slip.advA=v;closeLayer()},'closeLayer()')"><span class="coin">${ic('auto')}</span><span class="arr out">↑</span><span class="sp">Tempo advance</span><span class="amt">${sp.advA?inr(sp.advA):'₹ —'}</span>${ic('edit')}</button>
+  <div class="cans3">${CANK.map(([k,ico,n])=>{const q=sp.cans[k]||0;return `<div class="cn3 ${q?'on':''}">${icoSvg(ico,46)}<b>${n}</b><small>₹${CANS[k]} each</small><div class="stpr"><button onclick="slipCan('${k}',-1)">−</button><b>${q}</b><button onclick="slipCan('${k}',1)">+</button></div></div>`}).join('')}</div></div>
+  <div class="chrow"><button class="ch ${sp.stick?'sel':''}" onclick="S.slip.stick=!S.slip.stick;render()">${ic('tag')||''}Bag stickers ${sp.stick?'ON':'OFF'}</button><button class="ch ${sp.copies>1?'sel':''}" onclick="S.slip.copies=S.slip.copies>1?1:2;render()">${S.slip.copies} receipt(s)</button></div>
+  <div class="act"><button onclick="clearSlip()"><span style="color:#F06C57">${ic('x')}</span>${t('clear')}</button><button class="hold" onclick="parkSlip()">${ic('pause')}${t('hold')}</button>
+   <button class="okb ${!needCust?'sbtn go next':''}" id="okb" onclick="confirmSlip()"><span>${ic('printer')}${ic('check')}</span>Token · ${f1(kg)} kg</button></div></div>`}
+IC.tag='<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.1"/>';
+
+/* ---------- tapping an item ---------- */
+function afterSave(){S.needZero=true;if(navigator.vibrate)navigator.vibrate(80);render()}
+function tapItem(k){if(k==='can15'||k==='can5new'||k==='can5old'){sheetCanJob(k);return}
+ if(!ready())return;const raw=S.scale.w,can=(k==='ooil'||k==='coil');const kg=r2(can?raw-S.canTare:raw);
+ if(kg<=0)return toast('Weight is below the empty can','bad');
+ if(k==='bfull'||k==='bempty'||k==='bout'){if(S.mode==='worker'){trayAdd(k,r2(raw));return}sheetBarrel(k,r2(raw));return}
+ if(S.mode==='worker'){trayAdd(k,kg);return}
+ S.wdone=null;
+ if(k==='cseed'){S.slip.lines.push(kg);S.view='slip';afterSave();return}
+ if(k==='coil'){sheetJobPick('Customer oil '+f1(kg)+' kg — whose?',j=>{j.oilKg=kg;toast(j.customer+' · oil '+f1(kg)+' kg weighed');afterSave();sheetHeld()},j=>j.crushed&&!j.given);return}
+ if(k==='ckhali'){sheetJobPick('Customer khali '+f1(kg)+' kg — whose?',j=>giveKhali(j,kg),j=>j.crushed&&j.khaliKg==null);return}
+ if(k==='ooil'){sheetTank(kg);return}
+ const key=k;(S.own[key]=S.own[key]||[]).push(kg);toast(IT[k].wl+' '+f1(kg)+' kg saved');afterSave()}
+function giveKhali(j,kg){j.khaliKg=kg;if(j.cake==='SHOP'){j.cake='CUSTOMER';j.settled=false}toast(`Khali handed over → ₹10/kg of ${f1(j.seedKg)} kg seed = ${inr(j.seedKg*10)}`);afterSave();sheetHeld()}
+
+/* ---------- layer / sheets ---------- */
+const LAYER_IC=[[/^Customer advance|^Tempo advance/,'rupee'],[/^Customer$/,'user'],[/^Jobs/,'jc'],[/^Parked/,'park'],[/^Printed|^Token/,'printer'],[/^Waiting/,'hourg'],[/^Our oil|^Customer oil|^Customer khali|^Add /,'drop']];
+function layer(title,body,close='closeLayer()'){const l=$('#layer');
+ if(title.indexOf('<')<0){const m=LAYER_IC.find(x=>x[0].test(title));if(m)title=(m[1]==='jc'?jcIcon(28):ic(m[1]))+' '+title}
+ else if(/<small/.test(title)&&title.indexOf('class="ic')<0)title=jcIcon(28)+' '+title;
+ l.classList.add('on');l.innerHTML=`<div class="lh"><h2>${title}</h2><button class="pill" onclick="${close}">${ic('x')}</button></div><div class="lb">${body}</div>`}
+function closeLayer(){$('#layer').classList.remove('on');render()}
+function toast(m,kind){const e=$('#toast');e.innerHTML=(kind==='bad'?ic('x'):ic('check'))+esc(m);e.className='toast on'+(kind==='bad'?' bad':'');clearTimeout(toast.t);toast.t=setTimeout(()=>{e.className='toast'},2400)}
+function sheetCust(){layer('Customer',`<input class="inp" id="cq" placeholder="Search name or village" oninput="custFilter()" autocomplete="off"><div id="cres"></div>
+ <div class="card"><h3>${ic('plus')} New customer</h3><input class="inp" id="nc" placeholder="Name (optional)"><div class="chrow">${PLACES.map(p=>`<button class="ch" onclick="newCust('${p}')">${ic('pin')} ${p}</button>`).join('')}</div><div class="note">Name is optional. Tap the village to save. With no name, the village is the customer.</div></div>`);custFilter()}
+function custFilter(){const q=(($('#cq')||{}).value||'').trim().toLowerCase(),m=(t)=>!q||t.toLowerCase().includes(q);
+ const cs=CUSTS.map((c,i)=>[c,i]).filter(([c])=>m(c[0])||m(c[1])),vs=PLACES.filter(m);
+ $('#cres').innerHTML=(cs.length?`<div class="chrow">${cs.map(([c,i])=>`<button class="ch" onclick="S.slip.cust=CUSTS[${i}];closeLayer()">${c[0]===c[1]?ic('pin'):ic('user')} ${esc(c[0])}${c[0]===c[1]?'':`<br><small style="color:var(--soft);font:500 13px var(--body)">${ic('pin')} ${esc(c[1])}</small>`}</button>`).join('')}</div>`:'')
+ +(vs.length?`<div class="grp" style="margin-top:10px"><span class="gi" style="background:#2E7D5B">${ic('pin')}</span>Village only (no name)</div><div class="chrow">${vs.map(p=>`<button class="ch" onclick="S.slip.cust=['${p}','${p}'];closeLayer()">${ic('pin')} ${p}</button>`).join('')}</div>`:'')
+ +(!cs.length&&!vs.length?'<div class="note">No match. Add a new customer below.</div>':'')}
+function newCust(p){const n=($('#nc').value||'').trim()||p;S.slip.cust=[n,p];closeLayer()}
+function sheetNum(title,cb,back){window.__numSet=cb;window.__numBack=back;S._adv='';layer(title,`<div class="mrow" style="justify-content:flex-end"><span class="amt" id="advv" style="color:var(--ink);font-size:34px">₹ 0</span></div>
+ <div class="pad">${[1,2,3,4,5,6,7,8,9,'C',0,'OK'].map(k=>`<button onclick="padKey('${k}')">${k}</button>`).join('')}</div>`,back)}
+function padKey(k){if(k==='C')S._adv='';else if(k==='OK'){return window.__numSet(+S._adv||0)}else S._adv=(S._adv+k).slice(0,6);$('#advv').textContent='₹ '+(+S._adv||0).toLocaleString('en-IN')}
+function sheetTank(kg){layer('Our oil can '+f1(kg)+' kg — into which?',`<div class="note">Can empty weight already taken off. K2 shows its own display; floor barrel and small tank have no scale, so this weighing is the record.</div>
+ ${['K2','Floor barrel','Small tank'].map(x=>`<button class="sbtn" style="min-height:70px" onclick="S.own.ooil.push([${kg},'${x}']);closeLayer();toast('${f1(kg)} kg → ${x}');afterSave()">${x==='Small tank'?ic('tank'):icoSvg('bfull',34)} ${x}</button>`).join('')}`)}
+function sheetJobPick(title,fn,filter){window.__jp=fn;const js=S.jw.filter(filter||(()=>true)).sort(sortJ);
+ layer(title,js.length?js.map(j=>`<button class="card" style="text-align:left" onclick="pickJob('${j.tok}')">${jhead(j,true)}${payStatus(j)}<div class="pillrow"><span class="pc">${f1(j.seedKg)} kg · ${bagTxt(bagsOf(j))}</span><span class="pc gd">${j.cake==='SHOP'?'khali: shop':'khali: customer'}</span></div>${takenChips(j,true)}</button>`).join(''):'<div class="note">No matching customer job. Make the job first.</div>')}
+function pickJob(tok){const j=S.jw.find(x=>x.tok===tok);const f=window.__jp;$('#layer').classList.remove('on');f(j)}
+
+/* ---------- cans (counted onto a job's can charge) and barrels (full, empty, out) ---------- */
+const CANN={can15:['15 kg tin','can15',50],can5new:['5 kg new can','can5new',40],can5old:['5 kg old can','can5old',20]};
+function sheetCanJob(k){const c=CANN[k];sheetJobPick(c[0]+' (₹'+c[2]+') — on whose job?',j=>{j.cans[c[1]]=(j.cans[c[1]]||0)+1;toast(c[0]+' added to '+j.customer+' · cans '+inr(canCharge(j.cans)));render()},j=>!j.settled)}
+S.barrels={'BRL-03':{full:180.1},'BRL-05':{full:180.0},'BRL-08':{full:177.9}};
+function sheetBarrel(k,kg){const t=k==='bfull'?'Full barrel '+f1(kg)+' kg — which barrel?':k==='bempty'?'Empty barrel '+f1(kg)+' kg — which barrel?':'Barrel out — which barrel?';
+ layer(t,`<div class="note">${k==='bempty'?'The empty weight is taken off the full weight to give the real oil in that barrel.':k==='bfull'?'Supplier barrel, gross weight.':'Sent to a customer, supplier or refill.'}</div><div class="chrow">${Array.from({length:20},(_,i)=>{const c='BRL-'+String(i+1).padStart(2,'0'),b=S.barrels[c]||{};return `<button class="ch" onclick="barrelDo('${k}','${c}',${kg})"><div style="display:flex;align-items:center;gap:6px">${icoSvg(b.full&&!b.empty?'bfull':'bempty',26)}${c.slice(4)}</div></button>`}).join('')}</div>`)}
+function barrelDo(k,c,kg){const b=S.barrels[c]=S.barrels[c]||{};
+ if(k==='bfull'){b.full=kg;b.empty=null;toast(c+' full · '+f1(kg)+' kg')}
+ else if(k==='bempty'){b.empty=kg;if(b.full){toast(c+' emptied · oil in it = '+f1(b.full-kg)+' kg')}else toast(c+' empty '+f1(kg)+' kg (tare)')}
+ else{b.out=true;toast(c+' sent out')}
+ closeLayer();afterSave()}
+
+/* ---------- slip: confirm / park / clear ---------- */
+function clearSlip(){S.slip={cust:null,cake:'SHOP',lines:[],advC:0,advA:0,cans:{},cnos:[],nbs:[],stick:S.slip.stick,copies:S.slip.copies};S.view='pick';render()}
+function parkSlip(){if(!S.slip.lines.length)return;S.parked.push(JSON.parse(JSON.stringify(S.slip)));clearSlip();toast('Parked — find it under Parked')}
+function sheetParked(){layer('Parked',S.parked.length?S.parked.map((p,i)=>`<button class="card" style="text-align:left" onclick="S.slip=S.parked.splice(${i},1)[0];S.view='slip';S.mode='counter';closeLayer()"><h3>${p.cust?esc(p.cust[0]):'No customer yet'}</h3><div class="pillrow"><span class="pc">${bagTxt(p.nbs&&p.nbs.length?sum(p.nbs):p.lines.length)}</span><span class="pc">${f1(sum(p.lines))} kg</span></div></button>`).join(''):'<div class="note">Nothing parked.</div>')}
+function confirmSlip(){const sp=S.slip;if(!sp.cust)return toast('Choose the customer first','bad');
+ const tok='JW-'+pad(S.nextJw++),kg=r2(sum(sp.lines)),nbs=slipNbs().slice(),j={nb:sum(nbs),tok,customer:sp.cust[0],place:sp.cust[1],lines:sp.lines.slice(),seedKg:kg,cake:sp.cake,advC:sp.advC||0,advA:sp.advA||0,cans:Object.assign({},sp.cans),time:clock(),crushed:false,settled:false,given:false,method:'cash'};
+ S.jw.push(j);const est=Math.abs(settlement(j).due);
+ const rows=[['Token no. (today)',String(jserial(j))],['Invoice no.',j.tok.replace('JW-','#')],['-'],['Customer',j.customer],['Village',j.place],['-'],...sp.lines.map((x,i)=>[bagLabel(nbs,i)+(sp.cnos[i]?' · '+cnoL()+' '+sp.cnos[i]:''),f2(x)+' kg']),['Total seed',f1(kg)+' kg · '+bagTxt(sum(nbs))],['Khali',sp.cake==='SHOP'?'Shop keeps · ₹6/kg':'Customer takes · ₹10/kg'],sp.advC?['Customer advance',inr(sp.advC)]:null,sp.advA?['Tempo advance',inr(sp.advA)]:null,...CANK.filter(c=>sp.cans[c[0]]).map(c=>[c[2],'× '+sp.cans[c[0]]])].filter(Boolean);
+ clearSlip();
+ layer('Token printed',`<div class="note">${sp.copies} receipt(s): one for the customer, one stuck on the bags${sp.stick?' · stickers print per customer no.':''}. The codes below are real and scan.</div>
+  <div class="paper"><div class="hd">MAHADEV TRADERS</div><div style="text-align:center">Bidar · Mill 1</div><div class="hr"></div><div style="font-weight:800;font-size:16px">JOB-WORK TOKEN</div><div style="font-weight:700">${nowFull()}</div>
+  ${rows.map(r=>r[0]==='-'?'<div class="hr"></div>':`<div class="sr"><span>${esc(r[0])}</span><b>${esc(r[1])}</b></div>`).join('')}<div class="hr"></div><div class="sr"><span>Estimate</span><span class="tot">${inr(est)}</span></div><div class="hr"></div><div class="sr"><span>Date · time</span><span>${nowFull()}</span></div>
+  <div class="bcw">${bcSvg(tok)}</div><div style="text-align:center;font-size:12px;letter-spacing:.1em">${tok}</div><div class="qrw">${qrSvg(tok)}</div></div>
+  <button class="sbtn go next" onclick="closeLayer()">${ic('check')}${t('done')}</button>`)}
+function bcSvg(text){try{const s=document.createElementNS('http://www.w3.org/2000/svg','svg');JsBarcode(s,text,{format:'CODE128',displayValue:false,height:40,width:2,margin:0,background:'transparent'});const w=parseFloat(s.getAttribute('width')),h=parseFloat(s.getAttribute('height'));s.setAttribute('viewBox','0 0 '+w+' '+h);s.setAttribute('preserveAspectRatio','none');s.removeAttribute('width');s.removeAttribute('height');s.style.width='100%';s.style.height='100%';return s.outerHTML}catch(e){return ''}}
+function qrSvg(text){try{const q=qrcode(0,'M');q.addData(text);q.make();const n=q.getModuleCount();let d='';for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(q.isDark(r,c))d+=`M${c} ${r}h1v1h-1z`;return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" style="width:100%;display:block"><path d="${d}" fill="#000"/></svg>`}catch(e){return ''}}
+
+/* ---------- waiting list (counter person sorts what workers weighed) ---------- */
+const KIND=k=>k.includes('khali')?'khali':k.includes('seed')?'seed':k.includes('oil')?'oil':/^b(full|empty|out)$/.test(k)?'bar':'other';
+const KINDS=[['all','Everything','list'],['seed','Seed','seed'],['oil','Oil','drop'],['khali','Khali · Oil cake','bag'],['bar','Barrels','barrel']];
+function groups(){const g={};S.queue.forEach(x=>{const key=x.k+'|'+(x.cno||0);(g[key]=g[key]||{k:x.k,cno:x.cno||0,items:[]}).items.push(x)});return Object.values(g)}
+function wMoveCno(gi,n){groups()[gi].items.forEach(x=>x.cno=n);sheetWaiting()}
+function wBarrel(gi){const g=groups()[gi],x=g.items[0],k=x.k,kg=x.kg;
+ layer((k==='bfull'?'Full barrel ':k==='bempty'?'Empty barrel ':'Barrel out · ')+f1(kg)+' kg — which barrel?',`<div class="chrow">${Array.from({length:20},(_,i)=>{const c='BRL-'+String(i+1).padStart(2,'0'),b=S.barrels[c]||{};return `<button class="ch" onclick="wBarrelDo('${x.id}','${k}','${c}',${kg})"><div style="display:flex;align-items:center;gap:6px">${icoSvg(b.full&&!b.empty?'bfull':'bempty',26)}${c.slice(4)}</div></button>`}).join('')}</div>`,'sheetWaiting()')}
+function wBarrelDo(id,k,c,kg){S.queue=S.queue.filter(x=>x.id!==id);const b=S.barrels[c]=S.barrels[c]||{};
+ if(k==='bfull'){b.full=kg;b.empty=null;toast(c+' full · '+f1(kg)+' kg')}else if(k==='bempty'){b.empty=kg;toast(b.full?c+' emptied · oil in it = '+f1(b.full-kg)+' kg':c+' empty '+f1(kg)+' kg (tare)')}else{b.out=true;toast(c+' sent out')}
+ sheetWaiting()}
+function wCOil(gi){const g=groups()[gi],kg=sum(g.items.map(x=>x.kg));sheetJobPick('Customer oil '+f1(kg)+' kg — whose?',j=>{const gg=takeG(groupsIdx(g));j.oilKg=sum(gg.items.map(x=>x.kg));toast(j.customer+' · oil '+f1(j.oilKg)+' kg');sheetWaiting()},j=>j.crushed&&!j.given)}
+function wFilter(f){S.wf=f;sheetWaiting()}
+function sheetWaiting(){const gs=groups();
+ const cnt=f=>f==='all'?S.queue.length:S.queue.filter(x=>KIND(x.k)===f).length;
+ const kgOf=f=>sum(S.queue.filter(x=>KIND(x.k)===f).map(x=>x.kg));
+ const sumBar=S.queue.length?`<div class="wsum">${[['seed','seed'],['oil','drop'],['khali','bag']].filter(([f])=>cnt(f)).map(([f,ico])=>`<span class="pc tk">${ic(ico)}${f==='khali'?'Khali · Oil cake':f[0].toUpperCase()+f.slice(1)} ${f1(kgOf(f))} kg · ${f==='oil'?cnt(f)+' cans':bagTxt(sum(S.queue.filter(x=>KIND(x.k)===f).map(x=>x.nb||1)))}</span>`).join('')}${cnt('bar')?`<span class="pc tk">${ic('barrel')}Barrels · ${cnt('bar')}</span>`:''}</div>`:'';
+ const filt=`<div class="wf">${KINDS.filter(([f])=>f==='all'||cnt(f)).map(([f,n,ico])=>`<button class="${S.wf===f?'sel':''}" onclick="wFilter('${f}')">${ic(ico)}${n}<b>${cnt(f)}</b></button>`).join('')}</div>`;
+ const cards=gs.map((g,gi)=>{if(S.wf!=='all'&&KIND(g.k)!==S.wf)return '';const i=IT[g.k],kg=sum(g.items.map(x=>x.kg)),cust=isCust(g.k);
+  const nx=gi===0?' next':'';const acts=g.k==='cseed'?`<button class="sbtn go${nx}" onclick="wNewJob(${gi})">${ic('plus')}New job</button><button class="sbtn" onclick="wToJob(${gi})">${ic('list')}Add to a job</button>`
+   :g.k==='coil'?`<button class="sbtn go${nx}" onclick="wCOil(${gi})">${ic('user')}Give to customer…</button>`
+   :g.k==='ooil'?['K2','Floor barrel','Small tank'].map(x=>`<button class="sbtn" onclick="wOil(${gi},'${x}')">${ic('barrel')}${x}</button>`).join('')
+   :g.k==='okhali'?`<button class="sbtn go" onclick="wOwn(${gi},'okhali')">${icoSvg('khali',26)}To khali stack</button>`
+   :g.k==='oseed'?`<button class="sbtn go" onclick="wOwn(${gi},'oseed')">${ownIcon(28)}Add to today's crushing</button>`
+   :g.k==='ckhali'?`<button class="sbtn go${nx}" onclick="wKhali(${gi})">${ic('user')}Give to customer…</button>`
+   :KIND(g.k)==='bar'?`<button class="sbtn go${nx}" onclick="wBarrel(${gi})">${ic('barrel')}Which barrel?</button>`
+   :`<button class="sbtn go" onclick="wOwn(${gi},'${g.k}')">${ic('check')}Save</button>`;
+  const bagBtns=cust?`<div class="bagrow" style="padding:0"><span>${cnoL()}</span>${[1,2,3,4,5,6,7,8,9].map(n=>`<button class="${g.cno===n?'sel':''}" onclick="wMoveCno(${gi},${n})">${n}</button>`).join('')}</div>`:'';
+  return `<div class="card">${whead(gi+1,g.items[0].time)}<h3>${art(i)}${esc(S.lang==='kn'?i.kn:i.wl)}${g.cno?`<span class="bagchip" style="margin-left:auto">${cnoL()} ${g.cno}</span>`:''}</h3>
+   <div class="wtot"><b>${f1(kg)} kg</b><small>${isBagK(g.k)?bagTxt(sum(g.items.map(x=>x.nb||1)))+' · ':''}${g.items.length} weighing(s)</small></div>
+   ${g.items.map(x=>`<div class="wl1"><span>${x.time}</span><span>${esc(x.by)}</span>${isBagK(x.k)?`<span>${bagTxt(x.nb||1)}</span>`:''}${x.slip?`<span>${x.slip}</span>`:''}${x.voice?`<button class="vp" onclick="toast('Playing voice note · ${x.voice} s')">${ic('mic')}${x.voice}s</button>`:''}${x.photo?`<button class="vp" onclick="toast('Photo of the bags opens here')">${ic('camera')}photo</button>`:''}<b>${f2(x.kg)}</b></div>`).join('')}
+   ${bagBtns}<div class="two" style="grid-template-columns:1fr 1fr">${acts}</div></div>`}).join('');
+ layer('Waiting list'+(S.queue.length?` · ${S.queue.length}`:''),(S.queue.length?`<div class="note">What the workers weighed. Sort each group. The weights cannot be changed, but a load can be moved to another bag no.</div>${sumBar}${filt}${cards}`:`<div class="note" style="text-align:center;padding:30px 0">${ic('check')}<br>Nothing waiting. Workers' weighings appear here.</div>`))}
+const takeG=gi=>{const g=groups()[gi];S.queue=S.queue.filter(x=>!g.items.includes(x));return g};
+function wNewJob(gi){const g=takeG(gi);S.slip.cnos=(S.slip.cnos||[]);slipNbs();while(S.slip.cnos.length<S.slip.lines.length)S.slip.cnos.push('');S.slip.cnos=S.slip.cnos.concat(g.items.map(x=>x.cno||''));slipNbs();S.slip.nbs=S.slip.nbs.slice(0,S.slip.lines.length).concat(g.items.map(x=>x.nb||1));S.slip.lines=S.slip.lines.concat(g.items.map(x=>x.kg));S.view='slip';S.mode='counter';closeLayer();toast('Loaded into a new job — choose the customer')}
+function wToJob(gi){const g=groups()[gi];sheetJobPick('Add '+f1(sum(g.items.map(x=>x.kg)))+' kg to which job?',j=>{const gg=takeG(groupsIdx(g));j.nb=bagsOf(j)+sum(gg.items.map(x=>x.nb||1));j.lines=j.lines.concat(gg.items.map(x=>x.kg));j.seedKg=r2(sum(j.lines));toast('Added to '+j.tok);sheetWaiting()},j=>!j.crushed)}
+function groupsIdx(g){return groups().findIndex(x=>x.k===g.k&&x.cno===g.cno)}
+function wOil(gi,tank){const g=takeG(gi);g.items.forEach(x=>S.own.ooil.push([x.kg,tank]));toast(f1(sum(g.items.map(x=>x.kg)))+' kg → '+tank);sheetWaiting()}
+function wOwn(gi,key){const g=takeG(gi);g.items.forEach(x=>(S.own[key]=S.own[key]||[]).push(x.kg));toast('Saved');sheetWaiting()}
+function wKhali(gi){const g=groups()[gi],kg=sum(g.items.map(x=>x.kg));sheetJobPick('Customer khali '+f1(kg)+' kg — whose?',j=>{const gg=takeG(groupsIdx(g));giveKhali(j,sum(gg.items.map(x=>x.kg)))},j=>j.crushed&&j.khaliKg==null)}
+
+/* ---------- what the customer has taken, job card, jobs list ---------- */
+function takenChips(j,compact){const p=[];
+ if(j.advC)p.push(`<span class="pc tk"><span class="coin sm">₹</span>Advance ${inr(j.advC)}</span>`);
+ if(j.advA)p.push(`<span class="pc tk">${ic('auto')}Tempo ${inr(j.advA)}</span>`);
+ CANK.forEach(([k,ico,n])=>{const q=(j.cans||{})[k];if(q)p.push(`<span class="pc tk">${icoSvg(ico,22)}${n} × ${q}</span>`)});
+ return p.length?`<div class="pillrow">${p.join('')}</div>`:(compact?'':'<div class="note">Nothing taken yet · no advance, no cans.</div>')}
+function nextAct(j){if(j.settled&&j.given)return '';
+ if(!j.crushed)return `<button class="sbtn go next" style="min-height:64px" onclick="const J=S.jw.find(x=>x.tok==='${j.tok}');J.crushed=true;J.tCrushed=clock();toast('Crushing done · now in Held');sheetJobs()">${ic('crush')}${ic('check')}Crushing done</button>`;
+ return `<button class="sbtn go next" style="min-height:64px" onclick="sheetHeld()">${ic(!j.settled?'rupee':'oilout')}${ic('arrowr')}${!j.settled?(j.cake==='SHOP'?'Pay customer':'Khali payment'):'Oil out'}</button>`}
+function ownIcon(sz){return `<span class="jci own" style="--s:${sz||26}px">${ic('crush')}<i>${ic('mill')}</i></span>`}
+function jcIcon(sz){return `<span class="jci" style="--s:${sz||26}px">${ic('crush')}<i>${ic('user')}</i></span>`}
+function jobSteps(j){const dirIn=j.cake!=='SHOP';const st=[['weigh','Weighed',true],['crush','Crushed',j.crushed],['rupee',dirIn?'Khali payment':'Pay customer',j.settled],['oilout','Oil out',j.given]];
+ const cur=st.findIndex(x=>!x[2]);
+ return `<div class="steps">${st.map((x,i)=>`<div class="stp ${x[2]?'ok':i===cur?'cur':''}"><span>${ic(x[0])}${x[2]?`<i class="tk">${ic('check')}</i>`:''}</span><small>${x[1]}</small></div>`).join('<i class="sep"></i>')}</div>`}
+function canStep(tok,k,d){const j=S.jw.find(x=>x.tok===tok);j.cans[k]=Math.max(0,(j.cans[k]||0)+d);sheetJob(tok)}
+function setAdv(tok,f,v){S.jw.find(x=>x.tok===tok)[f]=v;sheetJob(tok)}
+function sheetJob(tok){const j=S.jw.find(x=>x.tok===tok),s=settlement(j),dirIn=s.dir==='in',edit=!j.settled;
+ const row=(ico,label,val,fn)=>`<button class="trow" ${fn&&edit?`onclick="${fn}"`:'disabled'} style="opacity:1"><span class="ti">${ico}</span><span class="tl">${label}</span><span class="tv">${val}</span>${fn&&edit?ic('edit'):''}</button>`;
+ const canRows=CANK.map(([k,ico,n])=>{const q=(j.cans||{})[k]||0;return `<div class="trow"><span class="ti">${icoSvg(ico,36)}</span><span class="tl">${n}<small>${inr(CANS[k])} each</small></span>${edit?`<button class="stp1" onclick="canStep('${tok}','${k}',-1)">−</button>`:''}<b class="q">${q}</b>${edit?`<button class="stp1" onclick="canStep('${tok}','${k}',1)">+</button>`:''}<span class="tv">${q?inr(q*CANS[k]):'—'}</span></div>`}).join('');
+ const acct=`<div class="acct"><div class="ar"><span>Seed · ${bagTxt(bagsOf(j))}</span><b>${f1(j.seedKg)} kg</b></div><div class="ar"><span>${dirIn?'Customer takes khali · ₹10/kg':'Shop keeps khali · ₹6/kg'}</span><b>${inr(s.gross)}</b></div>${j.advC?`<div class="ar"><span>− customer advance</span><b>${inr(j.advC)}</b></div>`:''}${j.advA?`<div class="ar"><span>− tempo advance</span><b>${inr(j.advA)}</b></div>`:''}${s.cans?`<div class="ar"><span>${dirIn?'+ cans taken':'− cans taken'}</span><b>${inr(s.cans)}</b></div>`:''}
+  ${dirIn?`<div class="ar res"><span>${ic('down')} Khali payment</span><b>${inr(s.cust)}</b></div>`:`<div class="ar res"><span>${ic('up')} Pay customer</span><b>${inr(s.cust)}</b></div><div class="ar res"><span>${ic('auto')} Pay tempo</span><b>${inr(s.auto)}</b></div>`}</div>`;
+ const khali=j.khaliKg!=null?`${f1(j.khaliKg)} kg handed`:(dirIn?'not weighed yet':'shop keeps');
+ layer(`${esc(j.customer)}<small style="display:block;font:500 14px var(--body);color:var(--soft)">${j.tok.replace('JW-','#')} · ${esc(j.place)} · ${j.time}</small>`,
+  `${jobSteps(j)}${payStatus(j)}
+  <div class="sec"><div class="grp"><span class="gi" style="background:#C98A25">${ic('rupee')}</span>Taken by customer${edit?'':' · locked after payment'}</div>
+   ${row(`<span class="coin sm">₹</span>`,'Customer advance',j.advC?inr(j.advC):'₹ —',`sheetNum('Customer advance (₹)',v=>setAdv('${tok}','advC',v),'sheetJob(\'${tok}\')')`)}
+   ${row(ic('auto'),'Tempo advance',j.advA?inr(j.advA):'₹ —',`sheetNum('Tempo advance (₹)',v=>setAdv('${tok}','advA',v),'sheetJob(\'${tok}\')')`)}
+   ${canRows}</div>
+  <div class="sec"><div class="grp"><span class="gi" style="background:#C98A25">${ic('swap')}</span>Who keeps khali (oil cake)${edit?'':' · locked after payment'}</div>
+   <div class="cake"><button class="${j.cake==='SHOP'?'sel':''}" ${edit?`onclick="setCake('${tok}','SHOP')"`:'disabled'}>${icoSvg('khali',34)}${ic('shop')}<br>Shop keeps<small>₹6/kg</small></button><button class="${j.cake!=='SHOP'?'sel':''}" ${edit?`onclick="setCake('${tok}','CUSTOMER')"`:'disabled'}>${icoSvg('khali',34)}${ic('user')}<br>Customer takes<small>₹10/kg</small></button></div>
+   ${edit?'<div class="note">Customer changed their mind? Tap the other one. The money below updates.</div>':''}</div>
+  <div class="sec"><div class="grp"><span class="gi" style="background:#3F9D63">${ic('list')}</span>Status</div>
+   ${row(icoSvg('khali',32),'Khali · Oil cake',khali)}${row(ic('oilout'),'Oil',j.given?(j.oilKg!=null?f1(j.oilKg)+' kg out':'out'):j.oilKg!=null?f1(j.oilKg)+' kg · here':'not weighed')}</div>
+  <div class="sec"><div class="grp"><span class="gi" style="background:#8A7F6E">${ic('clock')}</span>Date &amp; time</div>${[['Weighed',j.time],['Crushed',j.tCrushed||(j.crushed?'—':null)],[dirIn?'Khali payment':'Pay customer',j.tPaid||(j.settled?'—':null)],['Oil out',j.tGiven||(j.given?'—':null)],...(j.cakeLog||[]).map(x=>['Khali changed',x])].map(r=>`<div class="ar"><span>${r[0]}</span><b>${r[1]||'not yet'}</b></div>`).join('')}</div>
+  <div class="sec"><div class="grp"><span class="gi" style="background:#5F82D4">${ic('book')}</span>Account</div>${acct}</div>
+  ${!j.crushed?`<button class="sbtn go next" onclick="const J=S.jw.find(x=>x.tok==='${tok}');J.crushed=true;J.tCrushed=clock();toast('Crushing done · now in Held');sheetJob('${tok}')">${ic('crush')}${ic('check')}Crushing done</button>`:!(j.settled&&j.given)?`<button class="sbtn go next" onclick="sheetHeld()">${ic('lock')}Go to Held · money and oil</button>`:`<div class="st ok">${ic('check')} Closed</div>`}`,'sheetJobs()')}
+function sheetJobs(){const js=S.jw.slice().sort(sortJ);
+ const card=j=>`<div class="card ${j.settled&&j.given?'done':''}">${jhead(j,true)}${jobSteps(j)}${payStatus(j)}<div class="pillrow"><span class="pc">${f1(j.seedKg)} kg</span><span class="pc">${bagTxt(bagsOf(j))}</span><span class="pc gd">${j.cake==='SHOP'?'khali: shop':'khali: customer'}</span></div>${takenChips(j,true)}${nextAct(j)}<button class="sbtn" style="min-height:58px" onclick="sheetJob('${j.tok}')">${jcIcon()}Job card${!j.settled?' · '+ic('swap')+' Khali':''}</button></div>`;
+ const sec=(t,ico,col,l)=>l.length?`<div class="grp"><span class="gi" style="background:${col}">${ic(ico)}</span>${t} (${l.length})</div>`+l.map(card).join(''):'';
+ layer('Jobs today',sec('To crush','crush','#C98A25',js.filter(j=>!j.crushed))+sec('Crushed · money or oil pending','lock','#5F82D4',js.filter(j=>j.crushed&&!(j.settled&&j.given)))+sec('Closed','check','#3F9D63',js.filter(j=>j.settled&&j.given)))}
+
+/* ---------- Held queue: money first, then oil (same guided order as the counter) ---------- */
+function sheetHeld(){const hs=held();
+ layer(`${ic('lock')} Held (${hs.length})`,`<div class="note">Crushed jobs. Tap the glowing step. For customer-pays jobs the oil stays here until the money is received.</div>`+(hs.length?hs.map(j=>{const s=settlement(j),dirIn=s.dir==='in',amt=inr(Math.abs(s.due)),lock=dirIn&&!j.settled;
+  const money=j.settled?`<div class="st ok">${ic('check')} ${dirIn?'Khali payment':'Pay customer'} – ${amt} ✓</div>`:`<div class="st"><span class="arr ${dirIn?'in':'out'}" style="font-size:24px">${dirIn?'↓':'↑'}</span>${dirIn?'Khali payment':'Pay customer'} – ${amt} ${ic('hourg')}</div>`;
+  const nextMoney=!j.settled,nextOil=j.settled&&!j.given;
+  return `<div class="card ${j.settled&&j.given?'done':''}">${jhead(j,true)}
+   <div class="pillrow"><span class="pc">Seed ${f1(j.seedKg)} kg · ${bagTxt(bagsOf(j))}</span>${j.khaliKg!=null?`<span class="pc gd">Khali out ${f1(j.khaliKg)} kg</span>`:''}</div>${takenChips(j,true)}
+   ${payStatus(j)}${money}
+   <button class="sbtn" style="min-height:52px" onclick="sheetJob('${j.tok}')">${jcIcon()}Job card</button>
+   ${!dirIn&&!j.settled?`<div class="note">Customer ${inr(s.cust)} · Tempo ${inr(s.auto)} · after advance${s.cans?' and cans':''}</div>`:''}
+   ${!j.settled?`<div class="meth" style="padding:0">${['cash','upi'].map(m=>`<button class="${j.method===m?'sel':''}" onclick="S.jw.find(x=>x.tok==='${j.tok}').method='${m}';sheetHeld()">${m==='cash'?'<span class="coin" style="width:34px;height:34px;font-size:17px">₹</span>':ic('book')}${t(m)}</button>`).join('')}</div>`:''}
+   ${!j.settled?`<button class="mrow ${nextMoney?'next':''}" style="border-color:#fff;background:#0f1722" onclick="settle('${j.tok}')"><span class="coin">₹</span><span class="arr ${dirIn?'in':'out'}">${dirIn?'↓':'↑'}</span><span class="sp">${dirIn?'Khali payment':'Pay customer'} – ${amt}</span></button>`:''}
+   ${!j.given?`<button class="sbtn ${lock?'dis':nextOil?'go':''} ${nextOil?'next':''}" style="min-height:76px" onclick="${lock?"toast('Wait for the khali payment first','bad')":`giveOil('${j.tok}')`}">${ic('oilout')}<span>Oil out ${j.oilKg!=null?'· '+f1(j.oilKg)+' kg':'(not weighed)'} → ${ic('user')}</span></button>`:`<div class="st ok">${ic('check')} Oil out${j.oilKg!=null?' · '+f1(j.oilKg)+' kg':''}</div>`}
+   ${lock&&!j.given?`<div class="note" style="text-align:center">${ic('hand')} Oil out · wait for khali payment</div>`:''}
+   <div class="note">${j.settled&&j.given?'Closed.':''}</div></div>`}).join(''):'<div class="note">Nothing held. All crushed jobs are settled.</div>'))}
+function settle(tok){const j=S.jw.find(x=>x.tok===tok);j.settled=true;j.tPaid=clock();toast((settlement(j).dir==='in'?'Cash in ':'Cash out ')+inr(Math.abs(settlement(j).due))+' · '+j.method.toUpperCase());sheetHeld()}
+function payStatus(j){const st=settlement(j),dirIn=st.dir==='in';
+ const one=(ico,who,adv,final,paid)=>paid?`<div class="ps ok">${ic('check')}${ic(ico)}<b>${who}</b><span>Paid${final?' '+inr(final):''}${adv?' · adv '+inr(adv):''}</span></div>`
+  :adv?`<div class="ps ok">${ic('check')}${ic(ico)}<b>${who}</b><span>Advance taken ${inr(adv)}</span></div>`
+  :`<div class="ps no">${ic('clock')}${ic(ico)}<b>${who}</b><span>No advance</span></div>`;
+ return `<div class="pstat">${one('user','Customer',j.advC,dirIn?0:st.cust,j.settled)}${one('auto','Tempo',j.advA,st.auto,j.settled&&!dirIn)}</div>`}
+function setCake(tok,c){const j=S.jw.find(x=>x.tok===tok);if(j.settled||j.cake===c)return;j.cake=c;(j.cakeLog=j.cakeLog||[]).push(clock()+' → '+(c==='SHOP'?'Shop keeps':'Customer takes'));if(c==='SHOP')delete j.khaliKg;toast('Khali: '+(c==='SHOP'?'shop keeps · ₹6/kg':'customer takes · ₹10/kg'));sheetJob(tok)}
+function giveOil(tok){const j=S.jw.find(x=>x.tok===tok);j.given=true;j.tGiven=clock();toast('Oil out · '+j.customer);sheetHeld()}
+
+render();
+</script>
+</body>
+</html>

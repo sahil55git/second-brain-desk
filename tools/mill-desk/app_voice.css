@@ -1,0 +1,32 @@
+.swr{display:flex;align-items:center;gap:12px;width:100%;min-height:54px;padding:8px 12px;margin:6px 0;border-radius:14px;border:1px solid #2a3850;background:#101826;color:var(--ink);text-align:left;font:600 17px var(--body)}
+.swr .ti{width:34px;height:34px;display:grid;place-items:center;flex:none}.swr .ti svg.ic{width:24px;height:24px}.swr .tl{flex:1}
+.swr .sw{width:46px;height:26px;border-radius:13px;background:#3a4558;position:relative;flex:none}.swr .sw i{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s}
+.swr.on .sw{background:#3F9D63}.swr.on .sw i{left:23px}.swr .st2{width:56px;text-align:right;font:600 13px var(--body);color:var(--soft)}.swr.on .st2{color:#7ED6A0}
+.vbtn{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:50%;border:1px solid #2a3850;background:#141d2b;color:#E8B84A;flex:none;padding:0;cursor:pointer}.vbtn svg.ic{width:20px;height:20px}
+.vbtn.live{background:#C0392B;color:#fff;animation:vp 1s infinite}
+@keyframes vp{0%{box-shadow:0 0 0 0 rgba(192,57,43,.6)}100%{box-shadow:0 0 0 14px rgba(192,57,43,0)}}
+.vbtn.spk{width:34px;height:34px;margin-left:6px}
+.inpw{display:flex;gap:8px;align-items:center}.inpw .inp{flex:1;min-width:0}
+label.search .vbtn{width:36px;height:36px}
+.fab{position:absolute;right:14px;bottom:18px;z-index:34;width:62px;height:62px;border-radius:50%;border:3px solid #ffffff33;background:#C98A25;color:#1a1204;display:grid;place-items:center;box-shadow:0 6px 18px #0008;cursor:pointer;padding:0}
+.fab svg.ic{width:32px;height:32px}
+.ast{position:absolute;left:0;right:0;bottom:0;z-index:36;height:var(--ah,340px);display:none;flex-direction:column;background:#0f1622;border-top:2px solid #C98A25;border-radius:18px 18px 0 0;box-shadow:0 -8px 24px #000a}
+.ast.on{display:flex}
+.ahd{display:flex;align-items:center;gap:8px;padding:8px 12px;font:700 17px var(--head)}.ahd b{flex:1}.ahd>svg.ic{width:24px;height:24px;color:#E8B84A}
+.alg{display:flex;gap:4px}.alg button{border:1px solid #2a3850;background:#141d2b;color:var(--ink);border-radius:10px;padding:4px 9px;font:700 13px var(--body)}.alg button.sel{background:#C98A25;color:#1a1204;border-color:#C98A25}
+.amsgs{flex:1;overflow:auto;padding:4px 12px;display:flex;flex-direction:column;gap:6px}
+.am{max-width:88%;padding:8px 12px;border-radius:14px;font:500 15px/1.35 var(--body);overflow-wrap:anywhere}
+.am.you{align-self:flex-end;background:#2a3f66;color:#fff}.am.you.live{background:#5a2a2a}.am.you svg.ic{width:16px;height:16px;vertical-align:-3px}
+.am.bot{align-self:flex-start;background:#18232f;border:1px solid #2a3850}.am.bot.warn{border-color:#C0832B;background:#2a2112}.am.bot.q{border-color:#5F82D4}
+.abtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.ach{display:flex;gap:6px;overflow-x:auto;padding:4px 12px;flex:none}.ch.sm{padding:5px 10px;font-size:13px;white-space:nowrap;min-height:0}
+.arow{display:flex;gap:8px;padding:8px 12px 12px;align-items:center}.arow input{flex:1;min-width:0;height:48px;border-radius:14px;border:1px solid #2a3850;background:#0b1018;color:var(--ink);padding:0 12px;font:500 16px var(--body)}
+.amic{width:56px;height:56px;border-radius:50%;border:0;background:#C98A25;color:#1a1204;display:grid;place-items:center;flex:none;padding:0}.amic svg.ic{width:28px;height:28px}.amic.live{background:#C0392B;color:#fff;animation:vp 1s infinite}
+.asend{width:48px;height:48px;border-radius:14px;border:0;background:#2E7D5B;color:#fff;display:grid;place-items:center;flex:none;padding:0}.asend svg.ic{width:22px;height:22px}
+#app.ast-open .layer{bottom:var(--ah,340px)}#app.ast-open #main{padding-bottom:var(--ah,340px)}
+.voicehl{outline:3px solid #E8B84A;animation:nxGlow 1.2s ease-in-out 3}
+.callrow{color:#7DB2FF;font-weight:600}.callrow svg.ic{width:14px;height:14px}
+body.noic .sbtn>svg.ic,body.noic .cp>svg.ic,body.noic .ch>svg.ic,body.noic .mrow>svg.ic,body.noic .dash>svg.ic,body.noic .act button svg.ic,body.noic .cp .jci{display:none}
+.top .pill{padding:6px 10px;gap:5px;font-size:14px}.top .pill svg.ic{width:20px;height:20px}
+.jh .dt{white-space:nowrap;font-size:14px}
+.lb{padding-bottom:96px!important}

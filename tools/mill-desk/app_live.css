@@ -1,0 +1,11 @@
+/* live layer */
+.syncst{font-weight:700;margin-left:2px}.syncst.off{color:#E5484D}.syncst.pend{color:#E9C46A}.syncst.ld{color:var(--soft,#9aa)}
+#top .pill[data-f="bt"]{cursor:pointer}
+#printarea{display:none}
+@media print{
+ @page{margin:4mm}
+ body>*:not(#printarea){display:none!important}
+ #printarea{display:block!important;color:#000;background:#fff}
+ #printarea .paper{box-shadow:none!important;border:0!important;margin:0 auto!important;max-width:80mm;color:#000!important;background:#fff!important}
+ #printarea .pbrk{page-break-after:always;break-after:page}
+}
