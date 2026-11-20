@@ -463,7 +463,7 @@ function layer(title,body,close='closeLayer()'){const l=$('#layer');
  else if(/<small/.test(title)&&title.indexOf('class="ic')<0)title=jcIcon(28)+' '+title;
  l.classList.add('on');l.innerHTML=`<div class="lh"><h2>${title}</h2><button class="pill" onclick="${close}">${ic('x')}</button></div><div class="lb">${body}</div>`}
 function closeLayer(){$('#layer').classList.remove('on');render()}
-function toast(m,kind){const e=$('#toast');e.innerHTML=(kind==='bad'?ic('x'):ic('check'))+esc(m);e.className='toast on'+(kind==='bad'?' bad':'');clearTimeout(toast.t);toast.t=setTimeout(()=>{e.className='toast'},2400)}
+function toast(m,kind){const e=$('#toast');e.innerHTML=(kind==='bad'?ic('x'):ic('check'))+esc(m);e.className='toast on'+(kind==='bad'?' bad':'');clearTimeout(toast.t);toast.t=setTimeout(()=>{e.className='toast'},Math.max(2400,String(m).length*55))}
 function sheetCust(){layer('Customer',`<input class="inp" id="cq" placeholder="Search name or village" oninput="custFilter()" autocomplete="off"><div id="cres"></div>
  <div class="card"><h3>${ic('plus')} New customer</h3><input class="inp" id="nc" placeholder="Name (optional)"><div class="chrow">${PLACES.map(p=>`<button class="ch" onclick="newCust('${p}')">${ic('pin')} ${p}</button>`).join('')}</div><div class="note">Name is optional. Tap the village to save. With no name, the village is the customer.</div></div>`);custFilter()}
 function custFilter(){const q=(($('#cq')||{}).value||'').trim().toLowerCase(),m=(t)=>!q||t.toLowerCase().includes(q);
