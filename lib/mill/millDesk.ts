@@ -2,6 +2,7 @@
 // the app's job-work intake. Pure functions only, so the money mapping is covered by tests
 // (lib/__tests__/millDesk.test.ts). Rates and the 50/50 split come from lib/calculations.ts —
 // the Mill Desk never invents its own numbers.
+import type { Prisma } from "@prisma/client";
 import { CAN_TYPES, defaultPaySplit, expectedSettlementWithRate, STANDARD_RATE, type CakeOwnership, type CansInput } from "@/lib/calculations";
 
 /** Record kinds kept in OpsRecord (no new tables). */
@@ -121,7 +122,7 @@ export function intakeData(j: MillJob, by: string | null, serial: number | null)
     cakeOwnership: j.cake,
     advanceCustomerInr: num(j.advC),
     advanceAutoInr: num(j.advA),
-    cans: intakeCans(j.cans) as object,
+    cans: intakeCans(j.cans) as Prisma.InputJsonValue,
     notes: notes.slice(0, 900),
     createdByName: by,
     settled: !!j.settled,
