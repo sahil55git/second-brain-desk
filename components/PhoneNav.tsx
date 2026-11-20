@@ -34,7 +34,7 @@ export default function PhoneNav() {
   }, [path]);
 
   // the counter and the cashier desk are full screens of their own: the bottom tabs would cover their buttons
-  const hidden = status !== "authenticated" || path.startsWith("/login") || path.startsWith("/setup") || path.startsWith("/register/counter") || path.startsWith("/register/cashier");
+  const hidden = status !== "authenticated" || path.startsWith("/login") || path.startsWith("/setup") || path.startsWith("/register/counter") || path.startsWith("/register/cashier") || path === "/mill" || path.startsWith("/mill/");
   useEffect(() => {
     document.documentElement.classList.toggle("has-pnav", !hidden);
     return () => document.documentElement.classList.remove("has-pnav");

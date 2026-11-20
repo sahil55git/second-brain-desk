@@ -37,6 +37,7 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "pigmee", icon: "🏦", title: "Pigmee / bank", kn: "ಪಿಗ್ಮಿ", desc: "Cash to bank, not an expense", href: "/register?open=pigmee", group: "entry" },
   { id: "draw", icon: "🧔", title: "Owner draw", kn: "ಮಾಲೀಕ ತೆಗೆದದ್ದು", desc: "Cash taken by owner", href: "/register?open=draw", group: "entry" },
   { id: "androidapp", icon: "🤖", title: "Android app", kn: "ಆಂಡ್ರಾಯ್ಡ್ ಆಪ್", desc: "Get the phone app; widgets, printers, reminders", href: "/app", group: "office" },
+  { id: "icons", icon: "🖼️", title: "Icons", kn: "ಐಕಾನ್", desc: "All icons by group, with names", href: "/icons", group: "office" },
   { id: "quickcard", icon: "📱", title: "Quick card", kn: "ತ್ವರಿತ ಕಾರ್ಡ್", desc: "Swipe cards: entry, today, barrels. Keep open in split screen", href: "/quick", group: "office" },
   { id: "weighfull", icon: "⚖️", title: "Weigh full barrel", kn: "ತುಂಬಿದ ಬ್ಯಾರಲ್ ತೂಕ", desc: "Straight to the full-barrel weight", href: "/barrels?weigh=full", group: "entry" },
   { id: "barrelsimple", icon: "👷", title: "Barrels: simple mode", kn: "ಬ್ಯಾರಲ್ ಸರಳ", desc: "Only weighing, for the manager and workers", href: "/barrels?simple=1", group: "entry" },
@@ -56,6 +57,7 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "scan", icon: "📸", title: "Scan slip / bill", kn: "ಚೀಟಿ / ಬಿಲ್ ಸ್ಕ್ಯಾನ್", desc: "Weighbridge, weighing slip, bill, receipt", href: "/register?open=scan", group: "entry" },
   { id: "register", icon: "📒", title: "Quick Register", kn: "ಕ್ವಿಕ್ ರಿಜಿಸ್ಟರ್", desc: "Today's full screen", href: "/register", group: "entry" },
   // Job-work
+  { id: "milldesk", icon: "⚖️", title: "Mill Desk", kn: "ಮಿಲ್ ಡೆಸ್ಕ್", desc: "Mill 1 scale · job-work tokens · our crushing", href: "/mill", group: "jobwork" },
   { id: "jwnew", icon: "🌾", title: "New job-work", kn: "ಹೊಸ ಜಾಬ್-ವರ್ಕ್", desc: "Customer seed received", href: "/register?open=jobwork", group: "jobwork" },
   { id: "jwsettle", icon: "💳", title: "Job-work settle", kn: "ಜಾಬ್-ವರ್ಕ್ ಪಾವತಿ", desc: "Open ledger, settle a customer", href: "/register?open=jwsettle", group: "jobwork" },
   { id: "tally-jw", icon: "🧾", title: "Customer seed count", kn: "ಗ್ರಾಹಕರ ಬೀಜ ಎಣಿಕೆ", desc: "Seed in shop vs challans", href: "/tallies?desk=JOBWORK", group: "jobwork" },
