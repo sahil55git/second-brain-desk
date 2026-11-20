@@ -1350,8 +1350,14 @@ window.addEventListener('message',e=>{if(e.origin!==location.origin)return;const
 setInterval(paintPrint,2000);
 
 /* ---------- printing: the paper on screen goes to the printer ---------- */
-window.printPaper=function(){const p=document.querySelector('#layer .paper');if(!p)return;let a=$('#printarea');if(!a){a=document.createElement('div');a.id='printarea';document.body.appendChild(a)}
- const n=Math.max(1,+(window.__copies||1));a.innerHTML=Array.from({length:n},()=>p.outerHTML).join('<div class="pbrk"></div>');window.__copies=1;setTimeout(()=>window.print(),60)};
+window.printPaper=function(){const p=document.querySelector('#layer .paper');if(!p)return;
+ const n=Math.max(1,+(window.__copies||1));window.__copies=1;
+ const html=Array.from({length:n},()=>p.outerHTML).join('<div class="pbrk"></div>');
+ if(window.parent!==window){ // the app page prints it from a real window (printing inside this frame does nothing in the app)
+  const css=Array.from(document.querySelectorAll('style')).map(x=>x.textContent).join('\n');
+  window.parent.postMessage({type:'print-html',html,css},location.origin);return}
+ let a=$('#printarea');if(!a){a=document.createElement('div');a.id='printarea';document.body.appendChild(a)}
+ a.innerHTML=html;setTimeout(()=>window.print(),60)};
 
 /* ---------- start ---------- */
 if(LIVE){

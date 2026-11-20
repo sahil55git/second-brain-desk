@@ -10,6 +10,7 @@ import { scaleTapPlan } from "@/lib/mill/scaleTap";
 import { scaleSetupHref } from "@/lib/scaleSetup";
 import { isNative } from "@/lib/native";
 import MillPrinterSheet from "@/components/mill/MillPrinterSheet";
+import { printHtml } from "@/lib/mill/printWindow";
 import { cleanDoc, dropUnprinted, explainPrintError, getMillPrinter, keepUnprinted, listUnprinted, onMillPrinterChange, onUnprintedChange, printMillDoc, warmMillPrinter } from "@/lib/mill/millPrint";
 
 const FRESH_MS = 3000;
@@ -102,6 +103,10 @@ export default function MillDeskFrame() {
       if (d.type === "print") {
         const m = e.data as { id?: string; doc?: unknown; copies?: number };
         void printOne(String(m.id || `p${Date.now()}`), m.doc, Math.max(1, Math.min(10, Number(m.copies) || 1)));
+      }
+      if (d.type === "print-html") {
+        const m = e.data as { html?: string; css?: string };
+        if (typeof m.html === "string" && m.html.length < 2_000_000) printHtml(m.html, String(m.css || ""));
       }
       if (d.type === "printer-setup") setSheet(true);
       if (d.type === "print-pending") void printPending();
