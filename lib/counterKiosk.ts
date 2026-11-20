@@ -9,7 +9,7 @@ export const KIOSK_EXTRAS = {
   cash: { path: "/cash", en: "Cash desk", kn: "ನಗದು ಡೆಸ್ಕ್" },
   records: { path: "/records", en: "Records", kn: "ದಾಖಲೆಗಳು" },
   print: { path: "/print", en: "Printer setup", kn: "ಪ್ರಿಂಟರ್ ಸೆಟಪ್" },
-  scales: { path: "/?desk=scales", en: "Live scales (scale set-up)", kn: "ಲೈವ್ ತಕ್ಕಡಿ (ಸೆಟಪ್)" },
+  scales: { path: "/scales", en: "Live scales (scale set-up)", kn: "ಲೈವ್ ತಕ್ಕಡಿ (ಸೆಟಪ್)" },
 } as const;
 export type KioskExtra = keyof typeof KIOSK_EXTRAS;
 
@@ -29,7 +29,8 @@ export function kioskAllows(state: KioskState | null, pathname: string, search: 
     const x = KIOSK_EXTRAS[k];
     if (!x) continue;
     if (k === "scales") {
-      if (pathname === "/" && new URLSearchParams(search).get("desk") === "scales") return true;
+      if (pathname === "/scales" || pathname.startsWith("/scales/")) return true;
+      if (pathname === "/" && new URLSearchParams(search).get("desk") === "scales") return true; // the older link
     } else if (pathname === x.path || pathname.startsWith(x.path + "/")) return true;
   }
   return false;

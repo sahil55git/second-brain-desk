@@ -9,6 +9,7 @@
 // Weights come from the scale itself (the bridge posts each steady reading; the
 // browser never types the number). Typing a weight is a flagged fallback.
 
+import { scaleSetupHref } from "@/lib/scaleSetup";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { findBarrelCode, tickFresh, type Phase } from "@/lib/barrels";
 import { useScale } from "@/components/ScaleProvider";
@@ -325,7 +326,7 @@ export default function WeighPanel({
         {usable && target ? ` — ${kg(usable.weightKg)} kg` : ""}
       </button>
       {!usable && !ticks.length && (
-        <div className="bd-m small">No reading has come from the scale in the last 15 minutes. Check that the scale bridge is running on the shop PC (see docs/BARREL-RECEIVING.md).</div>
+        <div className="bd-m small">No reading has come from the scale in the last 15 minutes. Check that the scale bridge is running on the shop PC (see docs/BARREL-RECEIVING.md), or <a href={scaleSetupHref("/barrels")} style={{ textDecoration: "underline" }}>set up the Bluetooth scale on this phone</a>.</div>
       )}
 
       <div className="bd-manual">

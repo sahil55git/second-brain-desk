@@ -3,6 +3,7 @@
 // "Use scale weight" — takes the live, STEADY reading from the scale bridge
 // into a field with one tap. Nothing happens while the reading is moving or old.
 import { useScale } from "@/components/ScaleProvider";
+import { scaleSetupHref } from "@/lib/scaleSetup";
 
 export const SCALE_FRESH_MS = 10_000;
 
@@ -17,6 +18,9 @@ export default function ScaleCapture({ onUse, label = "Use scale weight", compac
       {!compact && <strong>Scale</strong>}
       {!compact && <span className="font-mono opacity-65">{selectedScale || "not selected"}</span>}
       <span className="tabular-nums font-semibold">{r && fresh ? `${r.weight.toFixed(2)} ${r.unit || "kg"}${steady ? "" : " (moving)"}` : connected ? "No reading" : "Scale bridge not running"}</span>
+      {!connected && (
+        <a href={scaleSetupHref(typeof window !== "undefined" ? window.location.pathname + window.location.search : "")} className="rounded border border-black/20 px-2 py-1 font-medium dark:border-white/25">Set up scale</a>
+      )}
       <button
         type="button"
         disabled={!steady}

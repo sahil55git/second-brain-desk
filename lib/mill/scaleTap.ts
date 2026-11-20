@@ -13,14 +13,8 @@ export interface TapPlan {
 
 export function scaleTapPlan(o: { support: "native" | "serial" | "none"; hasConfig: boolean; status: LinkStatus; error: string | null; name: string }): TapPlan {
   const name = o.name || "the scale";
-  if (o.support === "none") {
-    return {
-      act: "none",
-      bad: true,
-      text: "This browser cannot open a Bluetooth scale. On the phone, open the Mahadev Desk app (get it from the App page) and use Mill Desk there.",
-    };
-  }
-  if (!o.hasConfig) return { act: "setup", bad: false, text: "Choose your scale first…" };
+  // no scale chosen yet, or a browser that cannot do Bluetooth: straight to the scale set-up page (it explains there)
+  if (o.support === "none" || !o.hasConfig) return { act: "setup", bad: false, text: "Opening scale set-up…" };
   switch (o.status) {
     case "live":
       return { act: "none", bad: false, text: `${name} is connected.` };

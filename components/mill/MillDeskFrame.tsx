@@ -7,6 +7,7 @@ import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useScale } from "@/components/ScaleProvider";
 import { scaleTapPlan } from "@/lib/mill/scaleTap";
+import { scaleSetupHref } from "@/lib/scaleSetup";
 
 const FRESH_MS = 3000;
 
@@ -50,7 +51,7 @@ export default function MillDeskFrame() {
         // tell the person what is going on, and do the one thing that can help
         const plan = scaleTapPlan({ support: bt.support, hasConfig: !!bt.config, status: bt.state.status, error: bt.state.error, name: bt.config?.name || "" });
         ref.current?.contentWindow?.postMessage({ type: "toast", text: plan.text, bad: plan.bad }, window.location.origin);
-        if (plan.act === "setup") setTimeout(() => (window.location.href = "/?desk=scales"), 900);
+        if (plan.act === "setup") window.location.href = scaleSetupHref("/mill");
         else if (plan.act === "connect") bt.connect();
         else if (plan.act === "retry") bt.retryNow();
       }

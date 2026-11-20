@@ -4,10 +4,8 @@ import { scaleTapPlan } from "@/lib/mill/scaleTap";
 const base = { support: "native" as const, hasConfig: true, status: "off" as const, error: null, name: "iScale" };
 
 describe("Mill Desk scale tap", () => {
-  it("a browser that cannot do Bluetooth says so and points to the app", () => {
-    const p = scaleTapPlan({ ...base, support: "none" });
-    expect(p.act).toBe("none");
-    expect(p.text).toMatch(/Mahadev Desk app/);
+  it("a browser that cannot do Bluetooth goes straight to the scale set-up page", () => {
+    expect(scaleTapPlan({ ...base, support: "none" }).act).toBe("setup");
   });
   it("no scale chosen yet goes to set-up", () => {
     expect(scaleTapPlan({ ...base, hasConfig: false }).act).toBe("setup");

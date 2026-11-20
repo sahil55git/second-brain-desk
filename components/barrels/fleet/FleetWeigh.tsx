@@ -9,6 +9,7 @@
 // Weights come from the platform scale (the bridge posts each steady reading; the browser never
 // types the number). Typing a weight is a flagged fallback that needs a reason.
 
+import { scaleSetupHref } from "@/lib/scaleSetup";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { tickFresh } from "@/lib/barrels";
 import { LOCATIONS, LOCATION_LABEL, PURPOSES, PURPOSE_LABEL, findFleetCode, type Location } from "@/lib/barrelFleet";
@@ -366,7 +367,7 @@ export default function FleetWeigh({
             ✅ <L en={`Save ${mode === "GROSS" ? "full" : setsTare ? "tare (empty)" : "empty"} weight`} kn="ತೂಕ ಉಳಿಸಿ" />
             {usable ? ` — ${kg(usable.weightKg)} kg` : ""}
           </button>
-          {!usable && !ticks.length && <div className="bd-m small">No reading has come from the scale in the last 15 minutes. Check that the scale bridge is running on the shop PC (see docs/BARREL-RECEIVING.md).</div>}
+          {!usable && !ticks.length && <div className="bd-m small">No reading has come from the scale in the last 15 minutes. Check that the scale bridge is running on the shop PC (see docs/BARREL-RECEIVING.md), or <a href={scaleSetupHref("/barrels")} style={{ textDecoration: "underline" }}>set up the Bluetooth scale on this phone</a>.</div>}
 
           <div className="bd-manual">
             <button className={`bd-btn ${manual ? "" : "big"}`} onClick={() => setManual((v) => !v)}>
