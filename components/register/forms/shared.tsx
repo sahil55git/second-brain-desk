@@ -77,6 +77,8 @@ export interface DayBundle {
   opening: { value: number; source: "override" | "lastClosing" | "none"; fromDate?: string };
   entries: Entry[];
   jwEvents: CashEvent[];
+  /** job-work settlements paid by UPI (not drawer cash) */
+  jwUpiEvents?: CashEvent[];
   systemCashNow: number;
   tallies: { AFTERNOON: Tally | null; NIGHT: Tally | null };
   jobWork: JobWork[];

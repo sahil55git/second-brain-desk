@@ -770,7 +770,7 @@ export function dayBook(d: BizData, s: DateSpan) {
       rows.push({ at: j.createdAt, date: intakeDay, source: "Job-work", type: "ADVANCE", party: j.customer, detail: `${j.seedKg} kg intake`, mode: "CASH", in: j.cakeOwnership === "CUSTOMER" ? adv : 0, out: j.cakeOwnership === "SHOP" ? adv : 0 });
     if (j.settled && j.settledAt && inSpan(createdDate(j.settledAt), s)) {
       const amt = j.settlementAmountInr || 0;
-      rows.push({ at: j.settledAt, date: createdDate(j.settledAt), source: "Job-work", type: "SETTLEMENT", party: j.customer, detail: `${j.seedKg} kg`, mode: "CASH", in: j.cakeOwnership === "CUSTOMER" ? amt : 0, out: j.cakeOwnership === "SHOP" ? amt : 0 });
+      rows.push({ at: j.settledAt, date: createdDate(j.settledAt), source: "Job-work", type: "SETTLEMENT", party: j.customer, detail: `${j.seedKg} kg`, mode: String(j.settlementMode || "").toUpperCase() === "UPI" ? "UPI" : "CASH", in: j.cakeOwnership === "CUSTOMER" ? amt : 0, out: j.cakeOwnership === "SHOP" ? amt : 0 });
     }
   }
   rows.sort((a, b) => (a.at < b.at ? 1 : -1));

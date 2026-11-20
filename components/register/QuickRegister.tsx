@@ -492,7 +492,7 @@ export default function QuickRegister({ pos: startPos = false }: { pos?: boolean
 
   const dbOffline = !!loadError && /database|DATABASE_URL/i.test(loadError);
   const entries = useMemo(() => day?.entries || [], [day]);
-  const totals = useMemo(() => dayTotals(entries, day?.jwEvents || []), [entries, day]);
+  const totals = useMemo(() => dayTotals(entries, day?.jwEvents || [], day?.jwUpiEvents || []), [entries, day]);
   const counterNow = day?.systemCashNow ?? 0;
   // Cash balance and totals can be hidden by the profile.
   const rsT = (n: number | null | undefined) => (acc.hidden("totals") ? MASK : rs(n));
@@ -2674,7 +2674,7 @@ function ReportSheet({
       .catch(() => setMonth([]));
   }, [date]);
 
-  const t = dayTotals(day.entries, day.jwEvents);
+  const t = dayTotals(day.entries, day.jwEvents, day.jwUpiEvents || []);
   const fc = freshCrushTotals(day.entries);
   const mfc = freshCrushTotals(month);
   const seedName = (k: string) => {

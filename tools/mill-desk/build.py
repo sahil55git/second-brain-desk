@@ -109,6 +109,8 @@ rep(" const key=k;(S.own[key]=S.own[key]||[]).push(kg);toast(IT[k].wl+' '+f1(kg)
     " const key=k;(S.own[key]=S.own[key]||[]).push(kg);if(k==='oseed'){const r=newRun([{kg,nb:1,time:clock()}]);toast('Seed '+f1(kg)+' kg · Run '+rserial(r)+' to start')}else toast(IT[k].wl+' '+f1(kg)+' kg saved');afterSave()}")
 rep("""onclick="S.own.ooil.push([${kg},'${x}']);closeLayer();toast('${f1(kg)} kg → ${x}');afterSave()\"""","""onclick="S.own.ooil.push([${kg},'${x}']);const rr=oilToRun(${kg},'${x}');closeLayer();toast('${f1(kg)} kg → ${x}'+(rr?' · Run '+rserial(rr):''));afterSave()\"""")
 rep("function wOil(gi,tank){const g=takeG(gi);g.items.forEach(x=>S.own.ooil.push([x.kg,tank]));","function wOil(gi,tank){const g=takeG(gi);g.items.forEach(x=>{S.own.ooil.push([x.kg,tank]);oilToRun(x.kg,tank)});")
+# the khali stack from the server: bags weighed in minus khali sold at the counter (one figure, worked out there)
+rep("<span>khali <b>${f1(sum(o.okhali))} kg</b> (${o.okhali.length} bags)</span>","<span>khali <b>${f1(sum(o.okhali))} kg</b> (${o.okhali.length} bags)</span>${S.khali&&S.khali.bags?`<span title=\"All khali bags weighed minus khali sold\">stack <b>${f1(S.khali.stackKg)} kg</b></span>`:''}")
 
 # ---- engine + app code before the final render()
 eng=open(D+'/voice_engine.js').read()

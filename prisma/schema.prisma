@@ -354,6 +354,9 @@ model JobWorkIntake {
   settlementRatePerKg    Float?
   settlementAmountInr    Float?
   settledAt              DateTime?
+  // How the settlement was paid: "CASH" (counter drawer) or "UPI". Null = cash (every entry made before
+  // this field existed, and anything settled on the Job-Work desk). UPI never enters the drawer cash.
+  settlementMode         String?
 
   // Who entered / settled it, and whether the customer has taken the oil away
   // (SOP job-work steps 5 and 8). All optional so existing rows stay valid.

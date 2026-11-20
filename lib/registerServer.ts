@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { KHALI_SPLIT } from "@/lib/calculations";
 import {
   jobWorkCashEvents,
+  jobWorkUpiEvents,
   normalizeConfig,
   openingFor,
   systemCash,
@@ -73,10 +74,25 @@ export async function movementsFor(date: string) {
         settlementAmountInr: j.settlementAmountInr,
         settledAt: j.settledAt,
         createdAt: j.createdAt,
+        settlementMode: j.settlementMode,
       })
     )
     .filter((ev) => ev.at >= s && ev.at < e);
-  return { entries, jwEvents };
+  const jwUpiEvents: CashEvent[] = intakes
+    .flatMap((j) =>
+      jobWorkUpiEvents({
+        cakeOwnership: j.cakeOwnership,
+        advanceCustomerInr: j.advanceCustomerInr,
+        advanceAutoInr: j.advanceAutoInr,
+        settled: j.settled,
+        settlementAmountInr: j.settlementAmountInr,
+        settledAt: j.settledAt,
+        createdAt: j.createdAt,
+        settlementMode: j.settlementMode,
+      })
+    )
+    .filter((ev) => ev.at >= s && ev.at < e);
+  return { entries, jwEvents, jwUpiEvents };
 }
 
 export async function computeOpening(date: string, cfg: RegisterConfigData) {
@@ -107,7 +123,7 @@ export async function computeOpening(date: string, cfg: RegisterConfigData) {
 /** Everything the Quick Register screen needs for one day, in one call. */
 export async function loadDay(date: string) {
   const cfg = await loadConfig();
-  const [{ entries, jwEvents }, opening, closings, recentJw, unsettledJw, khaliAgg, partyCounts, parties] =
+  const [{ entries, jwEvents, jwUpiEvents }, opening, closings, recentJw, unsettledJw, khaliAgg, partyCounts, parties] =
     await Promise.all([
       movementsFor(date),
       computeOpening(date, cfg),
@@ -156,6 +172,7 @@ export async function loadDay(date: string) {
     opening,
     entries,
     jwEvents,
+    jwUpiEvents,
     systemCashNow: systemCash(opening.value, entries as unknown as RegisterEntryLike[], jwEvents),
     tallies: { AFTERNOON: latest("AFTERNOON"), NIGHT: latest("NIGHT") },
     jobWork: Array.from(jwMap.values()).sort((a, b) => +b.createdAt - +a.createdAt),

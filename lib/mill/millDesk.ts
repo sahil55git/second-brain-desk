@@ -130,6 +130,7 @@ export function intakeData(j: MillJob, by: string | null, serial: number | null)
     settlementAutoInr: j.settled ? m.auto : null,
     settlementRatePerKg: j.settled ? m.rate : null,
     settlementAmountInr: j.settled ? m.due : null,
+    settlementMode: j.settled ? (String(j.method || "").toLowerCase() === "upi" ? "UPI" : "CASH") : null,
     settledByName: j.settled ? by : null,
   };
 }
