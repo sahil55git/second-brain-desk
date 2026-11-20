@@ -48,10 +48,10 @@ describe("layout", () => {
     expect(wrapText("one two three four", 100, 20, false, measure).length).toBeGreaterThan(1);
     expect(wrapText("x".repeat(60), 100, 20, false, measure).every((l) => measure(l, 20, false) <= 100)).toBe(true);
   });
-  it("every row, the barcode and (for a token) the QR are drawn, top to bottom, inside the width", () => {
+  it("every row and the QR (not a barcode: phones scan it) are drawn, top to bottom, inside the width", () => {
     const w = 400;
     const { ops, height } = layoutDoc(token, w, measure);
-    expect(ops.some((o) => o.t === "bars")).toBe(true);
+    expect(ops.some((o) => o.t === "bars")).toBe(false);
     expect(ops.some((o) => o.t === "qr")).toBe(true);
     for (const o of ops) {
       expect(o.y).toBeGreaterThanOrEqual(0);
@@ -60,7 +60,8 @@ describe("layout", () => {
       if (o.t === "qr") expect(o.x + o.matrix.length * o.mod).toBeLessThanOrEqual(w);
     }
     expect(ops.filter((o) => o.t === "text").map((o) => (o as Extract<Op, { t: "text" }>).text)).toContain("JW-0012");
-    expect(layoutDoc(slip, w, measure).ops.some((o) => o.t === "qr")).toBe(false);
+    expect(layoutDoc(slip, w, measure).ops.some((o) => o.t === "qr")).toBe(true); // the weight slip has the QR too
+    expect(layoutDoc({ ...slip, qr: false }, w, measure).ops.some((o) => o.t === "bars")).toBe(true); // barcode only when asked for
   });
   it("a row's amount sits on the right of its first line", () => {
     const t = layoutDoc(slip, 400, measure).ops.filter((o): o is Extract<Op, { t: "text" }> => o.t === "text" && o.text === "98.50 kg")[0];
@@ -145,15 +146,11 @@ describe("words for the person", () => {
     expect(isBleName("H30C_F1BA")).toBe(false);
     expect(explainPrintError(new MillPrintError("NO_ANSWER", "x"), "H30C_F1BA_BLE").text).toMatch(/without “_BLE”/);
   });
-  it("a token with a QR stays on ONE 50x75 label (the QR is dropped, the barcode stays) instead of using two labels", () => {
+  it("a token with its QR stays on ONE 50x75 label instead of using two", () => {
     const plan = planJob(token, { widthMm: 50, heightMm: 75 }, measure);
     expect(plan.pages).toHaveLength(1);
-    expect(plan.pages[0].some((o) => o.t === "bars")).toBe(true);
-    expect(plan.pages[0].some((o) => o.t === "qr")).toBe(false);
-    // a roomy label keeps the QR
-    const big = planJob(token, { widthMm: 75, heightMm: 100 }, measure);
-    expect(big.pages).toHaveLength(1);
-    expect(big.pages[0].some((o) => o.t === "qr")).toBe(true);
+    expect(plan.pages[0].some((o) => o.t === "qr")).toBe(true);
+    expect(plan.pages[0].some((o) => o.t === "bars")).toBe(false);
   });
   it("the test slip is a valid doc", () => {
     expect(cleanDoc(TEST_DOC)?.code).toBe("TEST-0001");
