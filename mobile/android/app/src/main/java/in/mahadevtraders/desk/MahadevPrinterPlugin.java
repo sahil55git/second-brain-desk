@@ -352,7 +352,17 @@ public class MahadevPrinterPlugin extends Plugin {
         }
     }
 
+    /** The whole job holds the Bluetooth gate, so the scale does not start reconnecting in the middle of a slip. */
     private JSObject runBtJob(String addr, byte[] bytes, int chunk, int delayMs, boolean status, long keepMs) throws Exception {
+        boolean gate = BtLinks.enter(25000); // busy for too long: print anyway
+        try {
+            return runBtJobGated(addr, bytes, chunk, delayMs, status, keepMs);
+        } finally {
+            if (gate) BtLinks.leave();
+        }
+    }
+
+    private JSObject runBtJobGated(String addr, byte[] bytes, int chunk, int delayMs, boolean status, long keepMs) throws Exception {
         Exception last = null;
         for (int attempt = 0; attempt < 3; attempt++) {
             int[] sent = { 0 };
@@ -488,32 +498,22 @@ public class MahadevPrinterPlugin extends Plugin {
         } catch (IllegalArgumentException bad) {
             throw new PrintFail("UNKNOWN_PRINTER", "Bad printer address: " + addr);
         }
-        try { a.cancelDiscovery(); } catch (SecurityException ignored) {} // needs the scan permission on Android 12+: fine without
-        Exception last = null;
-        // 1) normal serial-port socket, 2) the "insecure" one some printers need, 3) channel 1 directly
-        for (int way = 0; way < 3; way++) {
-            BluetoothSocket s = null;
-            try {
-                if (way == 0) s = d.createRfcommSocketToServiceRecord(SPP);
-                else if (way == 1) s = d.createInsecureRfcommSocketToServiceRecord(SPP);
-                else {
-                    Method m = d.getClass().getMethod("createRfcommSocket", int.class);
-                    s = (BluetoothSocket) m.invoke(d, 1);
-                }
-                connectWithin(s, 7000);
-                btSocket = s;
-                btAddr = addr;
-                startReader(s);
-                return;
-            } catch (SecurityException se) {
-                throw new PrintFail("NO_PERMISSION", "Allow Nearby devices for Mahadev Desk (Android Settings → Apps → Mahadev Desk → Permissions).");
-            } catch (Exception e) {
-                last = e;
-                try { if (s != null) s.close(); } catch (Exception ignored) {}
-                Thread.sleep(250);
-            }
+        // one Bluetooth connect at a time, phone-wide (the scale may be reconnecting right now): see BtLinks
+        if (!BtLinks.enter(20000)) throw new PrintFail("NO_ANSWER", "Bluetooth is busy (the scale is reconnecting). Print again in a moment.");
+        try {
+            BluetoothSocket s = BtLinks.open(a, d, 7000, 5000, false);
+            btSocket = s;
+            btAddr = addr;
+            startReader(s);
+        } catch (SecurityException se) {
+            throw new PrintFail("NO_PERMISSION", "Allow Nearby devices for Mahadev Desk (Android Settings → Apps → Mahadev Desk → Permissions).");
+        } catch (PrintFail pf) {
+            throw pf;
+        } catch (Exception e) {
+            throw new PrintFail("NO_ANSWER", "Could not connect to the printer (" + (e.getMessage() == null ? "no answer" : e.getMessage()) + ").");
+        } finally {
+            BtLinks.leave();
         }
-        throw new PrintFail("NO_ANSWER", "Could not connect to the printer (" + (last == null ? "no answer" : last.getMessage()) + ").");
     }
 
     /** BluetoothSocket.connect() can block for half a minute on a sleeping printer: give it a limit. */

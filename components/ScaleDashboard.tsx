@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useScale } from "./ScaleProvider";
 import BluetoothScalePanel from "./scale/BluetoothScalePanel";
+import BatteryWarning from "./device/BatteryWarning";
 
 const SCALE_NAMES: Record<string, string> = {
   "SI850-KARADI": "Karadi Oil Tank (SI-850)",
@@ -17,6 +18,7 @@ export default function ScaleDashboard() {
 
   return (
     <div className="space-y-4">
+      <BatteryWarning />
       <BluetoothScalePanel />
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-black/10 dark:border-white/10 p-3">
         <span className={`h-2.5 w-2.5 rounded-full ${connected ? "bg-emerald-500" : "bg-red-500"}`} />

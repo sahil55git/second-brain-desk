@@ -156,3 +156,14 @@ describe("words for the person", () => {
     expect(cleanDoc(TEST_DOC)?.code).toBe("TEST-0001");
   });
 });
+
+describe("printing again by itself", () => {
+  it("only a job that sent nothing is tried again (never a second copy)", async () => {
+    const { safeToRetry, MillPrintError: E } = await import("@/lib/mill/millPrint");
+    expect(safeToRetry(new E("NO_ANSWER", "x"))).toBe(true);
+    expect(safeToRetry(new E("PARTIAL", "x"))).toBe(false);
+    expect(safeToRetry(new E("PAPER_OUT", "x"))).toBe(false);
+    expect(safeToRetry(new E("NOT_PAIRED", "x"))).toBe(false);
+    expect(safeToRetry({ code: "NO_ANSWER" })).toBe(true);
+  });
+});

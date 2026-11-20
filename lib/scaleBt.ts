@@ -48,6 +48,9 @@ export function btSupport(): BtSupport {
 export interface Transport {
   open(onText: (t: string) => void, onClosed: (error: string, fatal?: boolean) => void): Promise<void>;
   close(): Promise<void>;
+  /** The link below keeps itself up and drops a dead link by itself (the Android app): a quiet
+   *  scale is shown as "no weight coming", not closed and reopened from here. */
+  selfHealing?: boolean;
 }
 
 /** Thrown by a transport when trying again cannot help until a person does something. */
@@ -55,6 +58,7 @@ export class Fatal extends Error {}
 
 // ---------------------------------------------------------------- Android app
 class NativeTransport implements Transport {
+  readonly selfHealing = true;
   private subs: { remove: () => void }[] = [];
   constructor(private cfg: BtConfig) {}
   async open(onText: (t: string) => void, onClosed: (error: string, fatal?: boolean) => void) {
@@ -223,6 +227,8 @@ export class BtScaleLink {
   /** Guards against a late answer from a link we already gave up on. */
   private session = 0;
   private junk = 0;
+  /** the Android app says "the scale is back" (it reconnects by itself): connect the page at once */
+  private backSub: { remove: () => void } | null = null;
 
   /** `make` is only passed by the tests (a pretend scale). */
   constructor(private cfg: BtConfig, private h: BtHandlers, private make?: () => Transport) {}
@@ -237,6 +243,17 @@ export class BtScaleLink {
     this.apply({ type: "start" });
     this.timer = setInterval(() => this.tick(), 500);
     if (typeof document !== "undefined") document.addEventListener("visibilitychange", this.onVisible);
+    if (!this.make && this.cfg.kind === "native") {
+      void MahadevScale.addListener("scaleOpened", () => this.retryNow())
+        .then((sub) => {
+          if (this.timer) {
+            this.backSub?.remove();
+            this.backSub = sub;
+          }
+          else sub.remove();
+        })
+        .catch(() => {});
+    }
     void this.tryOpen();
   }
 
@@ -266,6 +283,12 @@ export class BtScaleLink {
   private stopTimers() {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    try {
+      this.backSub?.remove();
+    } catch {
+      /* gone */
+    }
+    this.backSub = null;
     if (typeof document !== "undefined") document.removeEventListener("visibilitychange", this.onVisible);
   }
 
@@ -280,7 +303,7 @@ export class BtScaleLink {
   private tick() {
     const now = Date.now();
     this.apply({ type: "tick" });
-    if (linkIsDead(this.state, now)) {
+    if (linkIsDead(this.state, now) && !this.transport?.selfHealing) {
       const why = this.junk > 3 ? "Data is coming but it is not a weight. Check the speed (9600 or 2400)." : "No weight is coming from the scale.";
       void this.drop(why);
     } else if (linkRetryDue(this.state, now)) {

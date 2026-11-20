@@ -135,6 +135,22 @@ describe("BtScaleLink", () => {
     await t.link.stop();
   });
 
+  it("leaves a quiet link alone when the link below heals itself (the Android app drops and reopens it)", async () => {
+    const t = setup();
+    (t.scale as unknown as { selfHealing: boolean }).selfHealing = true;
+    t.link.start();
+    await wait(0);
+    t.scale.say("050.000");
+    await wait(20_000);
+    expect(t.status()).toBe("silent"); // shown as "no weight coming"
+    expect(t.scale.closes).toBe(0); // not closed from the page
+    // the app reports the drop: the page goes to waiting and reconnects
+    t.scale.closed?.("No weight came from the scale for 20 s.");
+    expect(t.status()).toBe("waiting");
+    await wait(1500);
+    expect(t.scale.opens).toBe(2);
+    await t.link.stop();
+  });
   it("says so when data comes but is not a weight (wrong speed)", async () => {
     const t = setup();
     t.link.start();

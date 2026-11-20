@@ -9,6 +9,7 @@
 // register, one audit trail, and no duplicates: every barrel has a fixed label code, a scale reading can be
 // used for ONE weighing, and a repeated tap is answered "already saved". Staff receive "blind": the challan
 // quantity, rate and shortage are shown to the owner only (the server removes them for staff).
+import { useKeepAwake } from "@/lib/keepAwake";
 import { scaleTapPlan } from "@/lib/mill/scaleTap";
 import { scaleSetupHref } from "@/lib/scaleSetup";
 import "./millCounter.css";
@@ -37,6 +38,7 @@ const Barrel = ({ level, size = 28 }: { level: 0 | 1; size?: number }) => (
 );
 
 export default function MillCounterDesk() {
+  useKeepAwake();
   const [lots, setLots] = useState<Lot[]>([]);
   const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(true);

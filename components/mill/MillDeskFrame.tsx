@@ -11,12 +11,14 @@ import { scaleSetupHref } from "@/lib/scaleSetup";
 import { isNative } from "@/lib/native";
 import MillPrinterSheet from "@/components/mill/MillPrinterSheet";
 import { printHtml } from "@/lib/mill/printWindow";
+import { useKeepAwake } from "@/lib/keepAwake";
 import { cleanDoc, dropUnprinted, explainPrintError, getMillPrinter, keepUnprinted, listUnprinted, onMillPrinterChange, onUnprintedChange, printMillDoc, warmMillPrinter } from "@/lib/mill/millPrint";
 
 const FRESH_MS = 3000;
 
 export default function MillDeskFrame() {
   const ref = useRef<HTMLIFrameElement>(null);
+  useKeepAwake(); // a sleeping phone pauses the desk and can cut the scale / printer Bluetooth
   const { connected, selectedReading: reading, bt } = useScale();
   const { data: session } = useSession();
   const [sheet, setSheet] = useState(false);
