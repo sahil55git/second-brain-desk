@@ -67,6 +67,9 @@ public final class Widgets {
         KINDS.put("me", MeWidget.class);
         KINDS.put("approvals", ApprovalsWidget.class);
         KINDS.put("staff", StaffWidget.class);
+        KINDS.put("milldesk", MillDeskWidget.class);
+        KINDS.put("millcounter", MillCounterWidget.class);
+        KINDS.put("weighbill", WeighBillWidget.class);
     }
 
     public static RemoteViews views(Context c, String kind) {
@@ -80,6 +83,9 @@ public final class Widgets {
             case "chat": return chat(c);
             case "keypad": return keypad(c);
             case "me": return me(c);
+            case "milldesk":
+            case "millcounter":
+            case "weighbill": return tile(c, kind);
             default: return list(c, kind);
         }
     }
@@ -552,6 +558,27 @@ public final class Widgets {
                 v.setViewVisibility(ACT_IDS[i], View.INVISIBLE);
             }
         }
+        return v;
+    }
+
+    // ------------------------------------------------------------------ one-tap tiles that open a whole screen of the app
+    private static RemoteViews tile(Context c, String kind) {
+        WidgetData.Look l = WidgetData.look(c);
+        RemoteViews v = new RemoteViews(c.getPackageName(), R.layout.widget_tile);
+        WidgetData.paint(v, l);
+        String icon, title, sub, path;
+        int code;
+        if ("milldesk".equals(kind)) {
+            icon = "\u2696"; title = "Mill Desk"; sub = "Mill 1 scale · jobs"; path = "/mill"; code = 701;
+        } else if ("millcounter".equals(kind)) {
+            icon = "\uD83D\uDEE2"; title = "Mill Counter"; sub = "Barrels · gross · tare · net"; path = "/mill/counter"; code = 702;
+        } else {
+            icon = "\uD83E\uDDFE"; title = "Weigh & Bill"; sub = "Counter · sell by weight"; path = "/register/counter"; code = 703;
+        }
+        WidgetData.text(v, R.id.ico, icon, l.text, 28, l);
+        WidgetData.text(v, R.id.title, title, l.text, 16, l);
+        WidgetData.text(v, R.id.sub, sub, l.soft, 11, l);
+        v.setOnClickPendingIntent(R.id.body, WidgetData.open(c, path, code));
         return v;
     }
 
