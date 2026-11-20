@@ -18,6 +18,8 @@ describe("counter-only mode", () => {
   it("opens the pages the owner ticked", () => {
     expect(kioskAllows(on(["register"]), "/register/pos", "")).toBe(true);
     expect(kioskAllows(on(["scales"]), "/", "?desk=scales")).toBe(true);
+    expect(kioskAllows(on(["scales"]), "/scales", "?back=%2Fregister%2Fcounter")).toBe(true);
+    expect(kioskAllows(on(), "/scales", "")).toBe(false);
     expect(kioskAllows(on(["scales"]), "/", "?desk=sales")).toBe(false);
     expect(kioskAllows(on(["cash"]), "/cashbook", "")).toBe(false);
   });

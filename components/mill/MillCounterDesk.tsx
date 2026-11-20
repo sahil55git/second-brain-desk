@@ -10,6 +10,7 @@
 // used for ONE weighing, and a repeated tap is answered "already saved". Staff receive "blind": the challan
 // quantity, rate and shortage are shown to the owner only (the server removes them for staff).
 import { scaleTapPlan } from "@/lib/mill/scaleTap";
+import { scaleSetupHref } from "@/lib/scaleSetup";
 import "./millCounter.css";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -123,7 +124,7 @@ export default function MillCounterDesk() {
       onClick={() => {
         const plan = scaleTapPlan({ support: bt.support, hasConfig: !!bt.config, status: bt.state.status, error: bt.state.error, name: bt.config?.name || "" });
         say(!plan.bad, plan.text);
-        if (plan.act === "setup") setTimeout(() => (window.location.href = "/?desk=scales"), 900);
+        if (plan.act === "setup") window.location.href = scaleSetupHref("/mill/counter");
         else if (plan.act === "connect") bt.connect();
         else if (plan.act === "retry") bt.retryNow();
       }}

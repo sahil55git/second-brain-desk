@@ -5,6 +5,7 @@
 // Each bill is ONE register SALE with its lines (lib/counterBill.ts) through /api/register, so cash,
 // udhaar, stock and Daily Closing need nothing new. Bills get plain numbers 1, 2, 3 … from the server.
 // Item keys, PLU numbers, Kannada names and staff locks are shared by every device (setting "counter").
+import { scaleSetupHref } from "@/lib/scaleSetup";
 import "./counter.css";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1045,7 +1046,7 @@ export default function CounterApp() {
         <b className="ctr-title">⚖️ {k("Weigh & Bill", "ತೂಕ & ಬಿಲ್")}</b>
         <span className="ctr-clock" aria-label={k("Date and time", "ದಿನಾಂಕ ಮತ್ತು ಸಮಯ")}><b>{clock.time}</b><small>{clock.date}</small></span>
         {show.scaleStatus && <span className={`ctr-chip ${connected ? (fresh ? "ok" : "mid") : "bad"}`}>{connected ? bt.config?.name || reading?.scale_source || k("Scale", "ತಕ್ಕಡಿ") : k("No scale", "ತಕ್ಕಡಿ ಇಲ್ಲ")}</span>}
-        {show.scaleSetup && !connected && !kiosk?.on && <Link href="/?desk=scales" className="ctr-link">{k("Set up scale", "ತಕ್ಕಡಿ ಹೊಂದಿಸಿ")}</Link>}
+        {show.scaleSetup && !connected && !kiosk?.on && <Link href={scaleSetupHref("/register/counter")} className="ctr-link">{k("Set up scale", "ತಕ್ಕಡಿ ಹೊಂದಿಸಿ")}</Link>}
         <span className="ctr-sp" />
         {!noTotal && chips}
         <button type="button" className="ctr-tbtn" onClick={() => setPanel("look")} aria-label={k("Colours and layout", "ಬಣ್ಣ ಮತ್ತು ವಿನ್ಯಾಸ")}>🎨</button>
