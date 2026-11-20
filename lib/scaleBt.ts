@@ -58,7 +58,8 @@ export class Fatal extends Error {}
 
 // ---------------------------------------------------------------- Android app
 class NativeTransport implements Transport {
-  readonly selfHealing = true;
+  /** true once the app is known to keep the link itself (newer app); an older app still needs the page to drop a dead link */
+  selfHealing = false;
   private subs: { remove: () => void }[] = [];
   constructor(private cfg: BtConfig) {}
   async open(onText: (t: string) => void, onClosed: (error: string, fatal?: boolean) => void) {
@@ -72,6 +73,13 @@ class NativeTransport implements Transport {
       })
     );
     this.subs.push(await MahadevScale.addListener("scaleClosed", (e) => onClosed(e.error || "The scale disconnected.")));
+    MahadevScale.status()
+      .then(() => {
+        this.selfHealing = true;
+      })
+      .catch(() => {
+        /* older app */
+      });
     try {
       await MahadevScale.open({ id: this.cfg.id });
     } catch (e) {
