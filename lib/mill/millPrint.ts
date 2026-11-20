@@ -137,10 +137,12 @@ export const onMillPrinterChange = (f: () => void) => {
 
 /** Label printers (TSPL) first: the Helett H30C and friends. */
 export const isLabelishName = (n: string) => /h30|helett|label|tsc|zebra|godex|tspl|xprinter|\bxp-?\d|niimbot|d11|b21/i.test(n);
+/** Many label printers show up twice: "H30C_F1BA" (normal Bluetooth, what the app prints over) and "H30C_F1BA_BLE" (low-energy, which the app cannot print over). */
+export const isBleName = (n: string) => /(^|[\s_-])ble$/i.test(n.trim());
 export function labelCandidates(list: NativePrinter[]): NativePrinter[] {
   return list
     .filter((p) => p.kind === "bluetooth")
-    .sort((a, b) => Number(isLabelishName(b.name)) - Number(isLabelishName(a.name)) || Number(b.printer) - Number(a.printer));
+    .sort((a, b) => Number(isBleName(a.name)) - Number(isBleName(b.name)) || Number(isLabelishName(b.name)) - Number(isLabelishName(a.name)) || Number(b.printer) - Number(a.printer));
 }
 
 // ------------------------------------------------------------------ layout (in printer dots)
@@ -398,9 +400,12 @@ export class MillPrintError extends Error {
   }
 }
 export type PrintFix = "bt-on" | "pair" | "permission" | "setup" | "app";
-export function explainPrintError(e: unknown): { text: string; fix?: PrintFix } {
+export function explainPrintError(e: unknown, printerName = ""): { text: string; fix?: PrintFix } {
   const code = e instanceof MillPrintError ? e.code : (e as { code?: string })?.code || "";
   const msg = e instanceof Error ? e.message : String(e ?? "");
+  if (isBleName(printerName) && code !== "BT_OFF" && code !== "NO_PERMISSION" && code !== "NOT_APP" && code !== "NO_PRINTER") {
+    return { text: `“${printerName}” is the low-energy (BLE) entry and the app cannot print over it. Forget it in Bluetooth settings and pair the one without “_BLE” (the one with the printer icon), then choose that.`, fix: "setup" };
+  }
   switch (code) {
     case "BT_OFF":
       return { text: "Bluetooth is off. Turn it on.", fix: "bt-on" };
