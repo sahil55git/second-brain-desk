@@ -9,8 +9,15 @@ describe("cashier desk", () => {
     expect(changeFor(99.5, 100)).toEqual({ change: 0.5, short: 0 });
   });
   it("quick notes: exact first, then round figures above it", () => {
-    expect(noteChips(460)).toEqual([460, 500, 2000]);
-    expect(noteChips(1234.5)).toEqual([1235, 1240, 1250, 1300]);
+    expect(noteChips(460)).toEqual([460, 500]);
+    expect(noteChips(1234.5)).toEqual([1235, 1300, 1500]);
+    expect(noteChips(30)).toEqual([30, 50, 100, 500]);
+    expect(noteChips(150)).toEqual([150, 200, 500]);
+    expect(noteChips(1050)).toEqual([1050, 1100, 1500]);
+    expect(noteChips(21.08)).toEqual([22, 50, 100, 500]);
+    expect(noteChips(500)).toEqual([500, 1000, 1500]);
+    expect(noteChips(1234.5).includes(2000)).toBe(false);
+    expect(noteChips(1234.5)[0]).toBe(1235);
     expect(noteChips(0)).toEqual([]);
   });
   it("cash received counts bills taken at once and held bills once confirmed", () => {

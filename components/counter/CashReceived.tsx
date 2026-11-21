@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { changeFor, noteChips } from "@/lib/cashDesk";
 import { rupees } from "@/lib/receipt";
+import NumPad, { CoinIcon, TickIcon } from "./NumPad";
 import "./receivePayment.css";
 
 export default function CashReceived({
@@ -49,18 +50,19 @@ export default function CashReceived({
         <div className="rp-cash">
           <label>
             <span>{k("Customer gave", "ಗ್ರಾಹಕರು ಕೊಟ್ಟದ್ದು")}</span>
-            <input inputMode="decimal" value={given} placeholder={String(Math.ceil(due))} onChange={(e) => { setGiven(e.target.value.replace(/[^0-9.]/g, "")); setErr(""); }} />
+            <input readOnly inputMode="none" className="act" value={given} placeholder={String(Math.ceil(due))} />
           </label>
           <div className="rp-chips">
-            {noteChips(due).map((v) => <button key={v} type="button" onClick={() => { if (v === Math.ceil(due)) { setGiven(""); void exact(); } else { setGiven(String(v)); setErr(""); } }}>{v === Math.ceil(due) ? k("Exact", "ಸರಿಯಾಗಿ") : `₹${v}`}</button>)}
+            {noteChips(due).map((v) => <button key={v} type="button" className={v === Math.ceil(due) ? "exact" : ""} aria-label={v === Math.ceil(due) ? k("Exact amount", "ಸರಿಯಾದ ಮೊತ್ತ") : undefined} onClick={() => { if (v === Math.ceil(due)) { setGiven(""); void exact(); } else { setGiven(String(v)); setErr(""); } }}>{v === Math.ceil(due) ? <><TickIcon /> ₹{v}</> : `₹${v}`}</button>)}
           </div>
           {g > 0 && (short > 0
             ? <p className="rp-short">{k("Short", "ಕಡಿಮೆ")} {rupees(short)}</p>
             : <p className="rp-change">{k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")}: <b>{rupees(change)}</b></p>)}
         </div>
+        <NumPad value={given} onChange={(v) => { setGiven(v); setErr(""); }} />
         {err && <p className="rp-err">{err}</p>}
-        <button type="button" className="rp-go" disabled={busy} onClick={() => void go()}>
-          {busy ? "…" : `✓ ${k("Cash received", "ನಗದು ಬಂತು")}`}
+        <button type="button" className="rp-go" disabled={busy} aria-label={k("Cash received", "ನಗದು ಬಂತು")} title={k("Cash received", "ನಗದು ಬಂತು")} onClick={() => void go()}>
+          {busy ? "…" : <><TickIcon /><CoinIcon /></>}
         </button>
       </div>
     </div>
