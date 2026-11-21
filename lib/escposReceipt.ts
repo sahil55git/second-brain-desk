@@ -22,6 +22,8 @@ export const SLIP_LAYOUTS: Record<SlipPaper, SlipLayout> = {
 };
 
 export interface LineStyle {
+  /** the printer's small font (font B): about a third more characters per line, shorter lines */
+  small?: boolean;
   bold?: boolean;
   big?: boolean;
   align?: "left" | "center" | "right";
@@ -49,6 +51,10 @@ const bold = (on: boolean) => Uint8Array.of(ESC, 0x45, on ? 1 : 0);
 /** GS ! n: 0x00 normal, 0x01 double height, 0x11 double width and height */
 const size = (n: number) => Uint8Array.of(GS, 0x21, n);
 const LF = Uint8Array.of(0x0a);
+/** ESC M n: 0 = font A (normal), 1 = font B (small) */
+const fontB = (on: boolean) => Uint8Array.of(ESC, 0x4d, on ? 1 : 0);
+/** characters per line in the small font (9 dots wide) */
+export const smallCols = (dots: number) => Math.floor(dots / 9);
 
 /** Characters the shop uses that the printer cannot show, as plain ASCII. */
 export function asciiText(s: string): string {
@@ -123,24 +129,25 @@ export function rasterBands(m: Mono): Uint8Array {
 export function qrMono(text: string, widthDots: number, module = 0): Mono | null {
   let mat: boolean[][];
   try {
-    mat = qrMatrix(text, "M");
+    mat = qrMatrix(text, "L"); // low error correction = fewer modules = a smaller code on the roll
   } catch {
     return null;
   }
-  const n = mat.length + 8; // 4-module quiet zone each side
-  const mod = module || Math.max(2, Math.min(8, Math.floor((widthDots * 0.45) / n)));
+  const Q = 2; // quiet zone (modules): the white paper around the code is margin enough
+  const n = mat.length + 2 * Q;
+  const mod = module || Math.max(2, Math.min(3, Math.floor((widthDots * 0.45) / n))); // modules of 2-3 dots keep it small and still scannable
   const side = n * mod;
   const width = Math.min(widthDots, Math.ceil(side / 8) * 8);
   const rowBytes = width / 8;
   const data = new Uint8Array(rowBytes * side);
-  const x0 = 4 * mod;
+  const x0 = Q * mod;
   for (let r = 0; r < mat.length; r++)
     for (let c = 0; c < mat.length; c++) {
       if (!mat[r][c]) continue;
       for (let dy = 0; dy < mod; dy++)
         for (let dx = 0; dx < mod; dx++) {
           const x = x0 + c * mod + dx;
-          const y = (r + 4) * mod + dy;
+          const y = (r + Q) * mod + dy;
           if (x < width) data[y * rowBytes + (x >> 3)] |= 0x80 >> (x & 7);
         }
     }
@@ -172,10 +179,10 @@ export function buildReceiptEscpos(docIn: ReceiptDoc, shop: ShopInfo, o: SlipOpt
     }
     const t = printable(s);
     if (!t) return;
-    const w = st.big ? Math.floor(cols / 2) : cols;
-    out.push(align(a), bold(!!st.bold), size(st.big ? 0x11 : 0x00));
+    const w = st.big ? Math.floor(cols / 2) : st.small ? smallCols(L.dots) : cols;
+    out.push(align(a), bold(!!st.bold), size(st.big ? 0x11 : 0x00), fontB(!!st.small));
     textLines(wrap(t, w));
-    out.push(size(0), bold(false), align("left"));
+    out.push(fontB(false), size(0), bold(false), align("left"));
   };
   const rule = (ch = "-") => out.push(align("left"), enc(ch.repeat(cols)), LF);
   /** left + right on one line; a left side in Kannada goes on its own picture line first */
@@ -193,22 +200,24 @@ export function buildReceiptEscpos(docIn: ReceiptDoc, shop: ShopInfo, o: SlipOpt
 
   // shop
   const shopName = shop.name || "";
-  line(shopName, { bold: true, big: printable(shopName).length <= cols / 2, align: "center" });
-  if (shop.address) line(shop.address, { align: "center" });
+  // compact on purpose: roll paper costs money, so the shop block is small type and the title shares a line with the number and time
+  line(shopName, { bold: true, align: "center" });
+  if (shop.address) line(shop.address, { small: true, align: "center" });
   const contact = [shop.phone && `Ph ${shop.phone}`, shop.gstin && `GSTIN ${shop.gstin}`].filter(Boolean).join("  ");
-  if (contact) line(contact, { align: "center" });
+  if (contact) line(contact, { small: true, align: "center" });
   rule();
-  line(doc.title, { bold: true, align: "center" });
-  if (doc.no || doc.when) {
-    out.push(align("left"));
-    textLines(leftRight(doc.no ? `No. ${printable(doc.no)}` : "", doc.when ? printable(doc.when) : "", cols));
+  if (doc.title || doc.no || doc.when) {
+    const head = [printable(doc.title || ""), doc.no ? `No. ${printable(doc.no)}` : ""].filter(Boolean).join("  ");
+    out.push(align("left"), bold(true), fontB(true));
+    textLines(leftRight(head, doc.when ? printable(doc.when) : "", smallCols(L.dots)));
+    out.push(fontB(false), bold(false));
   }
   if (doc.party) line(doc.party, { bold: true });
   if (doc.rows.length) {
     rule();
     for (const r of doc.rows) {
       pair(r.name, r.amount ?? "");
-      if (r.detail) line(`  ${r.detail}`);
+      if (r.detail) line(`  ${r.detail}`, { small: true });
     }
   }
   if (doc.pre) {
@@ -225,16 +234,15 @@ export function buildReceiptEscpos(docIn: ReceiptDoc, shop: ShopInfo, o: SlipOpt
   }
   if (doc.notes && doc.notes.length) {
     rule();
-    for (const n of doc.notes) line(n);
+    for (const n of doc.notes) line(n, { small: true });
   }
   if (doc.qr) {
     const q = qrMono(doc.qr, L.dots);
-    if (q) out.push(LF, align("center"), rasterBands(q), align("left"));
+    if (q) out.push(align("center"), rasterBands(q), align("left"));
   }
-  out.push(LF);
   line("Thank you", { align: "center" });
   if (o.kannada !== false && render) line("ಧನ್ಯವಾದಗಳು", { align: "center" });
-  out.push(Uint8Array.of(ESC, 0x64, Math.max(1, Math.min(10, o.feed ?? 4)))); // ESC d n: feed
+  out.push(Uint8Array.of(ESC, 0x64, Math.max(1, Math.min(10, o.feed ?? 3)))); // ESC d n: feed
   if (o.cut) out.push(Uint8Array.of(GS, 0x56, 0x42, 0x00));
   const one = concat(...out.slice(1));
   const copies = Math.max(1, Math.min(5, Math.round(o.copies ?? 1)));
