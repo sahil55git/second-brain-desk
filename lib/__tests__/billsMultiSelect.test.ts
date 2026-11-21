@@ -35,3 +35,17 @@ describe("printer status pill", () => {
     expect(chip).toContain("Bluetooth off");
   });
 });
+
+describe("Bills reports tab and printer list colours", () => {
+  it("Bills page has a Reports tab with the report list", () => {
+    const app = readFileSync(join(process.cwd(), "components/counter/CounterApp.tsx"), "utf8");
+    const rep = readFileSync(join(process.cwd(), "components/counter/BillReports.tsx"), "utf8");
+    expect(app).toContain("<BillReports");
+    for (const w of ["Sales by day", "Item-wise", "Payments", "Pending payment", "Oil held", "Discounts", "Cancelled", "Customers", "Staff", "Busy hours", "Custom"]) expect(rep).toContain(w);
+  });
+  it("printer list follows the counter theme, so names are readable in the dark theme", () => {
+    const css = readFileSync(join(process.cwd(), "components/print/slipPrinter.css"), "utf8");
+    expect(css).toMatch(/\.sp-dev \{[^}]*color: var\(--c-ink/);
+    expect(css).toMatch(/\.sp-dev \{[^}]*background: var\(--c-bg/);
+  });
+});
