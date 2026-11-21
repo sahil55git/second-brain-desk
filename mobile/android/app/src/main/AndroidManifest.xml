@@ -190,6 +190,13 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_millcounter_info" />
         </receiver>
+        <receiver android:name=".CashierLiveWidget" android:label="Mahadev · Cashier: money &amp; oil" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="in.mahadevtraders.desk.REFRESH" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_cashierlive_info" />
+        </receiver>
         <receiver android:name=".CashierWidget" android:label="Mahadev · Cashier desk" android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

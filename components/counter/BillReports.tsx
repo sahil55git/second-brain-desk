@@ -7,6 +7,7 @@ import type { SavedBill } from "@/lib/counterRecords";
 import { cancelledBills, customerWise, dayWise, discountBills, heldBills, hourWise, itemWise, pendingBills, presetRange, staffWise, totals, udhaarDue, type AuditLite, type CancelRow } from "@/lib/billReports";
 import { waitText } from "@/lib/counterTrack";
 import { rupees } from "@/lib/receipt";
+import "./billReports.css";
 
 type Rep = "days" | "items" | "pay" | "disc" | "pend" | "held" | "cust" | "staff" | "hours" | "cancel";
 type Preset = "today" | "yesterday" | "7d" | "30d" | "month" | "lastMonth";

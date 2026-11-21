@@ -14,6 +14,8 @@ import { barrelCounts, bearer, hashDeviceToken, widgetAlerts } from "@/lib/devic
 import { runOut } from "@/lib/insights";
 import { tips } from "@/lib/tips";
 import { dueText } from "@/lib/tasks";
+import { cashierSummary } from "@/lib/cashierSummary";
+import type { SaleRow } from "@/lib/counterRecords";
 
 export const dynamic = "force-dynamic";
 
@@ -44,11 +46,14 @@ export async function GET(req: NextRequest) {
     const tasks = await prisma.task.findMany({ where: { username: dev.username, doneAt: null }, orderBy: [{ due: "asc" }, { createdAt: "asc" }], take: 12 }).catch(() => []);
     // owner's "Staff ledger" widget: what we owe each person, who is in / late / absent today (private: owner only)
     const staffRows = owner ? await staffBlock(today) : null;
-    return { dev, barrels, data, today, owner, tasks, mine, jwOpen, pendingOk, myName, staffRows };
+    // Cashier desk widget: money still to receive and oil waiting (counts for owner and staff)
+    const saleRows = await prisma.registerEntry.findMany({ where: { date: today }, orderBy: { createdAt: "asc" } }).catch(() => []);
+    const cashier = cashierSummary(JSON.parse(JSON.stringify(saleRows)) as SaleRow[], now);
+    return { dev, barrels, data, today, owner, tasks, mine, jwOpen, pendingOk, myName, staffRows, cashier };
   });
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 503 });
   if (!r.data) return NextResponse.json({ error: "This widget key is switched off. Turn widgets on again in the app." }, { status: 401 });
-  const { barrels, data, today, owner, dev, tasks, mine, jwOpen, pendingOk, myName, staffRows } = r.data;
+  const { barrels, data, today, owner, dev, tasks, mine, jwOpen, pendingOk, myName, staffRows, cashier } = r.data;
   const b = barrelCounts(barrels, now);
   const s = data ? homeSummary(data as unknown as BizData, now) : null;
   const hourIst = Number(new Date(now).toLocaleString("en-GB", { hour: "2-digit", hour12: false, timeZone: "Asia/Kolkata" }));
@@ -98,6 +103,7 @@ export async function GET(req: NextRequest) {
       money: s
         ? { sold: s.soldToday, cashIn: s.cashInToday, cashOut: s.cashOutToday, upiIn: s.upiInToday, spent: s.spentToday, udhaar: s.udhaarOutstanding, udhaarCustomers: s.udhaarCustomers, jobWorkWaiting: s.jobWork.waiting, changePct: s.changePct, bills: rangeSummary(biz!, "today", now).bills, lastCount: s.lastCount }
         : null,
+      cashier,
       week: range("week"),
       month: range("month"),
       days7: s ? s.week.map((w) => ({ label: w.label, total: w.total })) : [],

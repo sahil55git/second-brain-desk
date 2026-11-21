@@ -71,6 +71,7 @@ public final class Widgets {
         KINDS.put("millcounter", MillCounterWidget.class);
         KINDS.put("weighbill", WeighBillWidget.class);
         KINDS.put("cashier", CashierWidget.class);
+        KINDS.put("cashierlive", CashierLiveWidget.class);
     }
 
     public static RemoteViews views(Context c, String kind) {
@@ -80,6 +81,7 @@ public final class Widgets {
             case "barrels": return WidgetData.barrelViews(c);
             case "actions": return actionViews(c);
             case "cash": return cash(c);
+            case "cashierlive": return cashierLive(c);
             case "note": return note(c);
             case "chat": return chat(c);
             case "keypad": return keypad(c);
@@ -319,6 +321,31 @@ public final class Widgets {
     }
 
     // ------------------------------------------------------------------ cash counter
+    static RemoteViews cashierLive(Context c) {
+        WidgetData.Look l = WidgetData.look(c);
+        RemoteViews v = new RemoteViews(c.getPackageName(), R.layout.widget_cash);
+        WidgetData.paint(v, l);
+        JSONObject m = WidgetData.summary(c).optJSONObject("cashier");
+        WidgetData.text(v, R.id.title, "\uD83D\uDCB0 Cashier desk", l.soft, 12, l);
+        v.setTextColor(R.id.refresh, l.text);
+        v.setOnClickPendingIntent(R.id.refresh, WidgetData.refresh(c, CashierLiveWidget.class));
+        if (m == null) {
+            WidgetData.text(v, R.id.big, WidgetData.isOn(c) ? "Updating\u2026" : "Open the app", l.text, 18, l);
+            WidgetData.text(v, R.id.line1, "", l.soft, 12, l);
+            WidgetData.text(v, R.id.line2, "", l.soft, 12, l);
+        } else {
+            double due = m.optDouble("toReceive");
+            int ready = m.optInt("oilReady");
+            int held = m.optInt("oilHeld");
+            int late = m.optInt("oldestMin");
+            WidgetData.text(v, R.id.big, due > 0 ? WidgetData.rupees(due) + " to receive" : "\u2713 Nothing to receive", due > 0 ? Color.parseColor("#fbbf24") : l.text, 22, l);
+            WidgetData.text(v, R.id.line1, m.optInt("billsToPay") + " bills waiting for money \u00b7 " + ready + " oil ready to give", ready > 0 ? Color.parseColor("#4ade80") : l.soft, 12, l);
+            WidgetData.text(v, R.id.line2, held == 0 ? "No oil held" : held + " oil held" + (late >= 15 ? " \u00b7 oldest " + late + " min \u23f1" : ""), late >= 15 ? Color.parseColor("#ff9d8a") : l.soft, 12, l);
+        }
+        v.setOnClickPendingIntent(R.id.body, WidgetData.open(c, "/register/cashier", 705));
+        return v;
+    }
+
     static RemoteViews cash(Context c) {
         WidgetData.Look l = WidgetData.look(c);
         RemoteViews v = new RemoteViews(c.getPackageName(), R.layout.widget_cash);
