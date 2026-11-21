@@ -71,5 +71,18 @@ public class MainActivity extends BridgeActivity {
         if (getBridge() == null) return;
         final WebView web = getBridge().getWebView();
         web.postDelayed(() -> web.loadUrl(target), delayMs);
+        // The app's own start page (/go) loads at the same moment on a cold start and can land after
+        // our page, leaving the person on Quick links instead of the tapped widget's screen. So look
+        // again twice; if the app is still sitting on the start page, open the tapped page again.
+        final String wanted = Uri.parse(target).getPath();
+        for (final long again : new long[] { delayMs + 1800, delayMs + 4500 }) {
+            web.postDelayed(() -> {
+                String now = web.getUrl();
+                if (now == null || wanted == null) return;
+                String path = Uri.parse(now).getPath();
+                boolean onStart = path == null || path.isEmpty() || path.equals("/") || path.equals("/go") || now.contains("offline.html");
+                if (onStart && !wanted.equals(path) && !wanted.equals("/go")) web.loadUrl(target);
+            }, again);
+        }
     }
 }
