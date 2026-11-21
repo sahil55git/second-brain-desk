@@ -37,3 +37,14 @@ describe("Waiting list carries the customer name", () => {
     expect(html).toContain("if(gc&&!S.slip.cust)S.slip.cust=gc;");
   });
 });
+
+describe("New job from Worker mode, and sorting", () => {
+  it("the job form shows in Worker mode when a job is being made", () => {
+    expect(html).toContain("S.mode==='worker'&&S.view!=='slip'?workerHTML()");
+  });
+  it("every list has a sort bar and jobs/queue/parked carry a time stamp", () => {
+    for (const k of ["'W',1", "'J'", "'H'", "'P'"]) expect(html).toContain("sortBar(" + k + ")");
+    expect(html).toContain("time:clock(),at:Date.now()");
+    expect(html).toContain("milldesk.sort");
+  });
+});

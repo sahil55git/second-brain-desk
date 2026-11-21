@@ -292,6 +292,7 @@ body.noic .sbtn>svg.ic,body.noic .cp>svg.ic,body.noic .ch>svg.ic,body.noic .mrow
 .card .sr b,.job-log .ar span{overflow-wrap:anywhere}
 .ar{gap:10px}.ar>span{padding-right:6px}.ar>b{text-align:right}
 .mrow.wname{width:100%;margin:6px 0;font-size:19px}
+.sortbar{margin:2px 0 8px}.sortbar .sl{flex:none;display:flex;align-items:center;gap:6px;font-weight:700;color:var(--soft)}
 </style>
 </head>
 <body>
@@ -480,7 +481,19 @@ function paintWeight(){const n=$('#wnum');if(!n)return;const w=S.scale.w,mv=!ste
 /* ---------- screens ---------- */
 function openCount(){return S.jw.filter(j=>!j.crushed).length}
 const sortJ=(a,b)=>a.tok.localeCompare(b.tok);
-const held=()=>S.jw.filter(j=>j.crushed&&!(j.settled&&j.given)).sort(sortJ);
+/* ---- sorting for every list: newest / oldest / token no. / customer no. / name / weight (the choice is remembered) ---- */
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const tsOf=o=>{if(o&&o.at)return o.at;const m=/(\d{1,2}) (\w{3}) (\d{1,2}):(\d{2}) (AM|PM)/.exec((o&&o.time)||'');if(!m)return 0;return new Date(new Date().getFullYear(),MON.indexOf(m[2]),+m[1],+m[3]%12+(m[5]==='PM'?12:0),+m[4]).getTime()};
+const tokN=j=>+String(j.tok||'').replace(/\D/g,'')||0;
+const SORTS=[['new','Newest','hourg'],['old','Oldest','hourg'],['tok','Token no.','list'],['cno','Customer no.','user'],['name','Name','user'],['kg','Weight','weigh']];
+try{S.sort=localStorage.getItem('milldesk.sort')||'new'}catch(e){S.sort='new'}
+function sortBy(arr,get,own){const k=S.sort,g=x=>get(x),dir={new:-1,old:1,tok:1,cno:1,name:1,kg:-1}[k]||-1;
+ const key={new:x=>g(x).ts,old:x=>g(x).ts,tok:x=>g(x).no,cno:x=>g(x).cno||0,name:x=>String(g(x).name||'').toLowerCase(),kg:x=>g(x).kg||0}[k];
+ return arr.map((x,i)=>[x,i]).sort((a,b)=>{const A=key(a[0]),B=key(b[0]);const c=typeof A==='string'?A.localeCompare(B):A-B;return c?c*dir:a[1]-b[1]}).map(p=>p[0])}
+const jsort=l=>sortBy(l,j=>({ts:tsOf(j)||tokN(j),no:tokN(j),cno:0,name:j.customer,kg:j.seedKg}));
+function setSort(k,fn){S.sort=k;try{localStorage.setItem('milldesk.sort',k)}catch(e){}({W:sheetWaiting,J:sheetJobs,H:sheetHeld,P:sheetParked})[fn]()}
+const sortBar=(fn,cno)=>`<div class="wf sortbar"><span class="sl">${ic('list')}Sort</span>${SORTS.filter(s=>cno||s[0]!=='cno').map(s=>`<button class="${S.sort===s[0]?'sel':''}" onclick="setSort('${s[0]}','${fn}')">${ic(s[2])}${s[1]}</button>`).join('')}</div>`;
+const held=()=>S.jw.filter(j=>j.crushed&&!(j.settled&&j.given)).sort(sortJ);const heldSorted=()=>jsort(held());
 const jserial=j=>{const d=j.time.slice(0,6);return S.jw.filter(x=>x.time.slice(0,6)===d).sort(sortJ).findIndex(x=>x.tok===j.tok)+1};
 const dtHTML=tm=>{const d=tm.slice(0,6),h=tm.slice(7);return `<span class="dt">${ic('clock')}<b>${h}</b> · ${d}</span>`};
 const jhead=(j,place)=>`<div class="jh" data-tok="${j.tok}"><div class="snw"><b class="sn">${jserial(j)}</b><small>Token</small></div><div class="jm">${dtHTML(j.time)}<div class="jn">${j.customer===j.place?ic('pin')+' ':''}${esc(j.customer)}</div></div><span class="inv">Inv ${j.tok.replace('JW-','#')}${place&&j.customer!==j.place?'<br>'+esc(j.place):''}</span>${spkBtn(`sayJob('${j.tok}')`)}</div>`;
@@ -495,7 +508,7 @@ function render(){
  const cnt=(n,ico,key,fn,hl)=>`<button class="cp ${hl?'has':''}" data-f="tab-${key}" onclick="${fn}">${ico==='jc'?jcIcon(24):ico==='own'?ownIcon(24):ic(ico)}<span>${t(key)}</span><span class="n">${n}</span></button>`;
  $('#chips').innerHTML=cnt(S.queue.length,'hourg','waiting','sheetWaiting()',S.queue.length)+cnt(openCount()+held().length,'jc','jobs','sheetJobs()',0)+cnt(held().length,'lock','held','sheetHeld()',held().length)+cnt(runsActive(),'own','mill','sheetMill()',runsActive())+cnt(S.parked.length,'park','parked','sheetParked()',S.parked.length);
  const m=$('#main');const keep=m.scrollTop;
- m.innerHTML=S.mode==='worker'?workerHTML():S.view==='slip'?slipHTML():pickHTML();
+ m.innerHTML=S.mode==='worker'&&S.view!=='slip'?workerHTML():S.view==='slip'?slipHTML():pickHTML();
  m.scrollTop=keep;
  paintWeight();
  const bar=$('#bar');if(bar)bar.remove();
@@ -527,7 +540,7 @@ function workerHTML(){
   +(S.needZero?`<div class="takeoff">Take it off the scale</div>`:'')
   +`<div class="pane wk">${groupsHTML(ITEMS,true)}</div><div class="note">Worker: put it on the scale, wait for green, tap the picture. Tap more items if needed, then <b>Save &amp; Print</b>. Green ↓ comes in, red ↑ goes out.</div>`}
 function workerPrint(){const tr=S.wtray;if(!tr.length)return;const sn='WS-'+pad(S.wsn++),tm=clock();
- tr.forEach(x=>S.queue.push({id:uid('Q'),k:x.k,nb:x.nb||1,kg:x.kg,time:tm,by:(S.me&&S.me.name)||'Worker',cno:x.cno||0,slip:sn}));
+ tr.forEach(x=>S.queue.push({id:uid('Q'),k:x.k,nb:x.nb||1,kg:x.kg,time:tm,at:Date.now(),by:(S.me&&S.me.name)||'Worker',cno:x.cno||0,slip:sn}));
  S.wtray=[];S.wdone={sn,n:tr.length};millPrintGo(S.cfg.autoSlip!==false,{kind:'slip',code:sn,shop:'MAHADEV TRADERS',title:'Mill 1 · WEIGHT SLIP',when:nowFull(),rows:tr.map(x=>[IT[x.k].wl+(x.cno?' · '+cnoL()+' '+x.cno:'')+(isBagK(x.k)?' · '+bagTxt(x.nb||1):''),f2(x.kg)+' kg']),foot:['By '+((S.me&&S.me.name)||'Worker'),nowFull()]},1);
  layer('Printed',`<div class="note">Saved · the counter person sees these in Waiting.</div><div id="prst" class="prst"></div>
   <div class="paper"><div class="hd">MAHADEV TRADERS</div><div style="text-align:center">Mill 1 · WEIGHT SLIP</div><div style="text-align:center;font-weight:700">${nowFull()}</div><div class="hr"></div>
@@ -593,7 +606,7 @@ function sheetNum(title,cb,back){window.__numSet=cb;window.__numBack=back;S._adv
 function padKey(k){if(k==='C')S._adv='';else if(k==='OK'){return window.__numSet(+S._adv||0)}else S._adv=(S._adv+k).slice(0,6);$('#advv').textContent='₹ '+(+S._adv||0).toLocaleString('en-IN')}
 function sheetTank(kg){layer('Our oil can '+f1(kg)+' kg — into which?',`<div class="note">Can empty weight already taken off. K2 shows its own display; floor barrel and small tank have no scale, so this weighing is the record.</div>
  ${['K2','Floor barrel','Small tank'].map(x=>`<button class="sbtn" style="min-height:70px" onclick="S.own.ooil.push([${kg},'${x}']);const rr=oilToRun(${kg},'${x}');closeLayer();toast('${f1(kg)} kg → ${x}'+(rr?' · Run '+rserial(rr):''));afterSave()">${x==='Small tank'?ic('tank'):icoSvg('bfull',34)} ${x}</button>`).join('')}`)}
-function sheetJobPick(title,fn,filter){window.__jp=fn;const js=S.jw.filter(filter||(()=>true)).sort(sortJ);
+function sheetJobPick(title,fn,filter){window.__jp=fn;const js=jsort(S.jw.filter(filter||(()=>true)));
  layer(title,js.length?js.map(j=>`<button class="card" style="text-align:left" onclick="pickJob('${j.tok}')">${jhead(j,true)}${payStatus(j)}<div class="pillrow"><span class="pc">${f1(j.seedKg)} kg · ${bagTxt(bagsOf(j))}</span><span class="pc gd">${ic('bag')}${j.cake==='SHOP'?'khali: shop':'khali: customer'}</span></div>${takenChips(j,true)}</button>`).join(''):'<div class="note">No matching customer job. Make the job first.</div>')}
 function pickJob(tok){const j=S.jw.find(x=>x.tok===tok);const f=window.__jp;$('#layer').classList.remove('on');f(j)}
 
@@ -611,10 +624,10 @@ function barrelDo(k,c,kg){const b=S.barrels[c]=S.barrels[c]||{};
 
 /* ---------- slip: confirm / park / clear ---------- */
 function clearSlip(){S.slip={cust:null,cake:'SHOP',lines:[],advC:0,advA:0,cans:{},cnos:[],nbs:[],stick:S.slip.stick,copies:S.slip.copies};S.view='pick';render()}
-function parkSlip(){if(!S.slip.lines.length)return;S.parked.push(JSON.parse(JSON.stringify(S.slip)));clearSlip();toast('Parked — find it under Parked')}
-function sheetParked(){layer('Parked',S.parked.length?S.parked.map((p,i)=>`<button class="card" style="text-align:left" onclick="if(S.mode==='worker'){toast('Switch to Counter mode to finish this bill','bad');return}S.slip=S.parked.splice(${i},1)[0];S.view='slip';closeLayer()"><h3>${p.cust?esc(p.cust[0]):'No customer yet'}</h3><div class="pillrow"><span class="pc">${bagTxt(p.nbs&&p.nbs.length?sum(p.nbs):p.lines.length)}</span><span class="pc">${f1(sum(p.lines))} kg</span></div></button>`).join(''):'<div class="note">Nothing parked.</div>')}
+function parkSlip(){if(!S.slip.lines.length)return;S.parked.push(Object.assign(JSON.parse(JSON.stringify(S.slip)),{at:Date.now()}));clearSlip();toast('Parked — find it under Parked')}
+function sheetParked(){layer('Parked',(S.parked.length?sortBar('P'):'')+(S.parked.length?sortBy(S.parked.map((p,i)=>({p,i})),o=>({ts:o.p.at||0,no:o.i,cno:0,name:o.p.cust?o.p.cust[0]:'',kg:sum(o.p.lines)})).map(({p,i})=>`<button class="card" style="text-align:left" onclick="if(S.mode==='worker'){toast('Switch to Counter mode to finish this bill','bad');return}S.slip=S.parked.splice(${i},1)[0];S.view='slip';closeLayer()"><h3>${p.cust?esc(p.cust[0]):'No customer yet'}</h3><div class="pillrow"><span class="pc">${bagTxt(p.nbs&&p.nbs.length?sum(p.nbs):p.lines.length)}</span><span class="pc">${f1(sum(p.lines))} kg</span></div></button>`).join(''):'<div class="note">Nothing parked.</div>'))}
 function confirmSlip(){S.slip.stick=!!S.cfg.stickers;S.slip.copies=S.cfg.copies||1;const sp=S.slip;if(!sp.cust)return toast('Choose the customer first','bad');
- const tok='JW-'+pad(S.nextJw++),kg=r2(sum(sp.lines)),nbs=slipNbs().slice(),j={id:uid('J'),nb:sum(nbs),tok,customer:sp.cust[0],place:sp.cust[1],mobile:sp.cust[2]||'',lines:sp.lines.slice(),seedKg:kg,cake:sp.cake,advC:sp.advC||0,advA:sp.advA||0,advR:sp.advR||0,advRA:sp.advRA||0,cans:Object.assign({},sp.cans),time:clock(),crushed:false,settled:false,given:false,method:'cash'};
+ const tok='JW-'+pad(S.nextJw++),kg=r2(sum(sp.lines)),nbs=slipNbs().slice(),j={id:uid('J'),nb:sum(nbs),tok,customer:sp.cust[0],place:sp.cust[1],mobile:sp.cust[2]||'',lines:sp.lines.slice(),seedKg:kg,cake:sp.cake,advC:sp.advC||0,advA:sp.advA||0,advR:sp.advR||0,advRA:sp.advRA||0,cans:Object.assign({},sp.cans),time:clock(),at:Date.now(),crushed:false,settled:false,given:false,method:'cash'};
  S.jw.push(j);const est=Math.abs(settlement(j).due);
  const rows=[['Token no. (today)',String(jserial(j))],['Invoice no.',j.tok.replace('JW-','#')],['-'],['Customer',j.customer],['Village',j.place],...(j.mobile?[['Mobile',fmtMob(j.mobile)]]:[]),['-'],...sp.lines.map((x,i)=>[bagLabel(nbs,i)+(sp.cnos[i]?' · '+cnoL()+' '+sp.cnos[i]:''),f2(x)+' kg']),['Total seed',f1(kg)+' kg · '+bagTxt(sum(nbs))],['Khali',sp.cake==='SHOP'?'Shop keeps · ₹6/kg':'Customer takes · ₹10/kg'],sp.advC?['Customer advance',inr(sp.advC)]:null,sp.advA?['Tempo advance',inr(sp.advA)]:null,sp.advR?['Advance returned',inr(sp.advR)]:null,sp.advRA?['Tempo advance returned',inr(sp.advRA)]:null,...CANK.filter(c=>sp.cans[c[0]]).map(c=>[c[2],'× '+sp.cans[c[0]]])].filter(Boolean);
  clearSlip();
@@ -648,7 +661,7 @@ function sheetWaiting(){const gs=groups();
  const kgOf=f=>sum(S.queue.filter(x=>KIND(x.k)===f).map(x=>x.kg));
  const sumBar=S.queue.length?`<div class="wsum">${[['seed','seed'],['oil','drop'],['khali','bag']].filter(([f])=>cnt(f)).map(([f,ico])=>`<span class="pc tk">${ic(ico)}${f==='khali'?'Khali · Oil cake':f[0].toUpperCase()+f.slice(1)} ${f1(kgOf(f))} kg · ${f==='oil'?cnt(f)+' cans':bagTxt(sum(S.queue.filter(x=>KIND(x.k)===f).map(x=>x.nb||1)))}</span>`).join('')}${cnt('bar')?`<span class="pc tk">${ic('barrel')}Barrels · ${cnt('bar')}</span>`:''}</div>`:'';
  const filt=`<div class="wf">${KINDS.filter(([f])=>f==='all'||cnt(f)).map(([f,n,ico])=>`<button class="${S.wf===f?'sel':''}" onclick="wFilter('${f}')">${ic(ico)}${n}<b>${cnt(f)}</b></button>`).join('')}</div>`;
- const cards=gs.map((g,gi)=>{if(S.wf!=='all'&&KIND(g.k)!==S.wf)return '';const i=IT[g.k],kg=sum(g.items.map(x=>x.kg)),cust=isCust(g.k);
+ const cards=sortBy(gs.map((g,gi)=>({g,gi})),o=>({ts:tsOf(o.g.items[0]),no:o.gi+1,cno:o.g.cno,name:o.g.cno?'':IT[o.g.k].wl,kg:sum(o.g.items.map(x=>x.kg))})).map(({g,gi})=>{if(S.wf!=='all'&&KIND(g.k)!==S.wf)return '';const i=IT[g.k],kg=sum(g.items.map(x=>x.kg)),cust=isCust(g.k);
   const nx=gi===0?' next':'';const acts=g.k==='cseed'?`<button class="sbtn go${nx}" onclick="wNewJob(${gi})">${ic('plus')}New job</button><button class="sbtn" data-f="addjob" onclick="wToJob(${gi})">${ic('list')}Add to a job</button>`
    :g.k==='coil'?`<button class="sbtn go${nx}" onclick="wCOil(${gi})">${ic('user')}Give to customer…</button>`
    :g.k==='ooil'?['K2','Floor barrel','Small tank'].map(x=>`<button class="sbtn" onclick="wOil(${gi},'${x}')">${ic('barrel')}${x}</button>`).join('')
@@ -663,7 +676,7 @@ function sheetWaiting(){const gs=groups();
    <div class="wtot"><b>${f1(kg)} kg</b><small>${isBagK(g.k)?bagTxt(sum(g.items.map(x=>x.nb||1)))+' · ':''}${g.items.length} weighing(s)</small></div>
    ${g.items.map(x=>`<div class="wl1"><span>${x.time}</span><span>${esc(x.by)}</span>${isBagK(x.k)?`<span>${bagTxt(x.nb||1)}</span>`:''}${x.slip?`<span>${x.slip}</span>`:''}${x.voice?`<button class="vp" onclick="toast('Playing voice note · ${x.voice} s')">${ic('mic')}${x.voice}s</button>`:''}${x.photo?`<button class="vp" onclick="toast('Photo of the bags opens here')">${ic('camera')}photo</button>`:''}<b>${f2(x.kg)}</b></div>`).join('')}
    ${bagBtns}<div class="two" style="grid-template-columns:1fr 1fr">${acts}</div></div>`}).join('');
- layer('Waiting list'+(S.queue.length?` · ${S.queue.length}`:''),(S.queue.length?`<div class="note">What the workers weighed. Sort each group. The weights cannot be changed, but a load can be moved to another bag no.</div>${sumBar}${filt}${cards}`:`<div class="note" style="text-align:center;padding:30px 0">${ic('check')}<br>Nothing waiting. Workers' weighings appear here.</div>`))}
+ layer('Waiting list'+(S.queue.length?` · ${S.queue.length}`:''),(S.queue.length?sortBar('W',1)+`<div class="note">What the workers weighed. Sort each group. The weights cannot be changed, but a load can be moved to another bag no.</div>${sumBar}${filt}${cards}`:`<div class="note" style="text-align:center;padding:30px 0">${ic('check')}<br>Nothing waiting. Workers' weighings appear here.</div>`))}
 const takeG=gi=>{const g=groups()[gi];S.queue=S.queue.filter(x=>!g.items.includes(x));return g};
 function wNewJob(gi){const g=takeG(gi);const gc=gCust(g);if(gc&&!S.slip.cust)S.slip.cust=gc;S.slip.cnos=(S.slip.cnos||[]);slipNbs();while(S.slip.cnos.length<S.slip.lines.length)S.slip.cnos.push('');S.slip.cnos=S.slip.cnos.concat(g.items.map(x=>x.cno||''));slipNbs();S.slip.nbs=S.slip.nbs.slice(0,S.slip.lines.length).concat(g.items.map(x=>x.nb||1));S.slip.lines=S.slip.lines.concat(g.items.map(x=>x.kg));S.view='slip';closeLayer();toast(S.slip.cust?'Loaded into a new job for '+S.slip.cust[0]+' — check and tap Save job':S.mode==='worker'?'Loaded into a new job — switch to Counter to choose the customer':'Loaded into a new job — choose the customer')}
 function wToJob(gi){const g=groups()[gi];sheetJobPick('Add '+f1(sum(g.items.map(x=>x.kg)))+' kg to which job?',j=>{const gg=takeG(groupsIdx(g));j.nb=bagsOf(j)+sum(gg.items.map(x=>x.nb||1));j.lines=j.lines.concat(gg.items.map(x=>x.kg));j.seedKg=r2(sum(j.lines));toast('Added to '+j.tok);sheetWaiting()},j=>!j.crushed)}
@@ -716,14 +729,14 @@ function sheetJob(tok){const j=S.jw.find(x=>x.tok===tok),s=settlement(j),dirIn=s
   <div class="sec"><div class="grp"><span class="gi" style="background:#8A7F6E">${ic('clock')}</span>Date &amp; time</div>${[['Weighed',j.time],['Crushed',j.tCrushed||(j.crushed?'—':null)],[payLbl(j,dirIn),j.tPaid||(j.settled?'—':null)],['Oil out',j.tGiven||(j.given?'—':null)],...(j.cakeLog||[]).map(x=>['Khali changed',x])].map(r=>`<div class="ar"><span>${r[0]}</span><b>${r[1]||'not yet'}</b></div>`).join('')}</div>
   <div class="sec"><div class="grp"><span class="gi" style="background:#5F82D4">${ic('book')}</span>Account</div>${acct}</div>
   ${!j.crushed?`<button class="sbtn go next" onclick="const J=S.jw.find(x=>x.tok==='${tok}');J.crushed=true;J.tCrushed=clock();toast('Crushing done · now in Held');sheetJob('${tok}')">${ic('crush')}${ic('check')}Crushing done</button>`:!(j.settled&&j.given)?`<button class="sbtn go next" onclick="sheetHeld()">${ic('lock')}Go to Held · money and oil</button>`:`<div class="st ok">${ic('check')} Closed</div>`}`,'sheetJobs()')}
-function sheetJobs(){const js=S.jw.slice().sort(sortJ);
+function sheetJobs(){const js=jsort(S.jw.slice());
  const card=j=>`<div class="card ${j.settled&&j.given?'done':''}">${jhead(j,true)}${jobSteps(j)}${payStatus(j)}<div class="pillrow"><span class="pc">${f1(j.seedKg)} kg</span><span class="pc">${bagTxt(bagsOf(j))}</span><span class="pc gd">${ic('bag')}${j.cake==='SHOP'?'khali: shop':'khali: customer'}</span></div>${takenChips(j,true)}${nextAct(j)}<button class="sbtn" style="min-height:58px" onclick="sheetJob('${j.tok}')">${jcIcon()}Job card${!j.settled?' · '+ic('swap')+ic('bag')+' Khali':''}</button></div>`;
  const sec=(t,ico,col,l)=>l.length?`<div class="grp"><span class="gi" style="background:${col}">${ic(ico)}</span>${t} (${l.length})</div>`+l.map(card).join(''):'';
- layer('Jobs today',sec('To crush','crush','#C98A25',js.filter(j=>!j.crushed))+sec('Crushed · money or oil pending','lock','#5F82D4',js.filter(j=>j.crushed&&!(j.settled&&j.given)))+sec('Closed','check','#3F9D63',js.filter(j=>j.settled&&j.given)))}
+ layer('Jobs today',sortBar('J')+sec('To crush','crush','#C98A25',js.filter(j=>!j.crushed))+sec('Crushed · money or oil pending','lock','#5F82D4',js.filter(j=>j.crushed&&!(j.settled&&j.given)))+sec('Closed','check','#3F9D63',js.filter(j=>j.settled&&j.given)))}
 
 /* ---------- Held queue: money first, then oil (same guided order as the counter) ---------- */
-function sheetHeld(){const hs=held();
- layer(`${ic('lock')} Held (${hs.length})`,`<div class="note">Crushed jobs. Tap the glowing step. For customer-pays jobs the oil stays here until the money is received.</div>`+(hs.length?hs.map(j=>{const s=settlement(j),dirIn=s.dir==='in',amt=inr(Math.abs(s.due)),lock=dirIn&&!j.settled;
+function sheetHeld(){const hs=heldSorted();
+ layer(`${ic('lock')} Held (${hs.length})`,sortBar('H')+`<div class="note">Crushed jobs. Tap the glowing step. For customer-pays jobs the oil stays here until the money is received.</div>`+(hs.length?hs.map(j=>{const s=settlement(j),dirIn=s.dir==='in',amt=inr(Math.abs(s.due)),lock=dirIn&&!j.settled;
   const money=j.settled?`<div class="st ok">${ic('check')} ${payLbl(j,dirIn)} – ${amt} ✓</div>`:`<div class="st"><span class="arr ${dirIn?'in':'out'}" style="font-size:24px">${dirIn?'↓':'↑'}</span>${dirIn?ic('bag'):''}${payLbl(j,dirIn)} – ${amt} ${ic('hourg')}</div>`;
   const nextMoney=!j.settled,nextOil=j.settled&&!j.given;
   return `<div class="card ${j.settled&&j.given?'done':''}">${jhead(j,true)}
