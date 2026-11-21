@@ -1,9 +1,10 @@
-.sp-card { border: 1px solid rgba(0,0,0,.15); border-radius: 12px; padding: 10px 12px; margin: 6px 0 10px; background: rgba(0,0,0,.02); display: flex; flex-direction: column; gap: 8px; }
+.sp-card { color: var(--c-ink, inherit); border: 1px solid var(--c-line, rgba(0,0,0,.15)); border-radius: 12px; padding: 10px 12px; margin: 6px 0 10px; background: rgba(0,0,0,.02); display: flex; flex-direction: column; gap: 8px; }
 .sp-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 0; font-size: 15px; text-align: left; color: inherit; cursor: pointer; }
 .sp-list { display: flex; flex-direction: column; gap: 6px; }
-.sp-dev { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,.18); background: #fff; color: #111; font-size: 16px; text-align: left; }
+.sp-dev { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--c-line, rgba(0,0,0,.18)); background: var(--c-bg, #fff); color: var(--c-ink, #111); font-size: 16px; text-align: left; }
+.sp-dev span, .sp-dev small { color: inherit; }
 .sp-dev small { display: block; font-size: 11px; opacity: .6; }
-.sp-dev.on { border-color: #15803d; background: #ecfdf3; font-weight: 700; }
+.sp-dev.on { border-color: #16a34a; background: color-mix(in srgb, #16a34a 22%, var(--c-bg, #fff)); color: var(--c-ink, #111); font-weight: 700; }
 .sp-dot { width: 26px; text-align: center; font-size: 18px; }
 .sp-note { font-size: 13px; opacity: .75; margin: 0; }
 .sp-warn { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 10px; background: #fef3c7; color: #78350f; font-weight: 600; }

@@ -35,6 +35,7 @@ import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, v
 import { billGuide, counterStep } from "@/lib/counterGuide";
 import { billIcon, billName, qtyText, oilKgText } from "@/lib/counterName";
 import { LAYOUTS, LAYOUT_INFO, layoutShow, parseTabletOpts, pickLayout, type Layout, type TabletOpts } from "@/lib/counterLayout";
+import BillReports from "./BillReports";
 import PrinterChip from "@/components/print/PrinterChip";
 import ReceivePayment, { type ReceiveArgs, type RecvDraft } from "./ReceivePayment";
 import CashReceived from "./CashReceived";
@@ -586,9 +587,9 @@ export default function CounterApp() {
 
   // ---- saved bills
   const labelOf = (item: string | null, lbl: string | null) => lbl || cfg.items.find((i) => i.key === item)?.en || catalog.find((c) => c.key === item)?.en || item || "Item";
-  const loadBills = async () => {
-    const from = bFrom || date;
-    const to = bTo || from;
+  const loadBills = async (ov?: { from: string; to: string }) => {
+    const from = ov?.from || bFrom || date;
+    const to = ov?.to || (ov ? ov.from : bTo) || from;
     setBErr("");
     try {
       const res = await fetch(`/api/register/range?from=${from}&to=${to}`, { cache: "no-store" });
@@ -751,6 +752,7 @@ export default function CounterApp() {
     }
   };
 
+  const [bTab, setBTab] = useState<"bills" | "reports">("bills");
   const [bFilter, setBFilter] = useState<"all" | "open" | "held">("all");
   const [, setArmed] = useState<string | null>(null);
   const openN = bills.filter((b) => isTracked(b.track) && payStatus(b.modes, b.track).state !== "PAID").length;
@@ -1099,7 +1101,7 @@ export default function CounterApp() {
             🅿️ {k("Parked", "ನಿಲ್ಲಿಸಿದ")} <b>{holds.length}</b>
           </button>
         )}
-        {show.bills && <button type="button" className="ctr-tbtn" onClick={() => { setBFilter(queueInBills ? "held" : "all"); setSelMode(false); setSel([]); setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}{(queueInBills ? heldN : openN) > 0 && <b>{queueInBills ? heldN : openN}</b>}</button>}
+        {show.bills && <button type="button" className="ctr-tbtn" onClick={() => { setBFilter(queueInBills ? "held" : "all"); setSelMode(false); setSel([]); setBTab("bills"); setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}{(queueInBills ? heldN : openN) > 0 && <b>{queueInBills ? heldN : openN}</b>}</button>}
         {!queueInBills && (heldN > 0 || holdCash) && <button type="button" className={`ctr-tbtn${heldN > 0 ? " has" : ""}${readyN > 0 ? " ctr-next" : ""}`} onClick={() => { setPanel("queue"); void loadBills(); }} title={k("Bills whose oil is held till the money is received", "ಹಣ ಬರುವವರೆಗೆ ಎಣ್ಣೆ ಹಿಡಿದ ಬಿಲ್‌ಗಳು")}>🔒 {k("Held queue", "ಹಿಡಿದ ಸಾಲು")} <b>{heldN}</b></button>}
     </>
   );
@@ -1509,6 +1511,24 @@ export default function CounterApp() {
               <b>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}</b>
               <button type="button" onClick={() => setPanel(null)} aria-label="Close">✕</button>
             </div>
+            <div className="ctr-btabs" role="tablist">
+              <button type="button" role="tab" aria-selected={bTab === "bills"} className={bTab === "bills" ? "on" : ""} onClick={() => setBTab("bills")}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}</button>
+              <button type="button" role="tab" aria-selected={bTab === "reports"} className={bTab === "reports" ? "on" : ""} onClick={() => { setBTab("reports"); setSelMode(false); setSel([]); }}>📊 {k("Reports", "ವರದಿಗಳು")}</button>
+            </div>
+            {bTab === "reports" ? (
+              <BillReports
+                bills={bills}
+                k={k}
+                from={bFrom || date}
+                to={bTo || bFrom || date}
+                today={date}
+                onRange={(f, t) => { setBFrom(f); setBTo(t); void loadBills({ from: f, to: t }); }}
+                returned={retTotal}
+                modeName={modeName}
+                error={bErr}
+              />
+            ) : (
+            <>
             <div className="ctr-bfilter">
               <input type="date" value={bFrom || date} max={date} onChange={(e) => setBFrom(e.target.value)} aria-label={k("From", "ಇಂದ")} />
               <input type="date" value={bTo || bFrom || date} max={date} onChange={(e) => setBTo(e.target.value)} aria-label={k("To", "ವರೆಗೆ")} />
@@ -1637,6 +1657,8 @@ export default function CounterApp() {
                 <button type="button" disabled={!sel.length || !picked.some(oilReadyOf)} onClick={() => setBulk("oil")}><OilOut size={0.5} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</button>
                 <button type="button" className="both" disabled={!sel.length || !picked.some((b) => dueOf(b) > 0 || oilHeldOf(b))} onClick={() => setBulk("both")}>✓ {k("Money + oil", "ಹಣ + ಎಣ್ಣೆ")}</button>
               </div>
+            )}
+            </>
             )}
             <p className="ctr-hint">{k("Staff can cancel or edit today's bills only; the owner any day. Every cancel is kept in the Activity log with its reason.", "ಸಿಬ್ಬಂದಿ ಇಂದಿನ ಬಿಲ್ ಮಾತ್ರ ರದ್ದು/ತಿದ್ದುಪಡಿ ಮಾಡಬಹುದು; ಮಾಲೀಕರು ಯಾವುದೇ ದಿನ. ಪ್ರತಿ ರದ್ದು ಕಾರಣದೊಂದಿಗೆ ದಾಖಲಾಗುತ್ತದೆ.")}</p>
           </div>
