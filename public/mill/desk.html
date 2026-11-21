@@ -286,6 +286,11 @@ body.noic .sbtn>svg.ic,body.noic .cp>svg.ic,body.noic .ch>svg.ic,body.noic .mrow
 .prpend button{min-height:44px;border-radius:10px;border:2px solid currentColor;background:transparent;color:inherit;font:700 15px var(--head);padding:0 14px}
 
 .wcard.nolive{border:2px dashed #E9C46A;cursor:pointer}
+/* update 2: the top bar kept cutting the title and date on a phone; the save button text wrapped */
+@media(max-width:430px){.top .pill{padding:0 6px}.top h1 .tt{font-size:0}.top h1 .tt svg{font-size:initial;margin-right:0}.top h1 small{font-size:12px}}
+.act .okb{font-size:22px;line-height:1.1;text-align:center}
+.card .sr b,.job-log .ar span{overflow-wrap:anywhere}
+.ar{gap:10px}.ar>span{padding-right:6px}.ar>b{text-align:right}
 </style>
 </head>
 <body>
@@ -355,8 +360,8 @@ const ic=(n,c='')=>`<svg class="ic ${c}" viewBox="0 0 24 24">${IC[n]||''}</svg>`
 
 /* ---------- words (English + draft Kannada; Kannada to be checked with Nilkant) ---------- */
 const L={en:{mill:'Our mill',waiting:'Waiting',jobs:'Jobs',held:'Held',parked:'Parked',read:'Read weight',search:'Search item or PLU',add:'Add another bag',cash:'Cash',upi:'UPI',udhaar:'Udhaar',wait:'Wait',clear:'Clear',hold:'Hold',
- oil:'Oil',oilw:'Oil wait',done:'Done',pay:'Pay ↓',who:'Who is this customer?'},
- kn:{waiting:'ಕಾಯುತ್ತಿದೆ',jobs:'ಕೆಲಸಗಳು',held:'ಬಾಕಿ',parked:'ನಿಲ್ಲಿಸಿದ',read:'ತೂಕ ಓದಿ',search:'ವಸ್ತು ಹುಡುಕಿ',add:'ಇನ್ನೊಂದು ಚೀಲ',cash:'ನಗದು',upi:'UPI',udhaar:'ಉದ್ರಿ',wait:'ಕಾಯಿ',clear:'ಅಳಿಸು',hold:'ನಿಲ್ಲಿಸು',oil:'ಎಣ್ಣೆ',oilw:'ಎಣ್ಣೆ ಕಾಯಿ',done:'ಆಯಿತು',pay:'ಪಾವತಿ ↓',who:'ಯಾವ ಗ್ರಾಹಕ?'}};
+ oil:'Oil',oilw:'Oil wait',done:'Done',pay:'Pay ↓',who:'Name'},
+ kn:{waiting:'ಕಾಯುತ್ತಿದೆ',jobs:'ಕೆಲಸಗಳು',held:'ಬಾಕಿ',parked:'ನಿಲ್ಲಿಸಿದ',read:'ತೂಕ ಓದಿ',search:'ವಸ್ತು ಹುಡುಕಿ',add:'ಇನ್ನೊಂದು ಚೀಲ',cash:'ನಗದು',upi:'UPI',udhaar:'ಉದ್ರಿ',wait:'ಕಾಯಿ',clear:'ಅಳಿಸು',hold:'ನಿಲ್ಲಿಸು',oil:'ಎಣ್ಣೆ',oilw:'ಎಣ್ಣೆ ಕಾಯಿ',done:'ಆಯಿತು',pay:'ಪಾವತಿ ↓',who:'ಹೆಸರು'}};
 const t=k=>(L[S.lang]||L.en)[k]||L.en[k]||k;
 
 const ITEMS=[
@@ -412,9 +417,16 @@ const CUSTS=[['Mohammed Ali','Bidar'],['Shivakumar Patil','Kamthana'],['Gundappa
 const PLACES=['Bidar','Kamthana','Chidri','Naubad','Janawada','Humnabad','Bhalki','Chitguppa'];
 const RATE={SHOP:6,CUSTOMER:10},CANS={can15:50,can5new:40,can5old:20};
 const canCharge=c=>sum(Object.entries(c||{}).map(([k,q])=>q*(CANS[k]||0)));
-function settlement(j){const rate=RATE[j.cake],gross=j.seedKg*rate,cans=canCharge(j.cans),adv=(j.advC||0)+(j.advA||0);
- if(j.cake==='SHOP'){const half=gross/2;return{rate,gross,cans,adv,due:gross-adv-cans,dir:'out',cust:half-(j.advC||0)-cans,auto:half-(j.advA||0)}}
- return{rate,gross,cans,adv,due:gross+cans-adv,dir:'in',cust:gross+cans-adv,auto:0}}
+function settlement(j){const rate=RATE[j.cake],gross=j.seedKg*rate,cans=canCharge(j.cans),aC=Math.max(0,(j.advC||0)-(j.advR||0)),adv=aC+(j.advA||0);
+ if(j.cake==='SHOP'){const half=gross/2,due=gross-adv-cans;return{rate,gross,cans,adv,due,dir:due>=0?'out':'in',cust:half-aC-cans,auto:half-(j.advA||0),advR:j.advR||0}}
+ const due=gross+cans-adv;return{rate,gross,cans,adv,due,dir:due>=0?'in':'out',cust:due,auto:0,advR:j.advR||0}}
+/* who pays whom: 'in' = the customer pays us, 'out' = we pay the customer (cans and advances are taken off first) */
+const payLbl=(j,dirIn)=>dirIn?(j.cake==='SHOP'?'Customer pays':'Khali payment'):'Pay customer';
+const splitNote=s=>'Customer '+(s.cust>=0?'gets ':'owes ')+inr(s.cust)+' · Tempo '+(s.auto>=0?'gets ':'owes ')+inr(s.auto);
+function resRows(j,s){const net=`<div class="ar res"><span>${s.dir==='in'?ic('down')+(j.cake==='SHOP'?'':ic('bag'))+' '+(j.cake==='SHOP'?'Customer pays you':'Khali payment'):ic('up')+' You pay customer'}</span><b>${inr(s.due)}</b></div>`;
+ if(j.cake!=='SHOP')return net;
+ const line=(ico,pay,owe,v)=>`<div class="ar"><span>${ic(ico)} ${v>=0?pay:owe}</span><b>${inr(v)}</b></div>`;
+ return line('user','Pay customer','Customer owes shop',s.cust)+line('auto','Pay tempo','Tempo owes shop',s.auto)+net}
 
 /* ---------- state ---------- */
 const isBagK=k=>/seed|khali/.test(k)&&k!=='sed';
@@ -426,7 +438,7 @@ function slipNb(i,d){slipNbs();S.slip.nbs[i]=Math.max(1,S.slip.nbs[i]+d);render(
 const cnoL=()=>S.lang==='kn'?'ಗ್ರಾಹಕ ನಂ.':'Customer no.';
 const S={lastCno:1,wf:'all',mode:'counter',istyle:'A',lang:'en',view:'pick',q:'',canTare:4.65,needZero:false,
  scale:{w:0,from:0,to:0,t0:0,dur:900},st:{v:0,since:Date.now()},
- slip:{cust:null,cake:'SHOP',lines:[],advC:0,advA:0,cans:{},stick:true,copies:2},wtray:[],wsn:31,parked:[],own:{cseedNote:0,oseed:[287.4,241.2,240.0],ooil:[[15.2,'Floor barrel'],[16.1,'Floor barrel'],[17.0,'Floor barrel']],okhali:[44.1,43.6,45.2],sed:[],other:[]},
+ slip:{cust:null,cake:'SHOP',lines:[],advC:0,advA:0,advR:0,cans:{},stick:true,copies:2},wtray:[],wsn:31,parked:[],own:{cseedNote:0,oseed:[287.4,241.2,240.0],ooil:[[15.2,'Floor barrel'],[16.1,'Floor barrel'],[17.0,'Floor barrel']],okhali:[44.1,43.6,45.2],sed:[],other:[]},
  nextJw:417,qn:20,
  jw:[
   {tok:'JW-0416',customer:'Mohammed Ali',place:'Bidar',lines:[85.0],nb:2,seedKg:85,cake:'SHOP',advC:0,advA:0,cans:{},time:'18 Nov 05:30 PM',crushed:true,settled:false,given:false,oilKg:18.7},
@@ -477,8 +489,8 @@ function render(){
  if(!demo.dataset.ready){demo.dataset.ready=1;demo.insertAdjacentHTML('beforeend',[['Seed bag 48.6',48.6],['Full barrel 192.4',192.4],['Empty barrel 12.3',12.3],['Next bag 49.2',49.2],['Can + oil 19.85',19.85],['Khali bag 44.3',44.3],['Moving…',130],['Over 300',312],['Empty',0]].map(([l,v])=>`<button onclick="simSet(${v})">${l}</button>`).join(''))}
  $('#top').innerHTML=`<h1><span class="tt">${ic('weigh')}Mill Desk</span><small><b style="color:var(--amber,#E9C46A)">${nowShort()}</b></small></h1>
   <span class="pill" data-f="bt" title="Bluetooth scale" onclick="millScaleTap()"><span class="dot"></span>${ic('bt')}</span><span class="pill" data-f="pr" title="Printer" onclick="millPrinterTap()"><span class="dot"></span>${ic('printer')}</span>
-  <button class="pill" data-f="lang" onclick="S.lang=S.lang==='en'?'kn':'en';render()"><span class="gl">${ic('globe')}</span>${S.lang==='en'?'EN':'ಕನ್ನಡ'}</button>
-  ${S.mode==='worker'?'':`<button class="pill" onclick="sheetSettings()" aria-label="Settings">${ic('gear')}</button>`}${S.mode==='worker'?'':`<button class="pill" onclick="millCounterOpen()" aria-label="Barrel counter desk">${icoSvg('bfull',22)}</button>`}<button class="pill on" data-f="mode" onclick="S.mode=S.mode==='worker'?'counter':'worker';S.view='pick';render()">${ic(S.mode==='worker'?'user':'rupee')}<span class="pl">${S.mode==='worker'?'Worker':'Counter'}</span><span class="pl">⇄</span></button>`;
+  <button class="pill" data-f="lang" onclick="setLang(S.lang==='en'?'kn':'en')"><span class="gl">${ic('globe')}</span>${S.lang==='en'?'EN':'ಕನ್ನಡ'}</button>
+  ${S.mode==='worker'?'':`<button class="pill" onclick="sheetSettings()" aria-label="Settings">${ic('gear')}</button>`}${S.mode==='worker'?'':`<button class="pill" onclick="millCounterOpen()" aria-label="Barrel counter desk">${icoSvg('bfull',22)}</button>`}<button class="pill on" data-f="mode" onclick="setMode(S.mode==='worker'?'counter':'worker')">${ic(S.mode==='worker'?'user':'rupee')}<span class="pl">${S.mode==='worker'?'Worker':'Counter'}</span><span class="pl">⇄</span></button>`;
  const cnt=(n,ico,key,fn,hl)=>`<button class="cp ${hl?'has':''}" data-f="tab-${key}" onclick="${fn}">${ico==='jc'?jcIcon(24):ico==='own'?ownIcon(24):ic(ico)}<span>${t(key)}</span><span class="n">${n}</span></button>`;
  $('#chips').innerHTML=cnt(S.queue.length,'hourg','waiting','sheetWaiting()',S.queue.length)+cnt(openCount()+held().length,'jc','jobs','sheetJobs()',0)+cnt(held().length,'lock','held','sheetHeld()',held().length)+cnt(runsActive(),'own','mill','sheetMill()',runsActive())+cnt(S.parked.length,'park','parked','sheetParked()',S.parked.length);
  const m=$('#main');const keep=m.scrollTop;
@@ -515,13 +527,13 @@ function workerHTML(){
   +`<div class="pane wk">${groupsHTML(ITEMS,true)}</div><div class="note">Worker: put it on the scale, wait for green, tap the picture. Tap more items if needed, then <b>Save &amp; Print</b>. Green ↓ comes in, red ↑ goes out.</div>`}
 function workerPrint(){const tr=S.wtray;if(!tr.length)return;const sn='WS-'+pad(S.wsn++),tm=clock();
  tr.forEach(x=>S.queue.push({id:uid('Q'),k:x.k,nb:x.nb||1,kg:x.kg,time:tm,by:(S.me&&S.me.name)||'Worker',cno:x.cno||0,slip:sn}));
- S.wtray=[];S.wdone={sn,n:tr.length};millPrintAuto({kind:'slip',code:sn,shop:'MAHADEV TRADERS',title:'Mill 1 · WEIGHT SLIP',when:nowFull(),rows:tr.map(x=>[IT[x.k].wl+(x.cno?' · '+cnoL()+' '+x.cno:'')+(isBagK(x.k)?' · '+bagTxt(x.nb||1):''),f2(x.kg)+' kg']),foot:['By '+((S.me&&S.me.name)||'Worker'),nowFull()]},1);
+ S.wtray=[];S.wdone={sn,n:tr.length};millPrintGo(S.cfg.autoSlip!==false,{kind:'slip',code:sn,shop:'MAHADEV TRADERS',title:'Mill 1 · WEIGHT SLIP',when:nowFull(),rows:tr.map(x=>[IT[x.k].wl+(x.cno?' · '+cnoL()+' '+x.cno:'')+(isBagK(x.k)?' · '+bagTxt(x.nb||1):''),f2(x.kg)+' kg']),foot:['By '+((S.me&&S.me.name)||'Worker'),nowFull()]},1);
  layer('Printed',`<div class="note">Saved · the counter person sees these in Waiting.</div><div id="prst" class="prst"></div>
   <div class="paper"><div class="hd">MAHADEV TRADERS</div><div style="text-align:center">Mill 1 · WEIGHT SLIP</div><div style="text-align:center;font-weight:700">${nowFull()}</div><div class="hr"></div>
   ${tr.map(x=>`<div class="sr"><span>${esc(IT[x.k].wl)}${x.cno?' · '+cnoL()+' '+x.cno:''}${isBagK(x.k)?' · '+bagTxt(x.nb||1):''}</span><b>${f2(x.kg)} kg</b></div>`).join('')}<div class="hr"></div>
   <div class="sr"><span>By ${esc((S.me&&S.me.name)||'Worker')}</span><span>${nowFull()}</span></div><div class="bcw">${bcSvg(sn)}</div><div style="text-align:center;font-size:12px;letter-spacing:.1em">${sn}</div></div>
-  <button class="sbtn go next" onclick="window.__copies=1;printAgain()">${ic('printer')}<span class="prlbl">Print</span></button><button class="sbtn" onclick="millSticker()">${ic('printer')}Sticker</button><button class="sbtn" onclick="closeLayer()">${ic('check')}${t('done')}</button>`)}
-const slipEst=()=>{const sp=S.slip;return settlement({seedKg:sum(sp.lines),cake:sp.cake,advC:sp.advC,advA:sp.advA,cans:sp.cans})};
+  <button class="sbtn go next" data-f="print" onclick="window.__copies=1;printAgain()">${ic('printer')}<span class="prlbl">Print</span></button><button class="sbtn" data-f="stk" onclick="millSticker()">${ic('printer')}Sticker</button><button class="sbtn" onclick="closeLayer()">${ic('check')}${t('done')}</button>`)}
+const slipEst=()=>{const sp=S.slip;return settlement({seedKg:sum(sp.lines),cake:sp.cake,advC:sp.advC,advA:sp.advA,advR:sp.advR,cans:sp.cans})};
 function slipAmt(){return slipEst().due}
 const CANK=[['can15','tin15','15 kg tin'],['can5new','j_new','5 kg new'],['can5old','j_old','5 kg old']];
 function slipCan(k,d){S.slip.cans[k]=Math.max(0,(S.slip.cans[k]||0)+d);render()}
@@ -531,16 +543,16 @@ function slipHTML(){const sp=S.slip,kg=sum(sp.lines);
   <button class="dash" onclick="S.view='pick';render()">${ic('plus')}${t('add')}</button>
   <button class="sbtn ${needCust?'next':''}" style="justify-content:flex-start;font-size:20px;min-height:64px" onclick="sheetCust()">${ic('user')}<span>${sp.cust?`<b>${esc(sp.cust[0])}</b>${sp.cust[0]===sp.cust[1]?'':' · '+esc(sp.cust[1])}<small>${sp.cust[2]?fmtMob(sp.cust[2])+' · ':''}tap to change</small>`:t('who')}</span></button>
   ${sp.lines.map((k,i)=>`<div class="li"><div class="r1"><span class="tag" style="border:0;color:var(--soft)">${i+1}</span><b>${bagLabel(nbs,i)}</b><span class="tag">steady</span><span class="kgbox">${f2(k)} kg</span></div><div class="r1"><span class="tag">${cnoL()} ${sp.cnos[i]||'—'}</span><span class="stpr" style="margin:0"><button onclick="slipNb(${i},-1)">−</button><b>${nbs[i]}</b><button onclick="slipNb(${i},1)">+</button></span><span style="flex:1"></span><button class="xbtn" onclick="slipNbs();S.slip.lines.splice(${i},1);S.slip.cnos.splice(${i},1);S.slip.nbs.splice(${i},1);if(!S.slip.lines.length)S.view='pick';render()">${ic('x')}</button></div></div>`).join('')}
-  <div class="total"><small>${bagTxt(sum(nbs))} · ${f1(kg)} kg<br><span style="color:#B8C6E6">${est.due<0?'Customer owes shop':sp.cake==='SHOP'?'Shop pays (estimate)':'Customer pays (estimate)'}</span></small><b>${inr(est.due)}</b></div>
-  <div class="note acct" style="padding:0 4px"><div class="ar"><span>Crushing ${f1(kg)} kg × ₹${est.rate}</span><b>${inr(est.gross)}</b></div>${sp.advC?`<div class="ar"><span>− customer advance</span><b>${inr(sp.advC)}</b></div>`:''}${sp.advA?`<div class="ar"><span>− tempo advance</span><b>${inr(sp.advA)}</b></div>`:''}${est.cans?`<div class="ar"><span>${sp.cake==='SHOP'?'− cans taken':'+ cans taken'}</span><b>${inr(est.cans)}</b></div>`:''}</div>
+  <div class="total"><small>${bagTxt(sum(nbs))} · ${f1(kg)} kg<br><span style="color:#B8C6E6">${est.dir==='in'?(sp.cake==='SHOP'?'Customer pays you (estimate)':'Customer pays (khali · estimate)'):'You pay customer (estimate)'}</span></small><b>${inr(est.due)}</b></div>
+  <div class="note acct" style="padding:0 4px"><div class="ar"><span>Crushing ${f1(kg)} kg × ₹${est.rate}</span><b>${inr(est.gross)}</b></div>${sp.advC?`<div class="ar"><span>− customer advance</span><b>${inr(sp.advC)}</b></div>`:''}${sp.advA?`<div class="ar"><span>− tempo advance</span><b>${inr(sp.advA)}</b></div>`:''}${est.cans?`<div class="ar"><span>${sp.cake==='SHOP'?'− cans taken':'+ cans taken'}</span><b>${inr(est.cans)}</b></div>`:''}${sp.advR?`<div class="ar"><span>+ advance returned</span><b>${inr(sp.advR)}</b></div>`:''}${sp.cake==='SHOP'?`<div class="ar"><span>${est.cust>=0?'Customer gets':'Customer owes shop'}</span><b>${inr(est.cust)}</b></div><div class="ar"><span>${est.auto>=0?'Tempo gets':'Tempo owes shop'}</span><b>${inr(est.auto)}</b></div>`:''}</div>
   <div class="cake" data-f="khalichg"><button class="${sp.cake==='SHOP'?'sel':''}" onclick="S.slip.cake='SHOP';render()">${icoSvg('khali',30)}${ic('shop')}<br>Shop keeps khali (oil cake)<small>₹6/kg · split customer/auto</small></button><button class="${sp.cake==='CUSTOMER'?'sel':''}" onclick="S.slip.cake='CUSTOMER';render()">${icoSvg('khali',30)}${ic('user')}<br>Customer takes khali (oil cake)<small>₹10/kg of seed</small></button></div>
   <div class="sec"><div class="grp"><span class="gi" style="background:#C98A25">${ic('rupee')}</span>Taken by customer · advance and cans</div>
   <button class="mrow" data-f="adv" onclick="sheetNum('Customer advance (₹)',v=>{S.slip.advC=v;closeLayer()},'closeLayer()')"><span class="coin">₹</span><span class="arr out">↑</span><span class="sp">Customer advance</span><span class="amt">${sp.advC?inr(sp.advC):'₹ —'}</span>${ic('edit')}</button>
   <button class="mrow" data-f="adv" onclick="sheetNum('Tempo advance (₹)',v=>{S.slip.advA=v;closeLayer()},'closeLayer()')"><span class="coin">${ic('auto')}</span><span class="arr out">↑</span><span class="sp">Tempo advance</span><span class="amt">${sp.advA?inr(sp.advA):'₹ —'}</span>${ic('edit')}</button>
+  <button class="mrow" data-f="adv" onclick="sheetNum('Advance returned by customer (₹)',v=>{S.slip.advR=v;closeLayer()},'closeLayer()')"><span class="coin">₹</span><span class="arr in">↓</span><span class="sp">Advance returned</span><span class="amt">${sp.advR?inr(sp.advR):'₹ —'}</span>${ic('edit')}</button>
   <div class="cans3" data-f="cans">${CANK.map(([k,ico,n])=>{const q=sp.cans[k]||0;return `<div class="cn3 ${q?'on':''}">${icoSvg(ico,46)}<b>${n}</b><small>₹${CANS[k]} each</small><div class="stpr"><button onclick="slipCan('${k}',-1)">−</button><b>${q}</b><button onclick="slipCan('${k}',1)">+</button></div></div>`}).join('')}</div></div>
-  <div class="chrow"><button class="ch ${sp.stick?'sel':''}" data-f="stick" onclick="S.slip.stick=!S.slip.stick;render()">${ic('tag')||''}Bag stickers ${sp.stick?'ON':'OFF'}</button><button class="ch ${sp.copies>1?'sel':''}" onclick="S.slip.copies=S.slip.copies>1?1:2;render()">${S.slip.copies} receipt(s)</button></div>
   <div class="act"><button onclick="clearSlip()"><span style="color:#F06C57">${ic('x')}</span>${t('clear')}</button><button class="hold" data-f="hold" onclick="parkSlip()">${ic('pause')}${t('hold')}</button>
-   <button class="okb ${!needCust?'sbtn go next':''}" id="okb" onclick="confirmSlip()"><span>${ic('printer')}${ic('check')}</span>Token · ${f1(kg)} kg</button></div></div>`}
+   <button class="okb ${!needCust?'sbtn go next':''}" id="okb" onclick="confirmSlip()"><span>${ic('check')}</span>Save job · ${f1(kg)} kg</button></div></div>`}
 IC.tag='<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.1"/>';
 
 /* ---------- tapping an item ---------- */
@@ -600,18 +612,18 @@ function barrelDo(k,c,kg){const b=S.barrels[c]=S.barrels[c]||{};
 /* ---------- slip: confirm / park / clear ---------- */
 function clearSlip(){S.slip={cust:null,cake:'SHOP',lines:[],advC:0,advA:0,cans:{},cnos:[],nbs:[],stick:S.slip.stick,copies:S.slip.copies};S.view='pick';render()}
 function parkSlip(){if(!S.slip.lines.length)return;S.parked.push(JSON.parse(JSON.stringify(S.slip)));clearSlip();toast('Parked — find it under Parked')}
-function sheetParked(){layer('Parked',S.parked.length?S.parked.map((p,i)=>`<button class="card" style="text-align:left" onclick="S.slip=S.parked.splice(${i},1)[0];S.view='slip';S.mode='counter';closeLayer()"><h3>${p.cust?esc(p.cust[0]):'No customer yet'}</h3><div class="pillrow"><span class="pc">${bagTxt(p.nbs&&p.nbs.length?sum(p.nbs):p.lines.length)}</span><span class="pc">${f1(sum(p.lines))} kg</span></div></button>`).join(''):'<div class="note">Nothing parked.</div>')}
-function confirmSlip(){const sp=S.slip;if(!sp.cust)return toast('Choose the customer first','bad');
- const tok='JW-'+pad(S.nextJw++),kg=r2(sum(sp.lines)),nbs=slipNbs().slice(),j={id:uid('J'),nb:sum(nbs),tok,customer:sp.cust[0],place:sp.cust[1],mobile:sp.cust[2]||'',lines:sp.lines.slice(),seedKg:kg,cake:sp.cake,advC:sp.advC||0,advA:sp.advA||0,cans:Object.assign({},sp.cans),time:clock(),crushed:false,settled:false,given:false,method:'cash'};
+function sheetParked(){layer('Parked',S.parked.length?S.parked.map((p,i)=>`<button class="card" style="text-align:left" onclick="if(S.mode==='worker'){toast('Switch to Counter mode to finish this bill','bad');return}S.slip=S.parked.splice(${i},1)[0];S.view='slip';closeLayer()"><h3>${p.cust?esc(p.cust[0]):'No customer yet'}</h3><div class="pillrow"><span class="pc">${bagTxt(p.nbs&&p.nbs.length?sum(p.nbs):p.lines.length)}</span><span class="pc">${f1(sum(p.lines))} kg</span></div></button>`).join(''):'<div class="note">Nothing parked.</div>')}
+function confirmSlip(){S.slip.stick=!!S.cfg.stickers;S.slip.copies=S.cfg.copies||1;const sp=S.slip;if(!sp.cust)return toast('Choose the customer first','bad');
+ const tok='JW-'+pad(S.nextJw++),kg=r2(sum(sp.lines)),nbs=slipNbs().slice(),j={id:uid('J'),nb:sum(nbs),tok,customer:sp.cust[0],place:sp.cust[1],mobile:sp.cust[2]||'',lines:sp.lines.slice(),seedKg:kg,cake:sp.cake,advC:sp.advC||0,advA:sp.advA||0,advR:sp.advR||0,cans:Object.assign({},sp.cans),time:clock(),crushed:false,settled:false,given:false,method:'cash'};
  S.jw.push(j);const est=Math.abs(settlement(j).due);
- const rows=[['Token no. (today)',String(jserial(j))],['Invoice no.',j.tok.replace('JW-','#')],['-'],['Customer',j.customer],['Village',j.place],...(j.mobile?[['Mobile',fmtMob(j.mobile)]]:[]),['-'],...sp.lines.map((x,i)=>[bagLabel(nbs,i)+(sp.cnos[i]?' · '+cnoL()+' '+sp.cnos[i]:''),f2(x)+' kg']),['Total seed',f1(kg)+' kg · '+bagTxt(sum(nbs))],['Khali',sp.cake==='SHOP'?'Shop keeps · ₹6/kg':'Customer takes · ₹10/kg'],sp.advC?['Customer advance',inr(sp.advC)]:null,sp.advA?['Tempo advance',inr(sp.advA)]:null,...CANK.filter(c=>sp.cans[c[0]]).map(c=>[c[2],'× '+sp.cans[c[0]]])].filter(Boolean);
+ const rows=[['Token no. (today)',String(jserial(j))],['Invoice no.',j.tok.replace('JW-','#')],['-'],['Customer',j.customer],['Village',j.place],...(j.mobile?[['Mobile',fmtMob(j.mobile)]]:[]),['-'],...sp.lines.map((x,i)=>[bagLabel(nbs,i)+(sp.cnos[i]?' · '+cnoL()+' '+sp.cnos[i]:''),f2(x)+' kg']),['Total seed',f1(kg)+' kg · '+bagTxt(sum(nbs))],['Khali',sp.cake==='SHOP'?'Shop keeps · ₹6/kg':'Customer takes · ₹10/kg'],sp.advC?['Customer advance',inr(sp.advC)]:null,sp.advA?['Tempo advance',inr(sp.advA)]:null,sp.advR?['Advance returned',inr(sp.advR)]:null,...CANK.filter(c=>sp.cans[c[0]]).map(c=>[c[2],'× '+sp.cans[c[0]]])].filter(Boolean);
  clearSlip();
- millPrintAuto({kind:'token',code:tok,shop:'MAHADEV TRADERS',title:'JOB-WORK TOKEN',sub:'Bidar · Mill 1',when:nowFull(),rows:rows.map(r=>r[0]==='-'?'-':[r[0],r[1]]),total:['Estimate',inr(est)],foot:['Date · time',nowFull()],qr:true},sp.copies||1);
- layer('Token printed',`<div class="note">${sp.copies} receipt(s): one for the customer, one stuck on the bags${sp.stick?' · stickers print per customer no.':''}. The codes below are real and scan.</div><div id="prst" class="prst"></div>
+ millPrintGo(S.cfg.autoTok,{kind:'token',code:tok,shop:'MAHADEV TRADERS',title:'JOB-WORK TOKEN',sub:'Bidar · Mill 1',when:nowFull(),rows:rows.map(r=>r[0]==='-'?'-':[r[0],r[1]]),total:[settlement(j).dir==='in'?'Customer pays (est.)':'We pay (est.)',inr(est)],foot:['Date · time',nowFull()],qr:true},sp.copies||1);
+ layer('Job saved',`<div class="note">Job saved. Printing is optional: tap Print only if the customer needs a paper token. The codes below are real and scan.</div><div id="prst" class="prst"></div>
   <div class="paper"><div class="hd">MAHADEV TRADERS</div><div style="text-align:center">Bidar · Mill 1</div><div class="hr"></div><div style="font-weight:800;font-size:16px">JOB-WORK TOKEN</div><div style="font-weight:700">${nowFull()}</div>
-  ${rows.map(r=>r[0]==='-'?'<div class="hr"></div>':`<div class="sr"><span>${esc(r[0])}</span><b>${esc(r[1])}</b></div>`).join('')}<div class="hr"></div><div class="sr"><span>Estimate</span><span class="tot">${inr(est)}</span></div><div class="hr"></div><div class="sr"><span>Date · time</span><span>${nowFull()}</span></div>
+  ${rows.map(r=>r[0]==='-'?'<div class="hr"></div>':`<div class="sr"><span>${esc(r[0])}</span><b>${esc(r[1])}</b></div>`).join('')}<div class="hr"></div><div class="sr"><span>${settlement(j).dir==='in'?'Customer pays (est.)':'We pay (est.)'}</span><span class="tot">${inr(est)}</span></div><div class="hr"></div><div class="sr"><span>Date · time</span><span>${nowFull()}</span></div>
   <div class="bcw">${bcSvg(tok)}</div><div style="text-align:center;font-size:12px;letter-spacing:.1em">${tok}</div><div class="qrw">${qrSvg(tok)}</div></div>
-  <button class="sbtn go next" onclick="window.__copies=${sp.copies||1};printAgain()">${ic('printer')}<span class="prlbl">Print</span> · ${sp.copies||1}</button><button class="sbtn" onclick="millSticker()">${ic('printer')}Sticker</button><button class="sbtn" onclick="closeLayer()">${ic('check')}${t('done')}</button>`)}
+  <button class="sbtn go next" onclick="closeLayer()">${ic('check')}${t('done')}</button><button class="sbtn" data-f="print" onclick="window.__copies=${sp.copies||1};printAgain()">${ic('printer')}<span class="prlbl">Print</span> · ${sp.copies||1}</button><button class="sbtn" data-f="stk" onclick="millSticker()">${ic('printer')}Sticker</button><button class="sbtn" data-f="adv" onclick="sheetJob('${j.tok}')">${ic('edit')}Edit advance · cans</button>`)}
 function bcSvg(text){try{const s=document.createElementNS('http://www.w3.org/2000/svg','svg');JsBarcode(s,text,{format:'CODE128',displayValue:false,height:40,width:2,margin:0,background:'transparent'});const w=parseFloat(s.getAttribute('width')),h=parseFloat(s.getAttribute('height'));s.setAttribute('viewBox','0 0 '+w+' '+h);s.setAttribute('preserveAspectRatio','none');s.removeAttribute('width');s.removeAttribute('height');s.style.width='100%';s.style.height='100%';return s.outerHTML}catch(e){return ''}}
 function qrSvg(text){try{const q=qrcode(0,'M');q.addData(text);q.make();const n=q.getModuleCount();let d='';for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(q.isDark(r,c))d+=`M${c} ${r}h1v1h-1z`;return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" style="width:100%;display:block"><path d="${d}" fill="#000"/></svg>`}catch(e){return ''}}
 
@@ -648,7 +660,7 @@ function sheetWaiting(){const gs=groups();
    ${bagBtns}<div class="two" style="grid-template-columns:1fr 1fr">${acts}</div></div>`}).join('');
  layer('Waiting list'+(S.queue.length?` · ${S.queue.length}`:''),(S.queue.length?`<div class="note">What the workers weighed. Sort each group. The weights cannot be changed, but a load can be moved to another bag no.</div>${sumBar}${filt}${cards}`:`<div class="note" style="text-align:center;padding:30px 0">${ic('check')}<br>Nothing waiting. Workers' weighings appear here.</div>`))}
 const takeG=gi=>{const g=groups()[gi];S.queue=S.queue.filter(x=>!g.items.includes(x));return g};
-function wNewJob(gi){const g=takeG(gi);S.slip.cnos=(S.slip.cnos||[]);slipNbs();while(S.slip.cnos.length<S.slip.lines.length)S.slip.cnos.push('');S.slip.cnos=S.slip.cnos.concat(g.items.map(x=>x.cno||''));slipNbs();S.slip.nbs=S.slip.nbs.slice(0,S.slip.lines.length).concat(g.items.map(x=>x.nb||1));S.slip.lines=S.slip.lines.concat(g.items.map(x=>x.kg));S.view='slip';S.mode='counter';closeLayer();toast('Loaded into a new job — choose the customer')}
+function wNewJob(gi){const g=takeG(gi);S.slip.cnos=(S.slip.cnos||[]);slipNbs();while(S.slip.cnos.length<S.slip.lines.length)S.slip.cnos.push('');S.slip.cnos=S.slip.cnos.concat(g.items.map(x=>x.cno||''));slipNbs();S.slip.nbs=S.slip.nbs.slice(0,S.slip.lines.length).concat(g.items.map(x=>x.nb||1));S.slip.lines=S.slip.lines.concat(g.items.map(x=>x.kg));S.view='slip';closeLayer();toast(S.mode==='worker'?'Loaded into a new job — switch to Counter to choose the customer':'Loaded into a new job — choose the customer')}
 function wToJob(gi){const g=groups()[gi];sheetJobPick('Add '+f1(sum(g.items.map(x=>x.kg)))+' kg to which job?',j=>{const gg=takeG(groupsIdx(g));j.nb=bagsOf(j)+sum(gg.items.map(x=>x.nb||1));j.lines=j.lines.concat(gg.items.map(x=>x.kg));j.seedKg=r2(sum(j.lines));toast('Added to '+j.tok);sheetWaiting()},j=>!j.crushed)}
 function groupsIdx(g){return groups().findIndex(x=>x.k===g.k&&x.cno===g.cno)}
 function wOil(gi,tank){const g=takeG(gi);g.items.forEach(x=>{S.own.ooil.push([x.kg,tank]);oilToRun(x.kg,tank)});toast(f1(sum(g.items.map(x=>x.kg)))+' kg → '+tank);sheetWaiting()}
@@ -666,7 +678,7 @@ function nextAct(j){if(j.settled&&j.given)return '';
  return `<button class="sbtn go next" style="min-height:64px" onclick="sheetHeld()">${!j.settled&&j.cake!=='SHOP'?ic('bag'):''}${ic(!j.settled?'rupee':'oilout')}${ic('arrowr')}${!j.settled?(j.cake==='SHOP'?'Pay customer':'Khali payment'):'Oil out'}</button>`}
 function ownIcon(sz){return `<span class="jci own" style="--s:${sz||26}px">${ic('crush')}<i>${ic('mill')}</i></span>`}
 function jcIcon(sz){return `<span class="jci" style="--s:${sz||26}px">${ic('crush')}<i>${ic('user')}</i></span>`}
-function jobSteps(j){const dirIn=j.cake!=='SHOP';const st=[['weigh','Weighed',true],['crush','Crushed',j.crushed],[dirIn?'bag':'rupee',dirIn?'Khali payment':'Pay customer',j.settled],['oilout','Oil out',j.given]];
+function jobSteps(j){const dirIn=settlement(j).dir==='in';const st=[['weigh','Weighed',true],['crush','Crushed',j.crushed],[dirIn?'bag':'rupee',payLbl(j,dirIn),j.settled],['oilout','Oil out',j.given]];
  const cur=st.findIndex(x=>!x[2]);
  return `<div class="steps">${st.map((x,i)=>`<div class="stp ${x[2]?'ok':i===cur?'cur':''}"><span>${ic(x[0])}${x[2]?`<i class="tk">${ic('check')}</i>`:''}</span><small>${x[1]}</small></div>`).join('<i class="sep"></i>')}</div>`}
 function canStep(tok,k,d){const j=S.jw.find(x=>x.tok===tok);j.cans[k]=Math.max(0,(j.cans[k]||0)+d);sheetJob(tok)}
@@ -674,21 +686,22 @@ function setAdv(tok,f,v){S.jw.find(x=>x.tok===tok)[f]=v;sheetJob(tok)}
 function sheetJob(tok){const j=S.jw.find(x=>x.tok===tok),s=settlement(j),dirIn=s.dir==='in',edit=!j.settled;
  const row=(ico,label,val,fn)=>`<button class="trow" data-f="${/advance/i.test(label)?'adv':''}" ${fn&&edit?`onclick="${fn}"`:'disabled'} style="opacity:1"><span class="ti">${ico}</span><span class="tl">${label}</span><span class="tv">${val}</span>${fn&&edit?ic('edit'):''}</button>`;
  const canRows=CANK.map(([k,ico,n])=>{const q=(j.cans||{})[k]||0;return `<div class="trow" data-f="cans"><span class="ti">${icoSvg(ico,36)}</span><span class="tl">${n}<small>${inr(CANS[k])} each</small></span>${edit?`<button class="stp1" onclick="canStep('${tok}','${k}',-1)">−</button>`:''}<b class="q">${q}</b>${edit?`<button class="stp1" onclick="canStep('${tok}','${k}',1)">+</button>`:''}<span class="tv">${q?inr(q*CANS[k]):'—'}</span></div>`}).join('');
- const acct=`<div class="acct"><div class="ar"><span>Seed · ${bagTxt(bagsOf(j))}</span><b>${f1(j.seedKg)} kg</b></div><div class="ar"><span>${dirIn?'Customer takes khali · ₹10/kg':'Shop keeps khali · ₹6/kg'}</span><b>${inr(s.gross)}</b></div>${j.advC?`<div class="ar"><span>− customer advance</span><b>${inr(j.advC)}</b></div>`:''}${j.advA?`<div class="ar"><span>− tempo advance</span><b>${inr(j.advA)}</b></div>`:''}${s.cans?`<div class="ar"><span>${dirIn?'+ cans taken':'− cans taken'}</span><b>${inr(s.cans)}</b></div>`:''}
-  ${dirIn?`<div class="ar res"><span>${ic('down')}${ic('bag')} Khali payment</span><b>${inr(s.cust)}</b></div>`:`<div class="ar res"><span>${ic('up')} Pay customer</span><b>${inr(s.cust)}</b></div><div class="ar res"><span>${ic('auto')} Pay tempo</span><b>${inr(s.auto)}</b></div>`}</div>`;
- const khali=j.khaliKg!=null?`${f1(j.khaliKg)} kg handed`:(dirIn?'not weighed yet':'shop keeps');
+ const acct=`<div class="acct"><div class="ar"><span>Seed · ${bagTxt(bagsOf(j))}</span><b>${f1(j.seedKg)} kg</b></div><div class="ar"><span>${j.cake!=='SHOP'?'Customer takes khali · ₹10/kg':'Shop keeps khali · ₹6/kg'}</span><b>${inr(s.gross)}</b></div>${j.advC?`<div class="ar"><span>− customer advance</span><b>${inr(j.advC)}</b></div>`:''}${j.advA?`<div class="ar"><span>− tempo advance</span><b>${inr(j.advA)}</b></div>`:''}${j.advR?`<div class="ar"><span>+ advance returned</span><b>${inr(j.advR)}</b></div>`:''}${s.cans?`<div class="ar"><span>${dirIn?'+ cans taken':'− cans taken'}</span><b>${inr(s.cans)}</b></div>`:''}
+  ${resRows(j,s)}</div>`;
+ const khali=j.khaliKg!=null?`${f1(j.khaliKg)} kg handed`:(j.cake!=='SHOP'?'not weighed yet':'shop keeps');
  layer(`${esc(j.customer)}<small style="display:block;font:500 14px var(--body);color:var(--soft)">${j.tok.replace('JW-','#')} · ${esc(j.place)} · ${j.time}${j.mobile?` · <a class="callrow" href="tel:${j.mobile}" onclick="event.stopPropagation()">${ic('phone')} ${fmtMob(j.mobile)}</a>`:''}</small>${spkBtn(`sayJob('${j.tok}')`)}`,
   `${jobSteps(j)}${payStatus(j)}
   <div class="sec"><div class="grp"><span class="gi" style="background:#C98A25">${ic('rupee')}</span>Taken by customer${edit?'':' · locked after payment'}</div>
    ${row(`<span class="coin sm">₹</span>`,'Customer advance',j.advC?inr(j.advC):'₹ —',`sheetNum('Customer advance (₹)',v=>setAdv('${tok}','advC',v),'sheetJob(\'${tok}\')')`)}
    ${row(ic('auto'),'Tempo advance',j.advA?inr(j.advA):'₹ —',`sheetNum('Tempo advance (₹)',v=>setAdv('${tok}','advA',v),'sheetJob(\'${tok}\')')`)}
+   ${row(`<span class="coin sm">↓</span>`,'Advance returned',j.advR?inr(j.advR):'₹ —',`sheetNum('Advance returned by customer (₹)',v=>setAdv('${tok}','advR',v),'sheetJob(\'${tok}\')')`)}
    ${canRows}</div>
   <div class="sec" data-f="khalichg"><div class="grp"><span class="gi" style="background:#C98A25">${ic('swap')}</span>Who keeps khali (oil cake)${edit?'':' · locked after payment'}</div>
    <div class="cake"><button class="${j.cake==='SHOP'?'sel':''}" ${edit?`onclick="setCake('${tok}','SHOP')"`:'disabled'}>${icoSvg('khali',34)}${ic('shop')}<br>Shop keeps<small>₹6/kg</small></button><button class="${j.cake!=='SHOP'?'sel':''}" ${edit?`onclick="setCake('${tok}','CUSTOMER')"`:'disabled'}>${icoSvg('khali',34)}${ic('user')}<br>Customer takes<small>₹10/kg</small></button></div>
    ${edit?'<div class="note">Customer changed their mind? Tap the other one. The money below updates.</div>':''}</div>
   <div class="sec"><div class="grp"><span class="gi" style="background:#3F9D63">${ic('list')}</span>Status</div>
    ${row(icoSvg('khali',32),'Khali · Oil cake',khali)}${row(ic('oilout'),'Oil',j.given?(j.oilKg!=null?f1(j.oilKg)+' kg out':'out'):j.oilKg!=null?f1(j.oilKg)+' kg · here':'not weighed')}</div>
-  <div class="sec"><div class="grp"><span class="gi" style="background:#8A7F6E">${ic('clock')}</span>Date &amp; time</div>${[['Weighed',j.time],['Crushed',j.tCrushed||(j.crushed?'—':null)],[dirIn?'Khali payment':'Pay customer',j.tPaid||(j.settled?'—':null)],['Oil out',j.tGiven||(j.given?'—':null)],...(j.cakeLog||[]).map(x=>['Khali changed',x])].map(r=>`<div class="ar"><span>${r[0]}</span><b>${r[1]||'not yet'}</b></div>`).join('')}</div>
+  <div class="sec"><div class="grp"><span class="gi" style="background:#8A7F6E">${ic('clock')}</span>Date &amp; time</div>${[['Weighed',j.time],['Crushed',j.tCrushed||(j.crushed?'—':null)],[payLbl(j,dirIn),j.tPaid||(j.settled?'—':null)],['Oil out',j.tGiven||(j.given?'—':null)],...(j.cakeLog||[]).map(x=>['Khali changed',x])].map(r=>`<div class="ar"><span>${r[0]}</span><b>${r[1]||'not yet'}</b></div>`).join('')}</div>
   <div class="sec"><div class="grp"><span class="gi" style="background:#5F82D4">${ic('book')}</span>Account</div>${acct}</div>
   ${!j.crushed?`<button class="sbtn go next" onclick="const J=S.jw.find(x=>x.tok==='${tok}');J.crushed=true;J.tCrushed=clock();toast('Crushing done · now in Held');sheetJob('${tok}')">${ic('crush')}${ic('check')}Crushing done</button>`:!(j.settled&&j.given)?`<button class="sbtn go next" onclick="sheetHeld()">${ic('lock')}Go to Held · money and oil</button>`:`<div class="st ok">${ic('check')} Closed</div>`}`,'sheetJobs()')}
 function sheetJobs(){const js=S.jw.slice().sort(sortJ);
@@ -699,24 +712,24 @@ function sheetJobs(){const js=S.jw.slice().sort(sortJ);
 /* ---------- Held queue: money first, then oil (same guided order as the counter) ---------- */
 function sheetHeld(){const hs=held();
  layer(`${ic('lock')} Held (${hs.length})`,`<div class="note">Crushed jobs. Tap the glowing step. For customer-pays jobs the oil stays here until the money is received.</div>`+(hs.length?hs.map(j=>{const s=settlement(j),dirIn=s.dir==='in',amt=inr(Math.abs(s.due)),lock=dirIn&&!j.settled;
-  const money=j.settled?`<div class="st ok">${ic('check')} ${dirIn?'Khali payment':'Pay customer'} – ${amt} ✓</div>`:`<div class="st"><span class="arr ${dirIn?'in':'out'}" style="font-size:24px">${dirIn?'↓':'↑'}</span>${dirIn?ic('bag'):''}${dirIn?'Khali payment':'Pay customer'} – ${amt} ${ic('hourg')}</div>`;
+  const money=j.settled?`<div class="st ok">${ic('check')} ${payLbl(j,dirIn)} – ${amt} ✓</div>`:`<div class="st"><span class="arr ${dirIn?'in':'out'}" style="font-size:24px">${dirIn?'↓':'↑'}</span>${dirIn?ic('bag'):''}${payLbl(j,dirIn)} – ${amt} ${ic('hourg')}</div>`;
   const nextMoney=!j.settled,nextOil=j.settled&&!j.given;
   return `<div class="card ${j.settled&&j.given?'done':''}">${jhead(j,true)}
    <div class="pillrow"><span class="pc">Seed ${f1(j.seedKg)} kg · ${bagTxt(bagsOf(j))}</span>${j.khaliKg!=null?`<span class="pc gd">${ic('bag')}Khali out ${f1(j.khaliKg)} kg</span>`:''}</div>${takenChips(j,true)}
    ${payStatus(j)}${money}
    <button class="sbtn" style="min-height:52px" onclick="sheetJob('${j.tok}')">${jcIcon()}Job card</button>
-   ${!dirIn&&!j.settled?`<div class="note">Customer ${inr(s.cust)} · Tempo ${inr(s.auto)} · after advance${s.cans?' and cans':''}</div>`:''}
+   ${j.cake==='SHOP'&&!j.settled?`<div class="note">${splitNote(s)} · after advance${s.cans?' and cans':''}</div>`:''}
    ${!j.settled?`<div class="meth" style="padding:0">${['cash','upi'].map(m=>`<button class="${j.method===m?'sel':''}" onclick="S.jw.find(x=>x.tok==='${j.tok}').method='${m}';sheetHeld()">${m==='cash'?'<span class="coin" style="width:34px;height:34px;font-size:17px">₹</span>':ic('book')}${t(m)}</button>`).join('')}</div>`:''}
-   ${!j.settled?`<button class="mrow ${nextMoney?'next':''}" style="border-color:#fff;background:#0f1722" onclick="settle('${j.tok}')"><span class="coin">₹</span><span class="arr ${dirIn?'in':'out'}">${dirIn?'↓':'↑'}</span><span class="sp">${dirIn?ic('bag'):''}${dirIn?'Khali payment':'Pay customer'} – ${amt}</span></button>`:''}
+   ${!j.settled?`<button class="mrow ${nextMoney?'next':''}" style="border-color:#fff;background:#0f1722" onclick="settle('${j.tok}')"><span class="coin">₹</span><span class="arr ${dirIn?'in':'out'}">${dirIn?'↓':'↑'}</span><span class="sp">${dirIn?ic('bag'):''}${payLbl(j,dirIn)} – ${amt}</span></button>`:''}
    ${!j.given?`<button class="sbtn ${lock?'dis':nextOil?'go':''} ${nextOil?'next':''}" style="min-height:76px" onclick="${lock?"toast('Wait for the khali payment first','bad')":`giveOil('${j.tok}')`}">${ic('oilout')}<span>Oil out ${j.oilKg!=null?'· '+f1(j.oilKg)+' kg':'(not weighed)'} → ${ic('user')}</span></button>`:`<div class="st ok">${ic('check')} Oil out${j.oilKg!=null?' · '+f1(j.oilKg)+' kg':''}</div>`}
    ${lock&&!j.given?`<div class="note" style="text-align:center">${ic('hand')} Oil out · wait for khali payment</div>`:''}
    <div class="note">${j.settled&&j.given?'Closed.':''}</div></div>`}).join(''):'<div class="note">Nothing held. All crushed jobs are settled.</div>'))}
 function settle(tok){const j=S.jw.find(x=>x.tok===tok);j.settled=true;j.tPaid=clock();toast((settlement(j).dir==='in'?'Cash in ':'Cash out ')+inr(Math.abs(settlement(j).due))+' · '+j.method.toUpperCase());sheetHeld()}
 function payStatus(j){const st=settlement(j),dirIn=st.dir==='in';
- const one=(ico,who,adv,final,paid)=>paid?`<div class="ps ok">${ic('check')}${ic(ico)}<b>${who}</b><span>Paid${final?' '+inr(final):''}${adv?' · adv '+inr(adv):''}</span></div>`
+ const one=(ico,who,adv,final,paid)=>paid?`<div class="ps ok">${ic('check')}${ic(ico)}<b>${who}</b><span>${final<0?'Received':'Paid'}${final?' '+inr(final):''}${adv?' · adv '+inr(adv):''}</span></div>`
   :adv?`<div class="ps ok">${ic('check')}${ic(ico)}<b>${who}</b><span>Advance taken ${inr(adv)}</span></div>`
   :`<div class="ps no">${ic('clock')}${ic(ico)}<b>${who}</b><span>No advance</span></div>`;
- return `<div class="pstat">${one('user','Customer',j.advC,dirIn?0:st.cust,j.settled)}${one('auto','Tempo',j.advA,st.auto,j.settled&&!dirIn)}</div>`}
+ return `<div class="pstat">${one('user','Customer',j.advC,j.cake==='SHOP'?st.cust:0,j.settled)}${one('auto','Tempo',j.advA,j.cake==='SHOP'?st.auto:0,j.settled&&j.cake==='SHOP')}</div>`}
 function setCake(tok,c){const j=S.jw.find(x=>x.tok===tok);if(j.settled||j.cake===c)return;j.cake=c;(j.cakeLog=j.cakeLog||[]).push(clock()+' → '+(c==='SHOP'?'Shop keeps':'Customer takes'));if(c==='SHOP')delete j.khaliKg;toast('Khali: '+(c==='SHOP'?'shop keeps · ₹6/kg':'customer takes · ₹10/kg'));sheetJob(tok)}
 function giveOil(tok){const j=S.jw.find(x=>x.tok===tok);j.given=true;j.tGiven=clock();toast('Oil out · '+j.customer);sheetHeld()}
 
@@ -955,26 +968,35 @@ S.cfg=loadCfg();
 /* ===== Settings (hide tabs, icons, buttons, functions) ===== */
 const HIDE=[
  ['Tabs',[['tab-waiting','Waiting tab','hourg'],['tab-jobs','Jobs tab','jc'],['tab-held','Held tab','lock'],['tab-mill','Our mill tab','own'],['tab-parked','Parked tab','park']]],
- ['Top bar',[['bt','Bluetooth indicator','bt'],['lang','Language button','globe'],['mode','Worker / Counter switch','user']]],
+ ['Top bar',[['bt','Bluetooth indicator','bt'],['lang','Language button','globe'],['mode','Worker / Counter switch','user'],['pr','Printer indicator','printer']]],
  ['Main screen',[['demo','Demo scale buttons','weigh'],['own','Ours today line','mill'],['search','Search box','search'],['g-jw','Job work tiles','user'],['g-mill','Our mill tiles','mill'],['g-bs','Buy / Sell tiles','rupee']]],
- ['Buttons',[['addjob','Add to a job','list'],['stick','Bag stickers button','tag'],['hold','Hold (park) button','pause'],['khalichg','Who keeps khali','swap'],['adv','Advance buttons','rupee'],['cans','Cans (tin) counters','barrel'],['voice','Mic and speaker buttons','mic']]],
+ ['Buttons',[['addjob','Add to a job','list'],['print','Print button','printer'],['stk','Sticker button','tag'],['hold','Hold (park) button','pause'],['khalichg','Who keeps khali','swap'],['adv','Advance buttons','rupee'],['cans','Cans (tin) counters','barrel'],['voice','Mic and speaker buttons','mic']]],
  ['Functions',[['assistant','Voice assistant (floating icon)','bot']]]];
 const CFGKEY='milldesk.cfg';
-function loadCfg(){try{const c=JSON.parse(localStorage.getItem(CFGKEY)||'null');if(c&&typeof c==='object')return Object.assign({hide:{},noic:false,reply:true,vlang:'en-IN',autolisten:true},c)}catch(e){}return {hide:{},noic:false,reply:true,vlang:'en-IN',autolisten:true}}
+function loadCfg(){try{const c=JSON.parse(localStorage.getItem(CFGKEY)||'null');if(c&&typeof c==='object')return Object.assign({hide:{},noic:false,reply:true,vlang:'en-IN',autolisten:true,autoTok:false,autoSlip:true,stickers:false,copies:1,hideScope:'both'},c)}catch(e){}return {hide:{},noic:false,reply:true,vlang:'en-IN',autolisten:true,autoTok:false,autoSlip:true,stickers:false,copies:1,hideScope:'both'}}
 function saveCfg(){try{localStorage.setItem(CFGKEY,JSON.stringify(S.cfg))}catch(e){}}
 function applyCfg(){
  let st=document.getElementById('cfgcss');if(!st){st=document.createElement('style');st.id='cfgcss';document.head.appendChild(st)}
  const keys=[];HIDE.forEach(g=>g[1].forEach(x=>keys.push(x[0])));
- st.textContent=keys.map(k=>`body.h-${k} [data-f~="${k}"]{display:none!important}`).join('\n')+'\n[data-f^="g-"]{display:contents}';
+ const sc=S.cfg.hideScope==='worker'?'body.mw':'body';
+ st.textContent=keys.map(k=>`${sc}.h-${k} [data-f~="${k}"]{display:none!important}`).join('\n')+'\n[data-f^="g-"]{display:contents}';
  keys.forEach(k=>document.body.classList.toggle('h-'+k,!!S.cfg.hide[k]));
+ document.body.classList.toggle('mw',S.mode==='worker');
  document.body.classList.toggle('noic',!!S.cfg.noic)}
-function cfgToggle(k){if(k==='noic')S.cfg.noic=!S.cfg.noic;else if(k==='reply')S.cfg.reply=!S.cfg.reply;else if(k==='autolisten')S.cfg.autolisten=!S.cfg.autolisten;else S.cfg.hide[k]=!S.cfg.hide[k];saveCfg();applyCfg();const sc=$('#layer .lb');const y=sc?sc.scrollTop:0;sheetSettings();const s2=$('#layer .lb');if(s2)s2.scrollTop=y}
+function cfgToggle(k){if(k==='noic')S.cfg.noic=!S.cfg.noic;else if(k==='reply')S.cfg.reply=!S.cfg.reply;else if(k==='autolisten')S.cfg.autolisten=!S.cfg.autolisten;else if(k==='autoTok'||k==='autoSlip'||k==='stickers')S.cfg[k]=!S.cfg[k];else S.cfg.hide[k]=!S.cfg.hide[k];saveCfg();applyCfg();const sc=$('#layer .lb');const y=sc?sc.scrollTop:0;sheetSettings();const s2=$('#layer .lb');if(s2)s2.scrollTop=y}
 function cfgLang(l){S.cfg.vlang=l;saveCfg();if(S.ast&&S.ast.open)astRender();else{const sc=$('#layer .lb');const y=sc?sc.scrollTop:0;sheetSettings();const s2=$('#layer .lb');if(s2)s2.scrollTop=y}}
+function cfgScope(v){S.cfg.hideScope=v;saveCfg();applyCfg();sheetSettings()}
+function cfgCopies(n){S.cfg.copies=n;saveCfg();sheetSettings()}
 function cfgReset(){S.cfg=Object.assign(S.cfg,{hide:{},noic:false});saveCfg();applyCfg();sheetSettings()}
 function sheetSettings(){
- const sw=(k,label,ico,on)=>`<button class="swr ${on?'on':''}" onclick="cfgToggle('${k}')"><span class="ti">${ico==='jc'?jcIcon(26):ic(ico)}</span><span class="tl">${label}</span><span class="sw" aria-hidden="true"><i></i></span><span class="st2">${on?'Shown':'Hidden'}</span></button>`;
+ const sw=(k,label,ico,on,w)=>`<button class="swr ${on?'on':''}" onclick="cfgToggle('${k}')"><span class="ti">${ico==='jc'?jcIcon(26):ic(ico)}</span><span class="tl">${label}</span><span class="sw" aria-hidden="true"><i></i></span><span class="st2">${on?(w?w[0]:'Shown'):(w?w[1]:'Hidden')}</span></button>`;
  const langs=[['en-IN','English'],['hi-IN','हिन्दी'],['kn-IN','ಕನ್ನಡ']];
- layer('Settings',`<div class="note">Hide what the staff do not need. This only hides the button or tab; nothing is deleted. You can show it again here any time.</div>
+ layer('Settings',`<div class="grp"><span class="gi" style="background:#5F82D4">${ic('globe')}</span>Screen language</div><div class="chrow"><button class="ch ${S.lang==='en'?'sel':''}" onclick="setLang('en');sheetSettings()">English</button><button class="ch ${S.lang==='kn'?'sel':''}" onclick="setLang('kn');sheetSettings()">ಕನ್ನಡ</button></div>
+ <div class="grp"><span class="gi" style="background:#8A7F6E">${ic('printer')}</span>Printing</div>
+ ${sw('autoSlip','Print the weight slip automatically','printer',S.cfg.autoSlip!==false,['On','Off'])}${sw('autoTok','Print the job token automatically','printer',!!S.cfg.autoTok,['On','Off'])}${sw('stickers','Bag stickers with the token','tag',!!S.cfg.stickers,['On','Off'])}
+ <div class="note">Receipts per token (the Print button on a saved job).</div><div class="chrow">${[1,2].map(n=>`<button class="ch ${(S.cfg.copies||1)===n?'sel':''}" onclick="cfgCopies(${n})">${n} receipt${n>1?'s':''}</button>`).join('')}</div>
+ <div class="note">Hide what the staff do not need. This only hides the button or tab; nothing is deleted. You can show it again here any time.</div>
+ <div class="chrow"><button class="ch ${S.cfg.hideScope!=='worker'?'sel':''}" onclick="cfgScope('both')">Hide on both screens</button><button class="ch ${S.cfg.hideScope==='worker'?'sel':''}" onclick="cfgScope('worker')">Hide on Worker screen only</button></div>
  ${HIDE.map(([g,items])=>`<div class="grp"><span class="gi" style="background:#5F82D4">${ic('eye')}</span>${g}</div>${items.map(([k,l,i])=>sw(k,l,i,!S.cfg.hide[k])).join('')}`).join('')}
  <div class="grp"><span class="gi" style="background:#C98A25">${ic('eye')}</span>Icons</div>${sw('noic','Icons on buttons and tabs','eye',!S.cfg.noic)}
  <div class="grp"><span class="gi" style="background:#3F9D63">${ic('speaker')}</span>Voice</div>
@@ -1351,7 +1373,7 @@ paintWeight=function(){_pw0();const st=$('#wstat'),c=document.querySelector('.wc
  if(!live){if(S.manual)st.textContent='✍ Typed by hand · tap here to change · '+st.textContent;else if(S.scale.w<0.4)st.textContent='Scale not connected · tap here to type the weight'}};
 
 /* ---------- the mill label printer (Helett): ONE tap — Save prints at once, the app page sends it over Bluetooth ---------- */
-const PR=window.PR={native:false,name:'',ready:false,pending:0,id:'',doc:null,copies:1,busy:false,ok:null,text:'',fix:'',fallback:false,t:0};
+const PR=window.PR={native:false,name:'',ready:false,pending:0,id:'',doc:null,copies:1,sent:false,busy:false,ok:null,text:'',fix:'',fallback:false,t:0};
 function paintPrint(){
  const pill=document.querySelector('#top .pill[data-f="pr"]');
  if(pill){const dot=pill.querySelector('.dot');if(dot)dot.style.background=!PR.native?'#8a96a3':!PR.ready?'#E5484D':PR.pending?'#E9C46A':'var(--okt)';
@@ -1360,16 +1382,18 @@ function paintPrint(){
  if(e){const live=PR.busy||PR.ok!==null;
   e.style.display=live?'flex':'none';e.className='prst'+(PR.busy?'':PR.ok?' ok':' bad');
   e.innerHTML=(PR.busy?'<span>Printing…</span>':'<span>'+esc(PR.text)+'</span>')+(!PR.busy&&PR.ok===false&&PR.native?'<button onclick="millPrinterTap()">Printer set-up</button>':'')}
- document.querySelectorAll('.prlbl').forEach(x=>{x.textContent=PR.native&&PR.doc?'Print again':'Print'});
+ document.querySelectorAll('.prlbl').forEach(x=>{x.textContent=PR.native&&PR.doc&&PR.sent?'Print again':'Print'});
  let b=document.getElementById('prpend');
  if(PR.native&&PR.pending>0&&PR.ready){if(!b){b=document.createElement('div');b.id='prpend';b.className='prpend';document.body.appendChild(b)}
   b.innerHTML='<span>'+PR.pending+' slip'+(PR.pending>1?'s':'')+' not printed</span><button onclick="window.parent.postMessage({type:\'print-pending\'},location.origin)">Print now</button>'}
  else if(b)b.remove()}
-function sendPrint(doc,copies){PR.id=uid('p');PR.busy=true;PR.ok=null;PR.text='';PR.fix='';
+function sendPrint(doc,copies){PR.sent=true;PR.id=uid('p');PR.busy=true;PR.ok=null;PR.text='';PR.fix='';
  window.parent.postMessage({type:'print',id:PR.id,doc:doc||PR.doc,copies:copies||PR.copies},location.origin);
  clearTimeout(PR.t);PR.t=setTimeout(()=>{if(PR.busy){PR.busy=false;PR.ok=false;PR.text='The printer did not answer in time. Look at the printer first: if the slip did not come out, Print again.';paintPrint()}},150000);
  setTimeout(paintPrint,0)}
-window.millPrintAuto=function(doc,copies){PR.doc=doc;PR.copies=Math.max(1,+copies||1);if(!PR.native){setTimeout(paintPrint,0);return}sendPrint()};
+window.millPrepare=function(doc,copies){PR.doc=doc;PR.copies=Math.max(1,+copies||1);PR.sent=false;PR.ok=null;PR.busy=false;setTimeout(paintPrint,0)};
+window.millPrintGo=function(auto,doc,copies){return auto?window.millPrintAuto(doc,copies):window.millPrepare(doc,copies)};
+window.millPrintAuto=function(doc,copies){PR.doc=doc;PR.sent=false;PR.copies=Math.max(1,+copies||1);if(!PR.native){setTimeout(paintPrint,0);return}sendPrint()};
 window.printAgain=function(){if(PR.native&&PR.doc)sendPrint();else printPaper()};
 // a small sticker for a bag or barrel: the code as a QR (phone camera) plus the first lines; goes to the label printer
 window.millSticker=function(){const d=PR.doc;if(!d){toast('Save the slip first','bad');return}
@@ -1392,7 +1416,30 @@ window.printPaper=function(){const p=document.querySelector('#layer .paper');if(
  let a=$('#printarea');if(!a){a=document.createElement('div');a.id='printarea';document.body.appendChild(a)}
  a.innerHTML=html;setTimeout(()=>window.print(),60)};
 
+/* ---------- mode stays where the person put it; language: every screen can be shown in Kannada ---------- */
+window.setMode=function(m){S.mode=m;try{localStorage.setItem('milldesk.mode',m)}catch(e){}S.view='pick';if(typeof applyCfg==='function')applyCfg();render()};
+window.setLang=function(l){S.lang=l;try{localStorage.setItem('milldesk.lang',l)}catch(e){}render();knAll()};
+const KN={'Mill Desk':'ಮಿಲ್ ಡೆಸ್ಕ್','Our mill':'ನಮ್ಮ ಮಿಲ್','Worker':'ಕೆಲಸಗಾರ','Counter':'ಕೌಂಟರ್','Name':'ಹೆಸರು','Customer':'ಗ್ರಾಹಕ','New customer':'ಹೊಸ ಗ್ರಾಹಕ','Cancel':'ರದ್ದು','Save':'ಉಳಿಸಿ','Done':'ಮುಗಿಯಿತು','Close':'ಮುಚ್ಚಿ','Clear':'ತೆರವು','Hold':'ಹಿಡಿ','OK':'ಸರಿ','Print':'ಪ್ರಿಂಟ್','Print again':'ಮತ್ತೆ ಪ್ರಿಂಟ್','Sticker':'ಸ್ಟಿಕ್ಕರ್','Job saved':'ಕೆಲಸ ಉಳಿಸಲಾಗಿದೆ','Edit advance · cans':'ಮುಂಗಡ · ಡಬ್ಬ ಬದಲಿಸಿ',
+'Pay customer':'ಗ್ರಾಹಕರಿಗೆ ಕೊಡಿ','You pay customer':'ನೀವು ಗ್ರಾಹಕರಿಗೆ ಕೊಡಿ','Customer pays':'ಗ್ರಾಹಕರು ಕೊಡಬೇಕು','Customer pays you':'ಗ್ರಾಹಕರು ನಿಮಗೆ ಕೊಡಬೇಕು','Customer pays (est.)':'ಗ್ರಾಹಕರು ಕೊಡಬೇಕು (ಅಂದಾಜು)','We pay (est.)':'ನಾವು ಕೊಡಬೇಕು (ಅಂದಾಜು)','Khali payment':'ಹಿಂಡಿ ಹಣ','Pay tempo':'ಟೆಂಪೋಗೆ ಕೊಡಿ','Customer owes shop':'ಗ್ರಾಹಕರು ಅಂಗಡಿಗೆ ಕೊಡಬೇಕು','Tempo owes shop':'ಟೆಂಪೋ ಅಂಗಡಿಗೆ ಕೊಡಬೇಕು','Customer gets':'ಗ್ರಾಹಕರಿಗೆ ಸಿಗುತ್ತದೆ','Tempo gets':'ಟೆಂಪೋಗೆ ಸಿಗುತ್ತದೆ','You pay customer (estimate)':'ನೀವು ಗ್ರಾಹಕರಿಗೆ ಕೊಡಬೇಕು (ಅಂದಾಜು)','Customer pays you (estimate)':'ಗ್ರಾಹಕರು ನಿಮಗೆ ಕೊಡಬೇಕು (ಅಂದಾಜು)','Customer pays (khali · estimate)':'ಗ್ರಾಹಕರು ಕೊಡಬೇಕು (ಹಿಂಡಿ · ಅಂದಾಜು)',
+'Customer advance':'ಗ್ರಾಹಕರ ಮುಂಗಡ','Tempo advance':'ಟೆಂಪೋ ಮುಂಗಡ','Advance returned':'ಮುಂಗಡ ಹಿಂತಿರುಗಿಸಿದ್ದು','− customer advance':'− ಗ್ರಾಹಕರ ಮುಂಗಡ','− tempo advance':'− ಟೆಂಪೋ ಮುಂಗಡ','+ advance returned':'+ ಮುಂಗಡ ಹಿಂತಿರುಗಿದ್ದು','+ cans taken':'+ ತೆಗೆದುಕೊಂಡ ಡಬ್ಬ','− cans taken':'− ತೆಗೆದುಕೊಂಡ ಡಬ್ಬ','Taken by customer':'ಗ್ರಾಹಕರು ತೆಗೆದುಕೊಂಡದ್ದು','Taken by customer · advance and cans':'ಗ್ರಾಹಕರು ತೆಗೆದುಕೊಂಡದ್ದು · ಮುಂಗಡ ಮತ್ತು ಡಬ್ಬ',
+'Weighed':'ತೂಕ ಮಾಡಿದ್ದು','Crushed':'ಗಾಣ ಆಯಿತು','Oil out':'ಎಣ್ಣೆ ಹೊರಗೆ','Account':'ಲೆಕ್ಕ','Status':'ಸ್ಥಿತಿ','Date & time':'ದಿನಾಂಕ ಮತ್ತು ಸಮಯ','Job card':'ಕೆಲಸದ ಕಾರ್ಡ್','Crushing done':'ಗಾಣ ಮುಗಿಯಿತು','Closed':'ಮುಚ್ಚಲಾಗಿದೆ','Closed.':'ಮುಚ್ಚಲಾಗಿದೆ.','Shop keeps':'ಅಂಗಡಿ ಇಟ್ಟುಕೊಳ್ಳುತ್ತದೆ','Customer takes':'ಗ್ರಾಹಕರು ತೆಗೆದುಕೊಳ್ಳುತ್ತಾರೆ','Who keeps khali (oil cake)':'ಹಿಂಡಿ ಯಾರಿಗೆ','Shop keeps khali (oil cake)':'ಹಿಂಡಿ ಅಂಗಡಿಗೆ','Customer takes khali (oil cake)':'ಹಿಂಡಿ ಗ್ರಾಹಕರಿಗೆ','Khali · Oil cake':'ಹಿಂಡಿ','Khali changed':'ಹಿಂಡಿ ಬದಲಾಯಿತು','not yet':'ಇನ್ನೂ ಇಲ್ಲ','not weighed':'ತೂಕ ಮಾಡಿಲ್ಲ','not weighed yet':'ಇನ್ನೂ ತೂಕ ಮಾಡಿಲ್ಲ','shop keeps':'ಅಂಗಡಿಗೆ','Oil':'ಎಣ್ಣೆ','Jobs today':'ಇಂದಿನ ಕೆಲಸಗಳು','To crush':'ಗಾಣ ಆಗಬೇಕು','Cash':'ನಗದು','Held':'ಬಾಕಿ','Waiting':'ಕಾಯುತ್ತಿದೆ','Parked':'ನಿಲ್ಲಿಸಿದ','Jobs':'ಕೆಲಸಗಳು','Customer · advance':'ಗ್ರಾಹಕ · ಮುಂಗಡ',
+'Save job':'ಕೆಲಸ ಉಳಿಸಿ','Paid':'ಕೊಟ್ಟಿದೆ','Received':'ಪಡೆದಿದೆ','Advance taken':'ಮುಂಗಡ ತೆಗೆದುಕೊಂಡಿದ್ದಾರೆ','No advance':'ಮುಂಗಡ ಇಲ್ಲ','Nothing parked.':'ಏನೂ ನಿಲ್ಲಿಸಿಲ್ಲ.','Nothing held. All crushed jobs are settled.':'ಯಾವುದೂ ಬಾಕಿ ಇಲ್ಲ. ಎಲ್ಲಾ ಲೆಕ್ಕ ಮುಗಿದಿದೆ.','No customer yet':'ಇನ್ನೂ ಗ್ರಾಹಕರಿಲ್ಲ','Choose the customer first':'ಮೊದಲು ಗ್ರಾಹಕರನ್ನು ಆರಿಸಿ','Parked — find it under Parked':'ನಿಲ್ಲಿಸಲಾಗಿದೆ — "ನಿಲ್ಲಿಸಿದ" ನಲ್ಲಿ ಇದೆ','Cash in':'ನಗದು ಬಂತು','Cash out':'ನಗದು ಕೊಟ್ಟಿದ್ದು',
+'Settings':'ಸೆಟ್ಟಿಂಗ್ಸ್','Screen language':'ಪರದೆಯ ಭಾಷೆ','Printing':'ಪ್ರಿಂಟಿಂಗ್','Print the weight slip automatically':'ತೂಕದ ಚೀಟಿ ತಾನೇ ಪ್ರಿಂಟ್ ಆಗಲಿ','Print the job token automatically':'ಕೆಲಸದ ಟೋಕನ್ ತಾನೇ ಪ್ರಿಂಟ್ ಆಗಲಿ','Bag stickers with the token':'ಟೋಕನ್ ಜೊತೆ ಚೀಲದ ಸ್ಟಿಕ್ಕರ್','Tabs':'ಟ್ಯಾಬ್‌ಗಳು','Top bar':'ಮೇಲಿನ ಪಟ್ಟಿ','Main screen':'ಮುಖ್ಯ ಪರದೆ','Buttons':'ಬಟನ್‌ಗಳು','Functions':'ಕಾರ್ಯಗಳು','Icons':'ಚಿಹ್ನೆಗಳು','Voice':'ಧ್ವನಿ','Shown':'ತೋರಿಸು','Hidden':'ಮರೆ','On':'ಆನ್','Off':'ಆಫ್','1 receipt':'1 ರಸೀದಿ','2 receipts':'2 ರಸೀದಿ','Hide on both screens':'ಎರಡೂ ಪರದೆಗಳಲ್ಲಿ ಮರೆ','Hide on Worker screen only':'ಕೆಲಸಗಾರ ಪರದೆಯಲ್ಲಿ ಮಾತ್ರ ಮರೆ','Waiting tab':'ಕಾಯುತ್ತಿರುವ ಟ್ಯಾಬ್','Jobs tab':'ಕೆಲಸಗಳ ಟ್ಯಾಬ್','Held tab':'ಬಾಕಿ ಟ್ಯಾಬ್','Our mill tab':'ನಮ್ಮ ಮಿಲ್ ಟ್ಯಾಬ್','Parked tab':'ನಿಲ್ಲಿಸಿದ ಟ್ಯಾಬ್','Bluetooth indicator':'ಬ್ಲೂಟೂತ್ ಸೂಚಕ','Language button':'ಭಾಷೆ ಬಟನ್','Worker / Counter switch':'ಕೆಲಸಗಾರ / ಕೌಂಟರ್ ಬದಲಾವಣೆ','Printer indicator':'ಪ್ರಿಂಟರ್ ಸೂಚಕ','Print button':'ಪ್ರಿಂಟ್ ಬಟನ್','Sticker button':'ಸ್ಟಿಕ್ಕರ್ ಬಟನ್','Add to a job':'ಕೆಲಸಕ್ಕೆ ಸೇರಿಸಿ','Hold (park) button':'ಹಿಡಿ (ನಿಲ್ಲಿಸು) ಬಟನ್','Who keeps khali':'ಹಿಂಡಿ ಯಾರಿಗೆ','Advance buttons':'ಮುಂಗಡ ಬಟನ್‌ಗಳು','Cans (tin) counters':'ಡಬ್ಬ ಎಣಿಕೆ','Mic and speaker buttons':'ಮೈಕ್ ಮತ್ತು ಸ್ಪೀಕರ್ ಬಟನ್‌ಗಳು','Voice assistant (floating icon)':'ಧ್ವನಿ ಸಹಾಯಕ','Show everything again':'ಎಲ್ಲವನ್ನೂ ಮತ್ತೆ ತೋರಿಸು','Search box':'ಹುಡುಕಾಟ ಪೆಟ್ಟಿಗೆ',
+'Job saved. Printing is optional: tap Print only if the customer needs a paper token. The codes below are real and scan.':'ಕೆಲಸ ಉಳಿಸಲಾಗಿದೆ. ಪ್ರಿಂಟ್ ಬೇಕಿದ್ದರೆ ಮಾತ್ರ ಪ್ರಿಂಟ್ ಒತ್ತಿ.','Hide what the staff do not need. This only hides the button or tab; nothing is deleted. You can show it again here any time.':'ಸಿಬ್ಬಂದಿಗೆ ಬೇಡದ್ದನ್ನು ಮರೆಮಾಡಿ. ಬಟನ್ ಮಾತ್ರ ಮರೆಯಾಗುತ್ತದೆ, ಏನೂ ಅಳಿಸುವುದಿಲ್ಲ. ಇಲ್ಲಿಂದಲೇ ಮತ್ತೆ ತೋರಿಸಬಹುದು.'};
+const KP=[['Save job · ','ಕೆಲಸ ಉಳಿಸಿ · '],['Print · ','ಪ್ರಿಂಟ್ · '],['Seed · ','ಬೀಜ · '],['Crushing ','ಗಾಣ '],['Go to Held','ಬಾಕಿಗೆ ಹೋಗಿ'],['Oil out · ','ಎಣ್ಣೆ ಹೊರಗೆ · '],['Cash out ','ನಗದು ಕೊಟ್ಟಿದ್ದು '],['Cash in ','ನಗದು ಬಂತು '],['Saved','ಉಳಿಸಲಾಗಿದೆ'],['Held (','ಬಾಕಿ ('],['Khali: ','ಹಿಂಡಿ: ']];
+let knBusy=false;
+function knText(n){let raw=n.nodeValue;if(n.__en!==undefined){if(n.nodeValue===n.__tr)raw=n.__en;else n.__en=undefined}
+ const m=raw.match(/^(\s*)([\s\S]*?)(\s*)$/),core=m[2];
+ if(S.lang!=='kn'){if(n.__en!==undefined){n.nodeValue=n.__en;n.__en=undefined}return}
+ if(!core)return;let out=KN[core];if(out===undefined)for(const k of KP){if(core.startsWith(k[0])){out=k[1]+core.slice(k[0].length);break}}
+ if(out===undefined)return;const tr=m[1]+out+m[3];if(n.nodeValue!==tr){if(n.__en===undefined)n.__en=raw;n.__tr=tr;n.nodeValue=tr}}
+function knWalk(root){const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:x=>x.parentNode&&/^(SCRIPT|STYLE)$/.test(x.parentNode.nodeName)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});let n;while((n=w.nextNode()))knText(n)}
+function knAll(){knBusy=true;try{knWalk(document.body)}finally{knBusy=false}}
+new MutationObserver(ms=>{if(knBusy||S.lang!=='kn')return;knBusy=true;try{ms.forEach(m=>{if(m.type==='characterData')knText(m.target);else m.addedNodes.forEach(a=>{if(a.nodeType===3)knText(a);else if(a.nodeType===1)knWalk(a)})})}finally{knBusy=false}}).observe(document.body,{childList:true,subtree:true,characterData:true});
+setTimeout(knAll,0);
+
 /* ---------- start ---------- */
+try{const m=localStorage.getItem('milldesk.mode');if(m==='worker'||m==='counter')S.mode=m;const l=localStorage.getItem('milldesk.lang');if(l==='kn'||l==='en')S.lang=l}catch(e){}
 if(LIVE){
  const d=$('#demo');if(d)d.style.display='none';
  S.jw=[];S.queue=[];S.runs=[];S.own=emptyOwn();S.barrels={};CUSTS.length=0;S.nextJw=1;S.wsn=1;S.parked=[];S.me={name:'',isOwner:false};

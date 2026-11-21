@@ -1,26 +1,35 @@
 /* ===== Settings (hide tabs, icons, buttons, functions) ===== */
 const HIDE=[
  ['Tabs',[['tab-waiting','Waiting tab','hourg'],['tab-jobs','Jobs tab','jc'],['tab-held','Held tab','lock'],['tab-mill','Our mill tab','own'],['tab-parked','Parked tab','park']]],
- ['Top bar',[['bt','Bluetooth indicator','bt'],['lang','Language button','globe'],['mode','Worker / Counter switch','user']]],
+ ['Top bar',[['bt','Bluetooth indicator','bt'],['lang','Language button','globe'],['mode','Worker / Counter switch','user'],['pr','Printer indicator','printer']]],
  ['Main screen',[['demo','Demo scale buttons','weigh'],['own','Ours today line','mill'],['search','Search box','search'],['g-jw','Job work tiles','user'],['g-mill','Our mill tiles','mill'],['g-bs','Buy / Sell tiles','rupee']]],
- ['Buttons',[['addjob','Add to a job','list'],['stick','Bag stickers button','tag'],['hold','Hold (park) button','pause'],['khalichg','Who keeps khali','swap'],['adv','Advance buttons','rupee'],['cans','Cans (tin) counters','barrel'],['voice','Mic and speaker buttons','mic']]],
+ ['Buttons',[['addjob','Add to a job','list'],['print','Print button','printer'],['stk','Sticker button','tag'],['hold','Hold (park) button','pause'],['khalichg','Who keeps khali','swap'],['adv','Advance buttons','rupee'],['cans','Cans (tin) counters','barrel'],['voice','Mic and speaker buttons','mic']]],
  ['Functions',[['assistant','Voice assistant (floating icon)','bot']]]];
 const CFGKEY='milldesk.cfg';
-function loadCfg(){try{const c=JSON.parse(localStorage.getItem(CFGKEY)||'null');if(c&&typeof c==='object')return Object.assign({hide:{},noic:false,reply:true,vlang:'en-IN',autolisten:true},c)}catch(e){}return {hide:{},noic:false,reply:true,vlang:'en-IN',autolisten:true}}
+function loadCfg(){try{const c=JSON.parse(localStorage.getItem(CFGKEY)||'null');if(c&&typeof c==='object')return Object.assign({hide:{},noic:false,reply:true,vlang:'en-IN',autolisten:true,autoTok:false,autoSlip:true,stickers:false,copies:1,hideScope:'both'},c)}catch(e){}return {hide:{},noic:false,reply:true,vlang:'en-IN',autolisten:true,autoTok:false,autoSlip:true,stickers:false,copies:1,hideScope:'both'}}
 function saveCfg(){try{localStorage.setItem(CFGKEY,JSON.stringify(S.cfg))}catch(e){}}
 function applyCfg(){
  let st=document.getElementById('cfgcss');if(!st){st=document.createElement('style');st.id='cfgcss';document.head.appendChild(st)}
  const keys=[];HIDE.forEach(g=>g[1].forEach(x=>keys.push(x[0])));
- st.textContent=keys.map(k=>`body.h-${k} [data-f~="${k}"]{display:none!important}`).join('\n')+'\n[data-f^="g-"]{display:contents}';
+ const sc=S.cfg.hideScope==='worker'?'body.mw':'body';
+ st.textContent=keys.map(k=>`${sc}.h-${k} [data-f~="${k}"]{display:none!important}`).join('\n')+'\n[data-f^="g-"]{display:contents}';
  keys.forEach(k=>document.body.classList.toggle('h-'+k,!!S.cfg.hide[k]));
+ document.body.classList.toggle('mw',S.mode==='worker');
  document.body.classList.toggle('noic',!!S.cfg.noic)}
-function cfgToggle(k){if(k==='noic')S.cfg.noic=!S.cfg.noic;else if(k==='reply')S.cfg.reply=!S.cfg.reply;else if(k==='autolisten')S.cfg.autolisten=!S.cfg.autolisten;else S.cfg.hide[k]=!S.cfg.hide[k];saveCfg();applyCfg();const sc=$('#layer .lb');const y=sc?sc.scrollTop:0;sheetSettings();const s2=$('#layer .lb');if(s2)s2.scrollTop=y}
+function cfgToggle(k){if(k==='noic')S.cfg.noic=!S.cfg.noic;else if(k==='reply')S.cfg.reply=!S.cfg.reply;else if(k==='autolisten')S.cfg.autolisten=!S.cfg.autolisten;else if(k==='autoTok'||k==='autoSlip'||k==='stickers')S.cfg[k]=!S.cfg[k];else S.cfg.hide[k]=!S.cfg.hide[k];saveCfg();applyCfg();const sc=$('#layer .lb');const y=sc?sc.scrollTop:0;sheetSettings();const s2=$('#layer .lb');if(s2)s2.scrollTop=y}
 function cfgLang(l){S.cfg.vlang=l;saveCfg();if(S.ast&&S.ast.open)astRender();else{const sc=$('#layer .lb');const y=sc?sc.scrollTop:0;sheetSettings();const s2=$('#layer .lb');if(s2)s2.scrollTop=y}}
+function cfgScope(v){S.cfg.hideScope=v;saveCfg();applyCfg();sheetSettings()}
+function cfgCopies(n){S.cfg.copies=n;saveCfg();sheetSettings()}
 function cfgReset(){S.cfg=Object.assign(S.cfg,{hide:{},noic:false});saveCfg();applyCfg();sheetSettings()}
 function sheetSettings(){
- const sw=(k,label,ico,on)=>`<button class="swr ${on?'on':''}" onclick="cfgToggle('${k}')"><span class="ti">${ico==='jc'?jcIcon(26):ic(ico)}</span><span class="tl">${label}</span><span class="sw" aria-hidden="true"><i></i></span><span class="st2">${on?'Shown':'Hidden'}</span></button>`;
+ const sw=(k,label,ico,on,w)=>`<button class="swr ${on?'on':''}" onclick="cfgToggle('${k}')"><span class="ti">${ico==='jc'?jcIcon(26):ic(ico)}</span><span class="tl">${label}</span><span class="sw" aria-hidden="true"><i></i></span><span class="st2">${on?(w?w[0]:'Shown'):(w?w[1]:'Hidden')}</span></button>`;
  const langs=[['en-IN','English'],['hi-IN','हिन्दी'],['kn-IN','ಕನ್ನಡ']];
- layer('Settings',`<div class="note">Hide what the staff do not need. This only hides the button or tab; nothing is deleted. You can show it again here any time.</div>
+ layer('Settings',`<div class="grp"><span class="gi" style="background:#5F82D4">${ic('globe')}</span>Screen language</div><div class="chrow"><button class="ch ${S.lang==='en'?'sel':''}" onclick="setLang('en');sheetSettings()">English</button><button class="ch ${S.lang==='kn'?'sel':''}" onclick="setLang('kn');sheetSettings()">ಕನ್ನಡ</button></div>
+ <div class="grp"><span class="gi" style="background:#8A7F6E">${ic('printer')}</span>Printing</div>
+ ${sw('autoSlip','Print the weight slip automatically','printer',S.cfg.autoSlip!==false,['On','Off'])}${sw('autoTok','Print the job token automatically','printer',!!S.cfg.autoTok,['On','Off'])}${sw('stickers','Bag stickers with the token','tag',!!S.cfg.stickers,['On','Off'])}
+ <div class="note">Receipts per token (the Print button on a saved job).</div><div class="chrow">${[1,2].map(n=>`<button class="ch ${(S.cfg.copies||1)===n?'sel':''}" onclick="cfgCopies(${n})">${n} receipt${n>1?'s':''}</button>`).join('')}</div>
+ <div class="note">Hide what the staff do not need. This only hides the button or tab; nothing is deleted. You can show it again here any time.</div>
+ <div class="chrow"><button class="ch ${S.cfg.hideScope!=='worker'?'sel':''}" onclick="cfgScope('both')">Hide on both screens</button><button class="ch ${S.cfg.hideScope==='worker'?'sel':''}" onclick="cfgScope('worker')">Hide on Worker screen only</button></div>
  ${HIDE.map(([g,items])=>`<div class="grp"><span class="gi" style="background:#5F82D4">${ic('eye')}</span>${g}</div>${items.map(([k,l,i])=>sw(k,l,i,!S.cfg.hide[k])).join('')}`).join('')}
  <div class="grp"><span class="gi" style="background:#C98A25">${ic('eye')}</span>Icons</div>${sw('noic','Icons on buttons and tabs','eye',!S.cfg.noic)}
  <div class="grp"><span class="gi" style="background:#3F9D63">${ic('speaker')}</span>Voice</div>

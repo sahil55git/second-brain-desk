@@ -73,3 +73,14 @@ describe("checks", () => {
     expect(jobClosed({ settled: true, given: false })).toBe(false);
   });
 });
+
+describe("advance returned (update 2)", () => {
+  it("takes the returned advance off the customer advance", async () => {
+    const { jobMoney, jobError } = await import("../mill/millDesk");
+    const base = { seedKg: 100, cake: "SHOP" as const, advC: 200, advA: 0, cans: {} };
+    expect(jobMoney(base).due).toBe(400);
+    expect(jobMoney({ ...base, advR: 150 }).due).toBe(550);
+    expect(jobMoney({ ...base, advR: 999 }).due).toBe(600);
+    expect(jobError({ tok: "JW-0001", customer: "A", seedKg: 10, cake: "SHOP", advR: -1 })).toBe("Advance cannot be negative.");
+  });
+});

@@ -54,6 +54,8 @@ export interface MillJob {
   cake: CakeOwnership;
   advC?: number;
   advA?: number;
+  /** Advance the customer gave back; it takes that much off the advance already counted. */
+  advR?: number;
   cans?: Record<string, number>;
   crushed?: boolean;
   settled?: boolean;
@@ -70,7 +72,7 @@ export function jobError(j: Record<string, unknown>): string | null {
   const kg = num(j.seedKg);
   if (!(kg > 0) || kg > 100_000) return "Seed weight is not right.";
   if (j.cake !== "SHOP" && j.cake !== "CUSTOMER") return "Who keeps the khali?";
-  if (num(j.advC) < 0 || num(j.advA) < 0) return "Advance cannot be negative.";
+  if (num(j.advC) < 0 || num(j.advA) < 0 || num(j.advR) < 0) return "Advance cannot be negative.";
   if (j.cans && (typeof j.cans !== "object" || Array.isArray(j.cans))) return "Cans are not right.";
   return null;
 }
@@ -88,8 +90,11 @@ export function intakeCans(cans: Record<string, number> | undefined): CansInput 
 }
 
 /** The money on a job, from the app's own job-work rules. */
-export function jobMoney(j: Pick<MillJob, "seedKg" | "cake" | "advC" | "advA" | "cans">) {
-  const entry = { seedKg: num(j.seedKg), cakeOwnership: j.cake, advanceCustomerInr: num(j.advC), advanceAutoInr: num(j.advA), cans: intakeCans(j.cans) };
+/** The customer advance still standing after any part of it was given back. */
+export const netAdvC = (j: Pick<MillJob, "advC" | "advR">) => Math.max(0, num(j.advC) - num(j.advR));
+
+export function jobMoney(j: Pick<MillJob, "seedKg" | "cake" | "advC" | "advA" | "advR" | "cans">) {
+  const entry = { seedKg: num(j.seedKg), cakeOwnership: j.cake, advanceCustomerInr: netAdvC(j), advanceAutoInr: num(j.advA), cans: intakeCans(j.cans) };
   const rate = STANDARD_RATE[j.cake];
   const due = expectedSettlementWithRate(entry, rate);
   const split = defaultPaySplit(entry, rate);
@@ -120,7 +125,7 @@ export function intakeData(j: MillJob, by: string | null, serial: number | null)
     customer: (place ? `${j.customer} (${place})` : j.customer).slice(0, 120),
     seedKg: num(j.seedKg),
     cakeOwnership: j.cake,
-    advanceCustomerInr: num(j.advC),
+    advanceCustomerInr: netAdvC(j),
     advanceAutoInr: num(j.advA),
     cans: intakeCans(j.cans) as Prisma.InputJsonValue,
     notes: notes.slice(0, 900),
