@@ -243,6 +243,7 @@ const txtStyle = useMemo(() => {
   return (
     <div className="cd" style={txtStyle}>
       <header className="cd-top">
+        <a href="/register/counter" className="cd-back" aria-label={k("Back to Weigh & Bill", "ತೂಕ & ಬಿಲ್‌ಗೆ ಹಿಂತಿರುಗಿ")}>← {k("Weigh & Bill", "ತೂಕ & ಬಿಲ್")}</a>
         <b><CoinIcon size={28} /> {k("Cashier desk", "ಕ್ಯಾಷಿಯರ್ ಡೆಸ್ಕ್")}</b>
         <span className="cd-date"><b>{clockTime}</b> <small>{today}</small></span>
         <button type="button" onClick={() => void load()} aria-label="Refresh">🔄</button>

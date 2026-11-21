@@ -25,6 +25,8 @@
     <string name="widget_weighbill_desc">One tap to Weigh &amp; Bill: the counter for selling by weight</string>
     <string name="widget_approvals_desc">Owner: staff payments and expenses waiting for your OK</string>
     <string name="widget_actions_desc">Six one-tap buttons you choose in the app</string>
+    <string name="widget_cashier_desc">One tap to the Cashier desk: take the money, release the oil</string>
+    <string name="sc_mill">Mill Desk</string>
     <string name="sc_counter">Weigh &amp; Bill</string>
     <string name="sc_cashier">Cashier desk</string>
     <string name="sc_sale">Sale</string>

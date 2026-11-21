@@ -64,6 +64,7 @@ public class MainActivity extends BridgeActivity {
             String cls = intent.getComponent().getClassName();
             if (cls.endsWith(".CounterLauncher")) url = WidgetData.baseUrl(this) + "/register/counter";
             else if (cls.endsWith(".CashierLauncher")) url = WidgetData.baseUrl(this) + "/register/cashier";
+            else if (cls.endsWith(".MillLauncher")) url = WidgetData.baseUrl(this) + "/mill";
         }
         if (url == null) return;
         final String target = url;

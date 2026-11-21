@@ -91,3 +91,4 @@
 .cd .cd-date b { font-size: 16px; font-weight: 700; } .cd .cd-date small { font-size: 11px; opacity: .75; }
 .cd .chips span, .cd .r3 span { display: inline-flex; align-items: center; gap: 5px; }
 .cd-acts .ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.cd-back{color:inherit;text-decoration:none;border:1px solid var(--cd-line,rgba(255,255,255,.25));border-radius:10px;padding:6px 10px;font-size:14px;font-weight:700;white-space:nowrap}

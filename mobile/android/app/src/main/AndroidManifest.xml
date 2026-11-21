@@ -73,6 +73,19 @@
             </intent-filter>
         </activity-alias>
 
+        <activity-alias
+            android:name=".MillLauncher"
+            android:targetActivity=".MainActivity"
+            android:label="@string/sc_mill"
+            android:icon="@drawable/ic_mill"
+            android:roundIcon="@drawable/ic_mill"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <receiver android:name=".SummaryWidget" android:label="Mahadev · Today" android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -176,6 +189,13 @@
                 <action android:name="in.mahadevtraders.desk.REFRESH" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_millcounter_info" />
+        </receiver>
+        <receiver android:name=".CashierWidget" android:label="Mahadev · Cashier desk" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="in.mahadevtraders.desk.REFRESH" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_cashier_info" />
         </receiver>
         <receiver android:name=".WeighBillWidget" android:label="Mahadev · Weigh &amp; Bill" android:exported="false">
             <intent-filter>

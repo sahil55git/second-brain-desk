@@ -70,6 +70,7 @@ public final class Widgets {
         KINDS.put("milldesk", MillDeskWidget.class);
         KINDS.put("millcounter", MillCounterWidget.class);
         KINDS.put("weighbill", WeighBillWidget.class);
+        KINDS.put("cashier", CashierWidget.class);
     }
 
     public static RemoteViews views(Context c, String kind) {
@@ -85,7 +86,8 @@ public final class Widgets {
             case "me": return me(c);
             case "milldesk":
             case "millcounter":
-            case "weighbill": return tile(c, kind);
+            case "weighbill":
+            case "cashier": return tile(c, kind);
             default: return list(c, kind);
         }
     }
@@ -572,6 +574,8 @@ public final class Widgets {
             icon = "\u2696"; title = "Mill Desk"; sub = "Mill 1 scale · jobs"; path = "/mill"; code = 701;
         } else if ("millcounter".equals(kind)) {
             icon = "\uD83D\uDEE2"; title = "Mill Counter"; sub = "Barrels · gross · tare · net"; path = "/mill/counter"; code = 702;
+        } else if ("cashier".equals(kind)) {
+            icon = "\uD83D\uDCB0"; title = "Cashier desk"; sub = "Take money · give oil"; path = "/register/cashier"; code = 704;
         } else {
             icon = "\uD83E\uDDFE"; title = "Weigh & Bill"; sub = "Counter · sell by weight"; path = "/register/counter"; code = 703;
         }
