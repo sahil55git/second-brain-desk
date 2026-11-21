@@ -146,9 +146,16 @@ describe("/api/mill: nothing is ever copied twice", () => {
     expect(t("jobWorkIntake")[0]).toMatchObject({ settled: true, settlementAmountInr: 2900, settlementMode: "UPI" });
   });
   it("khali stack = bags weighed − khali sold at the counter", async () => {
-    await post(batch());
-    t("registerEntry").push({ id: "e1", kind: "SALE", item: "cake", unit: "kg", qty: 20, date: "2026-11-20" });
-    const d = await get();
-    expect(d.khali).toMatchObject({ inKg: 44.1, soldKg: 20, stackKg: 24.1 });
+    // the bags are dated "today": pin today to the sale's day, or the test breaks the day after it was written
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-20T06:00:00Z"));
+    try {
+      await post(batch());
+      t("registerEntry").push({ id: "e1", kind: "SALE", item: "cake", unit: "kg", qty: 20, date: "2026-11-20" });
+      const d = await get();
+      expect(d.khali).toMatchObject({ inKg: 44.1, soldKg: 20, stackKg: 24.1 });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
