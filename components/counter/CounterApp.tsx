@@ -1101,6 +1101,7 @@ export default function CounterApp() {
             🅿️ {k("Parked", "ನಿಲ್ಲಿಸಿದ")} <b>{holds.length}</b>
           </button>
         )}
+        {!kiosk?.on && show.deskLink && <Link href="/register/cashier" className="ctr-tbtn" title={k("Cashier desk: take the money, release the oil", "ಕ್ಯಾಷಿಯರ್ ಡೆಸ್ಕ್: ಹಣ ಪಡೆಯಿರಿ, ಎಣ್ಣೆ ಕೊಡಿ")}>💰 {k("Cashier", "ಕ್ಯಾಷಿಯರ್")}</Link>}
         {show.bills && <button type="button" className="ctr-tbtn" onClick={() => { setBFilter(queueInBills ? "held" : "all"); setSelMode(false); setSel([]); setBTab("bills"); setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}{(queueInBills ? heldN : openN) > 0 && <b>{queueInBills ? heldN : openN}</b>}</button>}
         {!queueInBills && (heldN > 0 || holdCash) && <button type="button" className={`ctr-tbtn${heldN > 0 ? " has" : ""}${readyN > 0 ? " ctr-next" : ""}`} onClick={() => { setPanel("queue"); void loadBills(); }} title={k("Bills whose oil is held till the money is received", "ಹಣ ಬರುವವರೆಗೆ ಎಣ್ಣೆ ಹಿಡಿದ ಬಿಲ್‌ಗಳು")}>🔒 {k("Held queue", "ಹಿಡಿದ ಸಾಲು")} <b>{heldN}</b></button>}
     </>

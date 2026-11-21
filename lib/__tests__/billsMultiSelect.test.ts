@@ -49,3 +49,16 @@ describe("Bills reports tab and printer list colours", () => {
     expect(css).toMatch(/\.sp-dev \{[^}]*background: var\(--c-bg/);
   });
 });
+
+describe("Cashier desk is easy to find", () => {
+  it("Weigh & Bill top bar links to it; the cashier desk links back; Android has a tile and own icons", () => {
+    const app = readFileSync(join(process.cwd(), "components/counter/CounterApp.tsx"), "utf8");
+    const cd = readFileSync(join(process.cwd(), "components/counter/CashierDesk.tsx"), "utf8");
+    const man = readFileSync(join(process.cwd(), "mobile/android/app/src/main/AndroidManifest.xml"), "utf8");
+    expect(app).toContain('href="/register/cashier"');
+    expect(cd).toContain('href="/register/counter"');
+    expect(man).toContain(".CashierWidget");
+    expect(man).toContain(".CashierLauncher");
+    expect(man).toContain(".MillLauncher");
+  });
+});

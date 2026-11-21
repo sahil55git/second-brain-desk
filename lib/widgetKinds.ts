@@ -4,7 +4,7 @@
 // components/android/AndroidPage.tsx.
 import { QUICK_LINKS, visibleLinks } from "@/lib/quickLinks";
 
-export type WidgetKind = "dashboard" | "summary" | "actions" | "barrels" | "cash" | "udhaar" | "jobwork" | "stock" | "alerts" | "note" | "chat" | "tips" | "tasks" | "keypad" | "me" | "approvals" | "staff" | "milldesk" | "millcounter" | "weighbill";
+export type WidgetKind = "dashboard" | "summary" | "actions" | "barrels" | "cash" | "udhaar" | "jobwork" | "stock" | "alerts" | "note" | "chat" | "tips" | "tasks" | "keypad" | "me" | "approvals" | "staff" | "milldesk" | "millcounter" | "weighbill" | "cashier";
 
 export interface WidgetInfo {
   kind: WidgetKind;
@@ -41,6 +41,7 @@ export const WIDGETS: WidgetInfo[] = [
   { kind: "milldesk", icon: "⚖️", name: "Mill Desk", what: "One tap to the Mill Desk: Mill 1 scale, job-work tokens, our crushing", size: "2×1" },
   { kind: "millcounter", icon: "🛢️", name: "Mill Counter Desk", what: "One tap to barrel lots received: gross, tare and net weight", size: "2×1" },
   { kind: "weighbill", icon: "🧾", name: "Weigh & Bill counter", what: "One tap to the counter for selling by weight", size: "2×1" },
+  { kind: "cashier", icon: "💰", name: "Cashier desk", what: "One tap to the Cashier desk: take the money, release the oil", size: "2×1" },
 ];
 
 export const NOTE_COLORS = [
