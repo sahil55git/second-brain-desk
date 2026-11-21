@@ -134,7 +134,7 @@ paintWeight=function(){_pw0();const st=$('#wstat'),c=document.querySelector('.wc
  if(!live){if(S.manual)st.textContent='✍ Typed by hand · tap here to change · '+st.textContent;else if(S.scale.w<0.4)st.textContent='Scale not connected · tap here to type the weight'}};
 
 /* ---------- the mill label printer (Helett): ONE tap — Save prints at once, the app page sends it over Bluetooth ---------- */
-const PR=window.PR={native:false,name:'',ready:false,pending:0,id:'',doc:null,copies:1,busy:false,ok:null,text:'',fix:'',fallback:false,t:0};
+const PR=window.PR={native:false,name:'',ready:false,pending:0,id:'',doc:null,copies:1,sent:false,busy:false,ok:null,text:'',fix:'',fallback:false,t:0};
 function paintPrint(){
  const pill=document.querySelector('#top .pill[data-f="pr"]');
  if(pill){const dot=pill.querySelector('.dot');if(dot)dot.style.background=!PR.native?'#8a96a3':!PR.ready?'#E5484D':PR.pending?'#E9C46A':'var(--okt)';
@@ -143,16 +143,18 @@ function paintPrint(){
  if(e){const live=PR.busy||PR.ok!==null;
   e.style.display=live?'flex':'none';e.className='prst'+(PR.busy?'':PR.ok?' ok':' bad');
   e.innerHTML=(PR.busy?'<span>Printing…</span>':'<span>'+esc(PR.text)+'</span>')+(!PR.busy&&PR.ok===false&&PR.native?'<button onclick="millPrinterTap()">Printer set-up</button>':'')}
- document.querySelectorAll('.prlbl').forEach(x=>{x.textContent=PR.native&&PR.doc?'Print again':'Print'});
+ document.querySelectorAll('.prlbl').forEach(x=>{x.textContent=PR.native&&PR.doc&&PR.sent?'Print again':'Print'});
  let b=document.getElementById('prpend');
  if(PR.native&&PR.pending>0&&PR.ready){if(!b){b=document.createElement('div');b.id='prpend';b.className='prpend';document.body.appendChild(b)}
   b.innerHTML='<span>'+PR.pending+' slip'+(PR.pending>1?'s':'')+' not printed</span><button onclick="window.parent.postMessage({type:\'print-pending\'},location.origin)">Print now</button>'}
  else if(b)b.remove()}
-function sendPrint(doc,copies){PR.id=uid('p');PR.busy=true;PR.ok=null;PR.text='';PR.fix='';
+function sendPrint(doc,copies){PR.sent=true;PR.id=uid('p');PR.busy=true;PR.ok=null;PR.text='';PR.fix='';
  window.parent.postMessage({type:'print',id:PR.id,doc:doc||PR.doc,copies:copies||PR.copies},location.origin);
  clearTimeout(PR.t);PR.t=setTimeout(()=>{if(PR.busy){PR.busy=false;PR.ok=false;PR.text='The printer did not answer in time. Look at the printer first: if the slip did not come out, Print again.';paintPrint()}},150000);
  setTimeout(paintPrint,0)}
-window.millPrintAuto=function(doc,copies){PR.doc=doc;PR.copies=Math.max(1,+copies||1);if(!PR.native){setTimeout(paintPrint,0);return}sendPrint()};
+window.millPrepare=function(doc,copies){PR.doc=doc;PR.copies=Math.max(1,+copies||1);PR.sent=false;PR.ok=null;PR.busy=false;setTimeout(paintPrint,0)};
+window.millPrintGo=function(auto,doc,copies){return auto?window.millPrintAuto(doc,copies):window.millPrepare(doc,copies)};
+window.millPrintAuto=function(doc,copies){PR.doc=doc;PR.sent=false;PR.copies=Math.max(1,+copies||1);if(!PR.native){setTimeout(paintPrint,0);return}sendPrint()};
 window.printAgain=function(){if(PR.native&&PR.doc)sendPrint();else printPaper()};
 // a small sticker for a bag or barrel: the code as a QR (phone camera) plus the first lines; goes to the label printer
 window.millSticker=function(){const d=PR.doc;if(!d){toast('Save the slip first','bad');return}
@@ -175,7 +177,30 @@ window.printPaper=function(){const p=document.querySelector('#layer .paper');if(
  let a=$('#printarea');if(!a){a=document.createElement('div');a.id='printarea';document.body.appendChild(a)}
  a.innerHTML=html;setTimeout(()=>window.print(),60)};
 
+/* ---------- mode stays where the person put it; language: every screen can be shown in Kannada ---------- */
+window.setMode=function(m){S.mode=m;try{localStorage.setItem('milldesk.mode',m)}catch(e){}S.view='pick';if(typeof applyCfg==='function')applyCfg();render()};
+window.setLang=function(l){S.lang=l;try{localStorage.setItem('milldesk.lang',l)}catch(e){}render();knAll()};
+const KN={'Mill Desk':'ಮಿಲ್ ಡೆಸ್ಕ್','Our mill':'ನಮ್ಮ ಮಿಲ್','Worker':'ಕೆಲಸಗಾರ','Counter':'ಕೌಂಟರ್','Name':'ಹೆಸರು','Customer':'ಗ್ರಾಹಕ','New customer':'ಹೊಸ ಗ್ರಾಹಕ','Cancel':'ರದ್ದು','Save':'ಉಳಿಸಿ','Done':'ಮುಗಿಯಿತು','Close':'ಮುಚ್ಚಿ','Clear':'ತೆರವು','Hold':'ಹಿಡಿ','OK':'ಸರಿ','Print':'ಪ್ರಿಂಟ್','Print again':'ಮತ್ತೆ ಪ್ರಿಂಟ್','Sticker':'ಸ್ಟಿಕ್ಕರ್','Job saved':'ಕೆಲಸ ಉಳಿಸಲಾಗಿದೆ','Edit advance · cans':'ಮುಂಗಡ · ಡಬ್ಬ ಬದಲಿಸಿ',
+'Pay customer':'ಗ್ರಾಹಕರಿಗೆ ಕೊಡಿ','You pay customer':'ನೀವು ಗ್ರಾಹಕರಿಗೆ ಕೊಡಿ','Customer pays':'ಗ್ರಾಹಕರು ಕೊಡಬೇಕು','Customer pays you':'ಗ್ರಾಹಕರು ನಿಮಗೆ ಕೊಡಬೇಕು','Customer pays (est.)':'ಗ್ರಾಹಕರು ಕೊಡಬೇಕು (ಅಂದಾಜು)','We pay (est.)':'ನಾವು ಕೊಡಬೇಕು (ಅಂದಾಜು)','Khali payment':'ಹಿಂಡಿ ಹಣ','Pay tempo':'ಟೆಂಪೋಗೆ ಕೊಡಿ','Customer owes shop':'ಗ್ರಾಹಕರು ಅಂಗಡಿಗೆ ಕೊಡಬೇಕು','Tempo owes shop':'ಟೆಂಪೋ ಅಂಗಡಿಗೆ ಕೊಡಬೇಕು','Customer gets':'ಗ್ರಾಹಕರಿಗೆ ಸಿಗುತ್ತದೆ','Tempo gets':'ಟೆಂಪೋಗೆ ಸಿಗುತ್ತದೆ','You pay customer (estimate)':'ನೀವು ಗ್ರಾಹಕರಿಗೆ ಕೊಡಬೇಕು (ಅಂದಾಜು)','Customer pays you (estimate)':'ಗ್ರಾಹಕರು ನಿಮಗೆ ಕೊಡಬೇಕು (ಅಂದಾಜು)','Customer pays (khali · estimate)':'ಗ್ರಾಹಕರು ಕೊಡಬೇಕು (ಹಿಂಡಿ · ಅಂದಾಜು)',
+'Customer advance':'ಗ್ರಾಹಕರ ಮುಂಗಡ','Tempo advance':'ಟೆಂಪೋ ಮುಂಗಡ','Advance returned':'ಮುಂಗಡ ಹಿಂತಿರುಗಿಸಿದ್ದು','− customer advance':'− ಗ್ರಾಹಕರ ಮುಂಗಡ','− tempo advance':'− ಟೆಂಪೋ ಮುಂಗಡ','+ advance returned':'+ ಮುಂಗಡ ಹಿಂತಿರುಗಿದ್ದು','+ cans taken':'+ ತೆಗೆದುಕೊಂಡ ಡಬ್ಬ','− cans taken':'− ತೆಗೆದುಕೊಂಡ ಡಬ್ಬ','Taken by customer':'ಗ್ರಾಹಕರು ತೆಗೆದುಕೊಂಡದ್ದು','Taken by customer · advance and cans':'ಗ್ರಾಹಕರು ತೆಗೆದುಕೊಂಡದ್ದು · ಮುಂಗಡ ಮತ್ತು ಡಬ್ಬ',
+'Weighed':'ತೂಕ ಮಾಡಿದ್ದು','Crushed':'ಗಾಣ ಆಯಿತು','Oil out':'ಎಣ್ಣೆ ಹೊರಗೆ','Account':'ಲೆಕ್ಕ','Status':'ಸ್ಥಿತಿ','Date & time':'ದಿನಾಂಕ ಮತ್ತು ಸಮಯ','Job card':'ಕೆಲಸದ ಕಾರ್ಡ್','Crushing done':'ಗಾಣ ಮುಗಿಯಿತು','Closed':'ಮುಚ್ಚಲಾಗಿದೆ','Closed.':'ಮುಚ್ಚಲಾಗಿದೆ.','Shop keeps':'ಅಂಗಡಿ ಇಟ್ಟುಕೊಳ್ಳುತ್ತದೆ','Customer takes':'ಗ್ರಾಹಕರು ತೆಗೆದುಕೊಳ್ಳುತ್ತಾರೆ','Who keeps khali (oil cake)':'ಹಿಂಡಿ ಯಾರಿಗೆ','Shop keeps khali (oil cake)':'ಹಿಂಡಿ ಅಂಗಡಿಗೆ','Customer takes khali (oil cake)':'ಹಿಂಡಿ ಗ್ರಾಹಕರಿಗೆ','Khali · Oil cake':'ಹಿಂಡಿ','Khali changed':'ಹಿಂಡಿ ಬದಲಾಯಿತು','not yet':'ಇನ್ನೂ ಇಲ್ಲ','not weighed':'ತೂಕ ಮಾಡಿಲ್ಲ','not weighed yet':'ಇನ್ನೂ ತೂಕ ಮಾಡಿಲ್ಲ','shop keeps':'ಅಂಗಡಿಗೆ','Oil':'ಎಣ್ಣೆ','Jobs today':'ಇಂದಿನ ಕೆಲಸಗಳು','To crush':'ಗಾಣ ಆಗಬೇಕು','Cash':'ನಗದು','Held':'ಬಾಕಿ','Waiting':'ಕಾಯುತ್ತಿದೆ','Parked':'ನಿಲ್ಲಿಸಿದ','Jobs':'ಕೆಲಸಗಳು','Customer · advance':'ಗ್ರಾಹಕ · ಮುಂಗಡ',
+'Save job':'ಕೆಲಸ ಉಳಿಸಿ','Paid':'ಕೊಟ್ಟಿದೆ','Received':'ಪಡೆದಿದೆ','Advance taken':'ಮುಂಗಡ ತೆಗೆದುಕೊಂಡಿದ್ದಾರೆ','No advance':'ಮುಂಗಡ ಇಲ್ಲ','Nothing parked.':'ಏನೂ ನಿಲ್ಲಿಸಿಲ್ಲ.','Nothing held. All crushed jobs are settled.':'ಯಾವುದೂ ಬಾಕಿ ಇಲ್ಲ. ಎಲ್ಲಾ ಲೆಕ್ಕ ಮುಗಿದಿದೆ.','No customer yet':'ಇನ್ನೂ ಗ್ರಾಹಕರಿಲ್ಲ','Choose the customer first':'ಮೊದಲು ಗ್ರಾಹಕರನ್ನು ಆರಿಸಿ','Parked — find it under Parked':'ನಿಲ್ಲಿಸಲಾಗಿದೆ — "ನಿಲ್ಲಿಸಿದ" ನಲ್ಲಿ ಇದೆ','Cash in':'ನಗದು ಬಂತು','Cash out':'ನಗದು ಕೊಟ್ಟಿದ್ದು',
+'Settings':'ಸೆಟ್ಟಿಂಗ್ಸ್','Screen language':'ಪರದೆಯ ಭಾಷೆ','Printing':'ಪ್ರಿಂಟಿಂಗ್','Print the weight slip automatically':'ತೂಕದ ಚೀಟಿ ತಾನೇ ಪ್ರಿಂಟ್ ಆಗಲಿ','Print the job token automatically':'ಕೆಲಸದ ಟೋಕನ್ ತಾನೇ ಪ್ರಿಂಟ್ ಆಗಲಿ','Bag stickers with the token':'ಟೋಕನ್ ಜೊತೆ ಚೀಲದ ಸ್ಟಿಕ್ಕರ್','Tabs':'ಟ್ಯಾಬ್‌ಗಳು','Top bar':'ಮೇಲಿನ ಪಟ್ಟಿ','Main screen':'ಮುಖ್ಯ ಪರದೆ','Buttons':'ಬಟನ್‌ಗಳು','Functions':'ಕಾರ್ಯಗಳು','Icons':'ಚಿಹ್ನೆಗಳು','Voice':'ಧ್ವನಿ','Shown':'ತೋರಿಸು','Hidden':'ಮರೆ','On':'ಆನ್','Off':'ಆಫ್','1 receipt':'1 ರಸೀದಿ','2 receipts':'2 ರಸೀದಿ','Hide on both screens':'ಎರಡೂ ಪರದೆಗಳಲ್ಲಿ ಮರೆ','Hide on Worker screen only':'ಕೆಲಸಗಾರ ಪರದೆಯಲ್ಲಿ ಮಾತ್ರ ಮರೆ','Waiting tab':'ಕಾಯುತ್ತಿರುವ ಟ್ಯಾಬ್','Jobs tab':'ಕೆಲಸಗಳ ಟ್ಯಾಬ್','Held tab':'ಬಾಕಿ ಟ್ಯಾಬ್','Our mill tab':'ನಮ್ಮ ಮಿಲ್ ಟ್ಯಾಬ್','Parked tab':'ನಿಲ್ಲಿಸಿದ ಟ್ಯಾಬ್','Bluetooth indicator':'ಬ್ಲೂಟೂತ್ ಸೂಚಕ','Language button':'ಭಾಷೆ ಬಟನ್','Worker / Counter switch':'ಕೆಲಸಗಾರ / ಕೌಂಟರ್ ಬದಲಾವಣೆ','Printer indicator':'ಪ್ರಿಂಟರ್ ಸೂಚಕ','Print button':'ಪ್ರಿಂಟ್ ಬಟನ್','Sticker button':'ಸ್ಟಿಕ್ಕರ್ ಬಟನ್','Add to a job':'ಕೆಲಸಕ್ಕೆ ಸೇರಿಸಿ','Hold (park) button':'ಹಿಡಿ (ನಿಲ್ಲಿಸು) ಬಟನ್','Who keeps khali':'ಹಿಂಡಿ ಯಾರಿಗೆ','Advance buttons':'ಮುಂಗಡ ಬಟನ್‌ಗಳು','Cans (tin) counters':'ಡಬ್ಬ ಎಣಿಕೆ','Mic and speaker buttons':'ಮೈಕ್ ಮತ್ತು ಸ್ಪೀಕರ್ ಬಟನ್‌ಗಳು','Voice assistant (floating icon)':'ಧ್ವನಿ ಸಹಾಯಕ','Show everything again':'ಎಲ್ಲವನ್ನೂ ಮತ್ತೆ ತೋರಿಸು','Search box':'ಹುಡುಕಾಟ ಪೆಟ್ಟಿಗೆ',
+'Job saved. Printing is optional: tap Print only if the customer needs a paper token. The codes below are real and scan.':'ಕೆಲಸ ಉಳಿಸಲಾಗಿದೆ. ಪ್ರಿಂಟ್ ಬೇಕಿದ್ದರೆ ಮಾತ್ರ ಪ್ರಿಂಟ್ ಒತ್ತಿ.','Hide what the staff do not need. This only hides the button or tab; nothing is deleted. You can show it again here any time.':'ಸಿಬ್ಬಂದಿಗೆ ಬೇಡದ್ದನ್ನು ಮರೆಮಾಡಿ. ಬಟನ್ ಮಾತ್ರ ಮರೆಯಾಗುತ್ತದೆ, ಏನೂ ಅಳಿಸುವುದಿಲ್ಲ. ಇಲ್ಲಿಂದಲೇ ಮತ್ತೆ ತೋರಿಸಬಹುದು.'};
+const KP=[['Save job · ','ಕೆಲಸ ಉಳಿಸಿ · '],['Print · ','ಪ್ರಿಂಟ್ · '],['Seed · ','ಬೀಜ · '],['Crushing ','ಗಾಣ '],['Go to Held','ಬಾಕಿಗೆ ಹೋಗಿ'],['Oil out · ','ಎಣ್ಣೆ ಹೊರಗೆ · '],['Cash out ','ನಗದು ಕೊಟ್ಟಿದ್ದು '],['Cash in ','ನಗದು ಬಂತು '],['Saved','ಉಳಿಸಲಾಗಿದೆ'],['Held (','ಬಾಕಿ ('],['Khali: ','ಹಿಂಡಿ: ']];
+let knBusy=false;
+function knText(n){let raw=n.nodeValue;if(n.__en!==undefined){if(n.nodeValue===n.__tr)raw=n.__en;else n.__en=undefined}
+ const m=raw.match(/^(\s*)([\s\S]*?)(\s*)$/),core=m[2];
+ if(S.lang!=='kn'){if(n.__en!==undefined){n.nodeValue=n.__en;n.__en=undefined}return}
+ if(!core)return;let out=KN[core];if(out===undefined)for(const k of KP){if(core.startsWith(k[0])){out=k[1]+core.slice(k[0].length);break}}
+ if(out===undefined)return;const tr=m[1]+out+m[3];if(n.nodeValue!==tr){if(n.__en===undefined)n.__en=raw;n.__tr=tr;n.nodeValue=tr}}
+function knWalk(root){const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:x=>x.parentNode&&/^(SCRIPT|STYLE)$/.test(x.parentNode.nodeName)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});let n;while((n=w.nextNode()))knText(n)}
+function knAll(){knBusy=true;try{knWalk(document.body)}finally{knBusy=false}}
+new MutationObserver(ms=>{if(knBusy||S.lang!=='kn')return;knBusy=true;try{ms.forEach(m=>{if(m.type==='characterData')knText(m.target);else m.addedNodes.forEach(a=>{if(a.nodeType===3)knText(a);else if(a.nodeType===1)knWalk(a)})})}finally{knBusy=false}}).observe(document.body,{childList:true,subtree:true,characterData:true});
+setTimeout(knAll,0);
+
 /* ---------- start ---------- */
+try{const m=localStorage.getItem('milldesk.mode');if(m==='worker'||m==='counter')S.mode=m;const l=localStorage.getItem('milldesk.lang');if(l==='kn'||l==='en')S.lang=l}catch(e){}
 if(LIVE){
  const d=$('#demo');if(d)d.style.display='none';
  S.jw=[];S.queue=[];S.runs=[];S.own=emptyOwn();S.barrels={};CUSTS.length=0;S.nextJw=1;S.wsn=1;S.parked=[];S.me={name:'',isOwner:false};
