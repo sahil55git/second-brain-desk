@@ -484,7 +484,7 @@ export function explainPrintError(e: unknown, printerName = ""): { text: string;
     case "NOT_PAIRED":
       return { text: "The printer is not paired any more. Pair it in Bluetooth settings.", fix: "pair" };
     case "NO_PRINTER":
-      return { text: "No printer chosen on this phone yet.", fix: "setup" };
+      return { text: "No printer chosen on this phone yet. Choose it once: Settings → Choose printers.", fix: "setup" };
     case "NOT_APP":
       return { text: "One-tap printing works in the Mahadev Desk Android app.", fix: "app" };
     case "USB_UNPLUGGED":

@@ -248,6 +248,20 @@ rep("`<div class=\"note\">What the workers weighed. Sort each group.","sortBar('
 rep("layer('Parked',S.parked.length?S.parked.map((p,i)=>","layer('Parked',(S.parked.length?sortBar('P'):'')+(S.parked.length?sortBy(S.parked.map((p,i)=>({p,i})),o=>({ts:o.p.at||0,no:o.i,cno:0,name:o.p.cust?o.p.cust[0]:'',kg:sum(o.p.lines)})).map(({p,i})=>")
 rep("</button>`).join(''):'<div class=\"note\">Nothing parked.</div>')}","</button>`).join(''):'<div class=\"note\">Nothing parked.</div>'))}")
 
+# ---- 21 Nov pm 3: Customer no. goes past 9 (Next / keypad), is remembered, moves on by itself ----
+s=s.replace("${[1,2,3,4,5,6,7,8,9].map(n=>`<button class=\"${x.cno===n?'sel':''}\" onclick=\"setCno(${i},${n})\">${n}</button>`).join('')}","${cnoBtns(x.cno,'setCno',i)}",1)
+s=s.replace("${[1,2,3,4,5,6,7,8,9].map(n=>`<button class=\"${g.cno===n?'sel':''}\" onclick=\"wMoveCno(${gi},${n})\">${n}</button>`).join('')}","${cnoBtns(g.cno,'wMoveCno',gi)}",1)
+rep("function setCno(i,n){S.wtray[i].cno=n;S.lastCno=n;render()}","""/* Customer no.: 1-9 buttons, any number by keypad, and Next = one more than the highest in use today. Remembered on this phone for the day. */
+const cnoMax=()=>Math.max(S.maxCno||1,...S.queue.map(x=>x.cno||0),...S.wtray.map(x=>x.cno||0));
+function cnoSave(){try{localStorage.setItem('milldesk.cno',JSON.stringify({d:new Date().toDateString(),last:S.lastCno,max:S.maxCno}))}catch(e){}}
+function cnoSeen(n){S.lastCno=n;S.maxCno=Math.max(S.maxCno||1,n);cnoSave()}
+function cnoBtns(cur,fn,arg){return [1,2,3,4,5,6,7,8,9].map(n=>`<button class="${cur===n?'sel':''}" onclick="${fn}(${arg},${n})">${n}</button>`).join('')+(cur>9?`<button class="sel">${cur}</button>`:'')+`<button class="nx" onclick="${fn}(${arg},${cnoMax()+1})">${ic('plus')}${cnoMax()+1}</button><button class="nx" onclick="cnoKey('${fn}',${arg})">${ic('list')}No.</button>`}
+function cnoKey(fn,arg){sheetNum('Customer no.',v=>{if(v>0){closeLayer();window[fn](arg,Math.min(v,999))}},'closeLayer()')}
+window.cnoKey=cnoKey;
+function setCno(i,n){S.wtray[i].cno=n;cnoSeen(n);render()}""")
+rep("function wMoveCno(gi,n){groups()[gi].items.forEach(x=>x.cno=n);sheetWaiting()}","function wMoveCno(gi,n){groups()[gi].items.forEach(x=>x.cno=n);cnoSeen(n);sheetWaiting()}")
+rep("S.wtray=[];S.wdone={sn,n:tr.length};","{const mx=Math.max(0,...tr.map(x=>x.cno||0));if(mx){S.maxCno=Math.max(S.maxCno||1,mx);S.lastCno=cnoMax()+1;cnoSave()}}S.wtray=[];S.wdone={sn,n:tr.length};")
+
 # ---- engine + app code before the final render()
 eng=open(D+'/voice_engine.js').read()
 app=open(D+'/app_voice.js').read()+"\n/*APP-MILL*/\n"+open(D+'/app_mill.js').read()

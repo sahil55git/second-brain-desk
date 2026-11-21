@@ -58,8 +58,8 @@ export default function MillDeskFrame() {
       if (!cfg) {
         keepUnprinted({ id, at: Date.now(), doc, copies, error: "No printer chosen" });
         post({ type: "print-result", id, ok: false, fix: "setup", text: explainPrintError({ code: "NO_PRINTER" }).text });
-        setSheet(doc.kind === "slip" ? "receipt" : "label");
-        return;
+        return; // never pop the chooser while printing: the printers are chosen once, in Settings
+
       }
       try {
         const r = await printMillDoc(doc, copies, cfg);

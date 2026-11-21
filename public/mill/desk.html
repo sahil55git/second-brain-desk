@@ -293,6 +293,7 @@ body.noic .sbtn>svg.ic,body.noic .cp>svg.ic,body.noic .ch>svg.ic,body.noic .mrow
 .ar{gap:10px}.ar>span{padding-right:6px}.ar>b{text-align:right}
 .mrow.wname{width:100%;margin:6px 0;font-size:19px}
 .sortbar{margin:2px 0 8px}.sortbar .sl{flex:none;display:flex;align-items:center;gap:6px;font-weight:700;color:var(--soft)}
+.bagrow{flex-wrap:wrap}.bagrow .nx{min-width:54px;font-size:15px}
 </style>
 </head>
 <body>
@@ -531,17 +532,24 @@ function trayAdd(k,kg){S.wtray.push({k,kg,nb:1,cno:isCust(k)?S.lastCno:0});S.wdo
 function traySum(){const g={};S.wtray.filter(x=>x.k==='cseed').forEach(x=>{(g[x.cno]=g[x.cno]||{n:0,kg:0});g[x.cno].n+=x.nb||1;g[x.cno].kg+=x.kg});const e=Object.entries(g);return e.length?`<div class="wsum">${e.map(([c,v])=>`<span class="pc tk">${ic('user')}${cnoL()} ${c} · ${bagTxt(v.n)} · ${f1(v.kg)} kg</span>`).join('')}</div>`:''}
 function trayNb(i,d){S.wtray[i].nb=Math.max(1,(S.wtray[i].nb||1)+d);render()}
 function trayLabel(i){const x=S.wtray[i],before=S.wtray.slice(0,i).filter(y=>y.k===x.k&&y.cno===x.cno),a=sum(before.map(y=>y.nb||1))+1,n=x.nb||1;return n===1?'Bag '+a:'Bags '+a+'–'+(a+n-1)}
-function setCno(i,n){S.wtray[i].cno=n;S.lastCno=n;render()}
+/* Customer no.: 1-9 buttons, any number by keypad, and Next = one more than the highest in use today. Remembered on this phone for the day. */
+const cnoMax=()=>Math.max(S.maxCno||1,...S.queue.map(x=>x.cno||0),...S.wtray.map(x=>x.cno||0));
+function cnoSave(){try{localStorage.setItem('milldesk.cno',JSON.stringify({d:new Date().toDateString(),last:S.lastCno,max:S.maxCno}))}catch(e){}}
+function cnoSeen(n){S.lastCno=n;S.maxCno=Math.max(S.maxCno||1,n);cnoSave()}
+function cnoBtns(cur,fn,arg){return [1,2,3,4,5,6,7,8,9].map(n=>`<button class="${cur===n?'sel':''}" onclick="${fn}(${arg},${n})">${n}</button>`).join('')+(cur>9?`<button class="sel">${cur}</button>`:'')+`<button class="nx" onclick="${fn}(${arg},${cnoMax()+1})">${ic('plus')}${cnoMax()+1}</button><button class="nx" onclick="cnoKey('${fn}',${arg})">${ic('list')}No.</button>`}
+function cnoKey(fn,arg){sheetNum('Customer no.',v=>{if(v>0){closeLayer();window[fn](arg,Math.min(v,999))}},'closeLayer()')}
+window.cnoKey=cnoKey;
+function setCno(i,n){S.wtray[i].cno=n;cnoSeen(n);render()}
 function workerHTML(){
  const tr=S.wtray,tray=tr.length?`<div class="tray"><div class="th">${ic('printer')}<span>To save · ${tr.length}</span><button class="xbtn" onclick="S.wtray=[];render()">${ic('x')}</button></div>${traySum()}
-  ${tr.map((x,i)=>`<div class="tl1">${art(IT[x.k])}<b>${esc(IT[x.k].wl)}</b><span class="kgbox">${f2(x.kg)} kg</span><button class="xbtn" onclick="S.wtray.splice(${i},1);render()">${ic('x')}</button></div>${isBagK(x.k)?`<div class="nbrow"><b>${trayLabel(i)}</b><span class="stpr"><button onclick="trayNb(${i},-1)">−</button><b>${x.nb||1}</b><button onclick="trayNb(${i},1)">+</button></span></div>`:''}${isCust(x.k)?`<div class="bagrow"><span>${cnoL()}</span>${[1,2,3,4,5,6,7,8,9].map(n=>`<button class="${x.cno===n?'sel':''}" onclick="setCno(${i},${n})">${n}</button>`).join('')}</div>`:''}`).join('')}
+  ${tr.map((x,i)=>`<div class="tl1">${art(IT[x.k])}<b>${esc(IT[x.k].wl)}</b><span class="kgbox">${f2(x.kg)} kg</span><button class="xbtn" onclick="S.wtray.splice(${i},1);render()">${ic('x')}</button></div>${isBagK(x.k)?`<div class="nbrow"><b>${trayLabel(i)}</b><span class="stpr"><button onclick="trayNb(${i},-1)">−</button><b>${x.nb||1}</b><button onclick="trayNb(${i},1)">+</button></span></div>`:''}${isCust(x.k)?`<div class="bagrow"><span>${cnoL()}</span>${cnoBtns(x.cno,'setCno',i)}</div>`:''}`).join('')}
   <button class="sbtn go next" style="min-height:74px;font-size:24px" onclick="workerPrint()"><span style="display:flex;gap:6px">${ic('printer')}${ic('check')}</span>Save &amp; Print</button></div>`:'';
  return weightCard()+tray+(S.wdone?`<div class="wdone">${ic('check')}<div><b>${esc(S.wdone.sn)}</b><div class="note">${S.wdone.n} weighing(s) saved and printed · counter will see them in Waiting</div></div></div>`:'')
   +(S.needZero?`<div class="takeoff">Take it off the scale</div>`:'')
   +`<div class="pane wk">${groupsHTML(ITEMS,true)}</div><div class="note">Worker: put it on the scale, wait for green, tap the picture. Tap more items if needed, then <b>Save &amp; Print</b>. Green ↓ comes in, red ↑ goes out.</div>`}
 function workerPrint(){const tr=S.wtray;if(!tr.length)return;const sn='WS-'+pad(S.wsn++),tm=clock();
  tr.forEach(x=>S.queue.push({id:uid('Q'),k:x.k,nb:x.nb||1,kg:x.kg,time:tm,at:Date.now(),by:(S.me&&S.me.name)||'Worker',cno:x.cno||0,slip:sn}));
- S.wtray=[];S.wdone={sn,n:tr.length};millPrintGo(S.cfg.autoSlip!==false,{kind:'slip',code:sn,shop:'MAHADEV TRADERS',title:'Mill 1 · WEIGHT SLIP',when:nowFull(),rows:tr.map(x=>[IT[x.k].wl+(x.cno?' · '+cnoL()+' '+x.cno:'')+(isBagK(x.k)?' · '+bagTxt(x.nb||1):''),f2(x.kg)+' kg']),foot:['By '+((S.me&&S.me.name)||'Worker'),nowFull()]},1);
+ {const mx=Math.max(0,...tr.map(x=>x.cno||0));if(mx){S.maxCno=Math.max(S.maxCno||1,mx);S.lastCno=cnoMax()+1;cnoSave()}}S.wtray=[];S.wdone={sn,n:tr.length};millPrintGo(S.cfg.autoSlip!==false,{kind:'slip',code:sn,shop:'MAHADEV TRADERS',title:'Mill 1 · WEIGHT SLIP',when:nowFull(),rows:tr.map(x=>[IT[x.k].wl+(x.cno?' · '+cnoL()+' '+x.cno:'')+(isBagK(x.k)?' · '+bagTxt(x.nb||1):''),f2(x.kg)+' kg']),foot:['By '+((S.me&&S.me.name)||'Worker'),nowFull()]},1);
  layer('Printed',`<div class="note">Saved · the counter person sees these in Waiting.</div><div id="prst" class="prst"></div>
   <div class="paper"><div class="hd">MAHADEV TRADERS</div><div style="text-align:center">Mill 1 · WEIGHT SLIP</div><div style="text-align:center;font-weight:700">${nowFull()}</div><div class="hr"></div>
   ${tr.map(x=>`<div class="sr"><span>${esc(IT[x.k].wl)}${x.cno?' · '+cnoL()+' '+x.cno:''}${isBagK(x.k)?' · '+bagTxt(x.nb||1):''}</span><b>${f2(x.kg)} kg</b></div>`).join('')}<div class="hr"></div>
@@ -644,7 +652,7 @@ function qrSvg(text){try{const q=qrcode(0,'M');q.addData(text);q.make();const n=
 const KIND=k=>k.includes('khali')?'khali':k.includes('seed')?'seed':k.includes('oil')?'oil':/^b(full|empty|out)$/.test(k)?'bar':'other';
 const KINDS=[['all','Everything','list'],['seed','Seed','seed'],['oil','Oil','drop'],['khali','Khali · Oil cake','bag'],['bar','Barrels','barrel']];
 function groups(){const g={};S.queue.forEach(x=>{const key=x.k+'|'+(x.cno||0);(g[key]=g[key]||{k:x.k,cno:x.cno||0,items:[]}).items.push(x)});return Object.values(g)}
-function wMoveCno(gi,n){groups()[gi].items.forEach(x=>x.cno=n);sheetWaiting()}
+function wMoveCno(gi,n){groups()[gi].items.forEach(x=>x.cno=n);cnoSeen(n);sheetWaiting()}
 function wBarrel(gi){const g=groups()[gi],x=g.items[0],k=x.k,kg=x.kg;
  layer((k==='bfull'?'Full barrel ':k==='bempty'?'Empty barrel ':'Barrel out · ')+f1(kg)+' kg — which barrel?',`<div class="chrow">${Array.from({length:20},(_,i)=>{const c='BRL-'+String(i+1).padStart(2,'0'),b=S.barrels[c]||{};return `<button class="ch" onclick="wBarrelDo('${x.id}','${k}','${c}',${kg})"><div style="display:flex;align-items:center;gap:6px">${icoSvg(b.full&&!b.empty?'bfull':'bempty',26)}${c.slice(4)}</div></button>`}).join('')}</div>`,'sheetWaiting()')}
 function wBarrelDo(id,k,c,kg){S.queue=S.queue.filter(x=>x.id!==id);const b=S.barrels[c]=S.barrels[c]||{};
@@ -670,7 +678,7 @@ function sheetWaiting(){const gs=groups();
    :g.k==='ckhali'?`<button class="sbtn go${nx}" onclick="wKhali(${gi})">${ic('user')}Give to customer…</button>`
    :KIND(g.k)==='bar'?`<button class="sbtn go${nx}" onclick="wBarrel(${gi})">${ic('barrel')}Which barrel?</button>`
    :`<button class="sbtn go" onclick="wOwn(${gi},'${g.k}')">${ic('check')}Save</button>`;
-  const bagBtns=cust?`<div class="bagrow" style="padding:0"><span>${cnoL()}</span>${[1,2,3,4,5,6,7,8,9].map(n=>`<button class="${g.cno===n?'sel':''}" onclick="wMoveCno(${gi},${n})">${n}</button>`).join('')}</div>`:'';
+  const bagBtns=cust?`<div class="bagrow" style="padding:0"><span>${cnoL()}</span>${cnoBtns(g.cno,'wMoveCno',gi)}</div>`:'';
   return `<div class="card">${whead(gi+1,g.items[0].time,gi)}<h3>${art(i)}${esc(S.lang==='kn'?i.kn:i.wl)}${g.cno?`<span class="bagchip" style="margin-left:auto">${cnoL()} ${g.cno}</span>`:''}</h3>
    ${cust?`<button class="mrow wname" onclick="wName(${gi})">${ic('user')}<span class="sp">${gCust(g)?esc(gCust(g)[0])+(gCust(g)[1]&&gCust(g)[1]!==gCust(g)[0]?' · '+esc(gCust(g)[1]):''):t('who')}</span>${ic('edit')}</button>`:''}
    <div class="wtot"><b>${f1(kg)} kg</b><small>${isBagK(g.k)?bagTxt(sum(g.items.map(x=>x.nb||1)))+' · ':''}${g.items.length} weighing(s)</small></div>
@@ -1019,6 +1027,7 @@ function sheetSettings(){
  layer('Settings',`<div class="grp"><span class="gi" style="background:#5F82D4">${ic('globe')}</span>Screen language</div><div class="chrow"><button class="ch ${S.lang==='en'?'sel':''}" onclick="setLang('en');sheetSettings()">English</button><button class="ch ${S.lang==='kn'?'sel':''}" onclick="setLang('kn');sheetSettings()">ಕನ್ನಡ</button></div>
  <div class="grp"><span class="gi" style="background:#8A7F6E">${ic('printer')}</span>Printing</div>
  ${sw('autoSlip','Print the weight slip automatically','printer',S.cfg.autoSlip!==false,['On','Off'])}${sw('autoTok','Print the job token automatically','printer',!!S.cfg.autoTok,['On','Off'])}${sw('stickers','Bag stickers with the token','tag',!!S.cfg.stickers,['On','Off'])}
+ <button class="mrow" onclick="closeLayer();millPrinterTap()">${ic('printer')}<span class="sp">Choose printers (once)</span>${ic('edit')}</button>
  <div class="note">Receipts per token (the Print button on a saved job).</div><div class="chrow">${[1,2].map(n=>`<button class="ch ${(S.cfg.copies||1)===n?'sel':''}" onclick="cfgCopies(${n})">${n} receipt${n>1?'s':''}</button>`).join('')}</div>
  <div class="note">Hide what the staff do not need. This only hides the button or tab; nothing is deleted. You can show it again here any time.</div>
  <div class="chrow"><button class="ch ${S.cfg.hideScope!=='worker'?'sel':''}" onclick="cfgScope('both')">Hide on both screens</button><button class="ch ${S.cfg.hideScope==='worker'?'sel':''}" onclick="cfgScope('worker')">Hide on Worker screen only</button></div>
@@ -1464,6 +1473,7 @@ new MutationObserver(ms=>{if(knBusy||S.lang!=='kn')return;knBusy=true;try{ms.for
 setTimeout(knAll,0);
 
 /* ---------- start ---------- */
+try{const c=JSON.parse(localStorage.getItem('milldesk.cno')||'null');if(c&&c.d===new Date().toDateString()){S.lastCno=c.last||1;S.maxCno=c.max||1}else{S.lastCno=1;S.maxCno=1}}catch(e){}
 try{const m=localStorage.getItem('milldesk.mode');if(m==='worker'||m==='counter')S.mode=m;const l=localStorage.getItem('milldesk.lang');if(l==='kn'||l==='en')S.lang=l}catch(e){}
 if(LIVE){
  const d=$('#demo');if(d)d.style.display='none';

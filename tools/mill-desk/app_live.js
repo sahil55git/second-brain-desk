@@ -200,6 +200,7 @@ new MutationObserver(ms=>{if(knBusy||S.lang!=='kn')return;knBusy=true;try{ms.for
 setTimeout(knAll,0);
 
 /* ---------- start ---------- */
+try{const c=JSON.parse(localStorage.getItem('milldesk.cno')||'null');if(c&&c.d===new Date().toDateString()){S.lastCno=c.last||1;S.maxCno=c.max||1}else{S.lastCno=1;S.maxCno=1}}catch(e){}
 try{const m=localStorage.getItem('milldesk.mode');if(m==='worker'||m==='counter')S.mode=m;const l=localStorage.getItem('milldesk.lang');if(l==='kn'||l==='en')S.lang=l}catch(e){}
 if(LIVE){
  const d=$('#demo');if(d)d.style.display='none';
