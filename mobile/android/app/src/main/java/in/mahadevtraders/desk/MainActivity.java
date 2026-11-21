@@ -79,9 +79,9 @@ public class MainActivity extends BridgeActivity {
             web.postDelayed(() -> {
                 String now = web.getUrl();
                 if (now == null || wanted == null) return;
-                String path = Uri.parse(now).getPath();
-                boolean onStart = path == null || path.isEmpty() || path.equals("/") || path.equals("/go") || now.contains("offline.html");
-                if (onStart && !wanted.equals(path) && !wanted.equals("/go")) web.loadUrl(target);
+                String here = Uri.parse(now).getPath();
+                boolean onStart = here == null || here.isEmpty() || here.equals("/") || here.equals("/go") || now.contains("offline.html");
+                if (onStart && !wanted.equals(here) && !wanted.equals("/go")) web.loadUrl(target);
             }, again);
         }
     }
