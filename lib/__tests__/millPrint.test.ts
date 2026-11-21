@@ -167,3 +167,30 @@ describe("printing again by itself", () => {
     expect(safeToRetry({ code: "NO_ANSWER" })).toBe(true);
   });
 });
+
+describe("receipt printer (MPT-III)", () => {
+  it("knows a receipt printer by its name, and a label printer is not one", async () => {
+    const { isReceiptName } = await import("@/lib/mill/millPrint");
+    expect(isReceiptName("MPT-III")).toBe(true);
+    expect(isReceiptName("POS-58")).toBe(true);
+    expect(isReceiptName("RPP02N")).toBe(true);
+    expect(isReceiptName("H30C_F1BA")).toBe(false);
+    expect(isReceiptName("iScale i-20")).toBe(false);
+  });
+  it("prints the slip as ESC/POS raster pictures down the roll, once per copy", async () => {
+    const { jobBytes } = await import("@/lib/mill/millPrint");
+    const m = { width: 384, height: 50, rowBytes: 48, data: new Uint8Array(48 * 50) };
+    const b = jobBytes([m], { widthMm: 48, heightMm: 0, gapMm: 0, density: 8, invert: true, lang: "escpos" }, 2);
+    expect(Array.from(b.slice(0, 2))).toEqual([0x1b, 0x40]); // ESC @
+    const s = Array.from(b);
+    let bands = 0;
+    for (let i = 0; i < s.length - 3; i++) if (s[i] === 0x1d && s[i + 1] === 0x76 && s[i + 2] === 0x30) bands++;
+    expect(bands).toBe(2 * Math.ceil(50 / 24)); // 3 bands per copy, 2 copies
+    expect(new TextDecoder().decode(b)).not.toMatch(/SIZE|BITMAP/); // no label-printer (TSPL) commands
+  });
+  it("an old saved printer (no type) stays a label printer", async () => {
+    const { cleanCfg } = await import("@/lib/mill/millPrint");
+    expect(cleanCfg({ id: "nbt:00:11:22:33:44:55", name: "H30C", widthMm: 50, heightMm: 75 })?.lang).toBe("tspl");
+    expect(cleanCfg({ id: "nbt:00:11:22:33:44:55", name: "MPT-III", widthMm: 48, heightMm: 0, lang: "escpos" })?.lang).toBe("escpos");
+  });
+});

@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { MahadevPrinter, isNative, type NativePrinter } from "@/lib/native";
 import { nativePrinterScan } from "@/lib/directPrint";
 import {
-  MILL_PAPERS, TEST_DOC, buildMillJob, cleanCfg, explainPrintError, getMillPrinter, isBleName, isLabelishName, labelCandidates, listUnprinted, sendBytes, setMillPrinter, type MillPrinterCfg,
+  MILL_PAPERS, TEST_DOC, buildMillJob, cleanCfg, explainPrintError, getMillPrinter, isBleName, isLabelishName, isReceiptName, labelCandidates, listUnprinted, sendBytes, setMillPrinter, type MillPrinterCfg,
 } from "@/lib/mill/millPrint";
 
 const card: React.CSSProperties = { background: "#0f1720", border: "1px solid #2b3a4a", borderRadius: 14, padding: 12, display: "grid", gap: 10 };
@@ -41,23 +41,32 @@ export default function MillPrinterSheet({ onClose }: { onClose: () => void }) {
       if (c) return;
       // nothing saved yet: if exactly one label-type printer is paired, offer it
       const label = labelCandidates(r.printers).filter((d) => isLabelishName(d.name) && !isBleName(d.name));
-      if (label.length === 1) setDraft({ id: label[0].id, name: label[0].name, widthMm: p.widthMm, heightMm: p.heightMm, gapMm: p.gapMm, density: 8, invert: true });
+      if (label.length === 1) setDraft({ id: label[0].id, name: label[0].name, widthMm: p.widthMm, heightMm: p.heightMm, gapMm: p.gapMm, density: 8, invert: true, lang: "tspl" });
     });
   }, [native, scan]);
 
-  const paperId = draft ? MILL_PAPERS.find((x) => x.widthMm === draft.widthMm && x.heightMm === draft.heightMm)?.id ?? "custom" : "50x75";
+  const lang = draft?.lang ?? "tspl";
+  const papers = MILL_PAPERS.filter((x) => x.lang === lang);
+  const paperId = draft ? papers.find((x) => x.widthMm === draft.widthMm && x.heightMm === draft.heightMm)?.id ?? "custom" : "50x75";
   const pick = (d: NativePrinter) => {
     if (isBleName(d.name)) {
       setMsg({ ok: false, text: `“${d.name}” is the low-energy (BLE) entry; the app cannot print over it. Pair the one without “_BLE” (printer icon) in Bluetooth settings, press Refresh, and choose that.` });
       return;
     }
-    const p = MILL_PAPERS.find((x) => x.widthMm === draft?.widthMm && x.heightMm === draft?.heightMm) ?? MILL_PAPERS[0];
-    setDraft({ id: d.id, name: d.name, widthMm: p.widthMm, heightMm: p.heightMm, gapMm: p.gapMm, density: draft?.density ?? 8, invert: draft?.invert ?? true });
+    // a receipt printer (MPT-III …) by its name, otherwise a label printer; can be changed below
+    const kind: "tspl" | "escpos" = isReceiptName(d.name) && !isLabelishName(d.name) ? "escpos" : "tspl";
+    const same = kind === draft?.lang ? MILL_PAPERS.find((x) => x.lang === kind && x.widthMm === draft?.widthMm && x.heightMm === draft?.heightMm) : undefined;
+    const p = same ?? MILL_PAPERS.find((x) => x.lang === kind)!;
+    setDraft({ id: d.id, name: d.name, widthMm: p.widthMm, heightMm: p.heightMm, gapMm: p.gapMm, density: draft?.density ?? 8, invert: draft?.invert ?? true, lang: kind });
     setMsg(null);
   };
   const setPaper = (id: string) => {
     const p = MILL_PAPERS.find((x) => x.id === id);
     if (p && draft) setDraft({ ...draft, widthMm: p.widthMm, heightMm: p.heightMm, gapMm: p.gapMm });
+  };
+  const setLang = (l: "tspl" | "escpos") => {
+    const p = MILL_PAPERS.find((x) => x.lang === l)!;
+    if (draft) setDraft({ ...draft, lang: l, widthMm: p.widthMm, heightMm: p.heightMm, gapMm: p.gapMm });
   };
 
   const test = async () => {
@@ -93,7 +102,7 @@ export default function MillPrinterSheet({ onClose }: { onClose: () => void }) {
       <div style={{ maxWidth: 560, margin: "0 auto", display: "grid", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button style={{ ...btn, minHeight: 44 }} onClick={onClose}>← Back</button>
-          <h2 style={{ fontSize: 20, fontWeight: 800 }}>Mill printer · Helett</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 800 }}>Mill printer · Helett label or MPT receipt</h2>
         </div>
 
         {!native && (
@@ -131,9 +140,13 @@ export default function MillPrinterSheet({ onClose }: { onClose: () => void }) {
 
             {draft && (
               <div style={card}>
-                <b>3 · Label size and test</b>
+                <b>3 · Printer type, paper and test</b>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button style={{ ...btn, background: lang === "tspl" ? "#1c3a2a" : "#16212c", borderColor: lang === "tspl" ? "#2fb868" : "#3a4c60" }} onClick={() => setLang("tspl")}>🏷 Label printer (Helett)</button>
+                  <button style={{ ...btn, background: lang === "escpos" ? "#1c3a2a" : "#16212c", borderColor: lang === "escpos" ? "#2fb868" : "#3a4c60" }} onClick={() => setLang("escpos")}>🧾 Receipt printer (MPT-III)</button>
+                </div>
                 <select style={{ ...btn, appearance: "auto" }} value={paperId} onChange={(e) => setPaper(e.target.value)}>
-                  {MILL_PAPERS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {papers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   {paperId === "custom" && <option value="custom">Custom size (below)</option>}
                 </select>
                 {draft.heightMm > 0 && (
@@ -148,10 +161,11 @@ export default function MillPrinterSheet({ onClose }: { onClose: () => void }) {
                   Darkness {draft.density}
                   <input type="range" min={1} max={15} value={draft.density} onChange={(e) => setDraft({ ...draft, density: Number(e.target.value) })} style={{ flex: 1 }} />
                 </label>
-                <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                {lang === "tspl" && <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <input type="checkbox" checked={draft.invert} onChange={(e) => setDraft({ ...draft, invert: e.target.checked })} />
                   Black on white fix (keep ticked for the Helett H30C)
-                </label>
+                </label>}
+                {lang === "escpos" && <span style={{ opacity: 0.7, fontSize: 13 }}>The slip prints down the roll as long as it needs. Most MPT-III rolls are 58 mm; if the right edge is cut off, choose 58 mm, if it prints narrow on a wide roll, choose 80 mm.</span>}
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button style={btn} disabled={busy} onClick={() => void test()}>{busy ? "Printing…" : "🖨 Test print"}</button>
                   <button style={go} disabled={busy} onClick={save}>✓ Save this printer</button>

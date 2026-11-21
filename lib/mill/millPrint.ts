@@ -11,7 +11,7 @@
 // Pure parts (layout, paging, TSPL bytes, config, outbox) are tested in lib/__tests__/millPrint.test.ts.
 import { code128Modules, code128Ok } from "@/lib/code128";
 import { qrMatrix } from "@/lib/qr";
-import { buildTspl, concat, mmToDots, toMono, type Mono } from "@/lib/printerLang";
+import { buildEscpos, buildTspl, concat, mmToDots, toMono, type Mono } from "@/lib/printerLang";
 import { MahadevPrinter, isNative, toBase64, type NativePrinter } from "@/lib/native";
 
 // ------------------------------------------------------------------ what the desk sends
@@ -72,15 +72,22 @@ export interface MillPrinterCfg {
   density: number;
   /** TSPL bitmap "0 = black": ticked is right for the Helett H30C (docs/PRINTING.md) */
   invert: boolean;
+  /** "tspl" = label printer (Helett); "escpos" = receipt printer (MPT-III and other POS roll printers) */
+  lang: "tspl" | "escpos";
 }
 
-export const MILL_PAPERS: { id: string; name: string; widthMm: number; heightMm: number; gapMm: number }[] = [
-  { id: "50x75", name: "50 × 75 mm label", widthMm: 50, heightMm: 75, gapMm: 3 },
-  { id: "75x100", name: "75 × 100 mm label", widthMm: 75, heightMm: 100, gapMm: 3 },
-  { id: "100x150", name: "100 × 150 mm (4 × 6 in) label", widthMm: 100, heightMm: 150, gapMm: 3 },
-  { id: "50x30", name: "50 × 30 mm sticker (slips split over several)", widthMm: 50, heightMm: 30, gapMm: 3 },
-  { id: "roll50", name: "Roll without gaps, 50 mm wide", widthMm: 50, heightMm: 0, gapMm: 0 },
+export const MILL_PAPERS: { id: string; name: string; widthMm: number; heightMm: number; gapMm: number; lang: "tspl" | "escpos" }[] = [
+  { id: "50x75", name: "50 × 75 mm label", widthMm: 50, heightMm: 75, gapMm: 3, lang: "tspl" },
+  { id: "75x100", name: "75 × 100 mm label", widthMm: 75, heightMm: 100, gapMm: 3, lang: "tspl" },
+  { id: "100x150", name: "100 × 150 mm (4 × 6 in) label", widthMm: 100, heightMm: 150, gapMm: 3, lang: "tspl" },
+  { id: "50x30", name: "50 × 30 mm sticker (slips split over several)", widthMm: 50, heightMm: 30, gapMm: 3, lang: "tspl" },
+  { id: "roll50", name: "Roll without gaps, 50 mm wide", widthMm: 50, heightMm: 0, gapMm: 0, lang: "tspl" },
+  // receipt rolls: the width is the PRINTED width (a 58 mm roll prints 48 mm, an 80 mm roll 72 mm)
+  { id: "rcpt58", name: "Receipt roll 58 mm (2 inch)", widthMm: 48, heightMm: 0, gapMm: 0, lang: "escpos" },
+  { id: "rcpt80", name: "Receipt roll 80 mm (3 inch)", widthMm: 72, heightMm: 0, gapMm: 0, lang: "escpos" },
 ];
+/** Receipt (bill) printers: MPT-III, "POS-58", RPP02, PT-210 … */
+export const isReceiptName = (n: string) => /\bmpt|pos[-_ ]?\d|\bpos\b|receipt|rpp\d|\bpt-?\d{3}|\bmtp|58mm|80mm|thermal/i.test(n);
 
 const KEY = "mdMillPrinter.v1";
 const OUT = "mdMillOutbox.v1";
@@ -111,6 +118,7 @@ export function cleanCfg(v: unknown): MillPrinterCfg | null {
     gapMm: num(r.gapMm, 0, 12, 3),
     density: num(r.density, 0, 15, 8),
     invert: typeof r.invert === "boolean" ? r.invert : true,
+    lang: r.lang === "escpos" ? "escpos" : "tspl",
   };
 }
 export function getMillPrinter(): MillPrinterCfg | null {
@@ -371,8 +379,12 @@ export function canvasMeasure(): Measure {
 }
 
 /** TSPL bytes of the whole job: every page, `copies` of each. */
-export function jobBytes(pagesMono: Mono[], cfg: Pick<MillPrinterCfg, "widthMm" | "heightMm" | "gapMm" | "density" | "invert">, copies: number): Uint8Array {
+export function jobBytes(pagesMono: Mono[], cfg: Pick<MillPrinterCfg, "widthMm" | "heightMm" | "gapMm" | "density" | "invert"> & { lang?: MillPrinterCfg["lang"] }, copies: number): Uint8Array {
   const n = Math.max(1, Math.min(10, Math.round(copies) || 1));
+  if (cfg.lang === "escpos") {
+    // a receipt printer: the slip as one picture down the roll, fed past the tear bar, N times
+    return concat(...pagesMono.map((m) => buildEscpos(m, { copies: n, feedLines: 4, density: Math.round((cfg.density / 15) * 8) })));
+  }
   return concat(
     ...pagesMono.map((m) =>
       buildTspl(m, {
@@ -449,7 +461,10 @@ export async function sendBytes(cfg: MillPrinterCfg, bytes: Uint8Array): Promise
   const t0 = Date.now();
   try {
     // status:false — a label printer is not asked the receipt-printer status question
-    await MahadevPrinter.printJob({ id: cfg.id, base64: toBase64(bytes), chunk: 480, delayMs: 8, status: false, keepMs: 300_000 });
+    // a label printer (TSPL) is not asked the receipt-printer status question; a receipt printer is
+    // (it tells "paper out"), and gets smaller, slower pieces: small battery printers have a 4 KB buffer
+    const rc = cfg.lang === "escpos";
+    await MahadevPrinter.printJob({ id: cfg.id, base64: toBase64(bytes), chunk: rc ? 256 : 480, delayMs: rc ? 20 : 8, status: rc, keepMs: 300_000 });
     return { ms: Date.now() - t0 };
   } catch (e) {
     if (!notImplemented(e)) throw new MillPrintError((e as { code?: string })?.code || "NO_ANSWER", e instanceof Error ? e.message : String(e));
