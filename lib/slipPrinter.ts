@@ -12,7 +12,7 @@ import { toMono } from "./printerLang";
 import type { ReceiptDoc, ShopInfo } from "./receipt";
 
 export interface SlipPrinterCfg {
-  /** "nbt:<MAC>" */
+  /** "nbt:<MAC>" (Bluetooth) or "nusb:<vendor>:<product>" (USB cable) */
   id: string;
   name: string;
   paper: SlipPaper;
@@ -38,7 +38,7 @@ const ls = (): Storage | null => {
 export function getSlipPrinter(): SlipPrinterCfg | null {
   try {
     const v = JSON.parse(ls()?.getItem(KEY) || "null");
-    return v && typeof v.id === "string" && v.id.startsWith("nbt:") ? { paper: 80, cut: false, kannada: true, ...v } : null;
+    return v && typeof v.id === "string" && (v.id.startsWith("nbt:") || v.id.startsWith("nusb:")) ? { paper: 80, cut: false, kannada: true, ...v } : null;
   } catch {
     return null;
   }
@@ -64,7 +64,7 @@ export function guessPaper(name: string): SlipPaper {
 }
 /** Paired devices that can be a slip printer, best first. */
 export function slipCandidates(list: NativePrinter[]): NativePrinter[] {
-  return list.filter((p) => p.kind === "bluetooth" && !isLabelPrinterName(p.name)).sort((a, b) => Number(b.printer) - Number(a.printer));
+  return list.filter((p) => (p.kind === "bluetooth" || p.kind === "usb") && !isLabelPrinterName(p.name)).sort((a, b) => Number(b.printer) - Number(a.printer));
 }
 
 /** True in an Android app (the only place Save & Print can reach a Bluetooth printer by itself). */
@@ -152,6 +152,14 @@ export function explainSlipError(e: unknown): { en: string; kn: string; fix?: "b
       return { en: "Allow Nearby devices for Mahadev Desk in Android settings.", kn: "ಸೆಟ್ಟಿಂಗ್ಸ್‌ನಲ್ಲಿ Nearby devices ಅನುಮತಿ ನೀಡಿ.", fix: "permission" };
     case "NOT_PAIRED":
       return { en: "The printer is not paired any more. Pair it in Bluetooth settings.", kn: "ಪ್ರಿಂಟರ್ ಜೋಡಣೆ ಇಲ್ಲ. ಬ್ಲೂಟೂತ್‌ನಲ್ಲಿ ಜೋಡಿಸಿ.", fix: "pair" };
+    case "USB_UNPLUGGED":
+      return { en: "The USB printer is not plugged in. Connect the cable and switch it on.", kn: "USB ಪ್ರಿಂಟರ್ ಸಿಕ್ಕಿಲ್ಲ. ಕೇಬಲ್ ಹಾಕಿ, ಪ್ರಿಂಟರ್ ಆನ್ ಮಾಡಿ." };
+    case "USB_DENIED":
+      return { en: "Allow Mahadev Desk to use the USB printer: tap OK when Android asks, then print again.", kn: "Android ಕೇಳಿದಾಗ OK ಒತ್ತಿ, ಮತ್ತೆ ಮುದ್ರಿಸಿ." };
+    case "USB_BUSY":
+      return { en: "The USB printer is busy with another app. Close that app and print again.", kn: "USB ಪ್ರಿಂಟರ್ ಬೇರೆ ಆಪ್‌ನಲ್ಲಿ ಬಳಕೆಯಲ್ಲಿದೆ. ಅದನ್ನು ಮುಚ್ಚಿ." };
+    case "USB_FAIL":
+      return { en: "The USB printer did not take the data. Check cable, paper and power.", kn: "USB ಪ್ರಿಂಟರ್ ಡೇಟಾ ತೆಗೆದುಕೊಂಡಿಲ್ಲ. ಕೇಬಲ್, ಕಾಗದ, ಪವರ್ ನೋಡಿ." };
     case "PAPER_OUT":
       return { en: "No paper in the printer. Put a new roll.", kn: "ಪ್ರಿಂಟರ್‌ನಲ್ಲಿ ಕಾಗದ ಇಲ್ಲ. ಹೊಸ ರೋಲ್ ಹಾಕಿ." };
     case "COVER_OPEN":
@@ -220,7 +228,7 @@ export function warmSlipPrinter() {
   if (!isNative() || Date.now() - lastWarm < 20_000) return;
   lastWarm = Date.now();
   const c = getSlipPrinter();
-  if (!c) return;
+  if (!c || c.id.startsWith("nusb:")) return; // a cable needs no warming
   MahadevPrinter.prepare({ id: c.id, keepMs: 120_000 }).catch(() => {});
 }
 

@@ -62,7 +62,7 @@ export function cleanDoc(raw: unknown): MillPrintDoc | null {
 
 // ------------------------------------------------------------------ the printer on this device
 export interface MillPrinterCfg {
-  /** "nbt:<MAC>" (Bluetooth, through the phone) */
+  /** "nbt:<MAC>" (Bluetooth) or "nusb:<vendor>:<product>" (USB cable, OTG), both through the phone */
   id: string;
   name: string;
   widthMm: number;
@@ -106,10 +106,13 @@ const num = (v: unknown, min: number, max: number, d: number) => {
   return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : d;
 };
 
+export const isUsbId = (id: string) => id.startsWith("nusb:");
+export const isMillPrinterId = (id: string) => id.startsWith("nbt:") || isUsbId(id);
+
 export function cleanCfg(v: unknown): MillPrinterCfg | null {
   if (!v || typeof v !== "object") return null;
   const r = v as Record<string, unknown>;
-  if (typeof r.id !== "string" || !r.id.startsWith("nbt:")) return null;
+  if (typeof r.id !== "string" || !isMillPrinterId(r.id)) return null;
   return {
     id: r.id,
     name: typeof r.name === "string" && r.name ? r.name.slice(0, 40) : "Printer",
@@ -189,7 +192,7 @@ export const isLabelishName = (n: string) => /h30|helett|label|tsc|zebra|godex|t
 export const isBleName = (n: string) => /(^|[\s_-])ble$/i.test(n.trim());
 export function labelCandidates(list: NativePrinter[]): NativePrinter[] {
   return list
-    .filter((p) => p.kind === "bluetooth")
+    .filter((p) => p.kind === "bluetooth" || p.kind === "usb")
     .sort((a, b) => Number(isBleName(a.name)) - Number(isBleName(b.name)) || Number(isLabelishName(b.name)) - Number(isLabelishName(a.name)) || Number(b.printer) - Number(a.printer));
 }
 
@@ -466,11 +469,11 @@ export class MillPrintError extends Error {
     this.code = code;
   }
 }
-export type PrintFix = "bt-on" | "pair" | "permission" | "setup" | "app";
+export type PrintFix = "bt-on" | "pair" | "permission" | "setup" | "app" | "usb";
 export function explainPrintError(e: unknown, printerName = ""): { text: string; fix?: PrintFix } {
   const code = e instanceof MillPrintError ? e.code : (e as { code?: string })?.code || "";
   const msg = e instanceof Error ? e.message : String(e ?? "");
-  if (isBleName(printerName) && code !== "BT_OFF" && code !== "NO_PERMISSION" && code !== "NOT_APP" && code !== "NO_PRINTER") {
+  if (isBleName(printerName) && !code.startsWith("USB") && code !== "BT_OFF" && code !== "NO_PERMISSION" && code !== "NOT_APP" && code !== "NO_PRINTER") {
     return { text: `“${printerName}” is the low-energy (BLE) entry and the app cannot print over it. Forget it in Bluetooth settings and pair the one without “_BLE” (the one with the printer icon), then choose that.`, fix: "setup" };
   }
   switch (code) {
@@ -484,6 +487,14 @@ export function explainPrintError(e: unknown, printerName = ""): { text: string;
       return { text: "No printer chosen on this phone yet.", fix: "setup" };
     case "NOT_APP":
       return { text: "One-tap printing works in the Mahadev Desk Android app.", fix: "app" };
+    case "USB_UNPLUGGED":
+      return { text: "The USB printer is not plugged in. Connect the cable and switch the printer on.", fix: "usb" };
+    case "USB_DENIED":
+      return { text: "Allow Mahadev Desk to use the USB printer: tap OK when Android asks (tick “always”), then print again.", fix: "usb" };
+    case "USB_BUSY":
+      return { text: "The USB printer is busy with another app. Close the printer's own app and print again.", fix: "usb" };
+    case "USB_FAIL":
+      return { text: "The USB printer did not take the data. Check the cable, paper and that it is switched on.", fix: "usb" };
     case "PARTIAL":
       return { text: "The label may be cut short. Look at it; print again only if it is short." };
     case "PAPER_OUT":
@@ -558,7 +569,7 @@ let lastWarm = 0;
 export function warmMillPrinter() {
   if (!isNative() || Date.now() - lastWarm < 20_000) return;
   const c = getMillPrinters().label; // never the receipt printer: it may be shared with the Weigh & Bill counter
-  if (!c) return;
+  if (!c || isUsbId(c.id)) return; // a cable needs no warming
   lastWarm = Date.now();
   MahadevPrinter.prepare({ id: c.id, keepMs: 300_000 }).catch(() => {});
 }
