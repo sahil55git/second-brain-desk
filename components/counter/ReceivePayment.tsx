@@ -16,10 +16,12 @@ export interface ReceiveArgs {
   upiConfirmed: boolean;
   release: boolean;
 }
+/** What was typed so far: kept when staff press "Hold" so the same customer can be finished later. */
+export interface RecvDraft { mode: Mode; given: string; sp: { CASH: string; UPI: string; CREDIT: string }; name: string; upiGot: boolean }
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 export default function ReceivePayment({
-  no, total, party, items, k, onSubmit, onClose, canUdhaar = true, qr,
+  no, total, party, items, k, onSubmit, onClose, canUdhaar = true, qr, draft, onHold,
 }: {
   no: string;
   total: number;
@@ -31,12 +33,16 @@ export default function ReceivePayment({
   canUdhaar?: boolean;
   /** UPI QR for this bill (optional) */
   qr?: React.ReactNode;
+  /** restore what was typed before "Hold" */
+  draft?: RecvDraft;
+  /** "Take money & hold": keep this customer's entry, go back, finish later */
+  onHold?: (d: RecvDraft) => void;
 }) {
-  const [mode, setMode] = useState<Mode>("CASH");
-  const [given, setGiven] = useState("");
-  const [name, setName] = useState(party || "");
-  const [sp, setSp] = useState<{ CASH: string; UPI: string; CREDIT: string }>({ CASH: "", UPI: "", CREDIT: "" });
-  const [upiGot, setUpiGot] = useState(false);
+  const [mode, setMode] = useState<Mode>(draft?.mode || "CASH");
+  const [given, setGiven] = useState(draft?.given || "");
+  const [name, setName] = useState(draft?.name || party || "");
+  const [sp, setSp] = useState<{ CASH: string; UPI: string; CREDIT: string }>(draft?.sp || { CASH: "", UPI: "", CREDIT: "" });
+  const [upiGot, setUpiGot] = useState(draft?.upiGot || false);
   const [active, setActive] = useState<"given" | "CASH" | "UPI" | "CREDIT">("given");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -133,9 +139,22 @@ export default function ReceivePayment({
         )}
 
         {err && <p className="rp-err">{err}</p>}
-        <button type="button" className="rp-go" disabled={busy} aria-label={k("Money received — give the oil", "ಹಣ ಬಂತು — ಎಣ್ಣೆ ಕೊಡಿ")} title={k("Money received — give the oil", "ಹಣ ಬಂತು — ಎಣ್ಣೆ ಕೊಡಿ")} onClick={() => void go()}>
-          {busy ? "…" : <><TickIcon /><CoinIcon /><ArrowIcon /><OilIcon /></>}
-        </button>
+        <div className="rp-acts">
+          {onHold && (
+            <button type="button" className="rp-hold" disabled={busy} onClick={() => onHold({ mode, given, sp, name, upiGot })}>
+              <span className="rp-hic" aria-hidden>⏸</span>
+              <b>{k("Hold", "ಹಿಡಿಯಿರಿ")}</b>
+              <small>{k("money taken, finish later", "ಹಣ ತೆಗೆದುಕೊಂಡೆ, ನಂತರ ಮುಗಿಸುವೆ")}</small>
+            </button>
+          )}
+          <button type="button" className="rp-go" disabled={busy} aria-label={k("Money received — give the oil", "ಹಣ ಬಂತು — ಎಣ್ಣೆ ಕೊಡಿ")} onClick={() => void go()}>
+            {busy ? "…" : <>
+              <span className="rp-step"><CoinIcon /><b>{k("Money received", "ಹಣ ಬಂತು")}</b></span>
+              <ArrowIcon />
+              <span className="rp-step"><OilIcon /><b>{k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</b></span>
+            </>}
+          </button>
+        </div>
       </div>
     </div>
   );

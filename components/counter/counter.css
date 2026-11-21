@@ -119,7 +119,7 @@
 .ctr-upi div { display: flex; flex-direction: column; gap: 2px; }
 .ctr-upi b { font-size: 26px; }
 .ctr-upi small { color: #555; }
-.ctr-party { border: 2px solid var(--c-line); border-radius: var(--r2, 12px); padding: 10px; font-size: 16px; background: var(--c-bg); }
+.ctr-party { border: 2px solid var(--c-line); border-radius: var(--r2, 12px); padding: 6px 10px; font-size: 15px; background: var(--c-bg); }
 .ctr-addparty { border: 0; background: transparent; color: var(--c-soft); text-align: left; padding: 2px; }
 
 .ctr-msg { margin: 0; padding: 8px 10px; border-radius: var(--r3, 10px); font-weight: 600; }
@@ -136,7 +136,7 @@
 
 /* item keys */
 .ctr-itemhead { display: flex; gap: 6px; }
-.ctr-search { flex: 1; border: 2px solid var(--c-line); border-radius: var(--r2, 12px); padding: 10px; font-size: 16px; background: var(--c-bg); }
+.ctr-search { flex: 0 0 auto; height: 40px; min-height: 0; width: 100%; box-sizing: border-box; border: 2px solid var(--c-line); border-radius: var(--r2, 12px); padding: 10px; font-size: 16px; background: var(--c-bg); }
 .ctr-plu { border: 2px solid var(--c-line); background: var(--c-bg); border-radius: var(--r2, 12px); padding: 8px 12px; font-weight: 700; }
 .ctr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--keyw, 140px), 1fr)); gap: 10px; overflow: auto; align-content: start; }
 .ctr-key { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 16px 8px 10px; border: 2px solid var(--c-line); border-radius: var(--r, 16px); background: var(--c-bg); min-height: 128px; }
@@ -883,3 +883,16 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 /* Bills: oil button once the money is in — the same "bottle · Oil kg → customer" picture on green */
 .tick.goods.give-out { display: flex; align-items: center; justify-content: center; min-height: 72px; padding: 8px 10px; background: var(--c-go); border-color: var(--c-go); color: var(--c-on-go, #fff); }
 .tick.goods.give-out .oil-out { flex-wrap: nowrap; }
+
+.ctr-selbar{display:flex;flex-wrap:wrap;gap:6px}
+.ctr-selbar button{border:1px solid var(--c-line);border-radius:var(--r3,10px);padding:7px 10px;background:var(--c-bg);font-weight:600;display:inline-flex;align-items:center;gap:5px}
+.ctr-selbar button.on{border-color:var(--c-acc);background:var(--c-acc-soft);color:var(--c-acc-text,var(--c-acc))}
+.ctr-selbar button.payall{border-color:#16a34a;color:#16a34a}
+.br-sel{display:inline-flex;align-items:center;padding:2px 6px 2px 0}
+.br-sel input{width:26px;height:26px;accent-color:#16a34a}
+.ctr-list li.picked{border-color:#16a34a;box-shadow:0 0 0 2px #16a34a55}
+.ctr-selact{position:sticky;bottom:0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;margin:0 -4px;background:var(--c-card);border-top:2px solid var(--c-line);z-index:3}
+.ctr-selact>span{flex:1 1 100%;font-size:15px}
+.ctr-selact button{flex:1;min-width:110px;border:0;border-radius:12px;padding:12px 8px;font-weight:800;font-size:16px;background:var(--c-acc);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.ctr-selact button.both{background:#16a34a}
+.ctr-selact button:disabled{opacity:.4}
