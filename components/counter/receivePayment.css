@@ -1,6 +1,6 @@
 /* Receive payment / Cash received: follows the counter theme (dark or light); the colours come from the app, not fixed. */
 .rp-back{--rp-bg:var(--c-card,var(--card,#161b22));--rp-bg2:var(--c-bg,var(--bg,#0d1117));--rp-ink:var(--c-ink,var(--tx,#e6edf3));--rp-soft:var(--c-soft,var(--mut,#9aa6b2));--rp-line:var(--c-line,var(--line,#2b333d));--rp-ok:#16a34a;--rp-bad:#f87171;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;display:flex;align-items:center;justify-content:center;padding:12px}
-.rp-sheet{background:var(--rp-bg);color:var(--rp-ink);border:1px solid var(--rp-line);border-radius:16px;width:min(460px,100%);max-height:96vh;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.rp-sheet{background:var(--rp-bg);color:var(--rp-ink);border:1px solid var(--rp-line);border-radius:16px;width:min(460px,100%);max-height:100dvh;overflow:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
 .rp-head{display:flex;justify-content:space-between;align-items:center;font-size:18px}
 .rp-head button{border:1px solid var(--rp-line);background:var(--rp-bg2);color:var(--rp-ink);border-radius:10px;font-size:18px;padding:6px 12px}
 .rp-total{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--rp-bg2);border:1px solid var(--rp-line);border-radius:12px;padding:10px 12px}
@@ -32,7 +32,7 @@
 .rp-sheet button.rp-go{color:#fff}
 /* number pad */
 .np{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.np button{border:1px solid var(--rp-line);background:var(--rp-bg2);color:var(--rp-ink);border-radius:12px;min-height:54px;font-size:26px;font-weight:700}
+.np button{border:1px solid var(--rp-line);background:var(--rp-bg2);color:var(--rp-ink);border-radius:12px;min-height:clamp(40px,7vh,54px);font-size:clamp(20px,3.4vh,26px);font-weight:700}
 .np button:active{background:var(--rp-line)}
 .np .np-fn{color:var(--rp-soft)}
 
@@ -47,3 +47,23 @@
 .rp-bulk-note{margin:0;font-size:14px;opacity:.85}
 .rp-bulk-sum{display:flex;justify-content:space-between;align-items:baseline;border-radius:12px;background:var(--rp-bg2);padding:10px 12px}
 .rp-bulk-sum strong{font-size:26px}
+
+/* one card: what to receive | what to give back, always in view (no scrolling) */
+.rp-money{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rp-money.one{grid-template-columns:1fr}
+.rp-m{border-radius:12px;border:2px solid var(--rp-line);background:var(--rp-bg2);padding:6px 10px;display:grid;gap:0;min-width:0}
+.rp-m small{font-size:12px;color:var(--rp-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rp-m strong{font-size:clamp(24px,4.6vh,34px);line-height:1.15}
+.rp-m.in{border-color:var(--rp-ok)}.rp-m.in strong{color:var(--rp-ok)}
+.rp-m.out strong{color:var(--rp-soft)}
+.rp-m.out.ok strong{color:var(--rp-ok)}
+.rp-m.out.bad{border-color:var(--rp-bad)}.rp-m.out.bad strong,.rp-m.out.bad small{color:var(--rp-bad)}
+.rp-m.out.flash{border-color:#f59e0b;animation:rpGlow 1.2s ease-in-out infinite}.rp-m.out.flash strong{color:#f59e0b}
+@keyframes rpGlow{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.6)}50%{box-shadow:0 0 18px 4px rgba(245,158,11,.45)}}
+@media (prefers-reduced-motion:reduce){.rp-m.out.flash{animation:none}}
+.rp-cash label{flex-direction:row;align-items:center;gap:8px}
+.rp-cash label span{flex:0 0 auto;max-width:42%}
+.rp-sheet input:not([type=checkbox]){font-size:clamp(20px,3.6vh,26px);padding:6px 10px}
+.rp-chips{flex-wrap:nowrap;overflow-x:auto;margin-top:4px}
+.rp-chips button{flex:0 0 auto;padding:6px 12px;font-size:17px}
+.rp-go{min-height:56px;padding:10px;font-size:26px}

@@ -92,3 +92,71 @@
 .cd .chips span, .cd .r3 span { display: inline-flex; align-items: center; gap: 5px; }
 .cd-acts .ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .cd-back{color:inherit;text-decoration:none;border:1px solid var(--cd-line,rgba(255,255,255,.25));border-radius:10px;padding:6px 10px;font-size:14px;font-weight:700;white-space:nowrap}
+
+/* printer pill + reports use the counter's colour names */
+.cd{--c-ink:var(--tx);--c-soft:var(--mut);--c-line:var(--line);--c-bg:var(--bg);--c-card:var(--card);--c-acc:var(--go,#1f6b45);--c-ok:var(--ok);--c-bad:var(--bad);--c-mid:var(--warn)}
+.cd .ctr-chip{padding:6px 10px;border-radius:999px;font-size:13px;background:var(--card);border:1px solid var(--line);color:var(--mut);min-height:36px}
+.cd .ctr-chip::before{content:"●";margin-right:5px}
+.cd .ctr-chip.ok::before{color:var(--ok)}.cd .ctr-chip.mid::before{color:var(--warn)}.cd .ctr-chip.bad::before{color:var(--bad)}
+.cd .ctr-drawer{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:flex;justify-content:flex-end}
+.cd .ctr-sheet{width:min(460px,100%);height:100%;overflow:auto;background:var(--bg);color:var(--tx);padding:14px;display:flex;flex-direction:column;gap:10px}
+.cd .ctr-sheethead{display:flex;justify-content:space-between;align-items:center;font-size:18px}
+.cd .ctr-sheethead button{border:0;background:transparent;font-size:20px}
+.cd .bd-btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:6px 14px;border-radius:12px;border:2px solid var(--line);background:var(--card);font-weight:600}
+.cd .bd-btn.primary{background:var(--go,#1f6b45);border-color:var(--go,#1f6b45);color:var(--on-go,#fff)}
+.cd-top{flex-wrap:wrap}
+/* money / oil strip, select-many */
+.cd-strip{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.cd-strip div{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:10px 14px;display:grid;gap:1px}
+.cd-strip small{color:var(--mut);font-size:14px}.cd-strip b{font-size:24px}.cd-strip em{font-style:normal;color:var(--mut);font-size:13px}
+.cd-selzone{display:grid;gap:8px;margin-bottom:10px}
+.cd-selrow{display:flex;flex-wrap:wrap;gap:8px}
+.cd-selrow button,.cd-selact button{min-height:46px;padding:6px 14px;border-radius:12px;border:2px solid var(--line);background:var(--card);font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.cd-selrow .payall{border-color:var(--go,#1f6b45);background:var(--go,#1f6b45);color:var(--on-go,#fff)}
+.cd-selact{display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0}
+.cd-selact>span{flex:1 1 100%;color:var(--mut)}
+.cd-selact button:disabled{opacity:.4}
+.cd-selact .both{border-color:var(--go,#1f6b45);background:var(--go,#1f6b45);color:var(--on-go,#fff)}
+.cd-list li>button.picked{border-color:var(--go,#1f6b45);box-shadow:0 0 0 2px var(--go,#1f6b45) inset}
+.cd-tick{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:2px solid var(--line);border-radius:8px;font-style:normal;font-weight:800;color:var(--go,#1f6b45);flex:0 0 auto;align-self:center}
+
+/* payment sheet: everything on one screen, no scrolling */
+.cd-sheet{max-height:100dvh;padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px}
+.cd-head{margin-bottom:0;font-size:19px}
+.cd-items{display:flex;align-items:center;gap:8px;width:100%;text-align:left;min-height:40px;padding:4px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);font-size:15px}
+.cd-items span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mut)}
+.cd-lines{margin:0;max-height:22vh;overflow:auto}
+.cd-money{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cd-money.one{grid-template-columns:1fr}
+.cd-money>div{border:2px solid var(--line);background:var(--card);border-radius:14px;padding:6px 12px;display:grid;min-width:0}
+.cd-money small{display:flex;align-items:center;gap:5px;color:var(--mut);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cd-money b{font-size:clamp(26px,5vh,38px);line-height:1.15}
+.cd-money .in{border-color:var(--ok)}.cd-money .in b{color:var(--ok)}
+.cd-money .out b{color:var(--mut)}
+.cd-money .out.ok b{color:var(--ok)}
+.cd-money .out.bad{border-color:var(--bad)}.cd-money .out.bad b,.cd-money .out.bad small{color:var(--bad)}
+.cd-money .out.flash{border-color:#f59e0b;animation:cdGlow 1.2s ease-in-out infinite}.cd-money .out.flash b{color:#f59e0b}
+.cd-gave{display:grid;gap:6px}
+.cd-gave label{display:flex;align-items:center;gap:8px;font-size:17px}
+.cd-gave input{flex:1;min-width:0;font:inherit;font-size:clamp(22px,4vh,28px);font-weight:700;border:2px solid var(--line);border-radius:12px;padding:6px 12px;background:var(--bg);color:var(--tx)}
+.cd-gave .chips{display:flex;gap:8px;overflow-x:auto}
+.cd-gave .chips button{flex:0 0 auto;min-height:42px;padding:4px 14px;border-radius:12px;border:2px solid var(--line);background:var(--bg);font-weight:600}
+.cd-upi{margin-top:0;padding:6px 12px}
+.cd-acts{margin-top:2px;flex-wrap:nowrap}
+.cd-acts button{min-height:50px;flex:1 1 0;padding:6px 8px;font-size:15px}
+.cd-acts .go{flex:3 1 0;min-height:58px;font-size:19px}
+@keyframes cdGlow{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.6)}50%{box-shadow:0 0 18px 4px rgba(245,158,11,.45)}}
+
+/* guide: what to do next, flashing highlight like the counter */
+@keyframes cdGlow2{0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,.7),0 0 0 0 rgba(245,166,35,.35)}50%{box-shadow:0 0 0 7px rgba(245,166,35,0),0 0 22px 6px rgba(245,166,35,.45)}}
+@keyframes cdPoint{0%,100%{transform:translateY(0)}50%{transform:translateY(7px)}}
+.cd .cd-next{position:relative;outline:3px solid #f5a623;outline-offset:3px;border-radius:14px;animation:cdGlow2 1.3s ease-in-out infinite;z-index:1}
+.cd button.cd-next::after{content:"👇";position:absolute;top:-26px;right:12px;font-size:24px;line-height:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));animation:cdPoint .9s ease-in-out infinite;pointer-events:none}
+.cd .cd-list li{padding-top:2px}
+.cd-guide{display:flex;align-items:center;gap:10px;margin:6px 12px;padding:10px 14px;border-radius:14px;border:2px solid #f5a623;background:color-mix(in srgb,#f5a623 14%,var(--card));font-weight:700;font-size:17px}
+.cd-guide .gi{display:inline-flex;align-items:center;font-size:24px;animation:cdPoint .9s ease-in-out infinite}
+.cd-st{display:inline-flex;align-items:center;font-style:normal;flex:0 0 auto;align-self:center}
+.cd-tabs button{flex-direction:column;gap:2px;min-height:60px;font-size:15px}
+.cd-tabs button.cd-ping{border-color:#f5a623;animation:cdGlow2 1.3s ease-in-out infinite}
+.cd-list li>button.late{border-color:var(--bad);animation:cdGlow2 2s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.cd .cd-next,.cd button.cd-next::after,.cd-guide .gi,.cd-tabs button.cd-ping,.cd-list li>button.late,.cd-money .out.flash{animation:none}}

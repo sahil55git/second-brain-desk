@@ -86,7 +86,15 @@ export default function ReceivePayment({
           <b>#{no} · {k("Receive payment", "ಹಣ ಪಡೆಯಿರಿ")}</b>
           <button type="button" onClick={onClose} aria-label="Close">✕</button>
         </div>
-        <div className="rp-total"><span>{items}</span><strong>{rupees(total)}</strong></div>
+        <div className={`rp-money${cashPart > 0 ? "" : " one"}`}>
+          <div className="rp-m in"><small>{k("Receive", "ಪಡೆಯಬೇಕು")}{items ? ` · ${items}` : ""}</small><strong>{rupees(total)}</strong></div>
+          {cashPart > 0 && (
+            <div className={`rp-m out${g > 0 ? (short > 0 ? " bad" : change > 0 ? " flash" : " ok") : ""}`}>
+              <small>{g > 0 && short > 0 ? k("Short by", "ಕಡಿಮೆ") : k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")}</small>
+              <strong>{g > 0 ? rupees(short > 0 ? short : change) : "—"}</strong>
+            </div>
+          )}
+        </div>
         <div className="rp-tabs">
           {tabs.map(([m, en, ka]) => (
             <button key={m} type="button" className={mode === m ? "on" : ""} onClick={() => { setMode(m); setErr(""); setActive(m === "SPLIT" ? "CASH" : "given"); }}>{k(en, ka)}</button>
@@ -114,9 +122,6 @@ export default function ReceivePayment({
             <div className="rp-chips">
               {noteChips(cashPart).map((v) => <button key={v} type="button" className={v === Math.ceil(cashPart) ? "exact" : ""} aria-label={v === Math.ceil(cashPart) ? k("Exact amount", "ಸರಿಯಾದ ಮೊತ್ತ") : undefined} onClick={() => { setGiven(String(v)); setActive("given"); }}>{v === Math.ceil(cashPart) ? <><TickIcon /> ₹{v}</> : `₹${v}`}</button>)}
             </div>
-            {g > 0 && (short > 0
-              ? <p className="rp-short">{k("Short", "ಕಡಿಮೆ")} {rupees(short)}</p>
-              : <p className="rp-change">{k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")}: <b>{rupees(change)}</b></p>)}
           </div>
         )}
 

@@ -62,3 +62,17 @@ describe("Cashier desk is easy to find", () => {
     expect(man).toContain(".MillLauncher");
   });
 });
+
+describe("Cashier desk update", () => {
+  it("has select-many, guide, one-card money view and a live Android widget", () => {
+    const cd = readFileSync(join(process.cwd(), "components/counter/CashierDesk.tsx"), "utf8");
+    const rp = readFileSync(join(process.cwd(), "components/counter/ReceivePayment.tsx"), "utf8");
+    const w = readFileSync(join(process.cwd(), "mobile/android/app/src/main/java/in/mahadevtraders/desk/Widgets.java"), "utf8");
+    expect(cd).toContain("runBulk");
+    expect(cd).toContain("cd-guide");
+    expect(cd).toContain("cd-money");
+    expect(cd).toContain("PrinterChip");
+    expect(rp).toContain("rp-money");
+    expect(w).toContain("cashierLive");
+  });
+});
