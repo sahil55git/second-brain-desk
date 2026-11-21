@@ -29,3 +29,11 @@ describe("Mill Desk update 2 (source checks on the built page)", () => {
     expect(html).toContain("setLang(S.lang==='en'?'kn':'en')");
   });
 });
+
+describe("Waiting list carries the customer name", () => {
+  it("name button on customer cards, kept on the weighings, and passed to New job", () => {
+    expect(html).toContain("function wName(gi)");
+    expect(html).toContain("x.cust=c.slice(0,3)");
+    expect(html).toContain("if(gc&&!S.slip.cust)S.slip.cust=gc;");
+  });
+});

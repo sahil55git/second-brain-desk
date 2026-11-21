@@ -204,6 +204,21 @@ for X in ('j','sp'):
     s=s.replace("<span>+ advance returned</span><b>${inr(%s.advR)}"%X,"<span>${%s.cake==='SHOP'?'+':'−'} advance returned</span><b>${inr(%s.advR)}"%(X,X))
     s=s.replace("<span>+ tempo advance returned</span><b>${inr(%s.advRA)}"%X,"<span>${%s.cake==='SHOP'?'+':'−'} tempo advance returned</span><b>${inr(%s.advRA)}"%(X,X))
 
+# ---- 21 Nov pm: the Waiting list carries the customer's name; New job takes it over ----
+rep("function sheetCust(){layer('Customer',","function sheetCust(f){S.custFor=f||null;layer('Customer',")
+s=s.replace('onclick="S.slip.cust=CUSTS[${i}];closeLayer()"','onclick="custSet(CUSTS[${i}])"',1)
+s=s.replace("""onclick="S.slip.cust=['${p}','${p}'];closeLayer()\"""","""onclick="custSet(['${p}','${p}'])\"""",1)
+rep("if(n!==p&&!CUSTS.find(x=>x[0]===n&&x[1]===p))CUSTS.push(c);S.slip.cust=c;closeLayer()}","if(n!==p&&!CUSTS.find(x=>x[0]===n&&x[1]===p))CUSTS.push(c);custSet(c)}")
+rep("function wFilter(f){","""/* the name picked from the Waiting list goes on every weighing of that customer no.; otherwise it is the counter slip's customer */
+function custSet(c){const f=S.custFor;S.custFor=null;if(f){const [k,cno]=f.split('|');S.queue.forEach(x=>{if(x.k===k&&String(x.cno||0)===cno)x.cust=c.slice(0,3)});if(typeof save==='function')save();toast('Name: '+c[0]);sheetWaiting();return}S.slip.cust=c;closeLayer()}
+const gCust=g=>{const x=g.items.find(y=>y.cust);return x?x.cust:null};
+function wName(gi){const g=groups()[gi];sheetCust(g.k+'|'+(g.cno||0))}
+function wFilter(f){""")
+rep("""${g.cno?`<span class="bagchip" style="margin-left:auto">${cnoL()} ${g.cno}</span>`:''}</h3>""","""${g.cno?`<span class="bagchip" style="margin-left:auto">${cnoL()} ${g.cno}</span>`:''}</h3>
+   ${cust?`<button class="mrow wname" onclick="wName(${gi})">${ic('user')}<span class="sp">${gCust(g)?esc(gCust(g)[0])+(gCust(g)[1]&&gCust(g)[1]!==gCust(g)[0]?' · '+esc(gCust(g)[1]):''):t('who')}</span>${ic('edit')}</button>`:''}""")
+rep("function wNewJob(gi){const g=takeG(gi);","function wNewJob(gi){const g=takeG(gi);const gc=gCust(g);if(gc&&!S.slip.cust)S.slip.cust=gc;")
+rep("toast(S.mode==='worker'?'Loaded into a new job — switch to Counter to choose the customer':'Loaded into a new job — choose the customer')","toast(S.slip.cust?'Loaded into a new job for '+S.slip.cust[0]+' — check and tap Save job':S.mode==='worker'?'Loaded into a new job — switch to Counter to choose the customer':'Loaded into a new job — choose the customer')")
+
 # ---- engine + app code before the final render()
 eng=open(D+'/voice_engine.js').read()
 app=open(D+'/app_voice.js').read()+"\n/*APP-MILL*/\n"+open(D+'/app_mill.js').read()
