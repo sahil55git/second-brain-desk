@@ -830,11 +830,11 @@ export default function CounterApp() {
     setMsg({ ok: failed.length === 0, text: `${done} ${k("bill(s) done", "ಬಿಲ್ ಮುಗಿದಿದೆ")}${skipped.length ? ` · ${k("nothing to do for", "ಮಾಡಲು ಏನಿಲ್ಲ")} ${skipped.join(", ")}` : ""}${failed.length ? ` · ${k("failed", "ವಿಫಲ")}: ${failed.join(", ")}` : ""}` });
   };
   const settleBill = async (b: SavedBill, a: ReceiveArgs): Promise<string | null> => {
-    const e = await trackAct(b, "settle", { parts: a.parts, given: a.given, partyName: a.partyName, upiConfirmed: a.upiConfirmed, release: a.release });
+    const e = await trackAct(b, "settle", { parts: a.parts, given: a.given, partyName: a.partyName, upiConfirmed: a.upiConfirmed, release: a.release, keepOil: a.keepOil });
     if (!e) { setRecvFor(null); putHold(b.key, null); void load(); setMsg({ ok: true, text: `#${b.no} · ${k("payment recorded", "ಪಾವತಿ ದಾಖಲಾಗಿದೆ")}${a.given && a.parts.some((p) => p.mode === "CASH") ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(Math.max(0, a.given - (a.parts.find((p) => p.mode === "CASH")?.amount || 0)))}` : ""}` }); }
     return e;
   };
-  const trackAct = async (b: SavedBill, action: "handover" | "upiOk" | "cashOk" | "paidLater" | "settle" | "details", extra: Record<string, unknown> = {}): Promise<string | null> => {
+  const trackAct = async (b: SavedBill, action: "handover" | "upiOk" | "cashOk" | "paidLater" | "settle" | "details" | "keep", extra: Record<string, unknown> = {}): Promise<string | null> => {
     setBErr("");
     setArmed(null);
     try {
@@ -1645,9 +1645,14 @@ export default function CounterApp() {
                           oilBlocked ? (
                           <span className="tick goods locked"><i className="box" /><span className="ico" aria-hidden>🔒</span><b>{k("Held", "ಹಿಡಿದಿದೆ")}</b><small>{k("Receive money first", "ಮೊದಲು ಹಣ ಪಡೆಯಿರಿ")}</small></span>
                         ) : (
-                          <button type="button" className={`tick goods give-out${gd === "goods" ? " ctr-next" : ""}`} aria-label={k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")} onClick={() => void trackAct(b, "handover", { value: "GIVEN" })}>
-                            <OilOut kg={oilKgText(b.lines)} size={0.62} />
-                          </button>
+                          <>
+                            <button type="button" className={`tick goods give-out${gd === "goods" ? " ctr-next" : ""}`} aria-label={k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")} onClick={() => void trackAct(b, "handover", { value: "GIVEN" })}>
+                              <OilOut kg={oilKgText(b.lines)} size={0.62} />
+                            </button>
+                            {b.track.keep
+                              ? <button type="button" className="tick goods keep on" onClick={() => void trackAct(b, "keep", { value: "OFF" })} title={k("Back to the give-oil queue", "ಎಣ್ಣೆ ಕೊಡುವ ಸಾಲಿಗೆ ಮರಳಿ")}><span className="ico" aria-hidden>🏪</span><b>{k("Kept in shop", "ಅಂಗಡಿಯಲ್ಲಿ ಇದೆ")}</b><small>{timeOf(b.track.keep.at)}</small></button>
+                              : <button type="button" className="tick goods keep" onClick={() => void trackAct(b, "keep", { value: "ON" })}><span className="ico" aria-hidden>🏪</span><b>{k("Keep oil", "ಎಣ್ಣೆ ಇಡಿ")}</b><small>{k("customer takes later", "ನಂತರ ತೆಗೆದುಕೊಳ್ಳುತ್ತಾರೆ")}</small></button>}
+                          </>
                         )
                         ) : (
                           <span className="tick goods on"><i className="box">✓</i><span className="ico" aria-hidden><OilIcon size={26} /></span><b>{k("Oil out", "ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ")}</b></span>

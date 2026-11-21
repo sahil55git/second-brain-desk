@@ -13,7 +13,7 @@ import UnprintedSlips from "@/components/print/UnprintedSlips";
 import { changeFor, noteChips } from "@/lib/cashDesk";
 import { billMatches, billsSummary, groupBills, type SaleRow, type SavedBill } from "@/lib/counterRecords";
 import { daySummaryDoc } from "@/lib/counterShare";
-import { handoverOf, heldNeed, heldQueue, isTracked, oilBlockedAmount, payStatus, waitText } from "@/lib/counterTrack";
+import { handoverOf, heldNeed, heldQueue, isTracked, keptList, oilBlockedAmount, payStatus, waitText } from "@/lib/counterTrack";
 import { billName, qtyText, oilKgText } from "@/lib/counterName";
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
 import { businessDate } from "@/lib/register";
@@ -21,7 +21,7 @@ import ReceivePayment from "./ReceivePayment";
 import BillDetails from "./BillDetails";
 import "./cashier.css";
 
-type Tab = "queue" | "parked" | "bills" | "report";
+type Tab = "queue" | "kept" | "parked" | "bills" | "report";
 interface ParkedBill { id: string; label: string; total: number; heldBy: string | null; createdAt: string }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -158,6 +158,7 @@ export default function CashierDesk() {
   };
 
   const queue = useMemo(() => heldQueue(bills), [bills]);
+  const kept = useMemo(() => keptList(bills), [bills]);
   // a short beep + buzz when a new bill reaches the queue (the cashier is often looking elsewhere)
   useEffect(() => {
     const now = new Set(queue.map((b) => b.key));
@@ -204,7 +205,7 @@ export default function CashierDesk() {
     };
   };
 
-  async function act(b: SavedBill, action: "handover" | "upiOk" | "cashOk", extra: Record<string, unknown>, done: string, cashGiven?: number) {
+  async function act(b: SavedBill, action: "handover" | "upiOk" | "cashOk" | "keep", extra: Record<string, unknown>, done: string, cashGiven?: number) {
     setBusy(true);
     setMsg(null);
     try {
@@ -315,6 +316,9 @@ export default function CashierDesk() {
 
           <div className="cd-acts">
             {ps.cashDue > 0 && <button type="button" className={`go${g > 0 && short === 0 ? " cd-next" : ""}`} disabled={busy} onClick={onCash}><CashIn size={0.8} /> {upiLeft ? k("Cash in", "ನಗದು ಬಂತು") : k("Cash in – oil out", "ನಗದು ಬಂತು – ಎಣ್ಣೆ ಕೊಡಿ")} – {rupees(ps.cashDue)}</button>}
+            {ps.cashDue > 0 && <button type="button" className="keep" disabled={busy} onClick={() => { if (!g) return setMsg({ ok: false, text: k("Type how much the customer gave.", "ಗ್ರಾಹಕರು ಎಷ್ಟು ಕೊಟ್ಟರು ಎಂದು ಬರೆಯಿರಿ.") }); if (short > 0) return setMsg({ ok: false, text: k(`₹${short} short. Ask for the rest.`, `₹${short} ಕಡಿಮೆ ಇದೆ. ಉಳಿದದ್ದು ಕೇಳಿ.`) }); void act(bill, "cashOk", { given: g, release: false, keepOil: !upiLeft }, `#${bill.no} · ${k("cash received · oil kept in shop", "ನಗದು ಬಂತು · ಎಣ್ಣೆ ಅಂಗಡಿಯಲ್ಲಿ ಇದೆ")}${change > 0 ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(change)}` : ""}`, g); }}>🏪 {k("Cash in · keep oil", "ನಗದು ಬಂತು · ಎಣ್ಣೆ ಇಡಿ")}</button>}
+            {ps.cashDue === 0 && held && need === "READY" && !bill.track.keep && <button type="button" className="keep" disabled={busy} onClick={() => void act(bill, "keep", { value: "ON" }, `#${bill.no} · ${k("oil kept in shop", "ಎಣ್ಣೆ ಅಂಗಡಿಯಲ್ಲಿ ಇದೆ")}`)}>🏪 {k("Keep oil in shop", "ಎಣ್ಣೆ ಅಂಗಡಿಯಲ್ಲಿ ಇಡಿ")}</button>}
+            {bill.track.keep && <p className="cd-kept">🏪 {k("Kept in shop since", "ಅಂಗಡಿಯಲ್ಲಿ ಇಟ್ಟಿದ್ದು")} {timeOf(bill.track.keep.at)}</p>}
             {ps.cashDue === 0 && held && need === "READY" && <button type="button" className="go cd-next" disabled={busy} onClick={() => void act(bill, "handover", { value: "GIVEN" }, `#${bill.no} · ${k("oil given", "ಎಣ್ಣೆ ಬಿಡುಗಡೆ")}`)}><OilOut kg={oilKgText(bill.lines)} size={0.7} /></button>}
             
             <button type="button" className="ghost" onClick={() => setDetFor(bill)}>👤 {k("Customer / note", "ಗ್ರಾಹಕ / ಟಿಪ್ಪಣಿ")}</button>
@@ -329,6 +333,7 @@ export default function CashierDesk() {
     if (!isTracked(b.track)) return { cls: "paid", text: <><TickIcon size={18} /> {k("Paid", "ಪಾವತಿ")}</> };
     const ps = payStatus(b.modes, b.track);
     if (b.track.payPending) return { cls: "wait", text: <>💰 {k("Receive payment", "ಹಣ ಪಡೆಯಿರಿ")}</> };
+    if (handoverOf(b.track) === "HELD" && b.track.keep) return { cls: "ready", text: <>🏪 {k("Kept in shop", "ಅಂಗಡಿಯಲ್ಲಿ ಇದೆ")}</> };
     if (handoverOf(b.track) === "HELD") return { cls: ps.state === "PAID" ? "ready" : "wait", text: ps.state === "PAID" ? <><OilIcon size={18} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</> : `⏳ ${k("Held", "ಹಿಡಿದಿದೆ")}` };
     if (ps.creditDue > 0) return { cls: "wait", text: <><BookIcon size={18} /> {k("Udhaar", "ಉದ್ರಿ")} – {rupees(ps.creditDue)}</> };
     return { cls: "paid", text: <><TickIcon size={18} /> {k("Paid", "ಪಾವತಿ")}</> };
@@ -390,6 +395,7 @@ const txtStyle = useMemo(() => {
   })();
   const TABS: [Tab, string, number | null, React.ReactNode][] = [
     ["queue", k("Queue", "ಸಾಲು"), queue.length, <HourglassIcon key="i" size={22} />],
+    ["kept", k("Kept", "ಇಟ್ಟಿದ್ದು"), kept.length, <span key="i" aria-hidden>🏪</span>],
     ["parked", k("Parked", "ನಿಲ್ಲಿಸಿದ"), parked.length, <PauseIcon key="i" size={22} />],
     ["bills", k("Bills", "ಬಿಲ್‌ಗಳು"), null, <BookIcon key="i" size={22} />],
     ["report", k("Report", "ವರದಿ"), null, <span key="i" aria-hidden>📊</span>],
@@ -408,7 +414,7 @@ const txtStyle = useMemo(() => {
       <UnprintedSlips kn={kn} />
       <nav className="cd-tabs" role="tablist">
         {TABS.map(([t, label, n, ic]) => (
-          <button key={t} type="button" role="tab" aria-selected={tab === t} className={`${tab === t ? "on" : ""}${n && t === "queue" && tab !== "queue" ? " cd-ping" : ""}`} onClick={() => { setTab(t); if (t === "report" && !rFrom) void loadReport(today, today); if (t === "parked" || t === "report") endSelect(); }}>
+          <button key={t} type="button" role="tab" aria-selected={tab === t} className={`${tab === t ? "on" : ""}${n && t === "queue" && tab !== "queue" ? " cd-ping" : ""}`} onClick={() => { setTab(t); if (t === "report" && !rFrom) void loadReport(today, today); if (t === "parked" || t === "report" || t === "kept") endSelect(); }}>
             {ic}{label}{n ? <b>{n}</b> : null}
           </button>
         ))}
@@ -421,17 +427,19 @@ const txtStyle = useMemo(() => {
         {tab === "queue" && (
           <>
             <p className="cd-sub">{queue.length === 0 ? k("Nothing waiting. Oil of every bill has been given.", "ಏನೂ ಕಾಯುತ್ತಿಲ್ಲ. ಎಲ್ಲಾ ಬಿಲ್‌ಗಳ ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ.") : waiting > 0 ? `⏳ ${waiting} ${k("waiting for money", "ಹಣಕ್ಕೆ ಕಾಯುತ್ತಿವೆ")}` : `✅ ${k("All paid — give the oil", "ಎಲ್ಲಾ ಹಣ ಬಂದಿದೆ — ಎಣ್ಣೆ ಕೊಡಿ")}`}</p>
-            {(toPay.length > 0 || queue.length > 0) && (
+            {(toPay.length > 0 || queue.length > 0 || kept.length > 0) && (
               <div className="cd-strip">
                 <div><small>💰 {k("To receive", "ಬರಬೇಕಾದದ್ದು")}</small><b>{rupees(toPayTotal)}</b><em>{toPay.length} {k("bills", "ಬಿಲ್")}</em></div>
-                <div><small>🔒 {k("Oil held", "ಎಣ್ಣೆ ಹಿಡಿದಿದೆ")}</small><b>{queue.length}</b><em>{queue.filter((b) => heldNeed(b.modes, b.track) === "READY").length} {k("ready to give", "ಕೊಡಲು ಸಿದ್ಧ")}</em></div>
+                <div><small>🔒 {k("Oil held", "ಎಣ್ಣೆ ಹಿಡಿದಿದೆ")}</small><b>{queue.length}</b><em>{queue.filter((b) => heldNeed(b.modes, b.track) === "READY").length} {k("ready to give", "ಕೊಡಲು ಸಿದ್ಧ")}{kept.length ? ` · 🏪 ${kept.length} ${k("kept", "ಇಟ್ಟಿದ್ದು")}` : ""}</em></div>
               </div>
             )}
+            <div className="cd-tools">
             {selBar(queue.filter((b) => billMatches(b, q)))}
             <form className="cd-find" onSubmit={(e) => { e.preventDefault(); const m = queue.filter((b) => billMatches(b, q)); if (m.length === 1) { open(m[0]); setQ(""); } }}>
               <input inputMode="numeric" value={q} onChange={(e) => setQ(e.target.value.replace(/[^\w ]/g, ""))} placeholder={k("Bill number on the slip", "ಸ್ಲಿಪ್‌ನ ಬಿಲ್ ಸಂಖ್ಯೆ")} aria-label={k("Bill number", "ಬಿಲ್ ಸಂಖ್ಯೆ")} />
               <button type="submit">{k("Open", "ತೆರೆಯಿರಿ")}</button>
             </form>
+            </div>
             <ul className="cd-list">
               {queue.filter((b) => billMatches(b, q)).map((b) => {
                 const ps = payStatus(b.modes, b.track);
@@ -452,6 +460,27 @@ const txtStyle = useMemo(() => {
                   </li>
                 );
               })}
+            </ul>
+          </>
+        )}
+
+        {tab === "kept" && (
+          <>
+            <p className="cd-sub">{kept.length ? k("Paid. The oil is waiting in the shop for the customer to take.", "ಹಣ ಬಂದಿದೆ. ಎಣ್ಣೆ ಗ್ರಾಹಕರು ತೆಗೆದುಕೊಳ್ಳಲು ಅಂಗಡಿಯಲ್ಲಿ ಇದೆ.") : k("No oil is kept in the shop.", "ಅಂಗಡಿಯಲ್ಲಿ ಇಟ್ಟ ಎಣ್ಣೆ ಇಲ್ಲ.")}</p>
+            <ul className="cd-list plain">
+              {kept.map((b) => (
+                <li key={b.key}>
+                  <div className="cd-keptcard">
+                    <button type="button" className="cd-keptinfo" onClick={() => open(b)}>
+                      <span className="r1"><b>#{b.no}{` · ${billName(b.party, b.modes)}`}</b><strong>{rupees(b.total)}</strong></span>
+                      <span className="r2">{b.lines.map((l) => `${l.label}${qtyText(l.qty, l.unit) ? " " + qtyText(l.qty, l.unit) : ""}`).join(" · ")}</span>
+                      <span className="r3"><span>🏪 {k("kept", "ಇಟ್ಟಿದ್ದು")} {timeOf(b.track.keep!.at)} · {waitText(Date.now() - new Date(b.track.keep!.at).getTime())}</span></span>
+                    </button>
+                    <button type="button" className="cd-give cd-next" disabled={busy} onClick={() => void act(b, "handover", { value: "GIVEN" }, `#${b.no} · ${k("oil given", "ಎಣ್ಣೆ ಕೊಟ್ಟಿದೆ")}`)}><OilOut size={0.62} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</button>
+                  </div>
+                </li>
+              ))}
+              {!kept.length && <li className="empty">{k("Nothing kept.", "ಏನೂ ಇಲ್ಲ.")}</li>}
             </ul>
           </>
         )}

@@ -81,3 +81,6 @@
   .rp-sheet>.rp-acts{grid-column:1 / -1}
   .rp-sheet:not(:has(.np))>*{grid-column:1 / -1}
 }
+
+.rp-keep{border-color:#f59e0b}
+@media (orientation:landscape) and (max-height:820px){.rp-acts{gap:6px}.rp-hold{min-width:92px}}

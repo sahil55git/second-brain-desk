@@ -164,3 +164,32 @@
 /* dialogs above the app's top bar (z-index 8000) */
 .cd-modal{z-index:9000}
 .cd .ctr-drawer{z-index:9000}
+
+/* kept in shop */
+.cd-acts .keep{border-color:#f59e0b}
+.cd-kept{flex:1 1 100%;margin:0;color:var(--warn);font-weight:700}
+.cd-keptcard{display:grid;gap:8px;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:10px 12px}
+.cd-keptinfo{width:100%;text-align:left;display:grid;gap:4px;background:none;border:0;padding:0}
+.cd-keptcard .cd-give{min-height:52px;border-radius:12px;border:2px solid var(--go,#1f6b45);background:var(--go,#1f6b45);color:var(--on-go,#fff);font-weight:700;font-size:18px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.cd-tabs{grid-template-columns:repeat(5,1fr)}
+
+/* ---- landscape tablet: bills first, less chrome ---- */
+.cd-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
+.cd-tools .cd-selzone{flex:0 1 auto;margin-bottom:0}
+.cd-tools .cd-find{flex:1 1 260px;margin-bottom:0}
+@media (orientation:landscape) and (max-height:820px){
+  .cd-top{padding:6px 12px;gap:8px;font-size:17px}
+  .cd-top button{min-height:38px;padding:4px 10px}
+  .cd-tabs{padding:6px 12px;gap:6px}
+  .cd-tabs button{flex-direction:row;min-height:42px;gap:8px;font-size:15px}
+  .cd-guide{margin:4px 12px;padding:6px 12px;font-size:16px}
+  .cd-sub{display:none}
+  .cd-strip{grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+  .cd-strip div{display:flex;align-items:baseline;gap:10px;padding:4px 12px}
+  .cd-strip b{font-size:20px}
+  .cd-strip em{margin-left:auto}
+  .cd-find input,.cd-find button{min-height:44px;font-size:18px}
+  .cd-selrow button,.cd-selact button{min-height:42px}
+  .cd-list li>button,.cd-list.plain li>div{padding:8px 12px}
+  .cd-list .r1 strong{font-size:19px}
+}
