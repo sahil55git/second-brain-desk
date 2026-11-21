@@ -704,7 +704,7 @@ export default function CounterApp() {
           ...(modes.length > 1 ? modes.map(([m, v]) => ({ label: m, value: rupees(v) })) : []),
           ...(cashDue > 0 && received > 0 ? [{ label: "Cash received", value: rupees(received) }, ...(back > 0 ? [{ label: "Return to customer", value: rupees(back), strong: true }] : [])] : []),
         ],
-        notes: payQ ? [`PAY ${rupees(total)} · Bill #${no}`, "Pay at the counter. Oil is given after payment.", ...(vpa && settings.upiQr ? [`Scan to pay by UPI · ${vpa}`] : [])] : [...(hand === "HELD" && holdCash && cashDue > 0 ? [`PAY ${rupees(cashDue)} AT THE CASH COUNTER · Bill #${no}`, "Oil is given after payment"] : []), `Mode: ${modes.map(([m]) => m).join(" + ")}`, ...(upiDue > 0 && vpa && settings.upiQr ? [`Scan to pay ${rupees(upiDue)} by UPI · ${vpa}`] : [])],
+        notes: payQ ? [...(vpa && settings.upiQr ? [`Scan to pay by UPI · ${vpa}`] : [])] : [...(hand === "HELD" && holdCash && cashDue > 0 ? [`Pay ${rupees(cashDue)} at the counter`] : []), `Mode: ${modes.map(([m]) => m).join(" + ")}`, ...(upiDue > 0 && vpa && settings.upiQr ? [`Scan to pay ${rupees(upiDue)} by UPI · ${vpa}`] : [])],
         qr: payQ ? (settings.upiQr ? upiFor(total, `Bill ${no} · ${itemsNote(lines)}`) : undefined) : pay !== "CASH" && settings.upiQr ? upiFor(pay === "SPLIT" ? (split.UPI || 0) + (split.CREDIT || 0) : total, `Bill ${no} · ${itemsNote(lines)}`) : undefined,
       };
       // GST tax invoice instead of the plain receipt: same lines and amounts, GST taken out of each price

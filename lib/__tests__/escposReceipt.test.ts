@@ -63,10 +63,10 @@ describe("buildReceiptEscpos", () => {
   });
   it("no printed line is wider than the paper", () => {
     for (const paper of [58, 80] as const) {
-      const cols = paper === 58 ? 32 : 48;
+      const cols = paper === 58 ? 42 : 64; // the small font (font B) is the widest thing on the slip
       const b = buildReceiptEscpos(bill, shop, { paper, kannada: false });
       // text between line feeds, with ESC/GS commands removed
-      const lines = text(b).replace(/\x1b[@t]\x00?|\x1b[aE][\s\S]|\x1d![\s\S]|\x1bd[\s\S]/g, "").split("\n");
+      const lines = text(b).replace(/\x1b[@t]\x00?|\x1b[aEM][\s\S]|\x1d![\s\S]|\x1bd[\s\S]/g, "").split("\n");
       for (const l of lines) expect(l.replace(/[\x00-\x1f]/g, "").length).toBeLessThanOrEqual(cols);
     }
   });
@@ -104,7 +104,7 @@ describe("pictures", () => {
     expect(q.width).toBeLessThanOrEqual(384);
     expect(q.width % 8).toBe(0);
     expect(Math.abs(q.width - q.height)).toBeLessThan(8);
-    expect(q.height).toBeGreaterThan(100);
+    expect(q.height).toBeGreaterThan(60);
     expect(q.height).toBeLessThanOrEqual(384);
   });
   it("bands carry the right sizes", () => {
@@ -112,5 +112,19 @@ describe("pictures", () => {
     const b = rasterBands(m);
     expect(b.length).toBe(8 + 48 + 8 + 12);
     expect(Array.from(b.slice(0, 8))).toEqual([0x1d, 0x76, 0x30, 0, 2, 0, 24, 0]);
+  });
+});
+
+describe("compact slip", () => {
+  it("shop name is normal size (not double), address and details use the small font", () => {
+    const b = buildReceiptEscpos(bill, shop, { paper: 58, kannada: false });
+    const s = Array.from(b).join(",");
+    expect(s).not.toContain("29,33,17"); // GS ! 0x11 = double width and height
+    expect(s).toContain("27,77,1"); // ESC M 1 = small font
+  });
+  it("QR is small: modules of at most 3 dots, thin margin", () => {
+    const m = qrMono("upi://pay?pa=shop@okaxis&am=80.86&cu=INR", 384)!;
+    expect(m.width).toBeLessThanOrEqual(150);
+    expect(m.height).toBeLessThanOrEqual(150);
   });
 });
