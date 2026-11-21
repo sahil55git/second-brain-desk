@@ -25,3 +25,13 @@ describe("Bills page: compact search, select many, hold money", () => {
     expect(app).toContain("counterRecvHold");
   });
 });
+
+describe("printer status pill", () => {
+  it("Weigh & Bill top bar has a printer pill that opens the printer set-up", () => {
+    const app = readFileSync(join(process.cwd(), "components/counter/CounterApp.tsx"), "utf8");
+    const chip = readFileSync(join(process.cwd(), "components/print/PrinterChip.tsx"), "utf8");
+    expect(app).toContain("<PrinterChip");
+    expect(chip).toContain("SlipPrinterSetup");
+    expect(chip).toContain("Bluetooth off");
+  });
+});

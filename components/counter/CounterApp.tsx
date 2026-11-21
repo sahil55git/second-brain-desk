@@ -35,6 +35,7 @@ import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, v
 import { billGuide, counterStep } from "@/lib/counterGuide";
 import { billIcon, billName, qtyText, oilKgText } from "@/lib/counterName";
 import { LAYOUTS, LAYOUT_INFO, layoutShow, parseTabletOpts, pickLayout, type Layout, type TabletOpts } from "@/lib/counterLayout";
+import PrinterChip from "@/components/print/PrinterChip";
 import ReceivePayment, { type ReceiveArgs, type RecvDraft } from "./ReceivePayment";
 import CashReceived from "./CashReceived";
 import BillDetails from "./BillDetails";
@@ -1111,6 +1112,7 @@ export default function CounterApp() {
         <b className="ctr-title">⚖️ {k("Weigh & Bill", "ತೂಕ & ಬಿಲ್")}</b>
         <span className="ctr-clock" aria-label={k("Date and time", "ದಿನಾಂಕ ಮತ್ತು ಸಮಯ")}><b>{clock.time}</b><small>{clock.date}</small></span>
         {show.scaleStatus && <span className={`ctr-chip ${connected ? (fresh ? "ok" : "mid") : "bad"}`}>{connected ? bt.config?.name || reading?.scale_source || k("Scale", "ತಕ್ಕಡಿ") : k("No scale", "ತಕ್ಕಡಿ ಇಲ್ಲ")}</span>}
+        {show.scaleStatus && <PrinterChip shop={shop} k={k} />}
         {show.scaleSetup && !connected && !kiosk?.on && <Link href={scaleSetupHref("/register/counter")} className="ctr-link">{k("Set up scale", "ತಕ್ಕಡಿ ಹೊಂದಿಸಿ")}</Link>}
         <span className="ctr-sp" />
         {!noTotal && chips}

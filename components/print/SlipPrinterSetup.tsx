@@ -115,6 +115,7 @@ export default function SlipPrinterSetup({ shop, onChange, compact = false }: { 
               </div>
               <div className="bd-row">
                 <label className="sp-tick"><input type="checkbox" checked={cfg.kannada} onChange={(e) => save({ ...cfg, kannada: e.target.checked })} /> Kannada on slip</label>
+                <label className="sp-tick"><input type="checkbox" checked={!!cfg.small} onChange={(e) => save({ ...cfg, small: e.target.checked })} /> Small type for address &amp; notes (saves paper; turn off if nothing prints)</label>
                 <label className="sp-tick"><input type="checkbox" checked={cfg.cut} onChange={(e) => save({ ...cfg, cut: e.target.checked })} /> Cutter</label>
               </div>
               <div className="bd-row">

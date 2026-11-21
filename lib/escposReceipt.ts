@@ -37,6 +37,8 @@ export interface SlipOpts {
   cut?: boolean;
   /** blank lines fed at the end so the slip clears the tear bar */
   feed?: number;
+  /** use the printer's small font (ESC M 1) for the address, details and notes. Off by default: a printer that mishandles it prints nothing. */
+  small?: boolean;
   /** add "ಧನ್ಯವಾದಗಳು" under "Thank you" (needs `render`) */
   kannada?: boolean;
   copies?: number;
@@ -163,6 +165,7 @@ export function buildReceiptEscpos(docIn: ReceiptDoc, shop: ShopInfo, o: SlipOpt
   const doc = cleanReceipt(docIn);
   const L = SLIP_LAYOUTS[o.paper === 58 ? 58 : 80];
   const cols = L.cols;
+  const sm = !!o.small;
   const out: Uint8Array[] = [INIT];
   const textLines = (lines: string[]) => lines.forEach((l) => out.push(enc(l), LF));
 
@@ -179,10 +182,13 @@ export function buildReceiptEscpos(docIn: ReceiptDoc, shop: ShopInfo, o: SlipOpt
     }
     const t = printable(s);
     if (!t) return;
-    const w = st.big ? Math.floor(cols / 2) : st.small ? smallCols(L.dots) : cols;
-    out.push(align(a), bold(!!st.bold), size(st.big ? 0x11 : 0x00), fontB(!!st.small));
+    const small = !!st.small && sm;
+    const w = st.big ? Math.floor(cols / 2) : small ? smallCols(L.dots) : cols;
+    out.push(align(a), bold(!!st.bold), size(st.big ? 0x11 : 0x00));
+    if (small) out.push(fontB(true));
     textLines(wrap(t, w));
-    out.push(fontB(false), size(0), bold(false), align("left"));
+    if (small) out.push(fontB(false));
+    out.push(size(0), bold(false), align("left"));
   };
   const rule = (ch = "-") => out.push(align("left"), enc(ch.repeat(cols)), LF);
   /** left + right on one line; a left side in Kannada goes on its own picture line first */
@@ -208,9 +214,11 @@ export function buildReceiptEscpos(docIn: ReceiptDoc, shop: ShopInfo, o: SlipOpt
   rule();
   if (doc.title || doc.no || doc.when) {
     const head = [printable(doc.title || ""), doc.no ? `No. ${printable(doc.no)}` : ""].filter(Boolean).join("  ");
-    out.push(align("left"), bold(true), fontB(true));
-    textLines(leftRight(head, doc.when ? printable(doc.when) : "", smallCols(L.dots)));
-    out.push(fontB(false), bold(false));
+    out.push(align("left"), bold(true));
+    if (sm) out.push(fontB(true));
+    textLines(leftRight(head, doc.when ? printable(doc.when) : "", sm ? smallCols(L.dots) : cols));
+    if (sm) out.push(fontB(false));
+    out.push(bold(false));
   }
   if (doc.party) line(doc.party, { bold: true });
   if (doc.rows.length) {
