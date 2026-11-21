@@ -74,6 +74,7 @@ export async function movementsFor(date: string) {
         settlementAmountInr: j.settlementAmountInr,
         settledAt: j.settledAt,
         createdAt: j.createdAt,
+        notes: j.notes,
         settlementMode: j.settlementMode,
       })
     )

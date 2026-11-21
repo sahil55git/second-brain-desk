@@ -133,8 +133,8 @@ rep(r"""function settlement(j){const rate=RATE[j.cake],gross=j.seedKg*rate,cans=
  return{rate,gross,cans,adv,due:gross+cans-adv,dir:'in',cust:gross+cans-adv,auto:0}}""",
 r"""function settlement(j){const rate=RATE[j.cake],gross=j.seedKg*rate,cans=canCharge(j.cans),aC=Math.max(0,(j.advC||0)-(j.advR||0)),aA=Math.max(0,(j.advA||0)-(j.advRA||0)),adv=aC+aA;
  if(j.cake==='SHOP'){const half=gross/2,due=gross-adv-cans;return{rate,gross,cans,adv,due,dir:due>=0?'out':'in',cust:half-aC-cans,auto:half-aA,advR:j.advR||0}}
- const due=gross+cans-adv;return{rate,gross,cans,adv,due,dir:due>=0?'in':'out',cust:due,auto:0,advR:j.advR||0}}
-/* who pays whom: 'in' = the customer pays us, 'out' = we pay the customer (cans and advances are taken off first) */
+ const due=gross+cans+adv;return{rate,gross,cans,adv,due,dir:'in',cust:due,auto:0,advR:j.advR||0}}
+/* who pays whom: 'in' = the customer pays us, 'out' = we pay the customer. Shop keeps khali: advances and cans come off what we pay. Customer takes khali: khali + cans + the advance we gave all come back from the customer. */
 const payLbl=(j,dirIn)=>dirIn?(j.cake==='SHOP'?'Customer pays':'Khali payment'):'Pay customer';
 const splitNote=s=>'Customer '+(s.cust>=0?'gets ':'owes ')+inr(s.cust)+' · Tempo '+(s.auto>=0?'gets ':'owes ')+inr(s.auto);
 function resRows(j,s){const net=`<div class="ar res"><span>${s.dir==='in'?ic('down')+(j.cake==='SHOP'?'':ic('bag'))+' '+(j.cake==='SHOP'?'Customer pays you':'Khali payment'):ic('up')+' You pay customer'}</span><b>${inr(s.due)}</b></div>`;
@@ -196,6 +196,13 @@ rep("onclick=\"S.mode=S.mode==='worker'?'counter':'worker';S.view='pick';render(
 rep("onclick=\"S.lang=S.lang==='en'?'kn':'en';render()\"","onclick=\"setLang(S.lang==='en'?'kn':'en')\"")
 
 rep("S.view='slip';S.mode='counter';closeLayer();toast('Loaded into a new job — choose the customer')","S.view='slip';closeLayer();toast(S.mode==='worker'?'Loaded into a new job — switch to Counter to choose the customer':'Loaded into a new job — choose the customer')")
+
+# khali to customer: the advance is added back, so the signs on the account lines follow the khali owner
+for X in ('j','sp'):
+    s=s.replace("<span>− customer advance</span><b>${inr(%s.advC)}"%X,"<span>${%s.cake==='SHOP'?'−':'+'} customer advance</span><b>${inr(%s.advC)}"%(X,X))
+    s=s.replace("<span>− tempo advance</span><b>${inr(%s.advA)}"%X,"<span>${%s.cake==='SHOP'?'−':'+'} tempo advance</span><b>${inr(%s.advA)}"%(X,X))
+    s=s.replace("<span>+ advance returned</span><b>${inr(%s.advR)}"%X,"<span>${%s.cake==='SHOP'?'+':'−'} advance returned</span><b>${inr(%s.advR)}"%(X,X))
+    s=s.replace("<span>+ tempo advance returned</span><b>${inr(%s.advRA)}"%X,"<span>${%s.cake==='SHOP'?'+':'−'} tempo advance returned</span><b>${inr(%s.advRA)}"%(X,X))
 
 # ---- engine + app code before the final render()
 eng=open(D+'/voice_engine.js').read()

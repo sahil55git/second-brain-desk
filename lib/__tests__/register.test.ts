@@ -264,3 +264,19 @@ describe("customer estimate", () => {
     expect(fmtEstimateQty(4, "bags")).toBe("4 bags");
   });
 });
+
+describe("Mill Desk customer-khali job cash", () => {
+  it("the advance we gave is cash out, the settlement is cash in", () => {
+    const ev = jobWorkCashEvents({
+      cakeOwnership: "CUSTOMER",
+      advanceCustomerInr: 500,
+      advanceAutoInr: 0,
+      settled: true,
+      settlementAmountInr: 1550,
+      settledAt: T(18),
+      createdAt: T(9),
+      notes: "Mill Desk · [mill:x1]",
+    });
+    expect(ev.map((e) => e.amount)).toEqual([-500, 1550]);
+  });
+});

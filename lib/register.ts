@@ -11,7 +11,7 @@
 // lib/calculations.ts (expectedSettlement etc.) and is reused as-is.
 
 import { normalizeSimpleAssign, normalizeSimpleModes, type SimpleMode } from "./simpleMode";
-import type { CashInputs } from "./calculations";
+import { advanceIsGiven, type CashInputs } from "./calculations";
 
 export type Side = "in" | "out" | "oth";
 export type RegisterKind =
@@ -396,6 +396,8 @@ export interface JobWorkLike {
   settlementAmountInr: number | null;
   settledAt: string | Date | null;
   createdAt: string | Date;
+  /** Job notes; a "[mill:…]" mark means a Mill Desk job, whose advance was cash we gave out. */
+  notes?: string | null;
   /** "UPI" when the settlement was paid by UPI; anything else (or missing) is counter cash. */
   settlementMode?: string | null;
 }
@@ -422,10 +424,12 @@ export interface CashEvent {
  */
 export function jobWorkCashEvents(j: JobWorkLike): CashEvent[] {
   const sign = j.cakeOwnership === "SHOP" ? -1 : 1;
+  // A Mill Desk advance is always cash we handed out, whoever keeps the khali.
+  const advSign = advanceIsGiven({ notes: j.notes }) ? -1 : sign;
   const events: CashEvent[] = [];
   const adv = (j.advanceCustomerInr || 0) + (j.advanceAutoInr || 0);
   if (adv) {
-    const amount = sign * adv;
+    const amount = advSign * adv;
     events.push({ at: +new Date(j.createdAt), amount, bucket: amount >= 0 ? "jwIn" : "jwOut" });
   }
   // A UPI settlement never touches the drawer: it is in jobWorkUpiEvents(), not in the cash.

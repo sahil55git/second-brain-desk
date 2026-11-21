@@ -12,11 +12,11 @@ describe("Mill Desk money (same as the preview's settlement)", () => {
     expect(m.customer).toBeCloseTo(gross / 2 - 500 - 100, 6);
     expect(m.auto).toBeCloseTo(gross / 2 - 200, 6);
   });
-  it("customer takes khali: ₹10/kg, cans added, advance off, no tempo split", () => {
+  it("customer takes khali: ₹10/kg, cans and the advance we gave added, no tempo split", () => {
     const m = jobMoney(job({ seedKg: 120, cake: "CUSTOMER", advC: 300, advA: 0, cans: { can5new: 1 } }));
     expect(m.rate).toBe(10);
-    expect(m.due).toBe(1200 + 40 - 300);
-    expect(m.customer).toBe(940);
+    expect(m.due).toBe(1200 + 40 + 300);
+    expect(m.customer).toBe(1540);
     expect(m.auto).toBe(0);
   });
   it("cans carry today's rate and ignore unknown kinds", () => {

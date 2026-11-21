@@ -258,3 +258,14 @@ describe("KHALI_SPLIT sanity", () => {
     expect(KHALI_SPLIT.oilPct + KHALI_SPLIT.khaliPct).toBe(100);
   });
 });
+
+describe("Mill Desk advance (cash we gave) when the customer takes the khali", () => {
+  const base = { seedKg: 100, cakeOwnership: "CUSTOMER" as const, advanceCustomerInr: 500, cans: { can15: { qty: 1, rate: 50 } } };
+  it("a Mill Desk job: khali + cans + advance", () => {
+    expect(expectedSettlementWithRate({ ...base, notes: "Mill Desk · [mill:abc]" }, 10)).toBe(1000 + 50 + 500);
+    expect(expectedSettlementWithRate({ ...base, advanceGiven: true }, 10)).toBe(1550);
+  });
+  it("the older job-work desk keeps its own rule", () => {
+    expect(expectedSettlementWithRate(base, 10)).toBe(1000 + 50 - 500);
+  });
+});

@@ -97,7 +97,7 @@ export const netAdvA = (j: Pick<MillJob, "advA" | "advRA">) => Math.max(0, num(j
 export const netAdvC = (j: Pick<MillJob, "advC" | "advR">) => Math.max(0, num(j.advC) - num(j.advR));
 
 export function jobMoney(j: Pick<MillJob, "seedKg" | "cake" | "advC" | "advA" | "advR" | "advRA" | "cans">) {
-  const entry = { seedKg: num(j.seedKg), cakeOwnership: j.cake, advanceCustomerInr: netAdvC(j), advanceAutoInr: netAdvA(j), cans: intakeCans(j.cans) };
+  const entry = { advanceGiven: true, seedKg: num(j.seedKg), cakeOwnership: j.cake, advanceCustomerInr: netAdvC(j), advanceAutoInr: netAdvA(j), cans: intakeCans(j.cans) };
   const rate = STANDARD_RATE[j.cake];
   const due = expectedSettlementWithRate(entry, rate);
   const split = defaultPaySplit(entry, rate);
