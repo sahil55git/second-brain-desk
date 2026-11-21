@@ -903,3 +903,46 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 .ctr-btabs button{flex:1;border:2px solid var(--c-line);background:var(--c-bg);border-radius:var(--r2,12px);padding:10px;font-weight:800;font-size:16px}
 .ctr-btabs button.on{border-color:var(--c-acc);background:var(--c-acc-soft);color:var(--c-acc-text,var(--c-acc))}
 .ctr-btabs button{color:var(--c-ink)}
+
+/* Receive | Return: one card, side by side, always in view */
+.ctr-cash { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch; }
+.ctr-cash .quick, .ctr-cash .ctr-hint { grid-column: 1 / -1; }
+.ctr-cash .recv { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; min-height: 0; padding: 6px 12px; position: relative; }
+.ctr-cash .recv .lbl { gap: 6px; }
+.ctr-cash .recv .lbl em { font-size: 14px; font-weight: 600; }
+.ctr-cash .recv b { font-size: clamp(22px, 4.2vh, 30px); line-height: 1.15; }
+.ctr-cash .recv .edit { position: absolute; top: 6px; right: 8px; }
+.ctr-ret { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 6px 12px; border: 1.5px solid var(--c-line); border-radius: 16px; background: var(--c-card); color: var(--c-soft); }
+.ctr-ret span { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctr-ret b { font-size: clamp(22px, 4.2vh, 30px); line-height: 1.15; font-variant-numeric: tabular-nums; }
+.ctr-ret.ok { color: var(--c-ok); border-color: color-mix(in srgb, var(--c-ok) 45%, transparent); }
+.ctr-ret.flash { color: var(--c-ok); border-color: #f5a623; animation: ctrGlow 1.3s ease-in-out infinite; }
+.ctr-ret.bad { color: var(--c-bad); border-color: var(--c-bad); background: color-mix(in srgb, var(--c-bad) 10%, transparent); }
+@media (prefers-reduced-motion: reduce) { .ctr-ret.flash { animation: none; } }
+.ctr.lay-tablet .ctr-ret { padding: 2px 10px; border-radius: 12px; }
+.ctr.lay-tablet .ctr-ret b { font-size: 19px; }
+.ctr.lay-tablet .ctr-ret span { font-size: 12px; }
+
+/* keypad: Receive | Return in view, whole pad fits the screen */
+.ctr-padbox { max-height: 100dvh; padding: 10px 12px; gap: 8px; }
+.ctr-padbox .keys button { padding: clamp(8px, 1.8vh, 14px) 0; font-size: clamp(20px, 3.4vh, 24px); }
+.ctr-padbox .val { font-size: clamp(28px, 5vh, 40px); }
+.padmoney { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.padmoney>div { border: 1.5px solid var(--c-line); border-radius: 12px; padding: 4px 10px; display: flex; flex-direction: column; min-width: 0; background: var(--c-bg); }
+.padmoney small { font-size: 12px; color: var(--c-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.padmoney b { font-size: clamp(20px, 3.8vh, 28px); line-height: 1.15; font-variant-numeric: tabular-nums; }
+.padmoney .in { border-color: var(--c-ok); } .padmoney .in b { color: var(--c-ok); }
+.padmoney .out b { color: var(--c-soft); } .padmoney .out.ok b { color: var(--c-ok); }
+.padmoney .out.flash { border-color: #f5a623; animation: ctrGlow 1.3s ease-in-out infinite; } .padmoney .out.flash b { color: #f5a623; }
+.padmoney .out.bad { border-color: var(--c-bad); } .padmoney .out.bad b, .padmoney .out.bad small { color: var(--c-bad); }
+@media (prefers-reduced-motion: reduce) { .padmoney .out.flash { animation: none; } }
+
+/* dialogs above the app's top bar (z-index 8000) */
+.ctr-modal, .ctr-drawer { z-index: 9000; }
+@media (orientation: landscape) and (max-height: 820px) {
+  .ctr-padbox { width: min(640px, 100%); display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; align-items: stretch; }
+  .ctr-padbox .ttl, .ctr-padbox .okrow { grid-column: 1 / -1; }
+  .ctr-padbox .padmoney, .ctr-padbox .val, .ctr-padbox .pct { grid-column: 1; }
+  .ctr-padbox .keys { grid-column: 2; grid-row: 2 / span 4; grid-template-rows: repeat(4, 1fr); }
+  .ctr-padbox .keys button { padding: 0; }
+}

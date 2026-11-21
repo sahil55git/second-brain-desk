@@ -67,3 +67,17 @@
 .rp-chips{flex-wrap:nowrap;overflow-x:auto;margin-top:4px}
 .rp-chips button{flex:0 0 auto;padding:6px 12px;font-size:17px}
 .rp-go{min-height:56px;padding:10px;font-size:26px}
+
+/* dialogs sit above the app's top bar (z-index 8000), so nothing is clipped */
+.rp-back{z-index:9000;padding:0;align-items:center}
+.rp-sheet{max-height:100dvh}
+/* landscape tablet: money card, cash and buttons on the left, the keypad on the right, all in one view */
+@media (orientation:landscape) and (max-height:820px){
+  .rp-sheet{width:min(880px,100%);display:grid;grid-template-columns:1fr 1fr;column-gap:12px;row-gap:8px;align-content:start;overflow:auto}
+  .rp-sheet>*{grid-column:1}
+  .rp-sheet>.rp-head,.rp-sheet>.rp-err{grid-column:1 / -1}
+  .rp-sheet>.np{grid-column:2;grid-row:2 / span 6;align-self:stretch;grid-template-rows:repeat(4,1fr)}
+  .rp-sheet>.np button{min-height:0;font-size:clamp(20px,5vh,30px)}
+  .rp-sheet>.rp-acts{grid-column:1 / -1}
+  .rp-sheet:not(:has(.np))>*{grid-column:1 / -1}
+}

@@ -1258,8 +1258,10 @@ export default function CounterApp() {
                 <b className={received > 0 ? "typed" : "exact"}>{received > 0 ? rupees(received) : "₹ —"}</b>
                 <span className="edit" aria-hidden>✎</span>
               </button>
-              {back > 0 && <div className="ctr-back-cash"><span>↩️ {k("Cash to return", "ಹಿಂತಿರುಗಿಸಬೇಕಾದ ನಗದು")}</span><b>{rupees(back)}</b></div>}
-              {shortBy > 0 && <div className="ctr-short"><span>{k("Still to collect", "ಇನ್ನೂ ಪಡೆಯಬೇಕು")}</span><b>{rupees(shortBy)}</b></div>}
+              <div className={`ctr-ret${shortBy > 0 ? " bad" : back > 0 ? " flash" : received > 0 ? " ok" : ""}`} aria-live="polite">
+                <span>{shortBy > 0 ? k("Still to collect", "ಇನ್ನೂ ಪಡೆಯಬೇಕು") : <>↩️ {k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")}</>}</span>
+                <b>{shortBy > 0 ? rupees(shortBy) : received > 0 ? rupees(back) : "—"}</b>
+              </div>
             </div>
           )}
           {discOn && show.discount && lines.length > 0 && (
@@ -1447,6 +1449,20 @@ export default function CounterApp() {
         <div className="ctr-modal" role="dialog" aria-label={padTitle(pad)} onClick={() => setPad(null)}>
           <div className="ctr-padbox" onClick={(e) => e.stopPropagation()}>
             <p className="ttl">{padTitle(pad)}</p>
+            {pad.kind === "received" && cashDue > 0 && (() => {
+              const typed = parseFloat(padText) || 0;
+              const bk = typed > 0 ? cashReturn(cashDue, typed) : 0;
+              const sh = typed > 0 && typed < cashDue ? r2(cashDue - typed) : 0;
+              return (
+                <div className="padmoney">
+                  <div className="in"><small>{k("Receive", "ಪಡೆಯಬೇಕು")}</small><b>{rupees(cashDue)}</b></div>
+                  <div className={`out${sh > 0 ? " bad" : bk > 0 ? " flash" : typed > 0 ? " ok" : ""}`}>
+                    <small>{sh > 0 ? k("Still to collect", "ಇನ್ನೂ ಪಡೆಯಬೇಕು") : k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")}</small>
+                    <b>{typed > 0 ? rupees(sh > 0 ? sh : bk) : "—"}</b>
+                  </div>
+                </div>
+              );
+            })()}
             <div className="val">
               {pad.kind === "split" || pad.kind === "received" || pad.kind === "rate" || pad.kind === "amount" ? "₹" : ""}
               {padText || "0"}
