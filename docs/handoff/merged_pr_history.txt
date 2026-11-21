@@ -1,0 +1,168 @@
+#1 2026-09-25 Draft: live scales for Sales, Manufacturing and tank stock
+#2 2026-10-04 Add Quick Register: bilingual counter register (/register) backed by …
+#3 2026-10-04 Quick Register: job-work table like the desk, side-by-side layout, fa…
+#4 2026-10-04 Quick Register: fresh crush sale, always-open workspace, narrower forms
+#5 2026-10-05 Reports & Dashboard hub, Settings page, auto-fit job-work table
+#6 2026-10-05 Appearance: themes, custom colours, fonts, text size, spacing, glass,…
+#7 2026-10-05 Totals, Excel/PDF downloads, sharing & integrations, quick stock tall…
+#9 2026-10-06 Split payment, dropdown/compact forms, bulk Excel import/export, stoc…
+#10 2026-10-07 Feature/tally hub
+#12 2026-10-07 Feature/mfg quicklinks v2
+#13 2026-10-11 Proofs & scans: payment signature/photo, slip & bill scanner, Drive filing
+#14 2026-10-11 Barrel receiving: barcode labels, scale-sourced weights, challan check
+#15 2026-10-11 Barrel receiving + auto DB schema on deploy (fixes missing Attachment table)
+#16 2026-10-11 Barrel register: gross/tare/net per barrel, empty any day, QR codes, slips and lot report
+#17 2026-10-11 Smart entry everywhere: scan bills, speak, live checks, ready AI questions, item barcodes/QR, scale capture
+#18 2026-10-11 Smart entry in the Quick Register
+#19 2026-10-12 Glass looks: Neon glass default, Warm frosted, Soft light, liquid-glass buttons
+#20 2026-10-12 Feature/open bills allocation cash
+#21 2026-10-12 Feature/price check
+#22 2026-10-12 Feature/unified register
+#23 2026-10-12 Real skins: Earth & Clay, Pastel Liquid, Neon Glow
+#24 2026-10-12 Design fidelity: Home dashboard, brand header, icons, motion
+#25 2026-10-12 Quick Register redesign + new Mahadev logo
+#26 2026-10-12 Quick Register: POS entry window, POS counter mode, Money In/Out marks
+#27 2026-10-12 Business features: Home Today/Week/Month, sparklines, phone tab bar, saved tick, entry strips
+#28 2026-10-12 Quick Register: add more items to a bill + hide keypad
+#29 2026-10-12 Quick Register: customer Estimate tool (qty → price, cash → qty)
+#30 2026-10-12 Quick launcher: round button window, side panel, pop windows, mouse & touch shortcuts
+#31 2026-10-12 Stock page: tank, barrel and seed/cake cards with a small live fill
+#32 2026-10-12 Sales split view: bills list + bill detail (board 8)
+#33 2026-10-12 Stock tanks: K2 tank (300 kg) + Gold Drop in the Sunflower tank
+#34 2026-10-13 Stock tanks: fix unreadable cards in the glass looks
+#35 2026-10-12 Users & profiles: hide pages, functions, windows and data per login
+#36 2026-10-12 Quick Register: hide / minimise / move windows + tap a left tile jumps to the form on the right
+#37 2026-10-12 Cash tally: make entries here, memo-sheet totals (kept separate), scale report scan, stock cards, handover
+#38 2026-10-12 Quick Register Simple mode (🧸) with named settings per person + Cash tally tile
+#39 2026-10-13 Cash tally: report, cash in & out, checklist, entry log, camera scan
+#40 2026-10-14 Cash tally: one sheet for memo totals + cash in/out, no double counting, New entry / New count
+#41 2026-10-14 Barrel receiving: fix typed weight, add Entry / Weigh / Dashboard / Report tabs
+#42 2026-10-14 Barrel receiving: 5-step flow chart, tag / serial per barrel
+#43 2026-10-14 Barrel receiving: gross/tare in table columns, FULL/EMPTY weight labels, simpler New lot
+#44 2026-10-14 Barrel receiving: many label / receipt sizes, custom size, printer settings help
+#45 2026-10-14 Barrel receiving: gross/tare in table, FULL/EMPTY labels, many label sizes + printer panel (#43 + #44 into main)
+#47 2026-10-14 Barrel receiving: printer presets for Helett H30C and POSIFLOW 80B
+#48 2026-10-14 Barrel receiving: Label and Receipt buttons per barrel in the Gross and Tare columns
+#49 2026-10-14 Barrel receiving: entry table on top, Print ▾ menus, edit/delete weight
+#50 2026-10-23 Barrel receiving: one-tap label + receipt in each weight cell
+#51 2026-10-23 Barrel fleet: track our own reusable barrels
+#52 2026-10-23 Fix barrel registration timing out on many barrels
+#53 2026-10-23 Fix 4x6 and other fixed-size slips printing on 2 pages
+#54 2026-10-28 Barrel page: scanning a barrel's QR opens that barrel
+#55 2026-10-28 Printing: no blank page, phone/tablet, one-click and print helper, readable labels
+#56 2026-10-28 Print: Bluetooth/USB direct printing from tablet/phone/PC + shop print queue
+#57 2026-10-28 Print: Bluetooth/USB direct printing + shop print queue (to main)
+#58 2026-10-28 Bluetooth print: retry when the printer hangs up while connecting
+#59 2026-10-28 Saved printers: Print uses your printer by itself
+#60 2026-10-28 Label and receipt designer with saved layouts
+#61 2026-10-28 Label designer: weight on top, date below (or in a corner)
+#62 2026-10-28 Label designer: start from scratch, Black background switch, turn, frame, underline, templates
+#63 2026-10-29 Settings: Printers section for saved printers
+#64 2026-10-29 Printer setup page, linked from the print pages and Settings
+#65 2026-10-29 One-tap printing: printer auto-detect, Print centre, cleaner barrel labels page
+#66 2026-10-29 Print across the app: receipts on the slip printer, A4 print on every list
+#67 2026-10-29 Designer: ready designs, auto design, weight fields with highlight, your own fields
+#68 2026-10-30 Fix: USB printer held by Windows' driver now prints through the print window
+#69 2026-10-30 Matte grey themes: Graphite, Stone, Smoke glass + Glossy/Matte finish
+#70 2026-10-30 Employee ledger: proper account per person, month-end salary
+#71 2026-10-30 Fix: Ledger tab crashed the app
+#72 2026-10-31 One-click label printing for staff (fixes 50×75 on 3 sheets), daily wages, Quick links tile look
+#73 2026-10-31 Home: barrel receiving card (weigh full) + simple mode for staff
+#74 2026-11-01 Share everywhere, top bar (back / home / search / shortcuts), customisable quick windows, Quick card for phones
+#75 2026-11-01 Android app: widgets, direct Bluetooth/USB printing, alerts and reminders (free APK)
+#76 2026-11-01 Phones: faster, less crowded; name chips only while typing; widgets switch on by themselves
+#77 2026-11-01 Android: 7 more widgets, live status-bar figures, choosable quick buttons
+#78 2026-11-01 Chat bot: in-app chat, Telegram and Discord
+#79 2026-11-01 Register: edit entries, purchases on Purchase tab, party ledger
+#80 2026-11-02 Theme follows the login, wide register, card & type styles
+#81 2026-11-02 Chat: voice, opens pages and forms, natural sentences
+#82 2026-11-02 Insights, bank match, attendance, tasks, offline entries
+#83 2026-11-02 Glass widget popups, chat/tips/tasks widgets, wallpaper glass + holo cards
+#84 2026-11-02 Money batch: GST invoice + e-way + UPI QR, rate cards, P&L + cash forecast, budgets
+#85 2026-11-02 Ops batch: purchase orders, supplier scores, machines, forecast, watch, weekly review
+#86 2026-11-02 Hindi/Kannada voice, mandi prices, WhatsApp ordering + orders desk
+#87 2026-11-02 Feature switches + godown, contracts, packing, maintenance, settling, dipstick, cycle count, variance, deposits
+#88 2026-11-02 Should-yield, buy advisor, cost per kg, smart reorder, what-if, weather, YoY, command centre
+#89 2026-11-02 Ask your business, AI CFO, photo reading, spoken answers, rules, Drive/zip backup, Tally export
+#90 2026-11-09 Quick Register: Cash sheet board and More windows
+#91 2026-11-10 Guard and audit the older desk routes (Spec A)
+#92 2026-11-10 Docs: current README and complete .env.example (F5)
+#93 2026-11-10 Split QuickRegister.tsx into forms/ (F6, pure move)
+#94 2026-11-12 Job-work crushing output, mass balance and oil collection (Spec B)
+#95 2026-11-12 Fix build: job-work output route typing (breaks deploy of #94)
+#96 2026-11-16 Bluetooth scale (iScale): live weight on the Android app and on a computer
+#97 2026-11-16 Supplier payables and khali sale log (Spec C)
+#98 2026-11-16 Mill transfer log, owner's OK above ₹2,000, login limit, safer build, pack lot numbers (Specs D, E, F)
+#99 2026-11-16 Single stock ledger with Physical, Book and Hybrid modes
+#100 2026-11-16 Hide costs, not selling rates, from staff profiles
+#101 2026-11-16 Offline saving for job-work, manufacturing and typed barrel weights
+#102 2026-11-16 All open work in one: Bluetooth scale, Specs C–F, stock ledger, hide costs, offline (#96–#101)
+#103 2026-11-16 Widgets for staff + keypad + tablet sizing
+#104 2026-11-16 Fix build: staff-rules JSON typing (deploy of #103 failed)
+#105 2026-11-16 Live Scales: Bluetooth scale shows 3 decimals (1.800 kg)
+#106 2026-11-16 Bluetooth scale: Save weight button, tare, beep, POS weight dial
+#107 2026-11-16 Printing: fix Bluetooth printer stall, one-click print, POS print button
+#108 2026-11-17 Weigh & Bill counter — step 1 (full-screen weighing till)
+#109 2026-11-17 Counter bills: records, search, re-print, cancel with reason, edit (+ logged deletes)
+#110 2026-11-17 Weigh & Bill v2: PLU + Kannada items, pop-up keypad, split pay, cash return, bill numbers, staff locks, counter-only mode
+#111 2026-11-17 Counter v3: returns, GST invoice, sell by amount, discount limit, WhatsApp
+#112 2026-11-17 Counter: Read weight, no cash suggestions, installable Weigh & Bill app
+#113 2026-11-17 Counter: autofit screen sizes + phone/tablet layout fixes
+#114 2026-11-17 Counter: autofit screen sizes + phone/tablet layout fixes
+#115 2026-11-18 Counter: UPI auto-check from UPI app notifications + hide-buttons options
+#116 2026-11-18 UPI & QR: Settings page, several UPI IDs, pay QR on counter, receipts and invoices
+#117 2026-11-18 Counter: UPI payment reference + same-amount matching + hold bills & Held queue
+#118 2026-11-18 Counter: tick-box Bills page, cash hold by default, Cash/UPI bill names, icon-only guide, UI polish
+#119 2026-11-18 Counter round 2: items with kg, pay-step flash, tile and bottom-bar fixes, refined cash box and Bills page
+#120 2026-11-18 Counter: remove cash-given/return suggestions, mature palette + Glass theme, refined tap-gesture guide
+#121 2026-11-18 Counter: cash paid by customer under the total + cash to return
+#122 2026-11-18 Counter/Cashier: Cash in / Oil out with coin + bottle symbols
+#123 2026-11-18 Weigh & Bill: arrow symbols, dark-green buttons, button colour options
+#124 2026-11-18 Weigh & Bill: Wait, Hold and locked Oil out symbols
+#125 2026-11-18 Weigh & Bill: Cash in without palm; held row green Oil + Paid/Oil out tile
+#126 2026-11-18 Weigh & Bill: Big weight layout fits tablets
+#127 2026-11-19 Live Scales: saved Bluetooth scales shared by the whole shop
+#128 2026-11-19 Fix: paired Bluetooth printer not found in the app
+#129 2026-11-19 Counter: Tablet big items layout (hide Read weight / Total / Oil)
+#130 2026-11-19 Take payment in the queue (pay at queue)
+#131 2026-11-19 Tablet profile
+#132 2026-11-19 Bt direct print
+#133 2026-11-19 Pay at the queue: pending bills get Receive payment in Bills too, and…
+#134 2026-11-19 Pending tile
+#135 2026-11-20 Mill Desk: the Mill 1 floor screen at /mill, live
+#136 2026-11-20 Mill Desk: connect to the main app, one record per event
+#137 2026-11-20 Mill Desk: fix lint errors that failed the production build
+#138 2026-11-20 Mill Counter Desk: barrel lots received (gross, tare, net)
+#139 2026-11-20 Mill Desk: compact top on phones
+#140 2026-11-20 Android widgets: Mill Desk, Mill Counter Desk, Weigh & Bill
+#141 2026-11-20 Mill Desk: fix Bluetooth scale connect tap, show reason
+#142 2026-11-20 Scale set-up buttons open the Live scales page directly (/scales)
+#143 2026-11-20 Mill Desk: one-tap Helett label printing
+#144 2026-11-20 Mill Desk: fix Print button doing nothing
+#145 2026-11-20 Mill printer set-up: don't allow the _BLE twin of a printer
+#146 2026-11-20 Mill printing: one label per slip, faster send, exact label size
+#147 2026-11-20 Mill labels: QR instead of barcode, one label per token
+#148 2026-11-20 Bluetooth: robust, self-reconnecting scale and printer links
+#149 2026-11-21 Mill Desk: receipt printer (MPT-III) option
+#150 2026-11-21 Test: pin the clock in the khali stack test
+#151 2026-11-21 Mill Desk: never hold a shared receipt printer
+#152 2026-11-21 Mill Desk: receipt printer + label printer, and a sticker button
+#153 2026-11-21 USB printers in Mill Desk and Weigh & Bill set-up
+#154 2026-11-21 Mill Desk: type the weight by hand when the scale is not connected
+#155 2026-11-21 Mill Desk update 2: optional token print, payment fix, Kannada, fixed mode
+#156 2026-11-21 Mill Desk: edit or return an advance from one sheet
+#157 2026-11-21 Mill Desk: customer-khali jobs pay back the advance
+#158 2026-11-21 Weigh & Bill pay dialog: dark theme, number pad, icons, smart cash suggestions
+#159 2026-11-21 Mill Desk: customer name on the Waiting list
+#160 2026-11-21 Mill Desk: New job from Worker mode + sorting
+#161 2026-11-21 Mill Desk: customer no. beyond 9, print without printer popup
+#162 2026-11-21 Weigh & Bill: bills multi-select, hold money, compact search
+#163 2026-11-21 Weigh & Bill slip: compact layout, smaller QR
+#164 2026-11-21 Weigh & Bill: printer pill; small font opt-in
+#165 2026-11-21 Weigh & Bill: Reports tab in Bills; printer list colours
+#166 2026-11-21 Cashier desk: easy to find + own Android tile/icon
+#167 2026-11-21 Cashier desk update: guide, select-many, one-screen money card, live widget
+#168 2026-11-21 One-view Receive | Return card; dialogs above top bar; landscape layout
+#169 2026-11-21 Oil kept in shop + compact Cashier desk
+#170 2026-11-21 Cashier desk: Hold button
+#171 2026-11-21 Android: widget taps reliably open their screen
