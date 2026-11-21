@@ -15,6 +15,8 @@ export interface ReceiveArgs {
   partyName?: string;
   upiConfirmed: boolean;
   release: boolean;
+  /** money in, but the customer leaves the oil in the shop to take later */
+  keepOil?: boolean;
 }
 /** What was typed so far: kept when staff press "Hold" so the same customer can be finished later. */
 export interface RecvDraft { mode: Mode; given: string; sp: { CASH: string; UPI: string; CREDIT: string }; name: string; upiGot: boolean }
@@ -56,7 +58,7 @@ export default function ReceivePayment({
   const needName = mode === "CREDIT" || (mode === "SPLIT" && n(sp.CREDIT) > 0);
   const hasUpi = mode === "UPI" || (mode === "SPLIT" && n(sp.UPI) > 0);
 
-  const go = async () => {
+  const go = async (keep = false) => {
     setErr("");
     let parts: { mode: string; amount: number }[];
     if (mode === "SPLIT") {
@@ -67,7 +69,7 @@ export default function ReceivePayment({
     if (needName && !name.trim()) return setErr(k("Type the customer's name for udhaar.", "ಉದ್ರಿಗೆ ಗ್ರಾಹಕರ ಹೆಸರು ಬರೆಯಿರಿ."));
     if (hasUpi && !upiGot) return setErr(k("Tick “UPI money received” after you see it.", "UPI ಹಣ ಬಂದ ಮೇಲೆ “UPI ಹಣ ಬಂತು” ಟಿಕ್ ಮಾಡಿ."));
     setBusy(true);
-    const e = await onSubmit({ parts, given: cashPart > 0 && g > 0 ? g : undefined, partyName: needName ? name.trim() : undefined, upiConfirmed: hasUpi && upiGot, release: true });
+    const e = await onSubmit({ parts, given: cashPart > 0 && g > 0 ? g : undefined, partyName: needName ? name.trim() : undefined, upiConfirmed: hasUpi && upiGot, release: !keep, keepOil: keep });
     setBusy(false);
     if (e) setErr(e);
   };
@@ -152,6 +154,11 @@ export default function ReceivePayment({
               <small>{k("money taken, finish later", "ಹಣ ತೆಗೆದುಕೊಂಡೆ, ನಂತರ ಮುಗಿಸುವೆ")}</small>
             </button>
           )}
+          <button type="button" className="rp-hold rp-keep" disabled={busy} onClick={() => void go(true)}>
+            <span className="rp-hic" aria-hidden>🏪</span>
+            <b>{k("Keep oil", "ಎಣ್ಣೆ ಇಡಿ")}</b>
+            <small>{k("paid, customer takes it later", "ಹಣ ಬಂತು, ನಂತರ ತೆಗೆದುಕೊಳ್ಳುತ್ತಾರೆ")}</small>
+          </button>
           <button type="button" className="rp-go" disabled={busy} aria-label={k("Money received — give the oil", "ಹಣ ಬಂತು — ಎಣ್ಣೆ ಕೊಡಿ")} onClick={() => void go()}>
             {busy ? "…" : <>
               <span className="rp-step"><CoinIcon /><b>{k("Money received", "ಹಣ ಬಂತು")}</b></span>

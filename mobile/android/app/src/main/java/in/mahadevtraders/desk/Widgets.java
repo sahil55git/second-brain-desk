@@ -340,7 +340,8 @@ public final class Widgets {
             int late = m.optInt("oldestMin");
             WidgetData.text(v, R.id.big, due > 0 ? WidgetData.rupees(due) + " to receive" : "\u2713 Nothing to receive", due > 0 ? Color.parseColor("#fbbf24") : l.text, 22, l);
             WidgetData.text(v, R.id.line1, m.optInt("billsToPay") + " bills waiting for money \u00b7 " + ready + " oil ready to give", ready > 0 ? Color.parseColor("#4ade80") : l.soft, 12, l);
-            WidgetData.text(v, R.id.line2, held == 0 ? "No oil held" : held + " oil held" + (late >= 15 ? " \u00b7 oldest " + late + " min \u23f1" : ""), late >= 15 ? Color.parseColor("#ff9d8a") : l.soft, 12, l);
+            int kept = m.optInt("kept");
+            WidgetData.text(v, R.id.line2, (held == 0 ? "No oil held" : held + " oil held" + (late >= 15 ? " \u00b7 oldest " + late + " min \u23f1" : "")) + (kept > 0 ? " \u00b7 \uD83C\uDFEA " + kept + " kept" : ""), late >= 15 ? Color.parseColor("#ff9d8a") : l.soft, 12, l);
         }
         v.setOnClickPendingIntent(R.id.body, WidgetData.open(c, "/register/cashier", 705));
         return v;

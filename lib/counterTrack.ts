@@ -33,6 +33,8 @@ export interface BillTrack {
   payPending?: boolean;
   /** cash part confirmed in the drawer by whoever sits at the counter */
   cashOk?: { at: string; by: string; given?: number; change?: number };
+  /** money is in, but the customer left the oil in the shop to take later ("kept in shop") */
+  keep?: { at: string; by: string };
   /** udhaar part collected later (an UDHAAR_IN entry was made) */
   paidLater?: { at: string; by: string; mode: "CASH" | "UPI"; amount: number };
 }
@@ -48,6 +50,8 @@ export function trackOf(details: unknown): BillTrack {
   if (typeof t.handedAt === "string") out.handedAt = t.handedAt;
   if (t.cashWait === true) out.cashWait = true;
   if (t.payPending === true) out.payPending = true;
+  const kp = t.keep as { at?: unknown; by?: unknown } | undefined;
+  if (kp && typeof kp.at === "string") out.keep = { at: kp.at, by: typeof kp.by === "string" ? kp.by : "" };
   const c = t.cashOk as { at?: unknown; by?: unknown; given?: unknown; change?: unknown } | undefined;
   if (c && typeof c.at === "string") {
     const g = Number(c.given);
@@ -142,12 +146,19 @@ export function heldNeed(modes: Record<string, number>, track: BillTrack): HeldN
 /** The held queue: bills whose goods are still inside, longest-waiting first. Bills with money still to receive come before bills that are ready to give. */
 export function heldQueue<T extends { createdAt: string; modes: Record<string, number>; track: BillTrack }>(bills: T[]): T[] {
   return bills
-    .filter((b) => isTracked(b.track) && handoverOf(b.track) === "HELD")
+    .filter((b) => isTracked(b.track) && handoverOf(b.track) === "HELD" && !b.track.keep)
     .sort((a, b) => {
       const ra = heldNeed(a.modes, a.track) === "READY" ? 1 : 0;
       const rb = heldNeed(b.modes, b.track) === "READY" ? 1 : 0;
       return ra - rb || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
+}
+
+/** Paid bills whose oil the customer left in the shop to take later, longest-kept first. */
+export function keptList<T extends { createdAt: string; track: BillTrack }>(bills: T[]): T[] {
+  return bills
+    .filter((b) => isTracked(b.track) && handoverOf(b.track) === "HELD" && !!b.track.keep)
+    .sort((a, b) => (a.track.keep!.at < b.track.keep!.at ? -1 : 1));
 }
 
 /** "just now", "5 min", "1 h 20 min" for how long a bill has been waiting. */

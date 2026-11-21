@@ -5,7 +5,7 @@ import { rupees, writeAudit } from "@/lib/auditServer";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
 import { businessDate } from "@/lib/register";
-import { oilBlockedAmount, trackOf } from "@/lib/counterTrack";
+import { handoverOf, oilBlockedAmount, trackOf } from "@/lib/counterTrack";
 import { planSettle } from "@/lib/billSettle";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const ids: string[] = Array.isArray(body.ids) ? body.ids.filter((x: unknown) => typeof x === "string").slice(0, 40) : [];
   const action = body.action;
-  if (!ids.length || !["handover", "upiOk", "cashOk", "paidLater", "settle", "details"].includes(action)) return NextResponse.json({ error: "Nothing to do." }, { status: 400 });
+  if (!ids.length || !["handover", "upiOk", "cashOk", "paidLater", "settle", "details", "keep"].includes(action)) return NextResponse.json({ error: "Nothing to do." }, { status: 400 });
   const mode: "CASH" | "UPI" = body.mode === "UPI" ? "UPI" : "CASH";
   const handover = body.value === "HELD" ? "HELD" : "GIVEN";
   // details of the UPI payment this confirms (from the UPI app's notification), kept on the bill
@@ -93,6 +93,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Money not received yet (₹${due} due). Receive the payment first, then give the oil.` }, { status: 400 });
     }
   }
+  // "Keep oil in shop": the money is in but the customer leaves the oil with us to collect later
+  const keepOn = action === "keep" && body.value !== "OFF";
+  if (keepOn) {
+    const modes: Record<string, number> = {};
+    for (const r of rows) modes[r.paymentMode] = Math.round(((modes[r.paymentMode] || 0) + r.amountInr) * 100) / 100;
+    const due = oilBlockedAmount(modes, cur);
+    if (due > 0) return NextResponse.json({ error: `Money not received yet (₹${due} due). Receive the payment first, then keep the oil.` }, { status: 400 });
+    if (handoverOf(cur) !== "HELD") return NextResponse.json({ error: "The oil is already given." }, { status: 400 });
+  }
   if (action === "settle") {
     // "Pay at the queue": choose how a printed, unpaid bill was paid (cash / UPI / udhaar / split)
     if (!cur.payPending) return NextResponse.json({ error: "This bill already has its payment mode." }, { status: 400 });
@@ -132,6 +141,7 @@ export async function POST(req: NextRequest) {
         } else delete track.cashWait;
         if (upiOkNow) track.upiOk = { at: now, by: via ? `${by} · ${via}` : by };
         if (wantRelease) Object.assign(track, { handover: "GIVEN", handedAt: now });
+        else if (body.keepOil === true && !(upiPart && !upiOkNow)) Object.assign(track, { handover: "HELD", keep: { at: now, by } });
         for (const it of plan.items) {
           const src = ordered.find((r) => r.id === it.copyOf)!;
           const prev = (src.details && typeof src.details === "object" ? src.details : {}) as Record<string, unknown>;
@@ -204,6 +214,8 @@ export async function POST(req: NextRequest) {
     prisma.$transaction(async (tx) => {
       const patch: Record<string, unknown> = { ...cur };
       if (action === "handover") Object.assign(patch, { handover, handedAt: handover === "GIVEN" ? now : undefined });
+      if (action === "handover" && handover === "GIVEN") delete patch.keep;
+      if (action === "keep") { if (keepOn) patch.keep = { at: now, by }; else delete patch.keep; }
       if (action === "upiOk") {
         patch.upiOk = {
           at: now, by: via ? `${by} · ${via}` : by,
@@ -214,7 +226,11 @@ export async function POST(req: NextRequest) {
       if (action === "cashOk") {
         const cashTotal = Math.round(rows.filter((r) => r.paymentMode === "CASH").reduce((a, r) => a + r.amountInr, 0) * 100) / 100;
         patch.cashOk = { at: now, by, ...(given ? { given, change: Math.round((given - cashTotal) * 100) / 100 } : {}) };
-        if (release) Object.assign(patch, { handover: "GIVEN", handedAt: now });
+        if (release) { Object.assign(patch, { handover: "GIVEN", handedAt: now }); delete patch.keep; }
+        else if (body.keepOil === true) {
+          const upiLeft = rows.some((r) => r.paymentMode === "UPI") && !cur.upiOk;
+          if (!upiLeft) patch.keep = { at: now, by };
+        }
       }
       if (action === "paidLater") {
         // Collecting the udhaar is real money in: an "udhaar received" entry, so cash book and the customer's balance follow.
@@ -234,7 +250,7 @@ export async function POST(req: NextRequest) {
         await tx.registerEntry.update({ where: { id: rows[i].id }, data: { details: { ...prev, track: patch } as any } });
       }
       await writeAudit(tx, user, "EDIT", "RegisterEntry", rows[0].id,
-        `Bill ${billNo ? "#" + billNo + " " : ""}${action === "handover" ? (handover === "HELD" ? "goods held" : "goods handed over") : action === "cashOk" ? `cash received${given ? " ₹" + given : ""}${release ? ", goods released" : ""}` : action === "upiOk" ? `UPI received${via ? " (" + via + ")" : ""}${proof.payer ? " from " + proof.payer : ""}${proof.ref ? " · Ref " + proof.ref : ""}` : `udhaar ${rupees(credit)} collected by ${mode}`}`);
+        `Bill ${billNo ? "#" + billNo + " " : ""}${action === "keep" ? (keepOn ? "paid, oil kept in shop" : "oil taken out of keep") : action === "handover" ? (handover === "HELD" ? "goods held" : "goods handed over") : action === "cashOk" ? `cash received${given ? " ₹" + given : ""}${release ? ", goods released" : ""}` : action === "upiOk" ? `UPI received${via ? " (" + via + ")" : ""}${proof.payer ? " from " + proof.payer : ""}${proof.ref ? " · Ref " + proof.ref : ""}` : `udhaar ${rupees(credit)} collected by ${mode}`}`);
       return patch;
     })
   );
