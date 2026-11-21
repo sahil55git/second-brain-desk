@@ -464,7 +464,9 @@ export async function sendBytes(cfg: MillPrinterCfg, bytes: Uint8Array): Promise
     // a label printer (TSPL) is not asked the receipt-printer status question; a receipt printer is
     // (it tells "paper out"), and gets smaller, slower pieces: small battery printers have a 4 KB buffer
     const rc = cfg.lang === "escpos";
-    await MahadevPrinter.printJob({ id: cfg.id, base64: toBase64(bytes), chunk: rc ? 256 : 480, delayMs: rc ? 20 : 8, status: rc, keepMs: 300_000 });
+    // a receipt printer is shared with the Weigh & Bill counter (the oil bills must never wait): let it go
+    // 10 s after the slip (the shortest the app allows) instead of holding it for 5 minutes
+    await MahadevPrinter.printJob({ id: cfg.id, base64: toBase64(bytes), chunk: rc ? 256 : 480, delayMs: rc ? 20 : 8, status: rc, keepMs: rc ? MILL_RECEIPT_KEEP_MS : 300_000 });
     return { ms: Date.now() - t0 };
   } catch (e) {
     if (!notImplemented(e)) throw new MillPrintError((e as { code?: string })?.code || "NO_ANSWER", e instanceof Error ? e.message : String(e));
@@ -484,6 +486,9 @@ export async function sendBytes(cfg: MillPrinterCfg, bytes: Uint8Array): Promise
 }
 
 /** Prints one slip. Throws MillPrintError. */
+/** How long the Mill Desk keeps a RECEIPT printer after a slip: the app's minimum, so the bill counter can print. */
+export const MILL_RECEIPT_KEEP_MS = 10_000;
+
 /** NO_ANSWER = the app could not reach the printer and sent NOTHING, so trying again cannot print a second copy. */
 export function safeToRetry(e: unknown): boolean {
   const code = e instanceof MillPrintError ? e.code : (e as { code?: string })?.code || "";
@@ -514,6 +519,7 @@ export function warmMillPrinter() {
   if (!isNative() || Date.now() - lastWarm < 20_000) return;
   const c = getMillPrinter();
   if (!c) return;
+  if (c.lang === "escpos") return; // never hold a shared receipt printer (the Weigh & Bill counter uses it)
   lastWarm = Date.now();
   MahadevPrinter.prepare({ id: c.id, keepMs: 300_000 }).catch(() => {});
 }

@@ -194,3 +194,13 @@ describe("receipt printer (MPT-III)", () => {
     expect(cleanCfg({ id: "nbt:00:11:22:33:44:55", name: "MPT-III", widthMm: 48, heightMm: 0, lang: "escpos" })?.lang).toBe("escpos");
   });
 });
+
+describe("sharing the MPT-III with the Weigh & Bill counter", () => {
+  it("the Mill Desk lets a receipt printer go 10 s after a slip and never keeps it warm", async () => {
+    const m = await import("@/lib/mill/millPrint");
+    expect(m.MILL_RECEIPT_KEEP_MS).toBe(10_000);
+    const src = (await import("node:fs")).readFileSync("lib/mill/millPrint.ts", "utf8");
+    expect(src).toMatch(/keepMs: rc \? MILL_RECEIPT_KEEP_MS : 300_000/);
+    expect(src).toMatch(/if \(c\.lang === "escpos"\) return;/);
+  });
+});
