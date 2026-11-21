@@ -17,7 +17,7 @@ import { MahadevPrinter, isNative, toBase64, type NativePrinter } from "@/lib/na
 // ------------------------------------------------------------------ what the desk sends
 export type MillRow = [string, string] | "-";
 export interface MillPrintDoc {
-  kind: "slip" | "token";
+  kind: "slip" | "token" | "sticker";
   /** barcode text, also printed under it: WS-0012 / JW-0012 */
   code: string;
   shop: string;
@@ -47,7 +47,7 @@ export function cleanDoc(raw: unknown): MillPrintDoc | null {
   }
   const pair = (v: unknown): [string, string] | undefined => (Array.isArray(v) && v.length >= 2 ? [s(v[0], 40), s(v[1], 40)] : undefined);
   return {
-    kind: r.kind === "token" ? "token" : "slip",
+    kind: r.kind === "token" ? "token" : r.kind === "sticker" ? "sticker" : "slip",
     code,
     shop: s(r.shop, 40) || "MAHADEV TRADERS",
     title: s(r.title, 40),
@@ -121,21 +121,61 @@ export function cleanCfg(v: unknown): MillPrinterCfg | null {
     lang: r.lang === "escpos" ? "escpos" : "tspl",
   };
 }
-export function getMillPrinter(): MillPrinterCfg | null {
-  try {
-    return cleanCfg(JSON.parse(ls()?.getItem(KEY) || "null"));
-  } catch {
-    return null;
-  }
+/** Two places on one phone: the RECEIPT printer (MPT-III: customer slips) and the LABEL printer (Helett: tokens, bag / barrel stickers). */
+export type PrinterSlot = "receipt" | "label";
+export interface MillPrinters {
+  receipt: MillPrinterCfg | null;
+  label: MillPrinterCfg | null;
 }
-export function setMillPrinter(c: MillPrinterCfg | null) {
+const KEY2 = "mdMillPrinters.v1";
+export function getMillPrinters(): MillPrinters {
+  const out: MillPrinters = { receipt: null, label: null };
   try {
-    if (c) ls()?.setItem(KEY, JSON.stringify(c));
-    else ls()?.removeItem(KEY);
+    const raw = ls()?.getItem(KEY2);
+    if (raw) {
+      const v = JSON.parse(raw) as Record<string, unknown>;
+      out.receipt = cleanCfg(v?.receipt);
+      out.label = cleanCfg(v?.label);
+      if (out.receipt) out.receipt.lang = "escpos";
+      if (out.label) out.label.lang = "tspl";
+      return out;
+    }
+    // the single printer saved by earlier versions goes to its own place by type
+    const old = cleanCfg(JSON.parse(ls()?.getItem(KEY) || "null"));
+    if (old) out[old.lang === "escpos" ? "receipt" : "label"] = old;
+  } catch {
+    /* none */
+  }
+  return out;
+}
+function writePrinters(p: MillPrinters) {
+  try {
+    if (p.receipt || p.label) ls()?.setItem(KEY2, JSON.stringify(p));
+    else ls()?.removeItem(KEY2);
+    ls()?.removeItem(KEY); // the old single entry is now inside the new one
   } catch {
     /* storage full / private mode: it still works for this visit */
   }
   if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT_CFG));
+}
+export function setMillPrinterSlot(slot: PrinterSlot, c: MillPrinterCfg | null) {
+  const cur = getMillPrinters();
+  cur[slot] = c ? { ...c, lang: slot === "receipt" ? "escpos" : "tspl" } : null;
+  writePrinters(cur);
+}
+/** Which printer a paper goes to: the customer's weight slip to the receipt printer, tokens and stickers to the label printer.
+ *  With only one printer chosen, everything goes there (as before). */
+export function printerFor(doc: Pick<MillPrintDoc, "kind">, p: MillPrinters = getMillPrinters()): MillPrinterCfg | null {
+  return doc.kind === "slip" ? p.receipt ?? p.label : p.label ?? p.receipt;
+}
+/** The printer used for tokens (kept for older callers): label printer first. */
+export function getMillPrinter(): MillPrinterCfg | null {
+  const p = getMillPrinters();
+  return p.label ?? p.receipt;
+}
+export function setMillPrinter(c: MillPrinterCfg | null) {
+  if (c) setMillPrinterSlot(c.lang === "escpos" ? "receipt" : "label", c);
+  else writePrinters({ receipt: null, label: null });
 }
 export const onMillPrinterChange = (f: () => void) => {
   if (typeof window === "undefined") return () => {};
@@ -496,7 +536,7 @@ export function safeToRetry(e: unknown): boolean {
 }
 
 export async function printMillDoc(doc: MillPrintDoc, copies = 1, cfgIn?: MillPrinterCfg | null, wait = (ms: number) => new Promise((r) => setTimeout(r, ms))): Promise<{ ms: number; pages: number }> {
-  const cfg = cfgIn ?? getMillPrinter();
+  const cfg = cfgIn ?? printerFor(doc);
   if (!cfg) throw new MillPrintError("NO_PRINTER", "No printer chosen.");
   const { bytes, pages } = buildMillJob(doc, cfg, copies);
   const t0 = Date.now();
@@ -517,9 +557,8 @@ export async function printMillDoc(doc: MillPrintDoc, copies = 1, cfgIn?: MillPr
 let lastWarm = 0;
 export function warmMillPrinter() {
   if (!isNative() || Date.now() - lastWarm < 20_000) return;
-  const c = getMillPrinter();
+  const c = getMillPrinters().label; // never the receipt printer: it may be shared with the Weigh & Bill counter
   if (!c) return;
-  if (c.lang === "escpos") return; // never hold a shared receipt printer (the Weigh & Bill counter uses it)
   lastWarm = Date.now();
   MahadevPrinter.prepare({ id: c.id, keepMs: 300_000 }).catch(() => {});
 }
@@ -549,11 +588,13 @@ function writeUnprinted(list: UnprintedMill[]) {
   if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT_OUT));
 }
 /** Keeps a job that did not print. The same code again replaces the old entry (a retry never adds a second one). */
+/** A sticker has the same code as its slip, but is a different job: never replace one by the other. */
+export const docKey = (d: Pick<MillPrintDoc, "kind" | "code">) => (d.kind === "sticker" ? `${d.code}#sticker` : d.code);
 export function keepUnprinted(j: UnprintedMill) {
-  writeUnprinted([...listUnprinted().filter((x) => x.doc.code !== j.doc.code), j]);
+  writeUnprinted([...listUnprinted().filter((x) => docKey(x.doc) !== docKey(j.doc)), j]);
 }
-export function dropUnprinted(code: string) {
-  writeUnprinted(listUnprinted().filter((x) => x.doc.code !== code));
+export function dropUnprinted(key: string) {
+  writeUnprinted(listUnprinted().filter((x) => docKey(x.doc) !== key));
 }
 export const onUnprintedChange = (f: () => void) => {
   if (typeof window === "undefined") return () => {};

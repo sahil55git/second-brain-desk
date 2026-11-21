@@ -518,7 +518,7 @@ function workerPrint(){const tr=S.wtray;if(!tr.length)return;const sn='WS-'+pad(
   <div class="paper"><div class="hd">MAHADEV TRADERS</div><div style="text-align:center">Mill 1 · WEIGHT SLIP</div><div style="text-align:center;font-weight:700">${nowFull()}</div><div class="hr"></div>
   ${tr.map(x=>`<div class="sr"><span>${esc(IT[x.k].wl)}${x.cno?' · '+cnoL()+' '+x.cno:''}${isBagK(x.k)?' · '+bagTxt(x.nb||1):''}</span><b>${f2(x.kg)} kg</b></div>`).join('')}<div class="hr"></div>
   <div class="sr"><span>By ${esc((S.me&&S.me.name)||'Worker')}</span><span>${nowFull()}</span></div><div class="bcw">${bcSvg(sn)}</div><div style="text-align:center;font-size:12px;letter-spacing:.1em">${sn}</div></div>
-  <button class="sbtn go next" onclick="window.__copies=1;printAgain()">${ic('printer')}<span class="prlbl">Print</span></button><button class="sbtn" onclick="closeLayer()">${ic('check')}${t('done')}</button>`)}
+  <button class="sbtn go next" onclick="window.__copies=1;printAgain()">${ic('printer')}<span class="prlbl">Print</span></button><button class="sbtn" onclick="millSticker()">${ic('printer')}Sticker</button><button class="sbtn" onclick="closeLayer()">${ic('check')}${t('done')}</button>`)}
 const slipEst=()=>{const sp=S.slip;return settlement({seedKg:sum(sp.lines),cake:sp.cake,advC:sp.advC,advA:sp.advA,cans:sp.cans})};
 function slipAmt(){return slipEst().due}
 const CANK=[['can15','tin15','15 kg tin'],['can5new','j_new','5 kg new'],['can5old','j_old','5 kg old']];
@@ -609,7 +609,7 @@ function confirmSlip(){const sp=S.slip;if(!sp.cust)return toast('Choose the cust
   <div class="paper"><div class="hd">MAHADEV TRADERS</div><div style="text-align:center">Bidar · Mill 1</div><div class="hr"></div><div style="font-weight:800;font-size:16px">JOB-WORK TOKEN</div><div style="font-weight:700">${nowFull()}</div>
   ${rows.map(r=>r[0]==='-'?'<div class="hr"></div>':`<div class="sr"><span>${esc(r[0])}</span><b>${esc(r[1])}</b></div>`).join('')}<div class="hr"></div><div class="sr"><span>Estimate</span><span class="tot">${inr(est)}</span></div><div class="hr"></div><div class="sr"><span>Date · time</span><span>${nowFull()}</span></div>
   <div class="bcw">${bcSvg(tok)}</div><div style="text-align:center;font-size:12px;letter-spacing:.1em">${tok}</div><div class="qrw">${qrSvg(tok)}</div></div>
-  <button class="sbtn go next" onclick="window.__copies=${sp.copies||1};printAgain()">${ic('printer')}<span class="prlbl">Print</span> · ${sp.copies||1}</button><button class="sbtn" onclick="closeLayer()">${ic('check')}${t('done')}</button>`)}
+  <button class="sbtn go next" onclick="window.__copies=${sp.copies||1};printAgain()">${ic('printer')}<span class="prlbl">Print</span> · ${sp.copies||1}</button><button class="sbtn" onclick="millSticker()">${ic('printer')}Sticker</button><button class="sbtn" onclick="closeLayer()">${ic('check')}${t('done')}</button>`)}
 function bcSvg(text){try{const s=document.createElementNS('http://www.w3.org/2000/svg','svg');JsBarcode(s,text,{format:'CODE128',displayValue:false,height:40,width:2,margin:0,background:'transparent'});const w=parseFloat(s.getAttribute('width')),h=parseFloat(s.getAttribute('height'));s.setAttribute('viewBox','0 0 '+w+' '+h);s.setAttribute('preserveAspectRatio','none');s.removeAttribute('width');s.removeAttribute('height');s.style.width='100%';s.style.height='100%';return s.outerHTML}catch(e){return ''}}
 function qrSvg(text){try{const q=qrcode(0,'M');q.addData(text);q.make();const n=q.getModuleCount();let d='';for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(q.isDark(r,c))d+=`M${c} ${r}h1v1h-1z`;return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" style="width:100%;display:block"><path d="${d}" fill="#000"/></svg>`}catch(e){return ''}}
 
@@ -1337,12 +1337,17 @@ function paintPrint(){
  if(PR.native&&PR.pending>0&&PR.ready){if(!b){b=document.createElement('div');b.id='prpend';b.className='prpend';document.body.appendChild(b)}
   b.innerHTML='<span>'+PR.pending+' slip'+(PR.pending>1?'s':'')+' not printed</span><button onclick="window.parent.postMessage({type:\'print-pending\'},location.origin)">Print now</button>'}
  else if(b)b.remove()}
-function sendPrint(){PR.id=uid('p');PR.busy=true;PR.ok=null;PR.text='';PR.fix='';
- window.parent.postMessage({type:'print',id:PR.id,doc:PR.doc,copies:PR.copies},location.origin);
+function sendPrint(doc,copies){PR.id=uid('p');PR.busy=true;PR.ok=null;PR.text='';PR.fix='';
+ window.parent.postMessage({type:'print',id:PR.id,doc:doc||PR.doc,copies:copies||PR.copies},location.origin);
  clearTimeout(PR.t);PR.t=setTimeout(()=>{if(PR.busy){PR.busy=false;PR.ok=false;PR.text='The printer did not answer in time. Look at the printer first: if the slip did not come out, Print again.';paintPrint()}},150000);
  setTimeout(paintPrint,0)}
 window.millPrintAuto=function(doc,copies){PR.doc=doc;PR.copies=Math.max(1,+copies||1);if(!PR.native){setTimeout(paintPrint,0);return}sendPrint()};
 window.printAgain=function(){if(PR.native&&PR.doc)sendPrint();else printPaper()};
+// a small sticker for a bag or barrel: the code as a QR (phone camera) plus the first lines; goes to the label printer
+window.millSticker=function(){const d=PR.doc;if(!d){toast('Save the slip first','bad');return}
+ if(!PR.native){toast('Stickers print from the Android app','bad');return}
+ const rows=(d.rows||[]).filter(r=>r!=='-').slice(0,4);
+ sendPrint({kind:'sticker',code:d.code,shop:d.shop,title:d.title,when:d.when,rows,foot:d.foot,qr:true},1)};
 window.millPrinterTap=function(){if(window.parent!==window)window.parent.postMessage({type:'printer-setup'},location.origin)};
 window.addEventListener('message',e=>{if(e.origin!==location.origin)return;const d=e.data||{};
  if(d.type==='printer'){PR.native=!!d.native;PR.name=d.name||'';PR.ready=!!d.ready;PR.pending=+d.pending||0;paintPrint()}

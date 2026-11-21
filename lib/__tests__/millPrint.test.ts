@@ -201,6 +201,61 @@ describe("sharing the MPT-III with the Weigh & Bill counter", () => {
     expect(m.MILL_RECEIPT_KEEP_MS).toBe(10_000);
     const src = (await import("node:fs")).readFileSync("lib/mill/millPrint.ts", "utf8");
     expect(src).toMatch(/keepMs: rc \? MILL_RECEIPT_KEEP_MS : 300_000/);
-    expect(src).toMatch(/if \(c\.lang === "escpos"\) return;/);
+    expect(src).toMatch(/getMillPrinters\(\)\.label; \/\/ never the receipt printer/);
+  });
+});
+
+describe("two printers on one phone: receipt printer + label printer", () => {
+  const rc = { id: "nbt:AA:AA:AA:AA:AA:AA", name: "MPT-III", widthMm: 48, heightMm: 0, gapMm: 0, density: 8, invert: true, lang: "escpos" as const };
+  const lb = { id: "nbt:BB:BB:BB:BB:BB:BB", name: "H30C_F1BA", widthMm: 50, heightMm: 75, gapMm: 3, density: 8, invert: true, lang: "tspl" as const };
+  it("weight slip → receipt printer; token and sticker → label printer", async () => {
+    const { printerFor } = await import("@/lib/mill/millPrint");
+    const both = { receipt: rc, label: lb };
+    expect(printerFor({ kind: "slip" }, both)?.name).toBe("MPT-III");
+    expect(printerFor({ kind: "token" }, both)?.name).toBe("H30C_F1BA");
+    expect(printerFor({ kind: "sticker" }, both)?.name).toBe("H30C_F1BA");
+  });
+  it("with only one printer chosen everything goes there (as before)", async () => {
+    const { printerFor } = await import("@/lib/mill/millPrint");
+    for (const k of ["slip", "token", "sticker"] as const) {
+      expect(printerFor({ kind: k }, { receipt: null, label: lb })?.name).toBe("H30C_F1BA");
+      expect(printerFor({ kind: k }, { receipt: rc, label: null })?.name).toBe("MPT-III");
+      expect(printerFor({ kind: k }, { receipt: null, label: null })).toBeNull();
+    }
+  });
+  it("stores both, and the single printer saved by an older version lands in its own place", async () => {
+    const mem = new Map<string, string>();
+    const w = {
+      localStorage: { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k) },
+      dispatchEvent: () => true,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    };
+    (globalThis as unknown as { window: unknown }).window = w;
+    try {
+      const m = await import("@/lib/mill/millPrint");
+      mem.set("mdMillPrinter.v1", JSON.stringify(lb)); // old version
+      expect(m.getMillPrinters().label?.name).toBe("H30C_F1BA");
+      expect(m.getMillPrinters().receipt).toBeNull();
+      m.setMillPrinterSlot("receipt", { ...rc, lang: "tspl" }); // the slot decides the type
+      const p = m.getMillPrinters();
+      expect(p.receipt?.lang).toBe("escpos");
+      expect(p.label?.name).toBe("H30C_F1BA"); // the old one is kept
+      expect(mem.has("mdMillPrinter.v1")).toBe(false);
+      m.setMillPrinterSlot("label", null);
+      expect(m.getMillPrinters().label).toBeNull();
+      expect(m.getMillPrinters().receipt?.name).toBe("MPT-III");
+    } finally {
+      delete (globalThis as unknown as { window?: unknown }).window;
+    }
+  });
+  it("a sticker keeps its QR code and is never mixed up with its slip in the not-printed list", async () => {
+    const { cleanDoc, docKey, layoutDoc } = await import("@/lib/mill/millPrint");
+    const d = cleanDoc({ kind: "sticker", code: "WS-0012", rows: [["Mustard seed", "50.00 kg"]], qr: true })!;
+    expect(d.kind).toBe("sticker");
+    expect(d.qr).toBe(true);
+    expect(docKey(d)).not.toBe(docKey({ kind: "slip", code: "WS-0012" }));
+    const { ops } = layoutDoc(d, 400, (t, px) => t.length * px * 0.5);
+    expect(ops.some((o) => o.t === "qr")).toBe(true);
   });
 });

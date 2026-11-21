@@ -122,12 +122,17 @@ function paintPrint(){
  if(PR.native&&PR.pending>0&&PR.ready){if(!b){b=document.createElement('div');b.id='prpend';b.className='prpend';document.body.appendChild(b)}
   b.innerHTML='<span>'+PR.pending+' slip'+(PR.pending>1?'s':'')+' not printed</span><button onclick="window.parent.postMessage({type:\'print-pending\'},location.origin)">Print now</button>'}
  else if(b)b.remove()}
-function sendPrint(){PR.id=uid('p');PR.busy=true;PR.ok=null;PR.text='';PR.fix='';
- window.parent.postMessage({type:'print',id:PR.id,doc:PR.doc,copies:PR.copies},location.origin);
+function sendPrint(doc,copies){PR.id=uid('p');PR.busy=true;PR.ok=null;PR.text='';PR.fix='';
+ window.parent.postMessage({type:'print',id:PR.id,doc:doc||PR.doc,copies:copies||PR.copies},location.origin);
  clearTimeout(PR.t);PR.t=setTimeout(()=>{if(PR.busy){PR.busy=false;PR.ok=false;PR.text='The printer did not answer in time. Look at the printer first: if the slip did not come out, Print again.';paintPrint()}},150000);
  setTimeout(paintPrint,0)}
 window.millPrintAuto=function(doc,copies){PR.doc=doc;PR.copies=Math.max(1,+copies||1);if(!PR.native){setTimeout(paintPrint,0);return}sendPrint()};
 window.printAgain=function(){if(PR.native&&PR.doc)sendPrint();else printPaper()};
+// a small sticker for a bag or barrel: the code as a QR (phone camera) plus the first lines; goes to the label printer
+window.millSticker=function(){const d=PR.doc;if(!d){toast('Save the slip first','bad');return}
+ if(!PR.native){toast('Stickers print from the Android app','bad');return}
+ const rows=(d.rows||[]).filter(r=>r!=='-').slice(0,4);
+ sendPrint({kind:'sticker',code:d.code,shop:d.shop,title:d.title,when:d.when,rows,foot:d.foot,qr:true},1)};
 window.millPrinterTap=function(){if(window.parent!==window)window.parent.postMessage({type:'printer-setup'},location.origin)};
 window.addEventListener('message',e=>{if(e.origin!==location.origin)return;const d=e.data||{};
  if(d.type==='printer'){PR.native=!!d.native;PR.name=d.name||'';PR.ready=!!d.ready;PR.pending=+d.pending||0;paintPrint()}
