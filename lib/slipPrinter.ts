@@ -19,6 +19,8 @@ export interface SlipPrinterCfg {
   cut: boolean;
   /** Kannada "thank you" and Kannada names as small pictures */
   kannada: boolean;
+  /** small font for address / details / notes (off unless the person turns it on) */
+  small?: boolean;
   /** picked by the app itself (the person can change it) */
   auto?: boolean;
 }
@@ -181,7 +183,7 @@ const notImplemented = (e: unknown) => /not implemented|is not a function|unimpl
 
 /** The slip's bytes for this printer. */
 export function slipBytes(doc: ReceiptDoc, shop: ShopInfo, cfg: SlipPrinterCfg, copies = 1): Uint8Array {
-  return buildReceiptEscpos(doc, shop, { paper: cfg.paper, cut: cfg.cut, kannada: cfg.kannada, copies }, cfg.kannada ? canvasRenderer() : undefined);
+  return buildReceiptEscpos(doc, shop, { paper: cfg.paper, cut: cfg.cut, kannada: cfg.kannada, small: cfg.small, copies }, cfg.kannada ? canvasRenderer() : undefined);
 }
 
 /** Sends the slip. Resolves when the printer took it; throws SlipPrintError with a code. */
