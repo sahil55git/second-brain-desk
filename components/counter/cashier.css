@@ -193,3 +193,7 @@
   .cd-list li>button,.cd-list.plain li>div{padding:8px 12px}
   .cd-list .r1 strong{font-size:19px}
 }
+
+.cd-acts .hold{border-color:var(--warn)}
+
+@media (max-width:700px){.cd-acts{flex-wrap:wrap}.cd-acts .go{flex:1 1 100%;order:-1}}
