@@ -160,3 +160,7 @@
 .cd-tabs button.cd-ping{border-color:#f5a623;animation:cdGlow2 1.3s ease-in-out infinite}
 .cd-list li>button.late{border-color:var(--bad);animation:cdGlow2 2s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){.cd .cd-next,.cd button.cd-next::after,.cd-guide .gi,.cd-tabs button.cd-ping,.cd-list li>button.late,.cd-money .out.flash{animation:none}}
+
+/* dialogs above the app's top bar (z-index 8000) */
+.cd-modal{z-index:9000}
+.cd .ctr-drawer{z-index:9000}

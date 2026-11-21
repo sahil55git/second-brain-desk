@@ -46,7 +46,13 @@ export default function CashReceived({
           <b>#{no} · {k("Cash received", "ನಗದು ಬಂತು")}</b>
           <button type="button" onClick={onClose} aria-label="Close">✕</button>
         </div>
-        <div className="rp-total"><span>{k("Cash to take", "ತೆಗೆದುಕೊಳ್ಳಬೇಕಾದ ನಗದು")}</span><strong>{rupees(due)}</strong></div>
+        <div className="rp-money">
+          <div className="rp-m in"><small>{k("Receive", "ಪಡೆಯಬೇಕು")}</small><strong>{rupees(due)}</strong></div>
+          <div className={`rp-m out${g > 0 ? (short > 0 ? " bad" : change > 0 ? " flash" : " ok") : ""}`}>
+            <small>{g > 0 && short > 0 ? k("Short by", "ಕಡಿಮೆ") : k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")}</small>
+            <strong>{g > 0 ? rupees(short > 0 ? short : change) : "—"}</strong>
+          </div>
+        </div>
         <div className="rp-cash">
           <label>
             <span>{k("Customer gave", "ಗ್ರಾಹಕರು ಕೊಟ್ಟದ್ದು")}</span>
@@ -55,9 +61,6 @@ export default function CashReceived({
           <div className="rp-chips">
             {noteChips(due).map((v) => <button key={v} type="button" className={v === Math.ceil(due) ? "exact" : ""} aria-label={v === Math.ceil(due) ? k("Exact amount", "ಸರಿಯಾದ ಮೊತ್ತ") : undefined} onClick={() => { if (v === Math.ceil(due)) { setGiven(""); void exact(); } else { setGiven(String(v)); setErr(""); } }}>{v === Math.ceil(due) ? <><TickIcon /> ₹{v}</> : `₹${v}`}</button>)}
           </div>
-          {g > 0 && (short > 0
-            ? <p className="rp-short">{k("Short", "ಕಡಿಮೆ")} {rupees(short)}</p>
-            : <p className="rp-change">{k("Return to customer", "ಗ್ರಾಹಕರಿಗೆ ಹಿಂತಿರುಗಿಸಿ")}: <b>{rupees(change)}</b></p>)}
         </div>
         <NumPad value={given} onChange={(v) => { setGiven(v); setErr(""); }} />
         {err && <p className="rp-err">{err}</p>}
