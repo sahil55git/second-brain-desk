@@ -123,6 +123,10 @@ rep("<span>khali <b>${f1(sum(o.okhali))} kg</b> (${o.okhali.length} bags)</span>
 rep("(${o.ooil.length} cans)","<i class=\"cn\">(${o.ooil.length} cans)</i>")
 rep("(${o.okhali.length} bags)</span>${S.khali","<i class=\"cn\">(${o.okhali.length} bags)</i></span>${S.khali")
 
+# tap the weight card to type the weight when the scale is not connected; a typed weight ends with the save
+rep("""<div class="wrow"><div class="wcard"><div class="lbl">""","""<div class="wrow"><div class="wcard" onclick="weightTap()"><div class="lbl">""")
+rep("function afterSave(){S.needZero=true;","function afterSave(){S.manual=0;S.needZero=true;")
+
 # ---- engine + app code before the final render()
 eng=open(D+'/voice_engine.js').read()
 app=open(D+'/app_voice.js').read()+"\n/*APP-MILL*/\n"+open(D+'/app_mill.js').read()
@@ -144,3 +148,4 @@ p=s.replace('https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.a
 p=p.replace('<title>','<meta name="robots" content="noindex">\n<title>',1)
 open(ROOT+'/public/mill/desk.html','w').write(p)
 print('prod',len(p))
+

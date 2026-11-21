@@ -288,3 +288,14 @@ describe("USB cable printers", () => {
     expect(src).toMatch(/if \(!"USB_FAIL"\.equals\(pf\.code\) \|\| attempt == 1\) throw pf;/);
   });
 });
+
+describe("typing the weight by hand when the scale is not connected", () => {
+  it("the built desk has the tap-to-type sheet, uses a typed weight only while the scale is off, and clears it on save", async () => {
+    const html = (await import("node:fs")).readFileSync("public/mill/desk.html", "utf8");
+    expect(html).toContain('class="wcard" onclick="weightTap()"');
+    expect(html).toContain("sheetManualWeight");
+    expect(html).toContain("const v=live?w:(S.manual||0)"); // a live reading always wins
+    expect(html).toContain("function afterSave(){S.manual=0;"); // a typed weight is used once
+    expect(html).toContain("More than 300 kg");
+  });
+});
