@@ -27,6 +27,7 @@ function sheetSettings(){
  layer('Settings',`<div class="grp"><span class="gi" style="background:#5F82D4">${ic('globe')}</span>Screen language</div><div class="chrow"><button class="ch ${S.lang==='en'?'sel':''}" onclick="setLang('en');sheetSettings()">English</button><button class="ch ${S.lang==='kn'?'sel':''}" onclick="setLang('kn');sheetSettings()">ಕನ್ನಡ</button></div>
  <div class="grp"><span class="gi" style="background:#8A7F6E">${ic('printer')}</span>Printing</div>
  ${sw('autoSlip','Print the weight slip automatically','printer',S.cfg.autoSlip!==false,['On','Off'])}${sw('autoTok','Print the job token automatically','printer',!!S.cfg.autoTok,['On','Off'])}${sw('stickers','Bag stickers with the token','tag',!!S.cfg.stickers,['On','Off'])}
+ <button class="mrow" onclick="closeLayer();millPrinterTap()">${ic('printer')}<span class="sp">Choose printers (once)</span>${ic('edit')}</button>
  <div class="note">Receipts per token (the Print button on a saved job).</div><div class="chrow">${[1,2].map(n=>`<button class="ch ${(S.cfg.copies||1)===n?'sel':''}" onclick="cfgCopies(${n})">${n} receipt${n>1?'s':''}</button>`).join('')}</div>
  <div class="note">Hide what the staff do not need. This only hides the button or tab; nothing is deleted. You can show it again here any time.</div>
  <div class="chrow"><button class="ch ${S.cfg.hideScope!=='worker'?'sel':''}" onclick="cfgScope('both')">Hide on both screens</button><button class="ch ${S.cfg.hideScope==='worker'?'sel':''}" onclick="cfgScope('worker')">Hide on Worker screen only</button></div>

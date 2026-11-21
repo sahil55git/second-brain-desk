@@ -48,3 +48,17 @@ describe("New job from Worker mode, and sorting", () => {
     expect(html).toContain("milldesk.sort");
   });
 });
+
+describe("Customer no. and printer choice", () => {
+  it("customer no. goes past 9: next number, keypad, remembered", () => {
+    expect(html).toContain("function cnoBtns(cur,fn,arg)");
+    expect(html).toContain("function cnoKey(fn,arg)");
+    expect(html).toContain("milldesk.cno");
+    expect(html).not.toContain("[1,2,3,4,5,6,7,8,9].map(n=>`<button class=\"${x.cno===n");
+  });
+  it("printing never opens the printer chooser by itself; Settings has the one-time choice", () => {
+    const frame = readFileSync(join(process.cwd(), "components/mill/MillDeskFrame.tsx"), "utf8");
+    expect(frame).not.toContain('setSheet(doc.kind === "slip" ? "receipt" : "label")');
+    expect(html).toContain("Choose printers (once)");
+  });
+});
