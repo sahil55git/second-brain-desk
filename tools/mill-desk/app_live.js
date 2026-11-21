@@ -99,13 +99,39 @@ function paintSync(){if(!LIVE)return;const h=$('#top h1 small');if(!h)return;let
 S.link={on:false,name:'',fresh:false};
 window.addEventListener('message',e=>{if(e.origin!==location.origin)return;const d=e.data||{};
  if(d.type==='scale'){const s=S.scale,w=Math.max(0,Math.round((+d.w||0)*20)/20);S.link={on:!!d.connected,name:d.name||'',fresh:!!d.fresh};
-  const v=S.link.on&&S.link.fresh?w:0;s.from=v;s.to=v;s.t0=0;paintLink()}
+  const live=S.link.on&&S.link.fresh;if(live)S.manual=0;const v=live?w:(S.manual||0);s.from=v;s.to=v;s.t0=0;paintLink()}
  if(d.type==='me'&&d.me){S.me=d.me}
  if(d.type==='toast'&&d.text)toast(d.text,d.bad?'bad':'')});
 function paintLink(){const p=document.querySelector('#top .pill[data-f="bt"]');if(!p)return;const dot=p.querySelector('.dot');if(dot)dot.style.background=!LIVE||S.link.on&&S.link.fresh?'var(--okt)':S.link.on?'#E9C46A':'#E5484D';p.title=S.link.on?(S.link.name||'Scale')+(S.link.fresh?' · connected':' · no reading'):'Scale not connected · tap to connect'}
 // the barrel counter desk (lots received: gross, tare, net) is its own full screen in the app
 window.millCounterOpen=function(){if(window.parent!==window)window.parent.postMessage({type:'open',to:'/mill/counter'},location.origin);else location.href='/mill/counter'};
 window.millScaleTap=function(){if(window.parent!==window)window.parent.postMessage({type:'scale-connect'},location.origin)};
+
+/* ---------- type the weight by hand when the scale is not connected: tap the weight card ---------- */
+S.manual=0;
+const scaleLive=()=>!!(S.link&&S.link.on&&S.link.fresh);
+window.weightTap=function(){if(!LIVE||scaleLive())return;sheetManualWeight()};
+function sheetManualWeight(){S._mw=S.manual?String(S.manual):'';
+ layer('Type the weight',`<div class="note">The scale is not connected, so type what the scale shows. It is used like a scale reading. When the scale connects again, its own reading is used.</div>
+ <div class="mrow" style="justify-content:flex-end"><span class="amt" id="mwv" style="color:var(--ink);font-size:38px">0 kg</span></div>
+ <div class="pad">${[1,2,3,4,5,6,7,8,9,'.',0,'⌫'].map(k=>`<button onclick="mwKey('${k}')">${k}</button>`).join('')}</div>
+ <div id="mwe" class="note" style="display:none;color:#ffd0c7"></div>
+ <button class="sbtn go next" onclick="mwOk()">${ic('check')}Use this weight</button>
+ ${S.manual?`<button class="sbtn" onclick="mwClear()">${ic('x')}Back to the scale reading</button>`:''}`);mwPaint()}
+function mwPaint(){const v=$('#mwv');if(v)v.textContent=(S._mw||'0')+' kg'}
+window.mwKey=function(k){let v=S._mw||'';if(k==='⌫')v=v.slice(0,-1);else if(k==='.'){if(v.indexOf('.')<0)v=(v||'0')+'.'}else{const d=v.split('.')[1];if(d!==undefined&&d.length>=2)return;if(v==='0')v='';v=(v+k).slice(0,7)}
+ S._mw=v;mwPaint()};
+window.mwOk=function(){const kg=Math.round((parseFloat(S._mw)||0)*100)/100,e=$('#mwe');
+ const bad=m=>{if(e){e.style.display='block';e.textContent=m}};
+ if(!(kg>0))return bad('Type the weight first.');
+ if(kg>300)return bad('More than 300 kg: this scale cannot weigh that.');
+ S.manual=kg;const s=S.scale;s.from=kg;s.to=kg;s.t0=0;S.st.v=kg;S.st.since=Date.now()-1000;
+ $('#layer').classList.remove('on');render();toast('Weight typed by hand: '+kg+' kg')};
+window.mwClear=function(){S.manual=0;const s=S.scale;s.from=0;s.to=0;s.t0=0;$('#layer').classList.remove('on');render()};
+const _pw0=paintWeight;
+paintWeight=function(){_pw0();const st=$('#wstat'),c=document.querySelector('.wcard');if(!st||!c||!LIVE)return;
+ const live=scaleLive();c.classList.toggle('nolive',!live);
+ if(!live){if(S.manual)st.textContent='✍ Typed by hand · tap here to change · '+st.textContent;else if(S.scale.w<0.4)st.textContent='Scale not connected · tap here to type the weight'}};
 
 /* ---------- the mill label printer (Helett): ONE tap — Save prints at once, the app page sends it over Bluetooth ---------- */
 const PR=window.PR={native:false,name:'',ready:false,pending:0,id:'',doc:null,copies:1,busy:false,ok:null,text:'',fix:'',fallback:false,t:0};
