@@ -38,6 +38,20 @@ export interface JobWorkEntryLike {
   advanceCustomerInr?: number | null;
   advanceAutoInr?: number | null;
   cans?: CansInput | null;
+  /** Job notes: a Mill Desk job carries a "[mill:…]" mark in them. */
+  notes?: string | null;
+  /** True when the advance is money the shop already handed over (Mill Desk jobs). */
+  advanceGiven?: boolean;
+}
+
+/**
+ * Mill Desk rule (Sahil, 21 Nov): an advance is cash the shop already gave the customer or the
+ * tempo. If the customer then takes the khali there is no payout to set it against, so the
+ * customer pays back the advance on top of the khali money and the cans.
+ * The older job-work desk keeps its own rule (an advance the customer paid in).
+ */
+export function advanceIsGiven(e: Pick<JobWorkEntryLike, "notes" | "advanceGiven">): boolean {
+  return e.advanceGiven ?? /\[mill:/.test(e.notes || "");
 }
 
 /** Total ₹ charged for oil cans taken at intake. */
@@ -89,8 +103,8 @@ export function expectedSettlementWithRate(
   if (entry.cakeOwnership === "SHOP") {
     return gross - advanceTotal - cans;
   }
-  // CUSTOMER keeps the cake: customer pays shop.
-  return gross + cans - advanceTotal;
+  // CUSTOMER keeps the cake: customer pays shop; a Mill Desk advance was given by us, so they pay it back too.
+  return advanceIsGiven(entry) ? gross + cans + advanceTotal : gross + cans - advanceTotal;
 }
 
 export interface PaySplit {
