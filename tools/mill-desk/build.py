@@ -131,8 +131,8 @@ rep("function afterSave(){S.needZero=true;","function afterSave(){S.manual=0;S.n
 rep(r"""function settlement(j){const rate=RATE[j.cake],gross=j.seedKg*rate,cans=canCharge(j.cans),adv=(j.advC||0)+(j.advA||0);
  if(j.cake==='SHOP'){const half=gross/2;return{rate,gross,cans,adv,due:gross-adv-cans,dir:'out',cust:half-(j.advC||0)-cans,auto:half-(j.advA||0)}}
  return{rate,gross,cans,adv,due:gross+cans-adv,dir:'in',cust:gross+cans-adv,auto:0}}""",
-r"""function settlement(j){const rate=RATE[j.cake],gross=j.seedKg*rate,cans=canCharge(j.cans),aC=Math.max(0,(j.advC||0)-(j.advR||0)),adv=aC+(j.advA||0);
- if(j.cake==='SHOP'){const half=gross/2,due=gross-adv-cans;return{rate,gross,cans,adv,due,dir:due>=0?'out':'in',cust:half-aC-cans,auto:half-(j.advA||0),advR:j.advR||0}}
+r"""function settlement(j){const rate=RATE[j.cake],gross=j.seedKg*rate,cans=canCharge(j.cans),aC=Math.max(0,(j.advC||0)-(j.advR||0)),aA=Math.max(0,(j.advA||0)-(j.advRA||0)),adv=aC+aA;
+ if(j.cake==='SHOP'){const half=gross/2,due=gross-adv-cans;return{rate,gross,cans,adv,due,dir:due>=0?'out':'in',cust:half-aC-cans,auto:half-aA,advR:j.advR||0}}
  const due=gross+cans-adv;return{rate,gross,cans,adv,due,dir:due>=0?'in':'out',cust:due,auto:0,advR:j.advR||0}}
 /* who pays whom: 'in' = the customer pays us, 'out' = we pay the customer (cans and advances are taken off first) */
 const payLbl=(j,dirIn)=>dirIn?(j.cake==='SHOP'?'Customer pays':'Khali payment'):'Pay customer';
@@ -146,28 +146,37 @@ rep("function jobSteps(j){const dirIn=j.cake!=='SHOP';","function jobSteps(j){co
 rep(r"""${dirIn?`<div class="ar res"><span>${ic('down')}${ic('bag')} Khali payment</span><b>${inr(s.cust)}</b></div>`:`<div class="ar res"><span>${ic('up')} Pay customer</span><b>${inr(s.cust)}</b></div><div class="ar res"><span>${ic('auto')} Pay tempo</span><b>${inr(s.auto)}</b></div>`}</div>`;""","${resRows(j,s)}</div>`;")
 rep("<span>${dirIn?'Customer takes khali · ₹10/kg':'Shop keeps khali · ₹6/kg'}</span>","<span>${j.cake!=='SHOP'?'Customer takes khali · ₹10/kg':'Shop keeps khali · ₹6/kg'}</span>")
 rep("(dirIn?'not weighed yet':'shop keeps')","(j.cake!=='SHOP'?'not weighed yet':'shop keeps')")
-rep("""${j.advA?`<div class="ar"><span>− tempo advance</span><b>${inr(j.advA)}</b></div>`:''}${s.cans?""","""${j.advA?`<div class="ar"><span>− tempo advance</span><b>${inr(j.advA)}</b></div>`:''}${j.advR?`<div class="ar"><span>+ advance returned</span><b>${inr(j.advR)}</b></div>`:''}${s.cans?""")
+rep("""${j.advA?`<div class="ar"><span>− tempo advance</span><b>${inr(j.advA)}</b></div>`:''}${s.cans?""","""${j.advA?`<div class="ar"><span>− tempo advance</span><b>${inr(j.advA)}</b></div>`:''}${j.advR?`<div class="ar"><span>+ advance returned</span><b>${inr(j.advR)}</b></div>`:''}${j.advRA?`<div class="ar"><span>+ tempo advance returned</span><b>${inr(j.advRA)}</b></div>`:''}${s.cans?""")
 rep(r"""${!dirIn&&!j.settled?`<div class="note">Customer ${inr(s.cust)} · Tempo ${inr(s.auto)} · after advance${s.cans?' and cans':''}</div>`:''}""",r"""${j.cake==='SHOP'&&!j.settled?`<div class="note">${splitNote(s)} · after advance${s.cans?' and cans':''}</div>`:''}""")
 rep("${one('user','Customer',j.advC,dirIn?0:st.cust,j.settled)}${one('auto','Tempo',j.advA,st.auto,j.settled&&!dirIn)}","${one('user','Customer',j.advC,j.cake==='SHOP'?st.cust:0,j.settled)}${one('auto','Tempo',j.advA,j.cake==='SHOP'?st.auto:0,j.settled&&j.cake==='SHOP')}")
 rep("<span>Paid${final?' '+inr(final):''}","<span>${final<0?'Received':'Paid'}${final?' '+inr(final):''}")
-# the job card: advance returned, editable until paid
-rep(r"""${row(ic('auto'),'Tempo advance',j.advA?inr(j.advA):'₹ —',`sheetNum('Tempo advance (₹)',v=>setAdv('${tok}','advA',v),'sheetJob(\'${tok}\')')`)}""",
-r"""${row(ic('auto'),'Tempo advance',j.advA?inr(j.advA):'₹ —',`sheetNum('Tempo advance (₹)',v=>setAdv('${tok}','advA',v),'sheetJob(\'${tok}\')')`)}
-   ${row(`<span class="coin sm">↓</span>`,'Advance returned',j.advR?inr(j.advR):'₹ —',`sheetNum('Advance returned by customer (₹)',v=>setAdv('${tok}','advR',v),'sheetJob(\'${tok}\')')`)}""")
+# the job card: tap an advance to edit it or take part of it back (no extra field)
+rep(r"""'Customer advance',j.advC?inr(j.advC):'₹ —',`sheetNum('Customer advance (₹)',v=>setAdv('${tok}','advC',v),'sheetJob(\'${tok}\')')`""",r"""'Customer advance',advTxt(j,'advC','advR'),`sheetAdv('${tok}','advC')`""")
+rep(r"""'Tempo advance',j.advA?inr(j.advA):'₹ —',`sheetNum('Tempo advance (₹)',v=>setAdv('${tok}','advA',v),'sheetJob(\'${tok}\')')`""",r"""'Tempo advance',advTxt(j,'advA','advRA'),`sheetAdv('${tok}','advA')`""")
+rep("function setAdv(tok,f,v){","""const advTxt=(o,f,r)=>o[f]?inr(o[f])+(o[r]?' · back '+inr(o[r]):''):'₹ —';
+function advObj(ctx){return ctx==='slip'?S.slip:S.jw.find(x=>x.tok===ctx)}
+function advSet(ctx,k,v){const o=advObj(ctx);o[k]=v;const f=k==='advR'?'advC':k==='advRA'?'advA':k,r=f==='advC'?'advR':'advRA';if((o[r]||0)>(o[f]||0))o[r]=o[f]||0;if(ctx==='slip'){closeLayer();render()}else sheetJob(ctx)}
+function sheetAdv(ctx,f){const o=advObj(ctx),r=f==='advC'?'advR':'advRA',nm=f==='advC'?'Customer advance':'Tempo advance',back=ctx==='slip'?'closeLayer()':`sheetJob('${ctx}')`;
+ layer(nm,`<div class="note">Taken ${inr(o[f]||0)}${o[r]?' · given back '+inr(o[r]):''}</div>
+ <button class="sbtn go" onclick="sheetNum('${nm} (₹)',v=>advSet('${ctx}','${f}',v),'sheetAdv(\\'${ctx}\\',\\'${f}\\')')">${ic('edit')}Edit amount</button>
+ <button class="sbtn" onclick="sheetNum('Given back by customer (₹)',v=>advSet('${ctx}','${r}',v),'sheetAdv(\\'${ctx}\\',\\'${f}\\')')">${ic('down')}Return advance</button>
+ ${o[r]?`<button class="sbtn" onclick="advSet('${ctx}','${r}',0)">${ic('x')}Clear returned</button>`:''}`,back)}
+function setAdv(tok,f,v){""")
 # the counter slip: sign-aware estimate, per-party lines, advance returned; stickers/receipts leave this screen
 rep("${est.due<0?'Customer owes shop':sp.cake==='SHOP'?'Shop pays (estimate)':'Customer pays (estimate)'}","${est.dir==='in'?(sp.cake==='SHOP'?'Customer pays you (estimate)':'Customer pays (khali · estimate)'):'You pay customer (estimate)'}")
-rep("""<b>${inr(est.cans)}</b></div>`:''}</div>""","""<b>${inr(est.cans)}</b></div>`:''}${sp.advR?`<div class="ar"><span>+ advance returned</span><b>${inr(sp.advR)}</b></div>`:''}${sp.cake==='SHOP'?`<div class="ar"><span>${est.cust>=0?'Customer gets':'Customer owes shop'}</span><b>${inr(est.cust)}</b></div><div class="ar"><span>${est.auto>=0?'Tempo gets':'Tempo owes shop'}</span><b>${inr(est.auto)}</b></div>`:''}</div>""")
-rep("advC:sp.advC,advA:sp.advA,cans:sp.cans})}","advC:sp.advC,advA:sp.advA,advR:sp.advR,cans:sp.cans})}")
-rep("\n  <div class=\"cans3\" data-f=\"cans\">","""
-  <button class="mrow" data-f="adv" onclick="sheetNum('Advance returned by customer (₹)',v=>{S.slip.advR=v;closeLayer()},'closeLayer()')"><span class="coin">₹</span><span class="arr in">↓</span><span class="sp">Advance returned</span><span class="amt">${sp.advR?inr(sp.advR):'₹ —'}</span>${ic('edit')}</button>
-  <div class="cans3" data-f="cans">""")
+rep("""<b>${inr(est.cans)}</b></div>`:''}</div>""","""<b>${inr(est.cans)}</b></div>`:''}${sp.advR?`<div class="ar"><span>+ advance returned</span><b>${inr(sp.advR)}</b></div>`:''}${sp.advRA?`<div class="ar"><span>+ tempo advance returned</span><b>${inr(sp.advRA)}</b></div>`:''}${sp.cake==='SHOP'?`<div class="ar"><span>${est.cust>=0?'Customer gets':'Customer owes shop'}</span><b>${inr(est.cust)}</b></div><div class="ar"><span>${est.auto>=0?'Tempo gets':'Tempo owes shop'}</span><b>${inr(est.auto)}</b></div>`:''}</div>""")
+rep("advC:sp.advC,advA:sp.advA,cans:sp.cans})}","advC:sp.advC,advA:sp.advA,advR:sp.advR,advRA:sp.advRA,cans:sp.cans})}")
+rep("onclick=\"sheetNum('Customer advance (₹)',v=>{S.slip.advC=v;closeLayer()},'closeLayer()')\"","onclick=\"sheetAdv('slip','advC')\"")
+rep("onclick=\"sheetNum('Tempo advance (₹)',v=>{S.slip.advA=v;closeLayer()},'closeLayer()')\"","onclick=\"sheetAdv('slip','advA')\"")
+rep("<span class=\"amt\">${sp.advC?inr(sp.advC):'₹ —'}</span>","<span class=\"amt\">${advTxt(sp,'advC','advR')}</span>")
+rep("<span class=\"amt\">${sp.advA?inr(sp.advA):'₹ —'}</span>","<span class=\"amt\">${advTxt(sp,'advA','advRA')}</span>")
 s=re.sub(r'  <div class="chrow"><button class="ch \$\{sp\.stick.*?receipt\(s\)</button></div>\n','',s,count=1,flags=re.S)
-rep("lines:[],advC:0,advA:0,cans:{}","lines:[],advC:0,advA:0,advR:0,cans:{}")
+rep("lines:[],advC:0,advA:0,cans:{}","lines:[],advC:0,advA:0,advR:0,advRA:0,cans:{}")
 # save the job: no compulsory printout; Print / Sticker are optional, Done is separate
 rep("<span>${ic('printer')}${ic('check')}</span>Token · ${f1(kg)} kg</button>","<span>${ic('check')}</span>Save job · ${f1(kg)} kg</button>")
 rep("function confirmSlip(){const sp=S.slip;","function confirmSlip(){S.slip.stick=!!S.cfg.stickers;S.slip.copies=S.cfg.copies||1;const sp=S.slip;")
-rep("advC:sp.advC||0,advA:sp.advA||0,cans:Object.assign","advC:sp.advC||0,advA:sp.advA||0,advR:sp.advR||0,cans:Object.assign")
-rep("sp.advA?['Tempo advance',inr(sp.advA)]:null,","sp.advA?['Tempo advance',inr(sp.advA)]:null,sp.advR?['Advance returned',inr(sp.advR)]:null,")
+rep("advC:sp.advC||0,advA:sp.advA||0,cans:Object.assign","advC:sp.advC||0,advA:sp.advA||0,advR:sp.advR||0,advRA:sp.advRA||0,cans:Object.assign")
+rep("sp.advA?['Tempo advance',inr(sp.advA)]:null,","sp.advA?['Tempo advance',inr(sp.advA)]:null,sp.advR?['Advance returned',inr(sp.advR)]:null,sp.advRA?['Tempo advance returned',inr(sp.advRA)]:null,")
 rep("millPrintAuto({kind:'token',","millPrintGo(S.cfg.autoTok,{kind:'token',")
 rep("millPrintAuto({kind:'slip',","millPrintGo(S.cfg.autoSlip!==false,{kind:'slip',")
 rep("total:['Estimate',inr(est)]","total:[settlement(j).dir==='in'?'Customer pays (est.)':'We pay (est.)',inr(est)]")
