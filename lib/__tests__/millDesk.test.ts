@@ -81,6 +81,7 @@ describe("advance returned (update 2)", () => {
     expect(jobMoney(base).due).toBe(400);
     expect(jobMoney({ ...base, advR: 150 }).due).toBe(550);
     expect(jobMoney({ ...base, advR: 999 }).due).toBe(600);
+    expect(jobMoney({ ...base, advA: 100, advRA: 40 }).due).toBe(340);
     expect(jobError({ tok: "JW-0001", customer: "A", seedKg: 10, cake: "SHOP", advR: -1 })).toBe("Advance cannot be negative.");
   });
 });

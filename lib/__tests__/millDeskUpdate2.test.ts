@@ -16,6 +16,11 @@ describe("Mill Desk update 2 (source checks on the built page)", () => {
     expect(html).toContain("window.millPrepare=");
     expect(html).not.toContain("Bag stickers ${sp.stick");
   });
+  it("an advance opens one sheet to edit it or give part back (no extra field)", () => {
+    expect(html).toContain("function sheetAdv(ctx,f)");
+    expect(html).toContain("Return advance");
+    expect(html).not.toContain("'Advance returned',j.advR");
+  });
   it("name field, fixed mode, hide scope and language", () => {
     expect(html).toContain("who:'Name'");
     expect(html).toContain("setMode(S.mode==='worker'?'counter':'worker')");
