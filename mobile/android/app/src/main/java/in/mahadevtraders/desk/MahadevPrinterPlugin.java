@@ -596,25 +596,42 @@ public class MahadevPrinterPlugin extends Plugin {
         return fallback;
     }
 
+    /** Sends to a USB printer. Errors carry a code: USB_UNPLUGGED, USB_DENIED, USB_BUSY, USB_FAIL, PARTIAL.
+     *  A link that died while the printer stayed plugged in (cable moved, printer switched off and on) is
+     *  opened again once, but only when nothing had been sent yet (never a second copy of a slip). */
     private synchronized void writeUsb(String id, byte[] bytes) throws Exception {
+        int[] sent = { 0 };
+        for (int attempt = 0; attempt < 2; attempt++) {
+            sent[0] = 0;
+            try {
+                writeUsbOnce(id, bytes, sent);
+                return;
+            } catch (PrintFail pf) {
+                if (!"USB_FAIL".equals(pf.code) || attempt == 1) throw pf;
+            }
+            try { Thread.sleep(400); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+        }
+    }
+
+    private void writeUsbOnce(String id, byte[] bytes, int[] sent) throws Exception {
         UsbManager um = (UsbManager) getContext().getSystemService(Context.USB_SERVICE);
-        if (um == null) throw new Exception("This phone has no USB host support.");
+        if (um == null) throw new PrintFail("USB_UNPLUGGED", "This phone cannot use USB printers.");
         UsbDevice dev = null;
         for (UsbDevice d : um.getDeviceList().values()) if (usbIdOf(d).equals(id)) dev = d;
         if (dev == null) {
             closeUsb();
-            throw new Exception("The USB printer is not plugged in. Connect it with the OTG cable.");
+            throw new PrintFail("USB_UNPLUGGED", "The USB printer is not plugged in. Connect it with the OTG cable and switch it on.");
         }
-        if (!um.hasPermission(dev) && !askUsb(um, dev)) throw new Exception("Allow Mahadev Desk to use the USB printer (tap OK when Android asks), then print again.");
+        if (!um.hasPermission(dev) && !askUsb(um, dev)) throw new PrintFail("USB_DENIED", "Allow Mahadev Desk to use the USB printer (tap OK when Android asks), then print again.");
         if (usbConn == null || !id.equals(usbId)) {
             closeUsb();
             Object[] io = findOut(dev);
-            if (io == null) throw new Exception("This USB device has no printer channel.");
+            if (io == null) throw new PrintFail("USB_FAIL", "This USB device has no printer channel.");
             UsbDeviceConnection c = um.openDevice(dev);
-            if (c == null) throw new Exception("Could not open the USB printer.");
+            if (c == null) throw new PrintFail("USB_DENIED", "Could not open the USB printer. Unplug it, plug it in again and allow Mahadev Desk.");
             if (!c.claimInterface((UsbInterface) io[0], true)) {
                 c.close();
-                throw new Exception("The USB printer is busy.");
+                throw new PrintFail("USB_BUSY", "The USB printer is busy with another app. Close the printer's own app and try again.");
             }
             usbConn = c;
             usbIface = (UsbInterface) io[0];
@@ -623,13 +640,15 @@ public class MahadevPrinterPlugin extends Plugin {
         }
         int at = 0;
         while (at < bytes.length) {
-            int n = Math.min(16384, bytes.length - at);
+            int n = Math.min(4096, bytes.length - at);
             int w = usbConn.bulkTransfer(usbOut, bytes, at, n, 8000);
             if (w < 0) {
                 closeUsb();
-                throw new Exception("The USB printer stopped taking data. Check paper and cable.");
+                if (sent[0] > 0) throw new PrintFail("PARTIAL", "The USB printer stopped in the middle of the slip (" + sent[0] + " of " + bytes.length + " bytes). Check the slip; if it is cut short, print again.");
+                throw new PrintFail("USB_FAIL", "The USB printer did not take the data. Check paper, cable and that it is switched on.");
             }
             at += w;
+            sent[0] = at;
         }
     }
 

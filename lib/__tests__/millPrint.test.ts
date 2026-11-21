@@ -133,7 +133,7 @@ describe("words for the person", () => {
       { id: "nbt:2", name: "Helett H30C", kind: "bluetooth", printer: false },
       { id: "nusb:3", name: "USB", kind: "usb", printer: true },
     ]);
-    expect(l.map((p) => p.name)).toEqual(["Helett H30C", "POS-80"]);
+    expect(l.map((p) => p.name)).toEqual(["Helett H30C", "POS-80", "USB"]); // a USB cable printer is listed too
   });
   it("the low-energy twin of a printer goes last and is explained", () => {
     const l = labelCandidates([
@@ -257,6 +257,35 @@ describe("two printers on one phone: receipt printer + label printer", () => {
     expect(docKey(d)).not.toBe(docKey({ kind: "slip", code: "WS-0012" }));
     const { ops } = layoutDoc(d, 400, (t, px) => t.length * px * 0.5);
     expect(ops.some((o) => o.t === "qr")).toBe(true);
+  });
+});
+
+describe("USB cable printers", () => {
+  it("a saved USB printer is accepted, and listed next to the Bluetooth ones", async () => {
+    const { cleanCfg, labelCandidates, isUsbId } = await import("@/lib/mill/millPrint");
+    expect(isUsbId("nusb:0483:5740")).toBe(true);
+    expect(cleanCfg({ id: "nusb:0483:5740", name: "Helett H30C", widthMm: 50, heightMm: 75 })?.id).toBe("nusb:0483:5740");
+    expect(cleanCfg({ id: "xyz:1", name: "x" })).toBeNull();
+    const l = labelCandidates([
+      { id: "nbt:AA", name: "H30C_F1BA_BLE", kind: "bluetooth", printer: true },
+      { id: "nusb:1:2", name: "Helett H30C", kind: "usb", printer: true },
+      { id: "nbt:BB", name: "H30C_F1BA", kind: "bluetooth", printer: true },
+    ]);
+    expect(l.map((p) => p.id)).toContain("nusb:1:2");
+    expect(l[l.length - 1].name).toBe("H30C_F1BA_BLE"); // the BLE twin stays last
+  });
+  it("says in plain words what to do when the cable printer fails", async () => {
+    const { explainPrintError } = await import("@/lib/mill/millPrint");
+    expect(explainPrintError({ code: "USB_UNPLUGGED" }).text).toMatch(/plugged in/i);
+    expect(explainPrintError({ code: "USB_DENIED" }).text).toMatch(/allow/i);
+    expect(explainPrintError({ code: "USB_BUSY" }).text).toMatch(/busy/i);
+    expect(explainPrintError({ code: "USB_FAIL" }, "H30C_F1BA_BLE").text).toMatch(/cable/i); // not the BLE message
+  });
+  it("native USB code reports a code for every failure and never retries after bytes went out", async () => {
+    const src = (await import("node:fs")).readFileSync("mobile/android/app/src/main/java/in/mahadevtraders/desk/MahadevPrinterPlugin.java", "utf8");
+    for (const c of ["USB_UNPLUGGED", "USB_DENIED", "USB_BUSY", "USB_FAIL"]) expect(src).toContain(`"${c}"`);
+    expect(src).toMatch(/if \(sent\[0\] > 0\) throw new PrintFail\("PARTIAL"/);
+    expect(src).toMatch(/if \(!"USB_FAIL"\.equals\(pf\.code\) \|\| attempt == 1\) throw pf;/);
   });
 });
 

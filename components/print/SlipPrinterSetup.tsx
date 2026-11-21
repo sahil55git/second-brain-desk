@@ -1,6 +1,6 @@
 "use client";
 
-// "Counter slip printer" for THIS tablet / phone (Android app): pick the paired Bluetooth receipt printer
+// "Counter slip printer" for THIS tablet / phone (Android app): pick the paired Bluetooth (or USB cable) receipt printer
 // once, choose 58 or 80 mm, tap Test. After that Save & Print sends every slip straight to it.
 import { useCallback, useEffect, useState } from "react";
 import { MahadevPrinter, isNative, type NativePrinter } from "@/lib/native";
@@ -24,7 +24,7 @@ export default function SlipPrinterSetup({ shop, onChange, compact = false }: { 
     try {
       const r = await MahadevPrinter.list();
       setBtOn(r.bluetoothOn);
-      setList(r.printers.filter((p) => p.kind === "bluetooth"));
+      setList(r.printers);
     } catch {
       setList([]);
     }
@@ -95,10 +95,10 @@ export default function SlipPrinterSetup({ shop, onChange, compact = false }: { 
             {cands.map((p) => (
               <button key={p.id} type="button" className={`sp-dev${cfg?.id === p.id ? " on" : ""}`} onClick={() => choose(p)}>
                 <span className="sp-dot">{cfg?.id === p.id ? "✓" : "🖨️"}</span>
-                <span>{p.name}<small>{p.id.slice(4)}</small></span>
+                <span>{p.kind === "usb" ? "🔌 " : ""}{p.name}<small>{p.kind === "usb" ? "USB cable" : p.id.slice(4)}</small></span>
               </button>
             ))}
-            {list && cands.length === 0 && <p className="sp-note">No paired receipt printer. Switch the printer on, then tap “Pair a printer” (PIN 0000 or 1234).</p>}
+            {list && cands.length === 0 && <p className="sp-note">No receipt printer found. Switch it on, then tap “Pair a printer” (PIN 0000 or 1234), or plug it in with a USB cable and tap Refresh.</p>}
             {labels.length > 0 && <p className="sp-note">Label printers ({labels.map((l) => l.name).join(", ")}) are left out: they print stickers, not slips.</p>}
           </div>
           <div className="bd-row">

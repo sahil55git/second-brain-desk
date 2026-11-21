@@ -18,7 +18,8 @@ describe("slip printer choice", () => {
       { id: "nbt:CC", name: "MPT-III_34AB", kind: "bluetooth", printer: true },
       { id: "nusb:1:2", name: "USB printer", kind: "usb", printer: true },
     ]);
-    expect(list.map((p) => p.id)).toEqual(["nbt:CC", "nbt:BB"]);
+    // a USB cable printer is a normal choice now (best first: printers, then other devices)
+    expect(list.map((p) => p.id)).toEqual(["nbt:CC", "nusb:1:2", "nbt:BB"]);
   });
 });
 
@@ -27,6 +28,8 @@ describe("messages", () => {
     expect(explainSlipError(new SlipPrintError("BT_OFF", "x")).fix).toBe("bt-on");
     expect(explainSlipError(new SlipPrintError("PAPER_OUT", "x")).en).toMatch(/paper/i);
     expect(explainSlipError({ code: "NOT_PAIRED" }).fix).toBe("pair");
+    expect(explainSlipError({ code: "USB_UNPLUGGED" }).en).toMatch(/USB/);
+    expect(explainSlipError({ code: "USB_DENIED" }).en).toMatch(/allow/i);
     expect(explainSlipError(new Error("socket closed")).en).toMatch(/not answering/i);
   });
   it("the same slip keeps the same id (a retry replaces it)", () => {
