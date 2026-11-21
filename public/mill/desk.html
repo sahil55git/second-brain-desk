@@ -291,6 +291,7 @@ body.noic .sbtn>svg.ic,body.noic .cp>svg.ic,body.noic .ch>svg.ic,body.noic .mrow
 .act .okb{font-size:22px;line-height:1.1;text-align:center}
 .card .sr b,.job-log .ar span{overflow-wrap:anywhere}
 .ar{gap:10px}.ar>span{padding-right:6px}.ar>b{text-align:right}
+.mrow.wname{width:100%;margin:6px 0;font-size:19px}
 </style>
 </head>
 <body>
@@ -577,16 +578,16 @@ function layer(title,body,close='closeLayer()'){const l=$('#layer');
  l.classList.add('on');l.innerHTML=`<div class="lh"><h2>${title}</h2><button class="pill" onclick="${close}">${ic('x')}</button></div><div class="lb">${body}</div>`}
 function closeLayer(){$('#layer').classList.remove('on');render()}
 function toast(m,kind){const e=$('#toast');e.innerHTML=(kind==='bad'?ic('x'):ic('check'))+esc(m);e.className='toast on'+(kind==='bad'?' bad':'');clearTimeout(toast.t);toast.t=setTimeout(()=>{e.className='toast'},Math.max(2400,String(m).length*55))}
-function sheetCust(){layer('Customer',`${inpW('<input class="inp" id="cq" placeholder="Search name, village or mobile" oninput="custFilter()" autocomplete="off">','cq','text')}<div id="cres"></div>
+function sheetCust(f){S.custFor=f||null;layer('Customer',`${inpW('<input class="inp" id="cq" placeholder="Search name, village or mobile" oninput="custFilter()" autocomplete="off">','cq','text')}<div id="cres"></div>
  <div class="card"><h3>${ic('plus')} New customer</h3>${inpW('<input class="inp" id="nc" placeholder="Name (optional)" autocomplete="off">','nc','name')}
  <div style="height:8px"></div>${inpW('<input class="inp" id="nm" inputmode="numeric" maxlength="14" placeholder="Mobile number (optional)" autocomplete="off">','nm','digits')}
  <div class="chrow">${PLACES.map(p=>`<button class="ch" onclick="newCust('${p}')">${ic('pin')} ${p}</button>`).join('')}</div><div class="note">Name and mobile are optional. Tap the village to save. With no name, the village is the customer.</div></div>`);custFilter()}
 function custFilter(){const q=(($('#cq')||{}).value||'').trim().toLowerCase(),qd=q.replace(/\D/g,''),m=(t)=>!q||String(t||'').toLowerCase().includes(q)||(qd.length>=3&&String(t||'').includes(qd));
  const cs=CUSTS.map((c,i)=>[c,i]).filter(([c])=>m(c[0])||m(c[1])||m(c[2])),vs=PLACES.filter(m);
- $('#cres').innerHTML=(cs.length?`<div class="chrow">${cs.map(([c,i])=>`<button class="ch" onclick="S.slip.cust=CUSTS[${i}];closeLayer()">${c[0]===c[1]?ic('pin'):ic('user')} ${esc(c[0])}${c[0]===c[1]?'':`<br><small style="color:var(--soft);font:500 13px var(--body)">${ic('pin')} ${esc(c[1])}${c[2]?' · '+ic('phone')+' '+fmtMob(c[2]):''}</small>`}</button>`).join('')}</div>`:'')
- +(vs.length?`<div class="grp" style="margin-top:10px"><span class="gi" style="background:#2E7D5B">${ic('pin')}</span>Village only (no name)</div><div class="chrow">${vs.map(p=>`<button class="ch" onclick="S.slip.cust=['${p}','${p}'];closeLayer()">${ic('pin')} ${p}</button>`).join('')}</div>`:'')
+ $('#cres').innerHTML=(cs.length?`<div class="chrow">${cs.map(([c,i])=>`<button class="ch" onclick="custSet(CUSTS[${i}])">${c[0]===c[1]?ic('pin'):ic('user')} ${esc(c[0])}${c[0]===c[1]?'':`<br><small style="color:var(--soft);font:500 13px var(--body)">${ic('pin')} ${esc(c[1])}${c[2]?' · '+ic('phone')+' '+fmtMob(c[2]):''}</small>`}</button>`).join('')}</div>`:'')
+ +(vs.length?`<div class="grp" style="margin-top:10px"><span class="gi" style="background:#2E7D5B">${ic('pin')}</span>Village only (no name)</div><div class="chrow">${vs.map(p=>`<button class="ch" onclick="custSet(['${p}','${p}'])">${ic('pin')} ${p}</button>`).join('')}</div>`:'')
  +(!cs.length&&!vs.length?'<div class="note">No match. Add a new customer below.</div>':'')}
-function newCust(p){const n=($('#nc').value||'').trim()||p,mb=cleanMobile($('#nm')?$('#nm').value:'');if(mb===null)return toast('Mobile number must be 10 digits, or leave it empty','bad');const c=[n,p,mb||''];if(n!==p&&!CUSTS.find(x=>x[0]===n&&x[1]===p))CUSTS.push(c);S.slip.cust=c;closeLayer()}
+function newCust(p){const n=($('#nc').value||'').trim()||p,mb=cleanMobile($('#nm')?$('#nm').value:'');if(mb===null)return toast('Mobile number must be 10 digits, or leave it empty','bad');const c=[n,p,mb||''];if(n!==p&&!CUSTS.find(x=>x[0]===n&&x[1]===p))CUSTS.push(c);custSet(c)}
 function sheetNum(title,cb,back){window.__numSet=cb;window.__numBack=back;S._adv='';layer(title,`<div class="mrow" style="justify-content:flex-end"><button type="button" class="vbtn mic" data-f="voice" id="mb-advv" onclick="micAmount()" aria-label="Speak the amount">${ic('mic')}</button><span class="amt" id="advv" style="color:var(--ink);font-size:34px">₹ 0</span></div>
  <div class="pad">${[1,2,3,4,5,6,7,8,9,'C',0,'OK'].map(k=>`<button onclick="padKey('${k}')">${k}</button>`).join('')}</div>`,back)}
 function padKey(k){if(k==='C')S._adv='';else if(k==='OK'){return window.__numSet(+S._adv||0)}else S._adv=(S._adv+k).slice(0,6);$('#advv').textContent='₹ '+(+S._adv||0).toLocaleString('en-IN')}
@@ -637,6 +638,10 @@ function wBarrelDo(id,k,c,kg){S.queue=S.queue.filter(x=>x.id!==id);const b=S.bar
  if(k==='bfull'){b.full=kg;b.empty=null;toast(c+' full · '+f1(kg)+' kg')}else if(k==='bempty'){b.empty=kg;toast(b.full?c+' emptied · oil in it = '+f1(b.full-kg)+' kg':c+' empty '+f1(kg)+' kg (tare)')}else{b.out=true;toast(c+' sent out')}
  sheetWaiting()}
 function wCOil(gi){const g=groups()[gi],kg=sum(g.items.map(x=>x.kg));sheetJobPick('Customer oil '+f1(kg)+' kg — whose?',j=>{const gg=takeG(groupsIdx(g));j.oilKg=sum(gg.items.map(x=>x.kg));toast(j.customer+' · oil '+f1(j.oilKg)+' kg');sheetWaiting()},j=>j.crushed&&!j.given)}
+/* the name picked from the Waiting list goes on every weighing of that customer no.; otherwise it is the counter slip's customer */
+function custSet(c){const f=S.custFor;S.custFor=null;if(f){const [k,cno]=f.split('|');S.queue.forEach(x=>{if(x.k===k&&String(x.cno||0)===cno)x.cust=c.slice(0,3)});if(typeof save==='function')save();toast('Name: '+c[0]);sheetWaiting();return}S.slip.cust=c;closeLayer()}
+const gCust=g=>{const x=g.items.find(y=>y.cust);return x?x.cust:null};
+function wName(gi){const g=groups()[gi];sheetCust(g.k+'|'+(g.cno||0))}
 function wFilter(f){S.wf=f;sheetWaiting()}
 function sheetWaiting(){const gs=groups();
  const cnt=f=>f==='all'?S.queue.length:S.queue.filter(x=>KIND(x.k)===f).length;
@@ -654,12 +659,13 @@ function sheetWaiting(){const gs=groups();
    :`<button class="sbtn go" onclick="wOwn(${gi},'${g.k}')">${ic('check')}Save</button>`;
   const bagBtns=cust?`<div class="bagrow" style="padding:0"><span>${cnoL()}</span>${[1,2,3,4,5,6,7,8,9].map(n=>`<button class="${g.cno===n?'sel':''}" onclick="wMoveCno(${gi},${n})">${n}</button>`).join('')}</div>`:'';
   return `<div class="card">${whead(gi+1,g.items[0].time,gi)}<h3>${art(i)}${esc(S.lang==='kn'?i.kn:i.wl)}${g.cno?`<span class="bagchip" style="margin-left:auto">${cnoL()} ${g.cno}</span>`:''}</h3>
+   ${cust?`<button class="mrow wname" onclick="wName(${gi})">${ic('user')}<span class="sp">${gCust(g)?esc(gCust(g)[0])+(gCust(g)[1]&&gCust(g)[1]!==gCust(g)[0]?' · '+esc(gCust(g)[1]):''):t('who')}</span>${ic('edit')}</button>`:''}
    <div class="wtot"><b>${f1(kg)} kg</b><small>${isBagK(g.k)?bagTxt(sum(g.items.map(x=>x.nb||1)))+' · ':''}${g.items.length} weighing(s)</small></div>
    ${g.items.map(x=>`<div class="wl1"><span>${x.time}</span><span>${esc(x.by)}</span>${isBagK(x.k)?`<span>${bagTxt(x.nb||1)}</span>`:''}${x.slip?`<span>${x.slip}</span>`:''}${x.voice?`<button class="vp" onclick="toast('Playing voice note · ${x.voice} s')">${ic('mic')}${x.voice}s</button>`:''}${x.photo?`<button class="vp" onclick="toast('Photo of the bags opens here')">${ic('camera')}photo</button>`:''}<b>${f2(x.kg)}</b></div>`).join('')}
    ${bagBtns}<div class="two" style="grid-template-columns:1fr 1fr">${acts}</div></div>`}).join('');
  layer('Waiting list'+(S.queue.length?` · ${S.queue.length}`:''),(S.queue.length?`<div class="note">What the workers weighed. Sort each group. The weights cannot be changed, but a load can be moved to another bag no.</div>${sumBar}${filt}${cards}`:`<div class="note" style="text-align:center;padding:30px 0">${ic('check')}<br>Nothing waiting. Workers' weighings appear here.</div>`))}
 const takeG=gi=>{const g=groups()[gi];S.queue=S.queue.filter(x=>!g.items.includes(x));return g};
-function wNewJob(gi){const g=takeG(gi);S.slip.cnos=(S.slip.cnos||[]);slipNbs();while(S.slip.cnos.length<S.slip.lines.length)S.slip.cnos.push('');S.slip.cnos=S.slip.cnos.concat(g.items.map(x=>x.cno||''));slipNbs();S.slip.nbs=S.slip.nbs.slice(0,S.slip.lines.length).concat(g.items.map(x=>x.nb||1));S.slip.lines=S.slip.lines.concat(g.items.map(x=>x.kg));S.view='slip';closeLayer();toast(S.mode==='worker'?'Loaded into a new job — switch to Counter to choose the customer':'Loaded into a new job — choose the customer')}
+function wNewJob(gi){const g=takeG(gi);const gc=gCust(g);if(gc&&!S.slip.cust)S.slip.cust=gc;S.slip.cnos=(S.slip.cnos||[]);slipNbs();while(S.slip.cnos.length<S.slip.lines.length)S.slip.cnos.push('');S.slip.cnos=S.slip.cnos.concat(g.items.map(x=>x.cno||''));slipNbs();S.slip.nbs=S.slip.nbs.slice(0,S.slip.lines.length).concat(g.items.map(x=>x.nb||1));S.slip.lines=S.slip.lines.concat(g.items.map(x=>x.kg));S.view='slip';closeLayer();toast(S.slip.cust?'Loaded into a new job for '+S.slip.cust[0]+' — check and tap Save job':S.mode==='worker'?'Loaded into a new job — switch to Counter to choose the customer':'Loaded into a new job — choose the customer')}
 function wToJob(gi){const g=groups()[gi];sheetJobPick('Add '+f1(sum(g.items.map(x=>x.kg)))+' kg to which job?',j=>{const gg=takeG(groupsIdx(g));j.nb=bagsOf(j)+sum(gg.items.map(x=>x.nb||1));j.lines=j.lines.concat(gg.items.map(x=>x.kg));j.seedKg=r2(sum(j.lines));toast('Added to '+j.tok);sheetWaiting()},j=>!j.crushed)}
 function groupsIdx(g){return groups().findIndex(x=>x.k===g.k&&x.cno===g.cno)}
 function wOil(gi,tank){const g=takeG(gi);g.items.forEach(x=>{S.own.ooil.push([x.kg,tank]);oilToRun(x.kg,tank)});toast(f1(sum(g.items.map(x=>x.kg)))+' kg → '+tank);sheetWaiting()}
