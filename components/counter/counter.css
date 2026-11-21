@@ -949,3 +949,96 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
 
 .ctr .tick.goods.keep{border-style:dashed}
 .ctr .tick.goods.keep.on{border-style:solid;border-color:#f59e0b}
+
+/* Tablet counter: readable at arm's length even when Auto scales the desk down.
+   Divide critical sizes by --u so zoom never shrinks text or touch targets. */
+@media (min-width: 821px) {
+  .ctr .ctr-bill .ctr-lines { min-height: calc(132px / var(--u, 1)); }
+  .ctr .ctr-bill .ctr-lines li:not(.ctr-empty) {
+    grid-template-columns: calc(22px / var(--u, 1)) minmax(0, 1fr) minmax(0, 1fr) auto calc(56px / var(--u, 1));
+    grid-template-rows: auto auto;
+    gap: calc(8px / var(--u, 1));
+    padding: calc(12px / var(--u, 1)) calc(4px / var(--u, 1));
+    background: var(--c-card);
+  }
+  .ctr .ctr-bill .ctr-lines .n { grid-column: 1; grid-row: 1 / 3; align-self: start; font-size: calc(16px / var(--u, 1)); }
+  .ctr .ctr-bill .ctr-lines .nm {
+    grid-column: 2 / 4; grid-row: 1; min-width: 0;
+    font-size: calc(24px / var(--u, 1)); line-height: 1.35; font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .ctr .ctr-bill .ctr-lines .nm em, .ctr .ctr-bill .ctr-lines .nm small { font-size: calc(14px / var(--u, 1)); }
+  .ctr .ctr-bill .ctr-lines .a {
+    grid-column: 4 / 6; grid-row: 1; min-width: 0;
+    font-size: calc(28px / var(--u, 1)); line-height: 1.25; overflow-wrap: anywhere;
+  }
+  .ctr .ctr-bill .ctr-lines .a s { font-size: calc(16px / var(--u, 1)); }
+  .ctr .ctr-bill .ctr-lines .q { grid-column: 2; grid-row: 2; }
+  .ctr .ctr-bill .ctr-lines .r { grid-column: 3; grid-row: 2; }
+  .ctr .ctr-bill .ctr-lines .d { grid-column: 4; grid-row: 2; }
+  .ctr .ctr-bill .ctr-lines .q, .ctr .ctr-bill .ctr-lines .r, .ctr .ctr-bill .ctr-lines .d {
+    min-width: 0; min-height: calc(56px / var(--u, 1));
+    padding: calc(8px / var(--u, 1)) calc(6px / var(--u, 1));
+    font-size: calc(22px / var(--u, 1)); font-weight: 700;
+    line-height: 1.2; overflow-wrap: anywhere;
+  }
+  .ctr .ctr-bill .ctr-lines .d { min-width: calc(56px / var(--u, 1)); }
+  .ctr .ctr-bill .ctr-lines .del {
+    grid-column: 5; grid-row: 2;
+    min-width: calc(56px / var(--u, 1)); min-height: calc(56px / var(--u, 1));
+    font-size: calc(26px / var(--u, 1));
+  }
+  .ctr .ctr-bill .ctr-sub, .ctr .ctr-bill .ctr-tot span { font-size: calc(18px / var(--u, 1)); }
+  .ctr .ctr-bill .ctr-tot b { font-size: calc(30px / var(--u, 1)); }
+  .ctr .ctr-bill .ctr-discbtn {
+    min-height: calc(56px / var(--u, 1)); font-size: calc(20px / var(--u, 1));
+  }
+}
+
+/* Rate, quantity, item discount and bill discount share this keypad. Keep the
+   action row inside the dialog; short windows can scroll instead of clipping. */
+@media (min-width: 768px) {
+  .ctr .ctr-modal { padding: calc(16px / var(--u, 1)); }
+  .ctr .ctr-padbox {
+    box-sizing: border-box;
+    width: min(calc(920px / var(--u, 1)), 100%);
+    max-height: calc((100dvh - 32px) / var(--u, 1));
+    overflow: auto; overscroll-behavior: contain;
+    display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: calc(12px / var(--u, 1));
+    padding: calc(20px / var(--u, 1));
+    align-items: start;
+  }
+  .ctr.glass .ctr-padbox { background: var(--c-card); backdrop-filter: none; }
+  .ctr .ctr-padbox .ttl {
+    grid-column: 1 / -1; grid-row: 1;
+    font-size: calc(24px / var(--u, 1)); line-height: 1.35;
+    font-weight: 700; color: var(--c-ink); overflow-wrap: anywhere;
+  }
+  .ctr .ctr-padbox .val {
+    grid-column: 1; grid-row: 2; min-width: 0;
+    font-size: calc(56px / var(--u, 1)); line-height: 1.2;
+    padding: calc(12px / var(--u, 1)); overflow-wrap: anywhere;
+  }
+  .ctr .ctr-padbox .pct { grid-column: 1; grid-row: 3; gap: calc(12px / var(--u, 1)); }
+  .ctr .ctr-padbox .pct button {
+    min-height: calc(64px / var(--u, 1)); font-size: calc(26px / var(--u, 1));
+  }
+  .ctr .ctr-padbox .padmoney { grid-column: 1; grid-row: 4; min-width: 0; }
+  .ctr .ctr-padbox .padmoney small { font-size: calc(16px / var(--u, 1)); white-space: normal; }
+  .ctr .ctr-padbox .padmoney b { font-size: calc(28px / var(--u, 1)); overflow-wrap: anywhere; }
+  .ctr .ctr-padbox .keys {
+    grid-column: 2; grid-row: 2 / 5;
+    grid-template-rows: repeat(4, minmax(calc(64px / var(--u, 1)), 1fr));
+    gap: calc(12px / var(--u, 1));
+  }
+  .ctr .ctr-padbox .keys button {
+    min-width: 0; min-height: calc(64px / var(--u, 1));
+    padding: calc(8px / var(--u, 1)); font-size: calc(32px / var(--u, 1)); line-height: 1.2;
+  }
+  .ctr .ctr-padbox .okrow { grid-column: 1 / -1; grid-row: 5; gap: calc(12px / var(--u, 1)); }
+  .ctr .ctr-padbox .okrow button {
+    min-height: calc(64px / var(--u, 1)); font-size: calc(24px / var(--u, 1));
+    padding: calc(12px / var(--u, 1)); line-height: 1.2;
+  }
+}
