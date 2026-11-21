@@ -35,7 +35,7 @@ import { accentOf, DEFAULT_THEME, parseTheme, PRESETS, themeClass, themeStyle, v
 import { billGuide, counterStep } from "@/lib/counterGuide";
 import { billIcon, billName, qtyText, oilKgText } from "@/lib/counterName";
 import { LAYOUTS, LAYOUT_INFO, layoutShow, parseTabletOpts, pickLayout, type Layout, type TabletOpts } from "@/lib/counterLayout";
-import ReceivePayment, { type ReceiveArgs } from "./ReceivePayment";
+import ReceivePayment, { type ReceiveArgs, type RecvDraft } from "./ReceivePayment";
 import CashReceived from "./CashReceived";
 import BillDetails from "./BillDetails";
 import { defaultHandover, handoverOf, heldNeed, heldQueue, isTracked, oilBlockedAmount, payStatus, upiLine, waitText, type Handover } from "@/lib/counterTrack";
@@ -763,9 +763,72 @@ export default function CounterApp() {
   const [recvFor, setRecvFor] = useState<SavedBill | null>(null);
   const [cashFor, setCashFor] = useState<SavedBill | null>(null);
   const [detFor, setDetFor] = useState<SavedBill | null>(null);
+  // "Take money & hold": what was typed for a bill is kept here (this tablet) until the customer is finished
+  const [recvHold, setRecvHold] = useState<Record<string, RecvDraft>>({});
+  useEffect(() => { setRecvHold(read<Record<string, RecvDraft>>("counterRecvHold", {})); }, []);
+  const putHold = (key: string, d: RecvDraft | null) => setRecvHold((h) => {
+    const n = { ...h };
+    if (d) n[key] = d; else delete n[key];
+    write("counterRecvHold", n);
+    return n;
+  });
+  // ---- select many bills and finish them together
+  const [selMode, setSelMode] = useState(false);
+  const [sel, setSel] = useState<string[]>([]);
+  const [bulk, setBulk] = useState<null | "money" | "oil" | "both">(null);
+  const [bulkPay, setBulkPay] = useState<"CASH" | "UPI">("CASH");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const dueOf = (b: SavedBill) => {
+    if (!isTracked(b.track)) return 0;
+    if (b.track.payPending) return b.total;
+    const ps = payStatus(b.modes, b.track);
+    return ps.cashDue + ps.upiDue;
+  };
+  const oilReadyOf = (b: SavedBill) => isTracked(b.track) && !b.track.payPending && handoverOf(b.track) === "HELD" && oilBlockedAmount(b.modes, b.track) <= 0;
+  const oilHeldOf = (b: SavedBill) => isTracked(b.track) && handoverOf(b.track) === "HELD";
+  const picked = bills.filter((b) => sel.includes(b.key));
+  const pickedDue = picked.reduce((s, b) => s + dueOf(b), 0);
+  const toggleSel = (key: string) => setSel((s) => (s.includes(key) ? s.filter((x) => x !== key) : [...s, key]));
+  const runBulk = async (what: "money" | "oil" | "both") => {
+    setBulkBusy(true);
+    setBErr("");
+    let done = 0;
+    const skipped: string[] = [];
+    const failed: string[] = [];
+    for (const b of picked) {
+      try {
+        const post = async (action: string, extra: Record<string, unknown> = {}) => {
+          const res = await fetch("/api/register/bill-track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: b.ids, action, ...extra }) });
+          const j = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(j.error || "failed");
+        };
+        const ps = isTracked(b.track) ? payStatus(b.modes, b.track) : null;
+        let did = false;
+        if (what !== "oil" && ps && dueOf(b) > 0) {
+          if (b.track.payPending) await post("settle", { parts: [{ mode: bulkPay, amount: b.total }], upiConfirmed: bulkPay === "UPI", release: what === "both" });
+          else { if (ps.cashDue > 0) await post("cashOk"); if (ps.upiDue > 0) await post("upiOk"); }
+          did = true;
+          putHold(b.key, null);
+        }
+        if (what !== "money" && oilHeldOf(b) && !(what === "both" && b.track.payPending)) {
+          if (what === "oil" && !oilReadyOf(b)) { skipped.push(`#${b.no}`); continue; }
+          await post("handover", { value: "GIVEN" });
+          did = true;
+        }
+        if (did) done++; else skipped.push(`#${b.no}`);
+      } catch { failed.push(`#${b.no}`); }
+    }
+    await loadBills();
+    void load();
+    setBulkBusy(false);
+    setBulk(null);
+    setSel(failed.length ? picked.filter((b) => failed.includes(`#${b.no}`)).map((b) => b.key) : []);
+    if (!failed.length) setSelMode(false);
+    setMsg({ ok: failed.length === 0, text: `${done} ${k("bill(s) done", "ಬಿಲ್ ಮುಗಿದಿದೆ")}${skipped.length ? ` · ${k("nothing to do for", "ಮಾಡಲು ಏನಿಲ್ಲ")} ${skipped.join(", ")}` : ""}${failed.length ? ` · ${k("failed", "ವಿಫಲ")}: ${failed.join(", ")}` : ""}` });
+  };
   const settleBill = async (b: SavedBill, a: ReceiveArgs): Promise<string | null> => {
     const e = await trackAct(b, "settle", { parts: a.parts, given: a.given, partyName: a.partyName, upiConfirmed: a.upiConfirmed, release: a.release });
-    if (!e) { setRecvFor(null); void load(); setMsg({ ok: true, text: `#${b.no} · ${k("payment recorded", "ಪಾವತಿ ದಾಖಲಾಗಿದೆ")}${a.given && a.parts.some((p) => p.mode === "CASH") ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(Math.max(0, a.given - (a.parts.find((p) => p.mode === "CASH")?.amount || 0)))}` : ""}` }); }
+    if (!e) { setRecvFor(null); putHold(b.key, null); void load(); setMsg({ ok: true, text: `#${b.no} · ${k("payment recorded", "ಪಾವತಿ ದಾಖಲಾಗಿದೆ")}${a.given && a.parts.some((p) => p.mode === "CASH") ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(Math.max(0, a.given - (a.parts.find((p) => p.mode === "CASH")?.amount || 0)))}` : ""}` }); }
     return e;
   };
   const trackAct = async (b: SavedBill, action: "handover" | "upiOk" | "cashOk" | "paidLater" | "settle" | "details", extra: Record<string, unknown> = {}): Promise<string | null> => {
@@ -1035,7 +1098,7 @@ export default function CounterApp() {
             🅿️ {k("Parked", "ನಿಲ್ಲಿಸಿದ")} <b>{holds.length}</b>
           </button>
         )}
-        {show.bills && <button type="button" className="ctr-tbtn" onClick={() => { setBFilter(queueInBills ? "held" : "all"); setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}{(queueInBills ? heldN : openN) > 0 && <b>{queueInBills ? heldN : openN}</b>}</button>}
+        {show.bills && <button type="button" className="ctr-tbtn" onClick={() => { setBFilter(queueInBills ? "held" : "all"); setSelMode(false); setSel([]); setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}{(queueInBills ? heldN : openN) > 0 && <b>{queueInBills ? heldN : openN}</b>}</button>}
         {!queueInBills && (heldN > 0 || holdCash) && <button type="button" className={`ctr-tbtn${heldN > 0 ? " has" : ""}${readyN > 0 ? " ctr-next" : ""}`} onClick={() => { setPanel("queue"); void loadBills(); }} title={k("Bills whose oil is held till the money is received", "ಹಣ ಬರುವವರೆಗೆ ಎಣ್ಣೆ ಹಿಡಿದ ಬಿಲ್‌ಗಳು")}>🔒 {k("Held queue", "ಹಿಡಿದ ಸಾಲು")} <b>{heldN}</b></button>}
     </>
   );
@@ -1451,6 +1514,22 @@ export default function CounterApp() {
               <button type="button" onClick={exportCsv} disabled={!shownBills.length}>⬇ Excel</button>
               <button type="button" onClick={printSummary} disabled={!shownBills.length}>🖨️ {k("Summary", "ಸಾರಾಂಶ")}</button>
             </div>
+            <div className="ctr-selbar">
+              <button type="button" className={selMode ? "on" : ""} onClick={() => { setSelMode(!selMode); setSel([]); }}>{selMode ? "✕" : "☑"} {selMode ? k("Stop selecting", "ಆಯ್ಕೆ ನಿಲ್ಲಿಸಿ") : k("Select bills", "ಬಿಲ್ ಆಯ್ಕೆ")}</button>
+              {openN > 0 && (
+                <button type="button" className="payall" onClick={() => { setSelMode(true); setSel(bills.filter((b) => dueOf(b) > 0).map((b) => b.key)); setBulk("money"); }}>
+                  <CashIn size={0.6} /> {k("All pending paid", "ಎಲ್ಲಾ ಬಾಕಿ ಬಂತು")} ({bills.filter((b) => dueOf(b) > 0).length})
+                </button>
+              )}
+              {selMode && (
+                <>
+                  <button type="button" onClick={() => setSel(shownBills.map((b) => b.key))}>{k("Select all shown", "ತೋರಿಸಿದ್ದೆಲ್ಲಾ")}</button>
+                  <button type="button" onClick={() => setSel(shownBills.filter((b) => dueOf(b) > 0).map((b) => b.key))}>⏳ {k("Pending only", "ಬಾಕಿ ಮಾತ್ರ")}</button>
+                  <button type="button" onClick={() => setSel(shownBills.filter(oilHeldOf).map((b) => b.key))}>🔒 {k("Oil held only", "ಹಿಡಿದಿದ್ದು ಮಾತ್ರ")}</button>
+                  <button type="button" onClick={() => setSel([])}>{k("Clear", "ಅಳಿಸಿ")}</button>
+                </>
+              )}
+            </div>
             <input className="ctr-search" value={bQ} onChange={(e) => setBQ(e.target.value)} placeholder={k("🔍 Bill no, customer, item, amount", "🔍 ಬಿಲ್ ಸಂಖ್ಯೆ, ಹೆಸರು, ವಸ್ತು, ಮೊತ್ತ")} />
             <div className="ctr-seg">
               <button type="button" className={bFilter === "all" ? "on" : ""} onClick={() => setBFilter("all")}>{k("All", "ಎಲ್ಲಾ")}</button>
@@ -1478,8 +1557,9 @@ export default function CounterApp() {
                 const cashOkNow = part("CASH") && ps.cashDue <= 0;
                 const upiOkNow = part("UPI") && ps.upiDue <= 0;
                 return (
-                  <li key={b.key} className={`br ${tracked ? (gd === "money" ? "need-money" : gd === "goods" ? "need-goods" : "done") : ""}`}>
+                  <li key={b.key} className={`br ${tracked ? (gd === "money" ? "need-money" : gd === "goods" ? "need-goods" : "done") : ""}${selMode && sel.includes(b.key) ? " picked" : ""}`}>
                     <div className="br-top">
+                      {selMode && <label className="br-sel"><input type="checkbox" checked={sel.includes(b.key)} onChange={() => toggleSel(b.key)} aria-label={`#${b.no}`} /></label>}
                       <span className="br-no">#{b.no}</span>
                       <b className="br-name"><i aria-hidden>{billIcon(b.modes)}</i> {billLabel(b)}</b>
                       <b className="amt">{rupees(b.total)}</b>
@@ -1497,7 +1577,7 @@ export default function CounterApp() {
                         <div className="br-col" aria-label={k("Money", "ಹಣ")}>
                           {b.track.payPending && (
                             <button type="button" className="tick ctr-next rcv" onClick={() => setRecvFor(b)}>
-                              <i className="box" /><span className="ico" aria-hidden>💰</span><b>{rupees(b.total)}</b><small>{k("Receive payment", "ಹಣ ಪಡೆಯಿರಿ")}</small>
+                              <i className="box" /><span className="ico" aria-hidden>💰</span><b>{rupees(b.total)}</b><small>{recvHold[b.key] ? `⏸ ${k("money taken – tap to finish", "ಹಣ ತೆಗೆದುಕೊಂಡಿದೆ – ಮುಗಿಸಲು ಒತ್ತಿ")}` : k("Receive payment", "ಹಣ ಪಡೆಯಿರಿ")}</small>
                             </button>
                           )}
                           {!b.track.payPending && part("CASH") && (cashOkNow ? (
@@ -1548,6 +1628,14 @@ export default function CounterApp() {
               })}
               {!shownBills.length && !bErr && <li className="ctr-empty">{k("No bills for these dates.", "ಈ ದಿನಾಂಕಗಳಿಗೆ ಬಿಲ್ ಇಲ್ಲ.")}</li>}
             </ul>
+            {selMode && (
+              <div className="ctr-selact">
+                <span><b>{sel.length}</b> {k("selected", "ಆಯ್ಕೆ")}{pickedDue > 0 ? ` · ${rupees(pickedDue)} ${k("due", "ಬಾಕಿ")}` : ""}</span>
+                <button type="button" disabled={!sel.length || !picked.some((b) => dueOf(b) > 0)} onClick={() => setBulk("money")}><CashIn size={0.6} /> {k("Money received", "ಹಣ ಬಂತು")}</button>
+                <button type="button" disabled={!sel.length || !picked.some(oilReadyOf)} onClick={() => setBulk("oil")}><OilOut size={0.5} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</button>
+                <button type="button" className="both" disabled={!sel.length || !picked.some((b) => dueOf(b) > 0 || oilHeldOf(b))} onClick={() => setBulk("both")}>✓ {k("Money + oil", "ಹಣ + ಎಣ್ಣೆ")}</button>
+              </div>
+            )}
             <p className="ctr-hint">{k("Staff can cancel or edit today's bills only; the owner any day. Every cancel is kept in the Activity log with its reason.", "ಸಿಬ್ಬಂದಿ ಇಂದಿನ ಬಿಲ್ ಮಾತ್ರ ರದ್ದು/ತಿದ್ದುಪಡಿ ಮಾಡಬಹುದು; ಮಾಲೀಕರು ಯಾವುದೇ ದಿನ. ಪ್ರತಿ ರದ್ದು ಕಾರಣದೊಂದಿಗೆ ದಾಖಲಾಗುತ್ತದೆ.")}</p>
           </div>
         </div>
@@ -1668,10 +1756,42 @@ export default function CounterApp() {
           k={k}
           canUdhaar={can("udhaar")}
           qr={settings.upiQr && upiFor(recvFor.total, `Bill ${recvFor.no}`) ? <QrCode value={upiFor(recvFor.total, `Bill ${recvFor.no}`) || ""} moduleSize={4} /> : undefined}
+          draft={recvHold[recvFor.key]}
+          onHold={(d) => { putHold(recvFor.key, d); setRecvFor(null); setMsg({ ok: true, text: `#${recvFor.no} · ⏸ ${k("money taken – on hold. Finish it from Bills.", "ಹಣ ತೆಗೆದುಕೊಂಡಿದೆ – ಹಿಡಿದಿದೆ. ಬಿಲ್‌ಗಳಲ್ಲಿ ಮುಗಿಸಿ.")}` }); }}
           onSubmit={(a) => settleBill(recvFor, a)}
           onClose={() => setRecvFor(null)}
         />
       )}
+      {bulk && (() => {
+        const dueB = picked.filter((b) => dueOf(b) > 0);
+        const needMode = bulk !== "oil" && dueB.some((b) => b.track.payPending);
+        const oilB = picked.filter(bulk === "oil" ? oilReadyOf : (b) => oilHeldOf(b) || b.track.payPending);
+        return (
+          <div className="rp-back" role="dialog" aria-label={k("Finish selected bills", "ಆಯ್ದ ಬಿಲ್‌ಗಳನ್ನು ಮುಗಿಸಿ")} onClick={() => !bulkBusy && setBulk(null)}>
+            <div className="rp-sheet" onClick={(e) => e.stopPropagation()}>
+              <div className="rp-head">
+                <b>{bulk === "money" ? k("Money received", "ಹಣ ಬಂತು") : bulk === "oil" ? k("Give oil to customers", "ಗ್ರಾಹಕರಿಗೆ ಎಣ್ಣೆ ಕೊಡಿ") : k("Money received + give oil", "ಹಣ ಬಂತು + ಎಣ್ಣೆ ಕೊಡಿ")} · {picked.length} {k("bills", "ಬಿಲ್")}</b>
+                <button type="button" onClick={() => setBulk(null)} aria-label="Close">✕</button>
+              </div>
+              {bulk !== "oil" && <div className="rp-bulk-sum"><span>{dueB.length} {k("bill(s) with money pending", "ಬಿಲ್‌ಗಳಲ್ಲಿ ಹಣ ಬಾಕಿ")}</span><strong>{rupees(pickedDue)}</strong></div>}
+              {needMode && (
+                <>
+                  <p className="rp-bulk-note">{k("These bills were saved with no payment mode. Received as:", "ಈ ಬಿಲ್‌ಗಳಿಗೆ ಪಾವತಿ ವಿಧಾನ ಇಲ್ಲ. ಪಡೆದದ್ದು:")}</p>
+                  <div className="rp-tabs">
+                    <button type="button" className={bulkPay === "CASH" ? "on" : ""} onClick={() => setBulkPay("CASH")}>{k("Cash", "ನಗದು")}</button>
+                    <button type="button" className={bulkPay === "UPI" ? "on" : ""} onClick={() => setBulkPay("UPI")}>UPI</button>
+                  </div>
+                </>
+              )}
+              {bulk !== "money" && <p className="rp-bulk-note">🛢 {k(`Oil will be given on ${oilB.length} bill(s).`, `${oilB.length} ಬಿಲ್‌ಗಳಲ್ಲಿ ಎಣ್ಣೆ ಕೊಡಲಾಗುತ್ತದೆ.`)}</p>}
+              {bulk === "money" && <p className="rp-bulk-note">{k("Oil stays held until you give it. Udhaar (credit) parts are not touched.", "ಎಣ್ಣೆ ಕೊಡುವವರೆಗೆ ಹಿಡಿದಿರುತ್ತದೆ. ಉದ್ರಿ ಭಾಗ ಬದಲಾಗುವುದಿಲ್ಲ.")}</p>}
+              <button type="button" className="rp-go" disabled={bulkBusy} onClick={() => void runBulk(bulk)}>
+                {bulkBusy ? "…" : <span className="rp-step"><TickIcon /><b>{k("Confirm", "ಖಚಿತ")} · {picked.length} {k("bills", "ಬಿಲ್")}</b></span>}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ---------- items set-up (owner) ---------- */}
       {panel === "items" && (
