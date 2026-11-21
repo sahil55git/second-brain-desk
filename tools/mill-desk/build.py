@@ -219,6 +219,35 @@ rep("""${g.cno?`<span class="bagchip" style="margin-left:auto">${cnoL()} ${g.cno
 rep("function wNewJob(gi){const g=takeG(gi);","function wNewJob(gi){const g=takeG(gi);const gc=gCust(g);if(gc&&!S.slip.cust)S.slip.cust=gc;")
 rep("toast(S.mode==='worker'?'Loaded into a new job — switch to Counter to choose the customer':'Loaded into a new job — choose the customer')","toast(S.slip.cust?'Loaded into a new job for '+S.slip.cust[0]+' — check and tap Save job':S.mode==='worker'?'Loaded into a new job — switch to Counter to choose the customer':'Loaded into a new job — choose the customer')")
 
+# ---- 21 Nov pm 2: New job works from Worker mode too; every list can be sorted ----
+rep("m.innerHTML=S.mode==='worker'?workerHTML():S.view==='slip'?slipHTML():pickHTML();","m.innerHTML=S.mode==='worker'&&S.view!=='slip'?workerHTML():S.view==='slip'?slipHTML():pickHTML();")
+rep("time:clock(),crushed:false,settled:false,given:false,method:'cash'};","time:clock(),at:Date.now(),crushed:false,settled:false,given:false,method:'cash'};")
+rep("time:tm,by:(S.me&&S.me.name)||'Worker',cno:x.cno||0,slip:sn}","time:tm,at:Date.now(),by:(S.me&&S.me.name)||'Worker',cno:x.cno||0,slip:sn}")
+rep("S.parked.push(JSON.parse(JSON.stringify(S.slip)));clearSlip()","S.parked.push(Object.assign(JSON.parse(JSON.stringify(S.slip)),{at:Date.now()}));clearSlip()")
+rep("const sortJ=(a,b)=>a.tok.localeCompare(b.tok);","""const sortJ=(a,b)=>a.tok.localeCompare(b.tok);
+/* ---- sorting for every list: newest / oldest / token no. / customer no. / name / weight (the choice is remembered) ---- */
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const tsOf=o=>{if(o&&o.at)return o.at;const m=/(\\d{1,2}) (\\w{3}) (\\d{1,2}):(\\d{2}) (AM|PM)/.exec((o&&o.time)||'');if(!m)return 0;return new Date(new Date().getFullYear(),MON.indexOf(m[2]),+m[1],+m[3]%12+(m[5]==='PM'?12:0),+m[4]).getTime()};
+const tokN=j=>+String(j.tok||'').replace(/\\D/g,'')||0;
+const SORTS=[['new','Newest','hourg'],['old','Oldest','hourg'],['tok','Token no.','list'],['cno','Customer no.','user'],['name','Name','user'],['kg','Weight','weigh']];
+try{S.sort=localStorage.getItem('milldesk.sort')||'new'}catch(e){S.sort='new'}
+function sortBy(arr,get,own){const k=S.sort,g=x=>get(x),dir={new:-1,old:1,tok:1,cno:1,name:1,kg:-1}[k]||-1;
+ const key={new:x=>g(x).ts,old:x=>g(x).ts,tok:x=>g(x).no,cno:x=>g(x).cno||0,name:x=>String(g(x).name||'').toLowerCase(),kg:x=>g(x).kg||0}[k];
+ return arr.map((x,i)=>[x,i]).sort((a,b)=>{const A=key(a[0]),B=key(b[0]);const c=typeof A==='string'?A.localeCompare(B):A-B;return c?c*dir:a[1]-b[1]}).map(p=>p[0])}
+const jsort=l=>sortBy(l,j=>({ts:tsOf(j)||tokN(j),no:tokN(j),cno:0,name:j.customer,kg:j.seedKg}));
+function setSort(k,fn){S.sort=k;try{localStorage.setItem('milldesk.sort',k)}catch(e){}({W:sheetWaiting,J:sheetJobs,H:sheetHeld,P:sheetParked})[fn]()}
+const sortBar=(fn,cno)=>`<div class="wf sortbar"><span class="sl">${ic('list')}Sort</span>${SORTS.filter(s=>cno||s[0]!=='cno').map(s=>`<button class="${S.sort===s[0]?'sel':''}" onclick="setSort('${s[0]}','${fn}')">${ic(s[2])}${s[1]}</button>`).join('')}</div>`;""")
+rep("const held=()=>S.jw.filter(j=>j.crushed&&!(j.settled&&j.given)).sort(sortJ);","const held=()=>S.jw.filter(j=>j.crushed&&!(j.settled&&j.given)).sort(sortJ);const heldSorted=()=>jsort(held());")
+rep("function sheetJobs(){const js=S.jw.slice().sort(sortJ);","function sheetJobs(){const js=jsort(S.jw.slice());")
+rep("layer('Jobs today',sec('To crush'","layer('Jobs today',sortBar('J')+sec('To crush'")
+rep("function sheetHeld(){const hs=held();","function sheetHeld(){const hs=heldSorted();")
+rep("`<div class=\"note\">Crushed jobs. Tap the glowing step.","sortBar('H')+`<div class=\"note\">Crushed jobs. Tap the glowing step.")
+rep("function sheetJobPick(title,fn,filter){window.__jp=fn;const js=S.jw.filter(filter||(()=>true)).sort(sortJ);","function sheetJobPick(title,fn,filter){window.__jp=fn;const js=jsort(S.jw.filter(filter||(()=>true)));")
+rep("const cards=gs.map((g,gi)=>{if(S.wf!=='all'","const cards=sortBy(gs.map((g,gi)=>({g,gi})),o=>({ts:tsOf(o.g.items[0]),no:o.gi+1,cno:o.g.cno,name:o.g.cno?'':IT[o.g.k].wl,kg:sum(o.g.items.map(x=>x.kg))})).map(({g,gi})=>{if(S.wf!=='all'")
+rep("`<div class=\"note\">What the workers weighed. Sort each group.","sortBar('W',1)+`<div class=\"note\">What the workers weighed. Sort each group.")
+rep("layer('Parked',S.parked.length?S.parked.map((p,i)=>","layer('Parked',(S.parked.length?sortBar('P'):'')+(S.parked.length?sortBy(S.parked.map((p,i)=>({p,i})),o=>({ts:o.p.at||0,no:o.i,cno:0,name:o.p.cust?o.p.cust[0]:'',kg:sum(o.p.lines)})).map(({p,i})=>")
+rep("</button>`).join(''):'<div class=\"note\">Nothing parked.</div>')}","</button>`).join(''):'<div class=\"note\">Nothing parked.</div>'))}")
+
 # ---- engine + app code before the final render()
 eng=open(D+'/voice_engine.js').read()
 app=open(D+'/app_voice.js').read()+"\n/*APP-MILL*/\n"+open(D+'/app_mill.js').read()

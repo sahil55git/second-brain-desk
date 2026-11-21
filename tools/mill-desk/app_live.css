@@ -63,3 +63,4 @@
 .card .sr b,.job-log .ar span{overflow-wrap:anywhere}
 .ar{gap:10px}.ar>span{padding-right:6px}.ar>b{text-align:right}
 .mrow.wname{width:100%;margin:6px 0;font-size:19px}
+.sortbar{margin:2px 0 8px}.sortbar .sl{flex:none;display:flex;align-items:center;gap:6px;font-weight:700;color:var(--soft)}
