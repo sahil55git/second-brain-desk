@@ -17,7 +17,7 @@ import { handoverOf, heldNeed, heldQueue, isTracked, keptList, oilBlockedAmount,
 import { billName, qtyText, oilKgText } from "@/lib/counterName";
 import { receiptTime, rupees, type ReceiptDoc } from "@/lib/receipt";
 import { businessDate } from "@/lib/register";
-import ReceivePayment from "./ReceivePayment";
+import ReceivePayment, { type RecvDraft } from "./ReceivePayment";
 import BillDetails from "./BillDetails";
 import "./cashier.css";
 
@@ -43,6 +43,15 @@ export default function CashierDesk() {
   const [rcpt, setRcpt] = useState<ReceiptDoc | null>(null);
   const [detFor, setDetFor] = useState<SavedBill | null>(null);
   const [showLines, setShowLines] = useState(false);
+  // "Take money & hold": what was typed for a bill stays on this tablet until the customer is finished
+  const [holds, setHolds] = useState<Record<string, RecvDraft>>({});
+  useEffect(() => { try { setHolds(JSON.parse(localStorage.getItem("counterRecvHold") || "{}") || {}); } catch { /* none */ } }, []);
+  const putHold = (key: string, d: RecvDraft | null) => setHolds((h) => {
+    const n = { ...h };
+    if (d) n[key] = d; else delete n[key];
+    try { localStorage.setItem("counterRecvHold", JSON.stringify(n)); } catch { /* ignore */ }
+    return n;
+  });
   const [beep, setBeep] = useState(true);
   const seenQ = useRef<Set<string> | null>(null);
   const [autoPrint, setAutoPrint] = useState(false);
@@ -140,6 +149,7 @@ export default function CashierDesk() {
           if (b.track.payPending) await post("settle", { parts: [{ mode: bulkPay, amount: b.total }], upiConfirmed: bulkPay === "UPI", release: what === "both" });
           else { if (ps.cashDue > 0) await post("cashOk"); if (ps.upiDue > 0) await post("upiOk"); }
           did = true;
+          putHold(b.key, null);
         }
         if (what !== "money" && oilHeldOf(b) && !(what === "both" && b.track.payPending)) {
           if (what === "oil" && !oilReadyOf(b)) { skipped.push(`#${b.no}`); continue; }
@@ -184,7 +194,7 @@ export default function CashierDesk() {
   const bill = bills.find((b) => b.key === sel) || null;
 
   const tap = (b: SavedBill) => (selMode ? togglePick(b.key) : open(b));
-  const open = (b: SavedBill) => { setSel(b.key); setGiven(""); setArmed(null); setMsg(null); };
+  const open = (b: SavedBill) => { setSel(b.key); setGiven(holds[b.key]?.given || ""); setArmed(null); setMsg(null); };
   const close = () => { setSel(null); setGiven(""); setArmed(null); };
 
   const slip = (b: SavedBill, cashGiven?: number): ReceiptDoc => {
@@ -213,6 +223,7 @@ export default function CashierDesk() {
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || "Could not update the bill.");
       setMsg({ ok: true, text: done });
+      putHold(b.key, null);
       close();
       await load();
       if (autoPrint && action === "cashOk") setRcpt(slip(b, cashGiven));
@@ -235,6 +246,8 @@ export default function CashierDesk() {
           items={bill.lines.map((l) => l.label).join(", ")}
           k={k}
           onClose={close}
+          draft={holds[bill.key]}
+          onHold={(d) => { putHold(bill.key, d); close(); setMsg({ ok: true, text: `#${bill.no} · ⏸ ${k("money taken – on hold. Finish it from the Queue.", "ಹಣ ತೆಗೆದುಕೊಂಡಿದೆ – ಹಿಡಿದಿದೆ. ಸಾಲಿನಿಂದ ಮುಗಿಸಿ.")}` }); }}
           onSubmit={async (a) => {
             try {
               const res = await fetch("/api/register/bill-track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: bill.ids, action: "settle", ...a }) });
@@ -242,6 +255,7 @@ export default function CashierDesk() {
               if (!res.ok) return (j.error as string) || "Could not record the payment.";
               const cashPart = a.parts.find((p) => p.mode === "CASH")?.amount || 0;
               const ch = a.given && cashPart ? changeFor(cashPart, a.given).change : 0;
+              putHold(bill.key, null);
               setMsg({ ok: true, text: `#${bill.no} · ${k("payment recorded", "ಪಾವತಿ ದಾಖಲಾಗಿದೆ")}${ch > 0 ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(ch)}` : ""} · ${k("oil given", "ಎಣ್ಣೆ ಬಿಡುಗಡೆ")}` });
               close();
               await load();
@@ -316,6 +330,12 @@ export default function CashierDesk() {
 
           <div className="cd-acts">
             {ps.cashDue > 0 && <button type="button" className={`go${g > 0 && short === 0 ? " cd-next" : ""}`} disabled={busy} onClick={onCash}><CashIn size={0.8} /> {upiLeft ? k("Cash in", "ನಗದು ಬಂತು") : k("Cash in – oil out", "ನಗದು ಬಂತು – ಎಣ್ಣೆ ಕೊಡಿ")} – {rupees(ps.cashDue)}</button>}
+            {ps.cashDue > 0 && <button type="button" className="hold" disabled={busy} onClick={() => {
+              if (!g) return setMsg({ ok: false, text: k("Type how much the customer gave.", "ಗ್ರಾಹಕರು ಎಷ್ಟು ಕೊಟ್ಟರು ಎಂದು ಬರೆಯಿರಿ.") });
+              putHold(bill.key, { mode: "CASH", given, sp: { CASH: "", UPI: "", CREDIT: "" }, name: "", upiGot: false });
+              close();
+              setMsg({ ok: true, text: `#${bill.no} · ⏸ ${k("money taken – on hold. Finish it from the Queue.", "ಹಣ ತೆಗೆದುಕೊಂಡಿದೆ – ಹಿಡಿದಿದೆ. ಸಾಲಿನಿಂದ ಮುಗಿಸಿ.")}` });
+            }}>⏸ {k("Hold", "ಹಿಡಿಯಿರಿ")}</button>}
             {ps.cashDue > 0 && <button type="button" className="keep" disabled={busy} onClick={() => { if (!g) return setMsg({ ok: false, text: k("Type how much the customer gave.", "ಗ್ರಾಹಕರು ಎಷ್ಟು ಕೊಟ್ಟರು ಎಂದು ಬರೆಯಿರಿ.") }); if (short > 0) return setMsg({ ok: false, text: k(`₹${short} short. Ask for the rest.`, `₹${short} ಕಡಿಮೆ ಇದೆ. ಉಳಿದದ್ದು ಕೇಳಿ.`) }); void act(bill, "cashOk", { given: g, release: false, keepOil: !upiLeft }, `#${bill.no} · ${k("cash received · oil kept in shop", "ನಗದು ಬಂತು · ಎಣ್ಣೆ ಅಂಗಡಿಯಲ್ಲಿ ಇದೆ")}${change > 0 ? ` · ${k("return", "ಹಿಂತಿರುಗಿಸಿ")} ${rupees(change)}` : ""}`, g); }}>🏪 {k("Cash in · keep oil", "ನಗದು ಬಂತು · ಎಣ್ಣೆ ಇಡಿ")}</button>}
             {ps.cashDue === 0 && held && need === "READY" && !bill.track.keep && <button type="button" className="keep" disabled={busy} onClick={() => void act(bill, "keep", { value: "ON" }, `#${bill.no} · ${k("oil kept in shop", "ಎಣ್ಣೆ ಅಂಗಡಿಯಲ್ಲಿ ಇದೆ")}`)}>🏪 {k("Keep oil in shop", "ಎಣ್ಣೆ ಅಂಗಡಿಯಲ್ಲಿ ಇಡಿ")}</button>}
             {bill.track.keep && <p className="cd-kept">🏪 {k("Kept in shop since", "ಅಂಗಡಿಯಲ್ಲಿ ಇಟ್ಟಿದ್ದು")} {timeOf(bill.track.keep.at)}</p>}
@@ -452,6 +472,7 @@ const txtStyle = useMemo(() => {
                       <span className="r2">{b.lines.map((l) => `${l.label}${qtyText(l.qty, l.unit) ? " " + qtyText(l.qty, l.unit) : ""}`).join(" · ")}</span>
                       <span className="r3">
                         <span>⏱ {waitText(age)}</span>
+                        {holds[b.key] && <span className="wait">⏸ {k("money taken – tap to finish", "ಹಣ ತೆಗೆದುಕೊಂಡಿದೆ – ಮುಗಿಸಲು ಒತ್ತಿ")}</span>}
                         {ps.cashDue > 0 && <span className="wait"><CashIn size={0.67} /> {k("Cash in", "ನಗದು ಬರಬೇಕು")} – {rupees(ps.cashDue)} ⏳</span>}
                         {ps.upiDue > 0 && <span className="wait"><PhoneIcon size={20} /> {k("UPI in", "UPI ಬರಬೇಕು")} – {rupees(ps.upiDue)} ⏳</span>}
                         {need === "READY" && <span className="okc"><OilIcon size={22} /> {k("Give oil", "ಎಣ್ಣೆ ಕೊಡಿ")}</span>}
@@ -506,7 +527,7 @@ const txtStyle = useMemo(() => {
                   <li key={b.key}>
                     <button type="button" className={selMode && pick.includes(b.key) ? "picked" : ""} onClick={() => tap(b)}>
                       <span className="r1">{selMode && <i className="cd-tick">{pick.includes(b.key) ? "✓" : ""}</i>}<b>#{b.no}{` · ${billName(b.party, b.modes)}`}</b><strong>{rupees(b.total)}</strong></span>
-                      <span className="r3"><span>{timeOf(b.createdAt)} · {Object.keys(b.modes).join(" + ")}</span><span className={st.cls === "paid" ? "okc" : "wait"}>{st.text}</span></span>
+                      <span className="r3"><span>{timeOf(b.createdAt)} · {Object.keys(b.modes).join(" + ")}</span><span className={st.cls === "paid" ? "okc" : "wait"}>{st.text}</span>{holds[b.key] && <span className="wait">⏸</span>}</span>
                     </button>
                   </li>
                 );
