@@ -1127,7 +1127,7 @@ export default function CounterApp() {
   const chips = (
     <>
         {(show.held || holds.length > 0) && (
-          <button type="button" className={`ctr-tbtn${holds.length ? " has" : ""}`} onClick={() => { setPanel("holds"); void loadHolds(); }}>
+          <button type="button" className={`ctr-tbtn ctr-parked-button${holds.length ? " has" : ""}`} onClick={() => { setPanel("holds"); void loadHolds(); }}>
             🅿️ {k("Parked", "ನಿಲ್ಲಿಸಿದ")} <b>{holds.length}</b>
           </button>
         )}
@@ -1385,7 +1385,7 @@ export default function CounterApp() {
           )}
           <div className="ctr-act">
             <button type="button" className="clr" onClick={clearBill} disabled={busy || !lines.length}><CrossIcon size={26} /><span>{holdId ? k("Close", "ಮುಚ್ಚು") : k("Clear", "ಅಳಿಸಿ")}</span></button>
-            {show.hold && <button type="button" className="hold" onClick={() => void holdBill()} disabled={busy || !lines.length}><PauseIcon size={26} /><span>{k("Hold", "ಹಿಡಿ")}</span></button>}
+            {show.hold && <button type="button" className="hold ctr-park-bill" onClick={() => void holdBill()} disabled={busy || !lines.length}><PauseIcon size={26} /><span>{k("Park bill", "ಬಿಲ್ ನಿಲ್ಲಿಸಿ")}</span></button>}
             {!autoPrint && <button type="button" className="sv" onClick={() => void save(false)} disabled={busy || !lines.length}>{k("Save", "ಉಳಿಸಿ")}</button>}
             <button type="button" className={`go${nextStep === "save" ? " ctr-next" : ""}`} onClick={() => void save(autoPrint)} disabled={busy || !lines.length}>
               {busy ? "…" : <span className="sv-ico" aria-label={k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ")}><PrinterIcon size={30} /><TickIcon size={26} /></span>}
@@ -1543,13 +1543,13 @@ export default function CounterApp() {
 
       {/* ---------- held bills ---------- */}
       {panel === "holds" && (
-        <div className="ctr-drawer" role="dialog" aria-label="Held bills" onClick={() => setPanel(null)}>
-          <div className="ctr-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="ctr-drawer" role="dialog" aria-label={k("Parked bills", "ನಿಲ್ಲಿಸಿದ ಬಿಲ್‌ಗಳು")} onClick={() => setPanel(null)}>
+          <div className="ctr-sheet ctr-parked-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="ctr-sheethead">
               <b>🅿️ {k("Parked bills", "ನಿಲ್ಲಿಸಿದ ಬಿಲ್‌ಗಳು")} ({holds.length})</b>
               <button type="button" onClick={() => setPanel(null)} aria-label="Close">✕</button>
             </div>
-            {!holds.length && <p className="ctr-empty">{k("No held bills. Press Hold to park a bill and serve the next customer.", "ಹಿಡಿದ ಬಿಲ್ ಇಲ್ಲ. ಮುಂದಿನ ಗ್ರಾಹಕರಿಗಾಗಿ ‘ಹಿಡಿ’ ಒತ್ತಿ.")}</p>}
+            {!holds.length && <p className="ctr-empty">{k("No parked bills. Tap Park bill to set a bill aside.", "ನಿಲ್ಲಿಸಿದ ಬಿಲ್ ಇಲ್ಲ. ಬಿಲ್ ನಿಲ್ಲಿಸಲು ‘ಬಿಲ್ ನಿಲ್ಲಿಸಿ’ ಒತ್ತಿ.")}</p>}
             <ul className="ctr-list">
               {holds.map((h) => {
                 const elsewhere = !!h.openedBy && h.openedBy !== device && !!h.openedAt && Date.now() - new Date(h.openedAt).getTime() < 10 * 60 * 1000;
