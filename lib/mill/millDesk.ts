@@ -3,7 +3,7 @@
 // (lib/__tests__/millDesk.test.ts). Rates and the 50/50 split come from lib/calculations.ts —
 // the Mill Desk never invents its own numbers.
 import type { Prisma } from "@prisma/client";
-import { CAN_TYPES, defaultPaySplit, expectedSettlementWithRate, STANDARD_RATE, type CakeOwnership, type CansInput } from "@/lib/calculations";
+import { CAN_TYPES, canCharge, defaultPaySplit, expectedSettlementWithRate, STANDARD_RATE, type CakeOwnership, type CansInput } from "@/lib/calculations";
 
 /** Record kinds kept in OpsRecord (no new tables). */
 export const MILL_KIND = {
@@ -54,6 +54,7 @@ export interface MillJob {
   cake: CakeOwnership;
   advC?: number;
   advA?: number;
+  tempoSplit?: { mode: "rate" | "amount"; value: number };
   /** Advance the customer gave back; it takes that much off the advance already counted. */
   advR?: number;
   /** Same for the tempo (auto) advance. */
@@ -75,6 +76,13 @@ export function jobError(j: Record<string, unknown>): string | null {
   if (!(kg > 0) || kg > 100_000) return "Seed weight is not right.";
   if (j.cake !== "SHOP" && j.cake !== "CUSTOMER") return "Who keeps the khali?";
   if (num(j.advC) < 0 || num(j.advA) < 0 || num(j.advR) < 0 || num(j.advRA) < 0) return "Advance cannot be negative.";
+  if (j.tempoSplit !== undefined) {
+    const split = j.tempoSplit as MillJob["tempoSplit"];
+    const max = split?.mode === "rate" ? STANDARD_RATE.SHOP : Math.round(kg * STANDARD_RATE.SHOP * 100) / 100;
+    if (!split || (split.mode !== "rate" && split.mode !== "amount") ||
+        !Number.isFinite(split.value) || split.value < 0 || split.value > max ||
+        Math.round(split.value * 100) / 100 !== split.value) return "Tempo share must be within the seed payout.";
+  }
   if (j.cans && (typeof j.cans !== "object" || Array.isArray(j.cans))) return "Cans are not right.";
   return null;
 }
@@ -96,11 +104,16 @@ export function intakeCans(cans: Record<string, number> | undefined): CansInput 
 export const netAdvA = (j: Pick<MillJob, "advA" | "advRA">) => Math.max(0, num(j.advA) - num(j.advRA));
 export const netAdvC = (j: Pick<MillJob, "advC" | "advR">) => Math.max(0, num(j.advC) - num(j.advR));
 
-export function jobMoney(j: Pick<MillJob, "seedKg" | "cake" | "advC" | "advA" | "advR" | "advRA" | "cans">) {
+export function jobMoney(j: Pick<MillJob, "seedKg" | "cake" | "advC" | "advA" | "advR" | "advRA" | "cans" | "tempoSplit">) {
   const entry = { advanceGiven: true, seedKg: num(j.seedKg), cakeOwnership: j.cake, advanceCustomerInr: netAdvC(j), advanceAutoInr: netAdvA(j), cans: intakeCans(j.cans) };
   const rate = STANDARD_RATE[j.cake];
   const due = expectedSettlementWithRate(entry, rate);
   const split = defaultPaySplit(entry, rate);
+  if (j.cake === "SHOP" && j.tempoSplit) {
+    const gross = entry.seedKg * rate;
+    const tempo = j.tempoSplit.mode === "rate" ? Math.round(entry.seedKg * j.tempoSplit.value * 100) / 100 : j.tempoSplit.value;
+    return { rate, due, customer: gross - tempo - netAdvC(j) - canCharge(entry.cans), auto: tempo - netAdvA(j) };
+  }
   return { rate, due, customer: split.customer, auto: split.auto };
 }
 

@@ -132,15 +132,15 @@ rep(r"""function settlement(j){const rate=RATE[j.cake],gross=j.seedKg*rate,cans=
  if(j.cake==='SHOP'){const half=gross/2;return{rate,gross,cans,adv,due:gross-adv-cans,dir:'out',cust:half-(j.advC||0)-cans,auto:half-(j.advA||0)}}
  return{rate,gross,cans,adv,due:gross+cans-adv,dir:'in',cust:gross+cans-adv,auto:0}}""",
 r"""function settlement(j){const rate=RATE[j.cake],gross=j.seedKg*rate,cans=canCharge(j.cans),aC=Math.max(0,(j.advC||0)-(j.advR||0)),aA=Math.max(0,(j.advA||0)-(j.advRA||0)),adv=aC+aA;
- if(j.cake==='SHOP'){const half=gross/2,due=gross-adv-cans;return{rate,gross,cans,adv,due,dir:due>=0?'out':'in',cust:half-aC-cans,auto:half-aA,advR:j.advR||0}}
+ if(j.cake==='SHOP'){const tempo=tempoShare(j,gross),due=gross-adv-cans;return{rate,gross,cans,adv,due,dir:due>=0?'out':'in',cust:gross-tempo-aC-cans,auto:tempo-aA,advR:j.advR||0}}
  const due=gross+cans+adv;return{rate,gross,cans,adv,due,dir:'in',cust:due,auto:0,advR:j.advR||0}}
 /* who pays whom: 'in' = the customer pays us, 'out' = we pay the customer. Shop keeps khali: advances and cans come off what we pay. Customer takes khali: khali + cans + the advance we gave all come back from the customer. */
 const payLbl=(j,dirIn)=>dirIn?(j.cake==='SHOP'?'Customer pays':'Khali payment'):'Pay customer';
-const splitNote=s=>'Customer '+(s.cust>=0?'gets ':'owes ')+inr(s.cust)+' · Tempo '+(s.auto>=0?'gets ':'owes ')+inr(s.auto);
+const splitNote=s=>'Customer '+(s.cust>=0?'gets ':'owes ')+payoutInr(s.cust)+' · Tempo '+(s.auto>=0?'gets ':'owes ')+payoutInr(s.auto);
 function resRows(j,s){const net=`<div class="ar res"><span>${s.dir==='in'?ic('down')+(j.cake==='SHOP'?'':ic('bag'))+' '+(j.cake==='SHOP'?'Customer pays you':'Khali payment'):ic('up')+' You pay customer'}</span><b>${inr(s.due)}</b></div>`;
  if(j.cake!=='SHOP')return net;
- const line=(ico,pay,owe,v)=>`<div class="ar"><span>${ic(ico)} ${v>=0?pay:owe}</span><b>${inr(v)}</b></div>`;
- return line('user','Pay customer','Customer owes shop',s.cust)+line('auto','Pay tempo','Tempo owes shop',s.auto)+net}""")
+ const line=(ico,pay,owe,v)=>`<div class="ar"><span>${ic(ico)} ${v>=0?pay:owe}</span><b>${payoutInr(v)}</b></div>`;
+ return line('user','Pay customer','Customer owes shop',s.cust)+line('auto','Pay tempo','Tempo owes shop',s.auto)+`<div class="ar res"><span>${s.due<0?'Net in':s.due>0?'Net out':'Net movement'}</span><b>${payoutInr(s.due)}</b></div>`}""")
 s=s.replace("dirIn?'Khali payment':'Pay customer'","payLbl(j,dirIn)")
 rep("function jobSteps(j){const dirIn=j.cake!=='SHOP';","function jobSteps(j){const dirIn=settlement(j).dir==='in';")
 rep(r"""${dirIn?`<div class="ar res"><span>${ic('down')}${ic('bag')} Khali payment</span><b>${inr(s.cust)}</b></div>`:`<div class="ar res"><span>${ic('up')} Pay customer</span><b>${inr(s.cust)}</b></div><div class="ar res"><span>${ic('auto')} Pay tempo</span><b>${inr(s.auto)}</b></div>`}</div>`;""","${resRows(j,s)}</div>`;")
@@ -275,6 +275,23 @@ wrap="""
 applyCfg();document.getElementById('fab').innerHTML=ic('bot');
 """+open(D+"/app_live.js").read()+"""
 """
+# ---- customer-directed payout and accurate print status
+rep("layer('Printed',", "layer('Weight slip saved',")
+rep("/^Printed|^Token/", "/^Weight slip saved|^Token/")
+rep("₹6/kg · split customer/auto", "₹6/kg")
+rep('''  <div class="sec"><div class="grp"><span class="gi" style="background:#C98A25">${ic('rupee')}</span>Taken by customer · advance and cans''', '''${sp.cake==='SHOP'?payoutButton(sp,kg):''}\n  <div class="sec"><div class="grp"><span class="gi" style="background:#C98A25">${ic('rupee')}</span>Taken by customer · advance and cans''')
+rep("const tok='JW-'+pad(S.nextJw++),kg=r2(sum(sp.lines))", "const kg=r2(sum(sp.lines));if(!validTempoShare(sp,kg))return toast('Adjust the tempo share for this weight','bad');\n const tok='JW-'+pad(S.nextJw++)")
+rep("seedKg:kg,cake:sp.cake,", "seedKg:kg,cake:sp.cake,tempoSplit:sp.cake==='SHOP'?sp.tempoSplit:undefined,")
+rep("sp.advC?['Customer advance',inr(sp.advC)]", "...(j.cake==='SHOP'?payoutRows(j,kg):[]),sp.advC?['Customer advance',inr(sp.advC)]")
+rep("${jobSteps(j)}${payStatus(j)}", "${jobSteps(j)}${payStatus(j)}${j.cake==='SHOP'?payoutButton(j,j.seedKg,j.tok):''}")
+rep("const j=S.jw.find(x=>x.tok===tok);j.settled=true;", "const j=S.jw.find(x=>x.tok===tok);if(!j||j.settled)return;if(!validTempoShare(j,j.seedKg)){toast('Adjust the tempo share for this weight','bad');sheetJob(tok);return}const payment=settlement(j);if(j.cake==='SHOP'&&!window.confirm(splitNote(payment)+'\\nRecord these settlement amounts?'))return;j.settled=true;")
+app+="\n"+open(D+'/app_payout.js').read()
+
+# Put the dashboard beside the current work queues.
+rep("+cnt(S.parked.length,'park','parked','sheetParked()',S.parked.length);",
+    """+cnt(S.parked.length,'park','parked','sheetParked()',S.parked.length)
+  +'<a class="cp" href="/mill/operations" target="_top">'+ic('list')+'<span>'+ (S.lang==='kn'?'ವರದಿಗಳು':'Dashboard · Reports')+'</span></a>';""")
+
 i=s.rindex("\nrender();\n</script>")
 s=s[:i]+"\n/*VOICE-ENGINE*/\n"+eng+"\n/*APP-VOICE*/\n"+tail+app+wrap+s[i:]
 open(D+'/preview.html','w').write(s)

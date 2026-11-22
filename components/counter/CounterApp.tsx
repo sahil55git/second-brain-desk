@@ -779,7 +779,7 @@ export default function CounterApp() {
     }
   };
 
-  const [bTab, setBTab] = useState<"bills" | "reports">("bills");
+  const [bTab, setBTab] = useState<"bills" | "dashboard" | "reports">("bills");
   const [bFilter, setBFilter] = useState<"all" | "open" | "held">("all");
   const [, setArmed] = useState<string | null>(null);
   const openN = bills.filter((b) => isTracked(b.track) && payStatus(b.modes, b.track).state !== "PAID").length;
@@ -1587,11 +1587,14 @@ export default function CounterApp() {
                 setBTab("bills");
                 if (hiddenBillView.dates) { setBFrom(""); setBTo(""); void loadBills({ from: date, to: date }); }
               }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}</button>
+              <button type="button" role="tab" aria-selected={bTab === "dashboard"} className={bTab === "dashboard" ? "on" : ""} onClick={() => { setBTab("dashboard"); setSelMode(false); setSel([]); void loadBills(); }}>📊 {k("Dashboard", "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್")}</button>
               <button type="button" role="tab" aria-selected={bTab === "reports"} className={bTab === "reports" ? "on" : ""} onClick={() => { setBTab("reports"); setSelMode(false); setSel([]); }}>📊 {k("Reports", "ವರದಿಗಳು")}</button>
             </div>}
-            {!hiddenBillView.reports && bTab === "reports" ? (
+            {!hiddenBillView.reports && bTab !== "bills" ? (
               <BillReports
                 bills={bills}
+                dashboard={bTab === "dashboard"}
+                onOpenReport={() => setBTab("reports")}
                 k={k}
                 from={bFrom || date}
                 to={bTo || bFrom || date}

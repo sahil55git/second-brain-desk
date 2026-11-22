@@ -1,0 +1,8 @@
+.mill-operations{min-height:100dvh;padding:20px max(18px,calc((100vw - 960px)/2)) 110px;background:#101824;color:#edf3fc;font-family:inherit}
+.mill-operations a{color:#b9d4ff}.mill-operations h1{font-size:clamp(24px,5vw,36px);margin:14px 0}.mill-operations h2{font-size:18px;margin:0 0 8px}
+.mill-operations nav{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.mill-operations button,.mill-operations input,.mill-operations select{color:inherit;border:1px solid #3a4a62;border-radius:10px;background:#19263a;padding:10px;min-height:44px}
+.mill-operations button[aria-pressed=true]{border-color:#d6a557;background:#43321b;color:#ffdb9c}.mill-operations label{display:grid;gap:4px}.mill-operations input,.mill-operations select{width:100%;min-width:0}
+.mill-op-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px}
+.mill-op-card{display:block;width:100%;padding:14px!important;background:#19263a;border:1px solid #3a4a62;border-radius:14px;text-align:start;margin:4px 0}
+.mill-op-card strong{display:block;margin:6px 0;color:#ffe0a0;font-size:23px}.mill-op-card small,.mill-op-muted{display:block;color:#bac8db;margin-top:4px}.mill-op-row{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid #3a4a62}.mill-operations .mill-op-save{margin-top:12px;background:#215c45}
+.mill-op-trend{display:grid;width:100%;gap:4px;text-align:start;margin-top:5px}.mill-op-trend progress{width:100%;accent-color:#ffc66e}
