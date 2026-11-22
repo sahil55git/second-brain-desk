@@ -45,7 +45,7 @@ import { fitsBill, parseUpi, planUpi, samePayment, type UpiEvent } from "@/lib/u
 import { hasNativeUpi, MahadevUpi } from "@/lib/native";
 import { useKeepAwake } from "@/lib/keepAwake";
 import { PAY_SHOW_KEYS, ensurePayOption, parseShow, SHOW_ALL, SHOW_KEYS, SHOW_LABELS, SHOW_SIMPLE, type ShowCfg } from "@/lib/counterShow";
-import { hashPin, KIOSK_EXTRAS, KIOSK_KEY, readKiosk, type KioskExtra, type KioskState } from "@/lib/counterKiosk";
+import { hashPin, KIOSK_EXTRAS, KIOSK_CHANGED, KIOSK_KEY, readKiosk, type KioskExtra, type KioskState } from "@/lib/counterKiosk";
 
 type Lang = "en" | "kn";
 type Chan = "CASH" | "UPI" | "CREDIT";
@@ -65,6 +65,23 @@ interface Settings {
   discount: boolean;
   beep: boolean;
 }
+const billDialogLayer = { zIndex: 9001 } as const;
+const billDialogStyle = { width: "min(94vw, 900px)", maxWidth: "none", fontSize: "1.15rem" } as const;
+const billDialogButtonStyle = { minHeight: 54, minWidth: 54, fontSize: "1.1rem" } as const;
+
+const BILL_VIEW_OPTIONS = {
+  reports: ["Reports tab", "ವರದಿಗಳ ಟ್ಯಾಬ್"],
+  dates: ["Date range and Show button", "ದಿನಾಂಕ ವ್ಯಾಪ್ತಿ ಮತ್ತು ತೋರಿಸು ಬಟನ್"],
+  excel: ["Excel export", "Excel ರಫ್ತು"],
+  summary: ["Print summary", "ಸಾರಾಂಶ ಮುದ್ರಿಸಿ"],
+  select: ["Select bills", "ಬಿಲ್ ಆಯ್ಕೆ"],
+  payAll: ["All pending paid", "ಎಲ್ಲಾ ಬಾಕಿ ಬಂತು"],
+  status: ["Payment pending and Oil held filters", "ಹಣ ಬಾಕಿ ಮತ್ತು ಎಣ್ಣೆ ಹಿಡಿದಿದೆ ಫಿಲ್ಟರ್‌ಗಳು"],
+  totals: ["Totals and payment summary cards", "ಒಟ್ಟು ಮತ್ತು ಪಾವತಿ ಸಾರಾಂಶ ಕಾರ್ಡ್‌ಗಳು"],
+} as const;
+type BillViewOption = keyof typeof BILL_VIEW_OPTIONS;
+const BILL_VIEW_KEY = "counterBillsView";
+
 const DEFAULTS: Settings = { showTare: true, showGross: false, upiQr: true, roundOff: false, discount: true, beep: true };
 const SETTING_TEXT: Record<keyof Settings, [string, string]> = {
   showTare: ["Show tare weight on bill and print", "ಬಿಲ್ ಮತ್ತು ಮುದ್ರಣದಲ್ಲಿ ಟೇರ್ ತೂಕ ತೋರಿಸು"],
@@ -243,11 +260,14 @@ export default function CounterApp() {
   const [holds, setHolds] = useState<Hold[]>([]);
   const [holdId, setHoldId] = useState<string | null>(null);
   const [device, setDevice] = useState("");
+  const [hiddenBillView, setHiddenBillView] = useState<Partial<Record<BillViewOption, boolean>>>({});
   const [bFrom, setBFrom] = useState("");
   const [bTo, setBTo] = useState("");
   const [bQ, setBQ] = useState("");
   const [bills, setBills] = useState<SavedBill[]>([]);
   const [retTotal, setRetTotal] = useState(0);
+  const [cancel, setCancel] = useState<{ bill: SavedBill; reason: string; busy: boolean; error: string } | null>(null);
+  const [exchange, setExchange] = useState(false);
   const [ret, setRet] = useState<{ bill: SavedBill; items: ReturnItem[]; picks: Record<string, number>; mode: RefundMode; reason: string; busy: boolean; err: string; prior?: ReturnedSoFar } | null>(null);
   const [bErr, setBErr] = useState("");
   const [editing, setEditing] = useState<SavedBill | null>(null);
@@ -264,6 +284,7 @@ export default function CounterApp() {
     setPrintPanel(read<boolean>("counterPrintPanel", false));
     setSettings({ ...DEFAULTS, ...read<Partial<Settings>>("counterSettings", {}) });
     setKiosk(readKiosk());
+    setHiddenBillView(read(BILL_VIEW_KEY, {}) ?? {});
     let d = read<string>("counterDevice", "");
     if (!d) {
       d = `dev-${Math.random().toString(36).slice(2, 8)}`;
@@ -601,32 +622,34 @@ export default function CounterApp() {
       setBErr(e instanceof Error ? e.message : "Could not load bills.");
     }
   };
-  const cancelBill = async (b: SavedBill, why?: string): Promise<boolean> => {
-    if (why === undefined && retTotal > 0) {
-      try {
-        const rr = await fetch(`/api/register/range?from=${b.date}&to=${date}`, { cache: "no-store" });
-        const jj = await rr.json();
-        if (rr.ok && returnedByBill(jj.data as SaleRow[]).has(b.no)) {
-          setBErr(k(`Bill #${b.no} already has a return. A bill with a return cannot be cancelled.`, `ಬಿಲ್ #${b.no} ಗೆ ರಿಟರ್ನ್ ಇದೆ. ರದ್ದು ಮಾಡಲಾಗದು.`));
-          return false;
-        }
-      } catch { /* the server still guards the money */ }
-    }
-    const reason = why ?? window.prompt(k(`Reason for cancelling bill #${b.no} (${rupees(b.total)})?`, `ಬಿಲ್ #${b.no} ರದ್ದು ಮಾಡಲು ಕಾರಣ?`));
-    if (reason == null) return false;
-    if (!reason.trim()) {
-      setBErr(k("Write a reason to cancel a bill.", "ಕಾರಣ ಬರೆಯಿರಿ."));
+  const cancelBill = async (b: SavedBill, reason: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/register/${encodeURIComponent(b.firstId)}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: `Counter bill #${b.no}: ${reason.trim()}` }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || "Could not cancel the bill.");
+      await loadBills();
+      void load();
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not cancel the bill.";
+      setBErr(message);
+      setCancel((current) => current ? { ...current, busy: false, error: message } : current);
       return false;
     }
-    const res = await fetch(`/api/register/${b.firstId}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: `Counter bill #${b.no}: ${reason.trim()}` }) });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setBErr(j.error || k("Could not cancel the bill.", "ಬಿಲ್ ರದ್ದು ಮಾಡಲು ಆಗಲಿಲ್ಲ."));
-      return false;
+  };
+
+  const confirmCancel = async () => {
+    if (!cancel || cancel.busy || !cancel.reason.trim()) return;
+    setCancel({ ...cancel, busy: true, error: "" });
+    setBErr("");
+    if (await cancelBill(cancel.bill, cancel.reason)) {
+      setCancel(null);
+      setMsg({ ok: true, text: k(`Bill #${cancel.bill.no} cancelled.`, `ಬಿಲ್ #${cancel.bill.no} ರದ್ದಾಗಿದೆ.`) });
     }
-    void loadBills();
-    void load();
-    return true;
   };
 
   // ---- returns: goods back, money (or udhaar) back
@@ -643,11 +666,12 @@ export default function CounterApp() {
     }
     const items = returnables(b, prior);
     if (!items.some((i) => i.leftAmt > 0)) return setBErr(k(`Bill #${b.no} has nothing left to return.`, `ಬಿಲ್ #${b.no} ನಲ್ಲಿ ಹಿಂತಿರುಗಿಸಲು ಏನೂ ಇಲ್ಲ.`));
+    setExchange(false);
     setRet({ bill: b, items, picks: {}, mode: defaultRefundMode(b), reason: "", busy: false, err: "", prior });
   };
-  const retPlan = ret ? returnBody(ret.bill, ret.items, ret.picks, { date, mode: ret.mode, reason: ret.reason }) : null;
+  const retPlan = ret ? returnBody(ret.bill, ret.items, ret.picks, { date, mode: ret.mode, reason: exchange ? `Exchange · ${ret.reason}` : ret.reason }) : null;
   const saveReturn = async () => {
-    if (!ret || !retPlan) return;
+    if (!ret || ret.busy || !retPlan) return;
     if ("err" in retPlan) return setRet({ ...ret, err: retPlan.err });
     if (!ret.reason.trim()) return setRet({ ...ret, err: k("Write the reason for the return.", "ಹಿಂತಿರುಗಿಸಲು ಕಾರಣ ಬರೆಯಿರಿ.") });
     setRet({ ...ret, busy: true, err: "" });
@@ -656,7 +680,10 @@ export default function CounterApp() {
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || "Could not save the return.");
       setRet(null);
-      setMsg({ ok: true, text: k(`Return saved: ${rupees(retPlan.amount)} ${ret.mode === "CREDIT" ? "off the udhaar" : ret.mode === "UPI" ? "back by UPI" : "cash back"}. Stock updated.`, `ರಿಟರ್ನ್ ಉಳಿದಿದೆ: ${rupees(retPlan.amount)}. ಸ್ಟಾಕ್ ಅಪ್‌ಡೇಟ್ ಆಗಿದೆ.`) });
+      if (exchange) setPanel(null);
+      setMsg({ ok: true, text: exchange
+        ? k(`Exchange return saved · ${rupees(retPlan.amount)}. Bill the replacement separately.`, `ವಿನಿಮಯ ವಾಪಸ್ ಉಳಿಸಲಾಗಿದೆ · ${rupees(retPlan.amount)}. ಬದಲಿ ವಸ್ತುವಿಗೆ ಪ್ರತ್ಯೇಕ ಬಿಲ್ ಮಾಡಿ.`)
+        : k(`Return saved: ${rupees(retPlan.amount)} ${ret.mode === "CREDIT" ? "off the udhaar" : ret.mode === "UPI" ? "back by UPI" : "cash back"}. Stock updated.`, `ರಿಟರ್ನ್ ಉಳಿದಿದೆ: ${rupees(retPlan.amount)}. ಸ್ಟಾಕ್ ಅಪ್‌ಡೇಟ್ ಆಗಿದೆ.`) });
       void loadBills();
       void load();
     } catch (e) {
@@ -858,7 +885,7 @@ export default function CounterApp() {
     const t = setInterval(() => void loadBills(), 15000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [upiWaiting]);
+  }, [upiWaiting, bFrom, bTo, date]);
 
   // ---- UPI payments seen by the UPI app on this device (Android app, Notification access allowed)
   const [upiAuto, setUpiAuto] = useState(true);
@@ -1072,6 +1099,7 @@ export default function CounterApp() {
     if (window.prompt(k("Type the PIN again:", "PIN ಮತ್ತೆ ಟೈಪ್ ಮಾಡಿ:")) !== pin) return setMsg({ ok: false, text: k("The PINs did not match.", "PIN ಹೊಂದಲಿಲ್ಲ.") });
     const s: KioskState = { on: true, pinHash: await hashPin(pin), allow: kiosk?.allow || [] };
     write(KIOSK_KEY, s);
+    window.dispatchEvent(new Event(KIOSK_CHANGED));
     setKiosk(s);
   };
   const kioskOff = async () => {
@@ -1080,12 +1108,14 @@ export default function CounterApp() {
     if (!kiosk || (await hashPin(pin)) !== kiosk.pinHash) return setMsg({ ok: false, text: k("Wrong PIN.", "ತಪ್ಪು PIN.") });
     const s = { ...kiosk, on: false };
     write(KIOSK_KEY, s);
+    window.dispatchEvent(new Event(KIOSK_CHANGED));
     setKiosk(s);
   };
   const kioskAllow = (x: KioskExtra, on: boolean) => {
     const cur = kiosk?.allow || [];
     const s: KioskState = { on: !!kiosk?.on, pinHash: kiosk?.pinHash || "", allow: on ? Array.from(new Set([...cur, x])) : cur.filter((a) => a !== x) };
     write(KIOSK_KEY, s);
+    window.dispatchEvent(new Event(KIOSK_CHANGED));
     setKiosk(s);
   };
 
@@ -1097,12 +1127,12 @@ export default function CounterApp() {
   const chips = (
     <>
         {(show.held || holds.length > 0) && (
-          <button type="button" className={`ctr-tbtn${holds.length ? " has" : ""}`} onClick={() => { setPanel("holds"); void loadHolds(); }}>
+          <button type="button" className={`ctr-tbtn ctr-parked-button${holds.length ? " has" : ""}`} onClick={() => { setPanel("holds"); void loadHolds(); }}>
             🅿️ {k("Parked", "ನಿಲ್ಲಿಸಿದ")} <b>{holds.length}</b>
           </button>
         )}
         {!kiosk?.on && show.deskLink && <Link href="/register/cashier" className="ctr-tbtn" title={k("Cashier desk: take the money, release the oil", "ಕ್ಯಾಷಿಯರ್ ಡೆಸ್ಕ್: ಹಣ ಪಡೆಯಿರಿ, ಎಣ್ಣೆ ಕೊಡಿ")}>💰 {k("Cashier", "ಕ್ಯಾಷಿಯರ್")}</Link>}
-        {show.bills && <button type="button" className="ctr-tbtn" onClick={() => { setBFilter(queueInBills ? "held" : "all"); setSelMode(false); setSel([]); setBTab("bills"); setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}{(queueInBills ? heldN : openN) > 0 && <b>{queueInBills ? heldN : openN}</b>}</button>}
+        {show.bills && <button type="button" className="ctr-tbtn ctr-bills-button" onClick={() => { setBFilter(queueInBills && !hiddenBillView.status ? "held" : "all"); setSelMode(false); setSel([]); setBTab("bills"); setPanel("bills"); if (hiddenBillView.dates) { setBFrom(""); setBTo(""); } void loadBills(hiddenBillView.dates ? { from: date, to: date } : undefined); }}><span aria-hidden="true" className="ctr-bills-icon">📋</span> {k("Bills", "ಬಿಲ್‌ಗಳು")}{(queueInBills ? heldN : openN) > 0 && <b>{queueInBills ? heldN : openN}</b>}</button>}
         {!queueInBills && (heldN > 0 || holdCash) && <button type="button" className={`ctr-tbtn${heldN > 0 ? " has" : ""}${readyN > 0 ? " ctr-next" : ""}`} onClick={() => { setPanel("queue"); void loadBills(); }} title={k("Bills whose oil is held till the money is received", "ಹಣ ಬರುವವರೆಗೆ ಎಣ್ಣೆ ಹಿಡಿದ ಬಿಲ್‌ಗಳು")}>🔒 {k("Held queue", "ಹಿಡಿದ ಸಾಲು")} <b>{heldN}</b></button>}
     </>
   );
@@ -1355,7 +1385,7 @@ export default function CounterApp() {
           )}
           <div className="ctr-act">
             <button type="button" className="clr" onClick={clearBill} disabled={busy || !lines.length}><CrossIcon size={26} /><span>{holdId ? k("Close", "ಮುಚ್ಚು") : k("Clear", "ಅಳಿಸಿ")}</span></button>
-            {show.hold && <button type="button" className="hold" onClick={() => void holdBill()} disabled={busy || !lines.length}><PauseIcon size={26} /><span>{k("Hold", "ಹಿಡಿ")}</span></button>}
+            {show.hold && <button type="button" className="hold ctr-park-bill" onClick={() => void holdBill()} disabled={busy || !lines.length}><PauseIcon size={26} /><span>{k("Park bill", "ಬಿಲ್ ನಿಲ್ಲಿಸಿ")}</span></button>}
             {!autoPrint && <button type="button" className="sv" onClick={() => void save(false)} disabled={busy || !lines.length}>{k("Save", "ಉಳಿಸಿ")}</button>}
             <button type="button" className={`go${nextStep === "save" ? " ctr-next" : ""}`} onClick={() => void save(autoPrint)} disabled={busy || !lines.length}>
               {busy ? "…" : <span className="sv-ico" aria-label={k("Save & Print", "ಉಳಿಸಿ & ಮುದ್ರಿಸಿ")}><PrinterIcon size={30} /><TickIcon size={26} /></span>}
@@ -1401,13 +1431,36 @@ export default function CounterApp() {
       )}
 
       {/* ---------- pop-up keypad ---------- */}
-      {ret && (
-        <div className="ctr-modal" role="dialog" aria-label="Return items" onClick={() => !ret.busy && setRet(null)}>
-          <div className="ctr-sheet wide" onClick={(e) => e.stopPropagation()}>
+      {cancel && (
+        <div className="ctr-modal" style={billDialogLayer} role="dialog" aria-modal="true" aria-label={k("Cancel bill", "ಬಿಲ್ ರದ್ದು")}>
+          <div className="ctr-sheet wide" style={billDialogStyle}>
             <div className="ctr-sheethead">
-              <b><OilIn size={0.8} /> {k(`Oil in · bill #${ret.bill.no}`, `ಎಣ್ಣೆ ವಾಪಸ್ · ಬಿಲ್ #${ret.bill.no}`)}</b>
-              <button type="button" onClick={() => setRet(null)} aria-label="Close">✕</button>
+              <b>{k("Cancel bill", "ಬಿಲ್ ರದ್ದು")} #{cancel.bill.no} · {rupees(cancel.bill.total)}</b>
             </div>
+            <label>
+              {k("Reason for cancellation", "ರದ್ದತಿಯ ಕಾರಣ")}
+              <input className="ctr-search" value={cancel.reason} maxLength={150} disabled={cancel.busy} onChange={(e) => setCancel({ ...cancel, reason: e.target.value, error: "" })} />
+            </label>
+            {cancel.error && <p className="ctr-msg bad" role="alert">{cancel.error}</p>}
+            <div className="okrow">
+              <button type="button" className="cancel" style={billDialogButtonStyle} disabled={cancel.busy} onClick={() => setCancel(null)}>{k("Keep bill", "ಬಿಲ್ ಉಳಿಸಿ")}</button>
+              <button type="button" className="ok" style={billDialogButtonStyle} disabled={cancel.busy || !cancel.reason.trim()} onClick={() => void confirmCancel()}>✓ {k("Cancel bill", "ಬಿಲ್ ರದ್ದು")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {ret && (
+        <div className="ctr-modal" role="dialog" aria-modal="true" aria-label={k("Return or exchange", "ವಾಪಸ್ ಅಥವಾ ವಿನಿಮಯ")} onClick={() => !ret.busy && setRet(null)}>
+          <div className="ctr-sheet wide" style={billDialogStyle} onClick={(e) => e.stopPropagation()}>
+            <div className="ctr-sheethead">
+              <b><OilIn size={0.8} /> {k(`Return or exchange · bill #${ret.bill.no}`, `ಎಣ್ಣೆ ವಾಪಸ್ · ಬಿಲ್ #${ret.bill.no}`)}</b>
+              <button type="button" disabled={ret.busy} onClick={() => setRet(null)} aria-label="Close">✕</button>
+            </div>
+            <div className="ctr-seg">
+              <button type="button" style={billDialogButtonStyle} disabled={ret.busy} aria-pressed={!exchange} className={!exchange ? "on" : ""} onClick={() => setExchange(false)}>{k("Return", "ವಾಪಸ್")}</button>
+              <button type="button" style={billDialogButtonStyle} disabled={ret.busy} aria-pressed={exchange} className={exchange ? "on" : ""} onClick={() => setExchange(true)}>{k("Exchange", "ವಿನಿಮಯ")}</button>
+            </div>
+            {exchange && <p>{k("Record the refund using the method actually paid out. Then bill the replacement and record its payment separately.", "ನಿಜವಾಗಿ ಹಣ ಹಿಂತಿರುಗಿಸಿದ ವಿಧಾನವನ್ನು ದಾಖಲಿಸಿ. ನಂತರ ಬದಲಿ ವಸ್ತುವಿನ ಬಿಲ್ ಮತ್ತು ಪಾವತಿಯನ್ನು ಪ್ರತ್ಯೇಕವಾಗಿ ದಾಖಲಿಸಿ.")}</p>}
             <ul className="ctr-list">
               {ret.items.map((it) => {
                 const q = ret.picks[it.key] || 0;
@@ -1417,8 +1470,8 @@ export default function CounterApp() {
                       <b>{it.label}</b>
                       <small>{k("Left to return", "ಹಿಂತಿರುಗಿಸಬಹುದಾದ್ದು")} {it.leftQty} {it.unit || ""} · {rupees(it.leftAmt)}</small>
                     </div>
-                    <button type="button" className="ctr-plu" disabled={it.leftQty <= 0} onClick={() => openPad({ kind: "retqty", key: it.key })}>{q > 0 ? `${q} ${it.unit || ""}` : k("Qty", "ಪ್ರಮಾಣ")}</button>
-                    <button type="button" disabled={it.leftQty <= 0} onClick={() => setRet({ ...ret, picks: { ...ret.picks, [it.key]: it.leftQty }, err: "" })}>{k("All", "ಎಲ್ಲಾ")}</button>
+                    <button type="button" className="ctr-plu" style={billDialogButtonStyle} disabled={ret.busy || it.leftQty <= 0} onClick={() => openPad({ kind: "retqty", key: it.key })}>{q > 0 ? `${q} ${it.unit || ""}` : k("Qty", "ಪ್ರಮಾಣ")}</button>
+                    <button type="button" style={billDialogButtonStyle} disabled={ret.busy || it.leftQty <= 0} onClick={() => setRet({ ...ret, picks: { ...ret.picks, [it.key]: it.leftQty }, err: "" })}>{k("All", "ಎಲ್ಲಾ")}</button>
                     <b className="amt">{q > 0 ? rupees(refundFor(it, q)) : ""}</b>
                   </li>
                 );
@@ -1426,18 +1479,19 @@ export default function CounterApp() {
             </ul>
             <div className="ctr-bact">
               {(["CASH", "UPI", "CREDIT"] as RefundMode[]).map((m) => (
-                <button key={m} type="button" className={ret.mode === m ? "on" : ""} onClick={() => setRet({ ...ret, mode: m, err: "" })}>
-                  {m === "CASH" ? <><CashOut size={0.8} /> {k("Cash out", "ನಗದು ಹೊರಗೆ")}</> : m === "UPI" ? <><PhoneIcon size={24} /> {k("UPI out", "UPI ಹೊರಗೆ")}</> : <><BookIcon size={24} /> {k("Cut udhaar", "ಉದ್ರಿ ಕಡಿಮೆ")}</>}
+                <button key={m} type="button" style={billDialogButtonStyle} disabled={ret.busy} className={ret.mode === m ? "on" : ""} onClick={() => setRet({ ...ret, mode: m, err: "" })}>
+                  {m === "CASH" ? <><CashOut size={0.8} /> {k("Return cash", "ನಗದು ವಾಪಸ್")}</> : m === "UPI" ? <><PhoneIcon size={24} /> {k("UPI return", "UPI ವಾಪಸ್")}</> : <><BookIcon size={24} /> {k("Cut udhaar", "ಉದ್ರಿ ಕಡಿಮೆ")}</>}
                 </button>
               ))}
             </div>
+            <p>{k("Choose Return cash whenever you give cash back, even for a UPI bill.", "UPI ಬಿಲ್‌ಗೂ ನಗದು ಹಿಂತಿರುಗಿಸಿದರೆ ನಗದು ವಾಪಸ್ ಆಯ್ಕೆಮಾಡಿ.")}</p>
             {ret.mode === "CREDIT" && !ret.bill.party && <p className="ctr-hint">{k("Udhaar needs the customer's name: it is taken from the bill, and this bill has none.", "ಉದ್ರಿಗೆ ಗ್ರಾಹಕರ ಹೆಸರು ಬೇಕು; ಈ ಬಿಲ್‌ನಲ್ಲಿ ಇಲ್ಲ.")}</p>}
-            <input className="ctr-search" value={ret.reason} onChange={(e) => setRet({ ...ret, reason: e.target.value, err: "" })} placeholder={k("Reason (required): leaking tin, wrong item …", "ಕಾರಣ (ಅಗತ್ಯ): ಸೋರಿಕೆ, ತಪ್ಪು ವಸ್ತು …")} />
+            <input className="ctr-search" style={billDialogButtonStyle} disabled={ret.busy} value={ret.reason} onChange={(e) => setRet({ ...ret, reason: e.target.value, err: "" })} placeholder={k("Reason (required): leaking tin, wrong item …", "ಕಾರಣ (ಅಗತ್ಯ): ಸೋರಿಕೆ, ತಪ್ಪು ವಸ್ತು …")} />
             {ret.err && <p className="ctr-msg bad">{ret.err}</p>}
             <div className="okrow">
-              <button type="button" className="cancel" onClick={() => setRet(null)}>{k("Cancel", "ರದ್ದು")}</button>
-              <button type="button" className="ok" disabled={ret.busy || !retPlan || "err" in retPlan} onClick={() => void saveReturn()}>
-                ✓ {k("Oil in", "ಎಣ್ಣೆ ವಾಪಸ್")} {retPlan && !("err" in retPlan) ? rupees(retPlan.amount) : ""}
+              <button type="button" className="cancel" style={billDialogButtonStyle} disabled={ret.busy} onClick={() => setRet(null)}>{k("Cancel", "ರದ್ದು")}</button>
+              <button type="button" className="ok" style={billDialogButtonStyle} disabled={ret.busy || !ret.reason.trim() || !retPlan || "err" in retPlan} onClick={() => void saveReturn()}>
+                ✓ {k("Done", "ಮುಗಿದಿದೆ")} {retPlan && !("err" in retPlan) ? rupees(retPlan.amount) : ""}
               </button>
             </div>
             <p className="ctr-hint">{k("Stock goes back in, and the cash book, udhaar and Daily Closing follow. The bill itself stays as it was.", "ಸ್ಟಾಕ್ ಮರಳುತ್ತದೆ; ಕ್ಯಾಶ್ ಬುಕ್, ಉದ್ರಿ, ಡೈಲಿ ಕ್ಲೋಸಿಂಗ್ ಅನುಸರಿಸುತ್ತವೆ. ಬಿಲ್ ಹಾಗೇ ಇರುತ್ತದೆ.")}</p>
@@ -1446,7 +1500,7 @@ export default function CounterApp() {
       )}
 
       {pad && (
-        <div className="ctr-modal" role="dialog" aria-label={padTitle(pad)} onClick={() => setPad(null)}>
+        <div className="ctr-modal" style={pad.kind === "retqty" ? { zIndex: 9002 } : undefined} role="dialog" aria-label={padTitle(pad)} onClick={() => setPad(null)}>
           <div className="ctr-padbox" onClick={(e) => e.stopPropagation()}>
             <p className="ttl">{padTitle(pad)}</p>
             {pad.kind === "received" && cashDue > 0 && (() => {
@@ -1489,13 +1543,13 @@ export default function CounterApp() {
 
       {/* ---------- held bills ---------- */}
       {panel === "holds" && (
-        <div className="ctr-drawer" role="dialog" aria-label="Held bills" onClick={() => setPanel(null)}>
-          <div className="ctr-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="ctr-drawer" role="dialog" aria-label={k("Parked bills", "ನಿಲ್ಲಿಸಿದ ಬಿಲ್‌ಗಳು")} onClick={() => setPanel(null)}>
+          <div className="ctr-sheet ctr-parked-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="ctr-sheethead">
               <b>🅿️ {k("Parked bills", "ನಿಲ್ಲಿಸಿದ ಬಿಲ್‌ಗಳು")} ({holds.length})</b>
               <button type="button" onClick={() => setPanel(null)} aria-label="Close">✕</button>
             </div>
-            {!holds.length && <p className="ctr-empty">{k("No held bills. Press Hold to park a bill and serve the next customer.", "ಹಿಡಿದ ಬಿಲ್ ಇಲ್ಲ. ಮುಂದಿನ ಗ್ರಾಹಕರಿಗಾಗಿ ‘ಹಿಡಿ’ ಒತ್ತಿ.")}</p>}
+            {!holds.length && <p className="ctr-empty">{k("No parked bills. Tap Park bill to set a bill aside.", "ನಿಲ್ಲಿಸಿದ ಬಿಲ್ ಇಲ್ಲ. ಬಿಲ್ ನಿಲ್ಲಿಸಲು ‘ಬಿಲ್ ನಿಲ್ಲಿಸಿ’ ಒತ್ತಿ.")}</p>}
             <ul className="ctr-list">
               {holds.map((h) => {
                 const elsewhere = !!h.openedBy && h.openedBy !== device && !!h.openedAt && Date.now() - new Date(h.openedAt).getTime() < 10 * 60 * 1000;
@@ -1528,12 +1582,15 @@ export default function CounterApp() {
               <b>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}</b>
               <button type="button" onClick={() => setPanel(null)} aria-label="Close">✕</button>
             </div>
-            <div className="ctr-btabs" role="tablist">
-              <button type="button" role="tab" aria-selected={bTab === "bills"} className={bTab === "bills" ? "on" : ""} onClick={() => setBTab("bills")}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}</button>
+            {!hiddenBillView.reports && <div className="ctr-btabs" role="tablist">
+              <button type="button" role="tab" aria-selected={bTab === "bills"} className={bTab === "bills" ? "on" : ""} onClick={() => {
+                setBTab("bills");
+                if (hiddenBillView.dates) { setBFrom(""); setBTo(""); void loadBills({ from: date, to: date }); }
+              }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}</button>
               <button type="button" role="tab" aria-selected={bTab === "dashboard"} className={bTab === "dashboard" ? "on" : ""} onClick={() => { setBTab("dashboard"); setSelMode(false); setSel([]); void loadBills(); }}>📊 {k("Dashboard", "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್")}</button>
               <button type="button" role="tab" aria-selected={bTab === "reports"} className={bTab === "reports" ? "on" : ""} onClick={() => { setBTab("reports"); setSelMode(false); setSel([]); }}>📊 {k("Reports", "ವರದಿಗಳು")}</button>
-            </div>
-            {bTab !== "bills" ? (
+            </div>}
+            {!hiddenBillView.reports && bTab !== "bills" ? (
               <BillReports
                 bills={bills}
                 dashboard={bTab === "dashboard"}
@@ -1549,17 +1606,19 @@ export default function CounterApp() {
               />
             ) : (
             <>
-            <div className="ctr-bfilter">
+            {(!hiddenBillView.dates || !hiddenBillView.excel || !hiddenBillView.summary) && <div className="ctr-bfilter">
+              {!hiddenBillView.dates && <>
               <input type="date" value={bFrom || date} max={date} onChange={(e) => setBFrom(e.target.value)} aria-label={k("From", "ಇಂದ")} />
               <input type="date" value={bTo || bFrom || date} max={date} onChange={(e) => setBTo(e.target.value)} aria-label={k("To", "ವರೆಗೆ")} />
               <button type="button" onClick={() => void loadBills()}>↻ {k("Show", "ತೋರಿಸು")}</button>
-              <button type="button" onClick={exportCsv} disabled={!shownBills.length}>⬇ Excel</button>
-              <button type="button" onClick={printSummary} disabled={!shownBills.length}>🖨️ {k("Summary", "ಸಾರಾಂಶ")}</button>
-            </div>
-            <div className="ctr-selbar">
-              <button type="button" className={selMode ? "on" : ""} onClick={() => { setSelMode(!selMode); setSel([]); }}>{selMode ? "✕" : "☑"} {selMode ? k("Stop selecting", "ಆಯ್ಕೆ ನಿಲ್ಲಿಸಿ") : k("Select bills", "ಬಿಲ್ ಆಯ್ಕೆ")}</button>
-              {openN > 0 && (
-                <button type="button" className="payall" onClick={() => { setSelMode(true); setSel(bills.filter((b) => dueOf(b) > 0).map((b) => b.key)); setBulk("money"); }}>
+              </>}
+              {!hiddenBillView.excel && <button type="button" onClick={exportCsv} disabled={!shownBills.length}>⬇ Excel</button>}
+              {!hiddenBillView.summary && <button type="button" onClick={printSummary} disabled={!shownBills.length}>🖨️ {k("Summary", "ಸಾರಾಂಶ")}</button>}
+            </div>}
+            {(!hiddenBillView.select || (!hiddenBillView.payAll && openN > 0)) && <div className="ctr-selbar">
+              {!hiddenBillView.select && <button type="button" className={selMode ? "on" : ""} onClick={() => { setSelMode(!selMode); setSel([]); }}>{selMode ? "✕" : "☑"} {selMode ? k("Stop selecting", "ಆಯ್ಕೆ ನಿಲ್ಲಿಸಿ") : k("Select bills", "ಬಿಲ್ ಆಯ್ಕೆ")}</button>}
+              {!hiddenBillView.payAll && openN > 0 && (
+                <button type="button" className="payall" onClick={() => { setSelMode(!hiddenBillView.select); setSel(bills.filter((b) => dueOf(b) > 0).map((b) => b.key)); setBulk("money"); }}>
                   <CashIn size={0.6} /> {k("All pending paid", "ಎಲ್ಲಾ ಬಾಕಿ ಬಂತು")} ({bills.filter((b) => dueOf(b) > 0).length})
                 </button>
               )}
@@ -1571,20 +1630,20 @@ export default function CounterApp() {
                   <button type="button" onClick={() => setSel([])}>{k("Clear", "ಅಳಿಸಿ")}</button>
                 </>
               )}
-            </div>
+            </div>}
             <input className="ctr-search" value={bQ} onChange={(e) => setBQ(e.target.value)} placeholder={k("🔍 Bill no, customer, item, amount", "🔍 ಬಿಲ್ ಸಂಖ್ಯೆ, ಹೆಸರು, ವಸ್ತು, ಮೊತ್ತ")} />
-            <div className="ctr-seg">
+            {!hiddenBillView.status && <div className="ctr-seg">
               <button type="button" className={bFilter === "all" ? "on" : ""} onClick={() => setBFilter("all")}>{k("All", "ಎಲ್ಲಾ")}</button>
               <button type="button" className={bFilter === "open" ? "on" : ""} onClick={() => setBFilter("open")}>⏳ {k("Payment pending", "ಹಣ ಬಾಕಿ")} {openN > 0 ? `(${openN})` : ""}</button>
               <button type="button" className={bFilter === "held" ? "on" : ""} onClick={() => setBFilter("held")}>🔒 {k("Oil held", "ಎಣ್ಣೆ ಹಿಡಿದಿದೆ")} {heldN > 0 ? `(${heldN})` : ""}</button>
-            </div>
-            <div className="ctr-bsum">
+            </div>}
+            {!hiddenBillView.totals && <div className="ctr-bsum">
               <div><small>{k("Bills", "ಬಿಲ್")}</small><b>{bSum.count}</b></div>
               <div className="tot"><small>{k("Total", "ಒಟ್ಟು")}</small><b>{rupees(bSum.total)}</b></div>
               <div><small>kg</small><b>{bSum.kg.toFixed(3).replace(/\.?0+$/, "")}</b></div>
               {Object.entries(bSum.modes).map(([m, v]) => <div key={m}><small>{modeName(m)}</small><b>{rupees(v)}</b></div>)}
               {retTotal > 0 && <div className="ret"><small>↩️ {k("Returned", "ಹಿಂತಿರುಗಿಸಿದ್ದು")}</small><b>−{rupees(retTotal)}</b></div>}
-            </div>
+            </div>}
             {bErr && <p className="ctr-msg bad">{bErr}</p>}
             {askCards()}
             <ul className="ctr-list">
@@ -1666,9 +1725,9 @@ export default function CounterApp() {
                       <button type="button" onClick={() => setRcpt({ doc: billDoc(b), auto: true })} aria-label={k("Re-print", "ಮತ್ತೆ ಮುದ್ರಿಸಿ")}>🖨️</button>
                       <button type="button" onClick={() => shareWhatsapp(billDoc(b), b.party)} aria-label="WhatsApp">💬</button>
                       <button type="button" onClick={() => setDetFor(b)} aria-label={k("Customer, mobile, note", "ಗ್ರಾಹಕ, ಮೊಬೈಲ್, ಟಿಪ್ಪಣಿ")}>👤</button>
-                      <button type="button" onClick={() => void openReturn(b)} aria-label={k("Return items", "ವಸ್ತು ಹಿಂತಿರುಗಿಸಿ")}>↩️</button>
+                      <button type="button" style={billDialogButtonStyle} onClick={() => void openReturn(b)} aria-label={k("Return items", "ವಸ್ತು ಹಿಂತಿರುಗಿಸಿ")}>↩️ {k("Return", "ವಾಪಸ್")}</button>
                       {b.date === date && can("cancel") && <button type="button" onClick={() => void editBill(b)} aria-label={k("Edit", "ತಿದ್ದು")}>✏️</button>}
-                      {can("cancel") && <button type="button" className="bad" onClick={() => void cancelBill(b)} aria-label={k("Cancel", "ರದ್ದು")}>🗑️</button>}
+                      {can("cancel") && <button type="button" className="bad" style={billDialogButtonStyle} onClick={() => setCancel({ bill: b, reason: "", busy: false, error: "" })} aria-label={k("Cancel bill", "ಬಿಲ್ ರದ್ದು")}>🗑️ {k("Cancel bill", "ಬಿಲ್ ರದ್ದು")}</button>}
                     </div>
                   </li>
                 );
@@ -2129,6 +2188,22 @@ export default function CounterApp() {
                 <span>{k(SETTING_TEXT[key][0], SETTING_TEXT[key][1])}</span>
               </label>
             ))}
+
+            {isOwner && !kiosk?.on && <>
+              <h4>{k("Bills view (this device)", "ಬಿಲ್ ನೋಟ (ಈ ಸಾಧನ)")}</h4>
+              <p className="ctr-hint">{k("Choose which controls are visible in the Bills window on this device.", "ಈ ಸಾಧನದ ಬಿಲ್ ವಿಂಡೋದಲ್ಲಿ ಕಾಣಬೇಕಾದ ನಿಯಂತ್ರಣಗಳನ್ನು ಆರಿಸಿ.")}</p>
+              {(Object.keys(BILL_VIEW_OPTIONS) as BillViewOption[]).map((key) => (
+                <label key={key} className="ctr-set">
+                  <input type="checkbox" checked={!hiddenBillView[key]} onChange={(e) => {
+                    const hidden = { ...hiddenBillView, [key]: !e.target.checked };
+                    setHiddenBillView(hidden);
+                    write(BILL_VIEW_KEY, hidden);
+                    if (hidden.dates) { setBFrom(""); setBTo(""); }
+                  }} />
+                  <span>{k(BILL_VIEW_OPTIONS[key][0], BILL_VIEW_OPTIONS[key][1])}</span>
+                </label>
+              ))}
+            </>}
 
             <h4>{k("Install on another device", "ಬೇರೆ ಸಾಧನದಲ್ಲಿ ಇನ್‌ಸ್ಟಾಲ್")}</h4>
             <p className="ctr-hint">

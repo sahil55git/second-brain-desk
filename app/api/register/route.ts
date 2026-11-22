@@ -156,7 +156,9 @@ export async function POST(req: NextRequest) {
   // Counter bills may carry a goods hand-over mark (given now / held until the money is checked).
   const trackInit = body.counterBill === true && kind === "SALE" && (body.handover === "HELD" || body.handover === "GIVEN") ? { handover: body.handover as string, handedAt: body.handover === "GIVEN" ? new Date().toISOString() : undefined, ...(body.handover === "HELD" && body.cashWait === true ? { cashWait: true } : {}), ...(body.handover === "HELD" && body.cashWait === true && body.payPending === true ? { payPending: true } : {}) } : null;
   const result = await safeDbCall(async () => {
-    // 1. Library: learn a typed "Other" item and remember the rate used.
+    // Counter prices belong to the bill. The item setup controls the default prices.
+    const rememberRate = body.counterBill !== true && kind !== "SALE_RETURN";
+    // 1. Library: learn a typed "Other" item and remember eligible rates.
     let cfg = await loadConfig();
     let cfgChanged = false;
     if (item === "other" && itemLabel) {
@@ -165,14 +167,14 @@ export async function POST(req: NextRequest) {
       item = learned.key;
       cfgChanged = true;
     }
-    if (!totalSale && Number.isFinite(rate) && rate > 0 && item) {
+    if (rememberRate && !totalSale && Number.isFinite(rate) && rate > 0 && item) {
       // Fresh crush is sold per kg or per litre, so its rate is remembered per unit.
       const key = kind === "FRESH_CRUSH" ? rateKey(kind, `${item}:${unit || "kg"}`) : rateKey(kind, item);
       cfg = { ...cfg, rates: { ...cfg.rates, [key]: rate } };
       cfgChanged = true;
     }
     if (billLines) {
-      // Every line of a bill teaches the library its "Other" name and rate too.
+      // Learn custom item names and eligible rates from each bill line.
       for (const ln of billLines) {
         if (ln.item === "other" && ln.itemLabel) {
           const learned = learnItem(cfg, kind, ln.itemLabel);
@@ -180,7 +182,7 @@ export async function POST(req: NextRequest) {
           ln.item = learned.key;
           cfgChanged = true;
         }
-        if (ln.item && ln.rate) {
+        if (rememberRate && ln.item && ln.rate) {
           cfg = { ...cfg, rates: { ...cfg.rates, [rateKey(kind, ln.item)]: ln.rate } };
           cfgChanged = true;
         }

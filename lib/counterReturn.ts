@@ -70,10 +70,10 @@ export function refundFor(it: ReturnItem, qty: number): number {
   return Math.min(it.leftAmt, r2((qty * it.soldNet) / it.soldQty));
 }
 
-/** Refund the way the customer paid: udhaar bill → reduce udhaar, UPI → UPI, else cash. */
+/** Default to cash for cash and UPI sales, and reduce udhaar for credit sales. */
 export function defaultRefundMode(bill: SavedBill): RefundMode {
   const top = Object.entries(bill.modes).sort((a, b) => b[1] - a[1])[0]?.[0];
-  return top === "CREDIT" ? "CREDIT" : top === "UPI" ? "UPI" : "CASH";
+  return top === "CREDIT" ? "CREDIT" : "CASH";
 }
 
 export interface ReturnBody {

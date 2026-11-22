@@ -2,6 +2,17 @@
 // and every other page is closed, except the ones the owner ticks. Kept on the device; leaving the
 // mode needs the PIN set when it was turned on. (Pure, tested.)
 export const KIOSK_KEY = "counterKiosk";
+export const KIOSK_CHANGED = "counter-kiosk-changed";
+
+export function subscribeKiosk(check: () => void) {
+  window.addEventListener(KIOSK_CHANGED, check);
+  window.addEventListener("storage", check);
+  return () => {
+    window.removeEventListener(KIOSK_CHANGED, check);
+    window.removeEventListener("storage", check);
+  };
+}
+
 export const COUNTER_PATH = "/register/counter";
 
 export const KIOSK_EXTRAS = {

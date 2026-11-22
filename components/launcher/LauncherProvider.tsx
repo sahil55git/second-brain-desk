@@ -4,9 +4,11 @@
 // panel (edge tab), and stackable pop windows. What shows in each, plus the
 // mouse / touch shortcuts, is chosen by the owner and saved on this device.
 // Shown only when signed in, never inside another pop window (?embed=1).
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useAccess } from "@/components/AccessProvider";
+import { COUNTER_PATH, readKiosk, subscribeKiosk } from "@/lib/counterKiosk";
 import { Icon, type IconName } from "@/components/ui/Icons";
 import {
   addItem, FUNCTION_CHOICES, ICON_CHOICES, LAUNCHER_KEY, moveItem, normalizePrefs, removeItem, resolveOpening, updateItem,
@@ -35,6 +37,10 @@ const icon = (n: string): IconName => ((ICON_CHOICES as readonly string[]).inclu
 export default function LauncherProvider({ children }: { children: ReactNode }) {
   const path = usePathname() || "/";
   const { status } = useSession();
+  const access = useAccess();
+  const kioskOn = useSyncExternalStore(subscribeKiosk, () => !!readKiosk()?.on, () => true);
+  const counter = path === COUNTER_PATH || path.startsWith(COUNTER_PATH + "/");
+  const restricted = kioskOn || (counter && !(access.ready && access.isOwner));
   const [prefs, setPrefsState] = useState<LauncherPrefs>(() => normalizePrefs(null));
   const [loaded, setLoaded] = useState(false);
   const [embedded, setEmbedded] = useState(true); // assume embedded until we know, so nothing flashes
@@ -118,6 +124,7 @@ export default function LauncherProvider({ children }: { children: ReactNode }) 
   }, []);
 
   useEffect(() => {
+    if (restricted) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (big) setBig(null);
@@ -129,13 +136,13 @@ export default function LauncherProvider({ children }: { children: ReactNode }) 
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [big, panel]);
+  }, [big, panel, restricted]);
 
   const ctx = useMemo<Ctx>(() => ({ prefs, embedded, openPop, openItem, openBig }), [prefs, embedded, openPop, openItem, openBig]);
-  const show = loaded && !embedded && status === "authenticated" && !path.startsWith("/login") && !path.startsWith("/setup");
+  const show = !restricted && loaded && !embedded && status === "authenticated" && !path.startsWith("/login") && !path.startsWith("/setup");
 
   return (
-    <LauncherCtx.Provider value={ctx}>
+    <LauncherCtx.Provider value={restricted ? NOOP : ctx}>
       {children}
       {show && (
         <>
@@ -143,7 +150,7 @@ export default function LauncherProvider({ children }: { children: ReactNode }) 
           {big && <BigWindow tab={big} setTab={setBig} prefs={prefs} setPrefs={setPrefs} openItem={openItem} close={() => setBig(null)} />}
         </>
       )}
-      {!embedded && pops.filter((p) => !p.min).map((p, k, open) => (
+      {!restricted && !embedded && pops.filter((p) => !p.min).map((p, k, open) => (
         <PopWindow
           key={p.id}
           pop={p}
@@ -161,7 +168,7 @@ export default function LauncherProvider({ children }: { children: ReactNode }) 
           close={() => { setPops((c) => c.filter((x) => x.id !== p.id)); window.dispatchEvent(new Event("ql-pop-closed")); }}
         />
       ))}
-      {!embedded && pops.some((p) => p.min) && (
+      {!restricted && !embedded && pops.some((p) => p.min) && (
         <div className="ql-bubbles" aria-label="Quick windows kept open">
           {pops.filter((p) => p.min).map((p) => (
             <button key={p.id} className="ql-bubble" onClick={() => setPops((c) => [...c.filter((x) => x.id !== p.id), { ...p, min: false }])} title={`Open ${p.title}`}>

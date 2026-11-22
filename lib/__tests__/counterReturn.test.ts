@@ -40,8 +40,8 @@ describe("counter returns", () => {
     expect("err" in returnBody(bill, items, { karadi: 4 }, { date: "d", mode: "CASH" })).toBe(true);
     expect("err" in returnBody(bill, items, {}, { date: "d", mode: "CASH" })).toBe(true);
   });
-  it("refunds the way the bill was paid", () => {
-    expect(defaultRefundMode({ ...bill, modes: { UPI: 500, CASH: 200 } })).toBe("UPI");
+  it("defaults to cash for UPI sales and preserves udhaar for credit sales", () => {
+    expect(defaultRefundMode({ ...bill, modes: { UPI: 500, CASH: 200 } })).toBe("CASH");
     expect(defaultRefundMode({ ...bill, modes: { CREDIT: 700 } })).toBe("CREDIT");
     expect(defaultRefundMode(bill)).toBe("CASH");
   });
