@@ -56,6 +56,23 @@ export function payrollNet(earned: number, carried: number): { net: number; adva
   return { net: 0, advanceRecovered: earned, carryForward: total };
 }
 
+/** Salary and movements for one selected month. Earlier entries belong in openingInr. */
+export function monthlySalarySummary(
+  openingInr: number,
+  lines: (LedgerLine & { type: string })[],
+  estimatedSalaryInr: number,
+) {
+  const salaryRows = lines.filter((line) => line.type === "EARN");
+  const posted = salaryRows.length > 0;
+  const salaryInr = posted ? balanceOf(salaryRows) : estimatedSalaryInr;
+  const debitFor = (type: EntryType) => round2(lines.reduce((sum, line) => sum + (line.type === type ? line.debitInr : 0), 0));
+  const advancesInr = debitFor("ADV");
+  const paidInr = debitFor("PAY");
+  const deductionsInr = debitFor("CUT");
+  const closingInr = round2(openingInr + balanceOf(lines) + (posted ? 0 : salaryInr));
+  return { posted, salaryInr, advancesInr, paidInr, deductionsInr, closingInr };
+}
+
 export type EntryInput = { type?: unknown; amountInr?: unknown; mode?: unknown; note?: unknown; date?: unknown };
 export type EntryOk = { ok: true; type: Exclude<EntryType, "OPEN">; amountInr: number; mode: Mode | null; note: string | null; date: string | null; creditInr: number; debitInr: number };
 

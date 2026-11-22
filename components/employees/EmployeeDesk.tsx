@@ -15,7 +15,7 @@ import { Dropdown, MenuBtn, MenuHead } from "@/components/barrels/Menus";
 import StaffQuick from "@/components/employees/StaffQuick";
 import { printArea } from "@/components/print/PrintButton";
 import { downloadText } from "@/components/barrels/fleet/types";
-import { ENTRY_TYPES, daysText, earnedForDays, ledgerCsv, monthLabel, payrollNet, TYPE_LABEL, wageAmount, type EntryType, type PayType } from "@/lib/employeeLedger";
+import { ENTRY_TYPES, daysText, earnedForDays, ledgerCsv, monthLabel, monthlySalarySummary, payrollNet, TYPE_LABEL, wageAmount, type EntryType, type PayType } from "@/lib/employeeLedger";
 
 interface Emp {
   id: string; name: string; role: string; phone: string | null; monthlySalaryInr: number; joinDate: string; active: boolean;
@@ -26,7 +26,7 @@ interface Emp {
 interface Row { id: string; date: string; month: string; type: EntryType; creditInr: number; debitInr: number; mode: string | null; note: string | null; editNote: string | null; enteredBy: string | null; balanceInr: number }
 interface Ev { id: string; action: string; by: string; at: string; entryId: string | null; detail: Record<string, unknown> | null }
 interface LedgerData { month: string; employee: Emp; openingInr: number; creditInr: number; debitInr: number; closingInr: number; rows: Row[]; months: string[]; events: Ev[] }
-interface PayRow { id: string; name: string; role: string; monthlySalaryInr: number; payType: PayType; dailyWageInr: number | null; wageDays: number; wageEarnedInr: number; balanceInr: number; posted: boolean; carriedInr: number }
+interface PayRow { id: string; name: string; role: string; monthlySalaryInr: number; payType: PayType; dailyWageInr: number | null; wageDays: number; wageEarnedInr: number; balanceInr: number; posted: boolean; salary: ReturnType<typeof monthlySalarySummary>; carriedInr: number }
 
 type Tab = "staff" | "ledger" | "wages" | "pay" | "report";
 const abs = (n: number) => rs(Math.abs(n));
@@ -49,6 +49,7 @@ export default function EmployeeDesk() {
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [who, setWho] = useState<string | null>(null);
+  const [ledgerVersion, setLedgerVersion] = useState(0);
   const [adding, setAdding] = useState<{ emp: string; type?: string } | null>(null);
   const [newEmp, setNewEmp] = useState(false);
   const [editEmp, setEditEmp] = useState<Emp | null>(null);
@@ -143,7 +144,7 @@ export default function EmployeeDesk() {
           )}
 
           {tab === "ledger" && emps && (
-            <LedgerView emps={emps} who={who ?? emps[0]?.id ?? null} setWho={setWho} month={month} setMonth={setMonth} onAdd={(emp, type) => setAdding({ emp, type })} onChanged={() => loadList()} flash={flash} />
+            <LedgerView key={ledgerVersion} emps={emps} who={who ?? emps[0]?.id ?? null} setWho={setWho} month={month} setMonth={setMonth} onAdd={(emp, type) => setAdding({ emp, type })} onChanged={() => loadList()} flash={flash} />
           )}
           {tab === "wages" && emps && <WagesView onDone={(t) => { loadList(); flash(t); }} onNew={() => setNewEmp(true)} />}
           {tab === "pay" && emps && <PayView month={month ?? ""} setMonth={setMonth} onDone={(t) => { loadList(); flash(t); }} />}
@@ -152,7 +153,7 @@ export default function EmployeeDesk() {
       )}
 
       {adding && emps && (
-        <EntryModal emps={emps} init={adding} onClose={() => setAdding(null)} onSaved={(emp) => { setAdding(null); setWho(emp); setTab("ledger"); loadList(); flash("Saved ✓"); }} />
+        <EntryModal emps={emps} init={adding} onClose={() => setAdding(null)} onSaved={(emp) => { setAdding(null); setWho(emp); setTab("ledger"); setLedgerVersion((version) => version + 1); loadList(); flash("Saved ✓"); }} />
       )}
       {newEmp && <NewEmpModal onClose={() => setNewEmp(false)} onSaved={() => { setNewEmp(false); loadList(); flash("Employee added ✓"); }} />}
       {editEmp && <NewEmpModal edit={editEmp} onClose={() => setEditEmp(null)} onSaved={() => { setEditEmp(null); loadList(); flash("Saved ✓"); }} />}
@@ -181,6 +182,9 @@ function LedgerView({ emps, who, setWho, month, setMonth, onAdd, onChanged, flas
   useEffect(() => { load(); }, [load]);
   if (!who) return <div className="bd-card bd-m">Add an employee first.</div>;
   const e = d?.employee;
+  const salary = e?.payType === "MONTHLY" && d && d.month >= e.joinDate.slice(0, 7)
+    ? monthlySalarySummary(d.openingInr, d.rows, e.monthlySalaryInr)
+    : null;
   const refresh = () => { load(); onChanged(); };
   return (
     <div className="bd-card" id="emp-print">
@@ -215,6 +219,22 @@ function LedgerView({ emps, who, setWho, month, setMonth, onAdd, onChanged, flas
             <div className="bd-kpi r"><div className="l">Paid / deducted (debit)</div><div className="v">{rs(d.debitInr)}</div></div>
             <div className={`bd-kpi ${balCls(d.closingInr)}`}><div className="l">Closing · {balLabel(d.closingInr)}</div><div className="v">{balText(d.closingInr)}</div></div>
           </div>
+          {salary && (
+            <>
+              <h3>Monthly salary balance</h3>
+              <div className="bd-kpis">
+                <div className="bd-kpi"><div className="l">{salary.posted ? "Salary posted" : "Expected salary"}</div><div className="v">{rs(salary.salaryInr)}</div></div>
+                <div className="bd-kpi"><div className="l">Advances taken this month</div><div className="v">{rs(salary.advancesInr)}</div></div>
+                <div className="bd-kpi"><div className="l">Payments this month</div><div className="v">{rs(salary.paidInr)}</div></div>
+                <div className="bd-kpi"><div className="l">Deductions this month</div><div className="v">{rs(salary.deductionsInr)}</div></div>
+                <div className={`bd-kpi ${balCls(salary.closingInr)}`}>
+                  <div className="l">{salary.closingInr < 0 ? "Advance to carry forward" : "Balance left to pay"}</div>
+                  <div className="v">{balText(salary.closingInr)}</div>
+                </div>
+              </div>
+              <p className="bd-m small">Includes the opening balance and any bonus or extra wages. {salary.posted ? "" : "Estimate uses the current monthly rate until earned salary is posted."}</p>
+            </>
+          )}
           <div className="bd-tablewrap">
             <table className="bd-table">
               <thead><tr><th>Date</th><th>Entry</th><th>Note</th><th className="num">Credit · earned</th><th className="num">Debit · paid</th><th className="num">Balance</th><th className="bd-noprint" /></tr></thead>
@@ -263,17 +283,17 @@ function LedgerView({ emps, who, setWho, month, setMonth, onAdd, onChanged, flas
 
 // ---------------------------------------------------------------------------
 function PayView({ month, setMonth, onDone }: { month: string; setMonth: (m: string) => void; onDone: (t: string) => void }) {
-  const [rows, setRows] = useState<PayRow[] | null>(null);
+  const [payroll, setPayroll] = useState<{ month: string; data: PayRow[] } | null>(null);
+  const rows = payroll?.month === month ? payroll.data : null;
   const [days, setDays] = useState<Record<string, string>>({});
   const [mode, setMode] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [mlabel, setMlabel] = useState("");
+  const mlabel = month ? monthLabel(month) : "";
   const load = useCallback(async () => {
     try {
-      const j = await api<{ label: string; data: PayRow[] }>(`/api/employees/payroll?month=${month}`);
-      setRows(j.data);
-      setMlabel(j.label);
+      const j = await api<{ month: string; data: PayRow[] }>(`/api/employees/payroll?month=${month}`);
+      setPayroll(j);
       setErr(null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not load.");
@@ -288,7 +308,8 @@ function PayView({ month, setMonth, onDone }: { month: string; setMonth: (m: str
   const post = async (r: PayRow) => {
     setBusy(r.id);
     try {
-      await api("/api/employees/payroll", { method: "POST", json: { month, rows: [{ employeeId: r.id, days: Number(days[r.id] ?? 30), mode: mode[r.id] || "CASH" }] } });
+      const result = await api<{ done: unknown[]; skipped: { reason: string }[] }>("/api/employees/payroll", { method: "POST", json: { month, rows: [{ employeeId: r.id, days: Number(days[r.id] ?? 30), mode: mode[r.id] || "CASH" }] } });
+      if (!result.done.length) throw new Error(result.skipped[0]?.reason ?? "Salary was not posted.");
       onDone(`${r.name}: ${mlabel} salary posted ✓`);
       await load();
     } catch (e) {
@@ -310,7 +331,7 @@ function PayView({ month, setMonth, onDone }: { month: string; setMonth: (m: str
     }
   };
   const [y, m] = month ? month.split("-").map(Number) : [0, 0];
-  const shift = (n: number) => { const dt = new Date(Date.UTC(y, m - 1 + n, 1)); setMonth(`${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}`); };
+  const shift = (n: number) => { const dt = new Date(Date.UTC(y, m - 1 + n, 1)); setDays({}); setMonth(`${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}`); };
   return (
     <div className="bd-card">
       <div className="bd-row bd-gap">
@@ -318,21 +339,22 @@ function PayView({ month, setMonth, onDone }: { month: string; setMonth: (m: str
         <h2 style={{ margin: 0 }}>🗓️ Month-end salary — {mlabel}</h2>
         <button className="bd-btn" onClick={() => shift(1)}>▶</button>
       </div>
-      <div className="bd-m small">Type days present. Earned = monthly salary × days ÷ 30. An advance already given is taken off. If the advance is bigger than the month&apos;s earning, the rest carries to next month.</div>
+      <div className="bd-m small">Type days present. Earned = monthly salary × days ÷ 30. Balance includes earlier balances, recorded advances, payments, deductions and extras through the selected month. If the advance is bigger than the month&apos;s earning, the rest carries to next month.</div>
       {err && <div className="bd-err">{err}</div>}
       <div className="bd-tablewrap">
         <table className="bd-table">
-          <thead><tr><th>Person</th><th className="num">Salary</th><th>Days</th><th className="num">Earned</th><th className="num">Carried (− advance)</th><th className="num">Net payable</th><th>Paid by</th><th /></tr></thead>
+          <thead><tr><th>Person</th><th className="num">Salary</th><th>Days</th><th className="num">Earned</th><th className="num">Advances this month</th><th className="num">Payments this month</th><th className="num">Balance left to pay</th><th>Paid by</th><th /></tr></thead>
           <tbody>
             {(rows ?? []).filter((r) => r.payType !== "DAILY").map((r) => {
-              const c = calc(r);
+              const c = r.posted ? { earned: r.salary.salaryInr, ...payrollNet(0, r.salary.closingInr) } : calc(r);
               return (
                 <tr key={r.id}>
                   <td><b>{r.name}</b><div className="bd-m tiny">{r.role}</div></td>
                   <td className="num">{rs(r.monthlySalaryInr)}</td>
                   <td><input className="bd-n" style={{ width: 64 }} inputMode="numeric" disabled={r.posted} value={days[r.id] ?? "30"} onChange={(e) => setDays({ ...days, [r.id]: e.target.value })} aria-label={`Days present for ${r.name}`} /></td>
                   <td className="num">{rs(c.earned)}</td>
-                  <td className="num">{r.carriedInr < 0 ? "−" : r.carriedInr > 0 ? "+" : ""}{balText(r.carriedInr)}</td>
+                  <td className="num">{rs(r.salary.advancesInr)}</td>
+                  <td className="num">{rs(r.salary.paidInr)}</td>
                   <td className="num"><b>{rs(c.net)}</b>{c.carryForward < 0 && <div className="bd-m tiny">advance left {abs(c.carryForward)}</div>}</td>
                   <td>
                     <select value={mode[r.id] ?? "CASH"} disabled={r.posted} onChange={(e) => setMode({ ...mode, [r.id]: e.target.value })} aria-label="Paid by">

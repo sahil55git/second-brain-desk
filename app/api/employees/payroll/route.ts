@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma, safeDbCall } from "@/lib/db";
 import { getUser } from "@/lib/registerServer";
 import { businessDate } from "@/lib/register";
-import { balanceOf, dailyMonth, earnedForDays, isMonth, MONTH_DAYS, monthLabel, payrollNet, payTypeOf } from "@/lib/employeeLedger";
+import { balanceOf, dailyMonth, earnedForDays, isMonth, MONTH_DAYS, monthLabel, monthlySalarySummary, payrollNet, payTypeOf } from "@/lib/employeeLedger";
 import { currentMonth, ownerGate } from "@/lib/employeeServer";
 
 export const dynamic = "force-dynamic";
@@ -17,13 +17,14 @@ async function load(month: string) {
     include: { entries: { where: { voidedAt: null }, select: { creditInr: true, debitInr: true, month: true, type: true } } },
   });
   return emps.map((e) => {
-    const posted = e.entries.some((l) => l.month === month && l.type === "EARN");
-    // Carried = everything except this month's own salary line (an advance is negative).
-    const carried = balanceOf(e.entries.filter((l) => !(l.month === month && l.type === "EARN")));
+    const opening = balanceOf(e.entries.filter((l) => l.month < month));
+    const monthEntries = e.entries.filter((l) => l.month === month);
+    const salary = monthlySalarySummary(opening, monthEntries, e.monthlySalaryInr);
+    const carried = balanceOf(e.entries.filter((l) => l.month <= month && !(l.month === month && l.type === "EARN")));
     const payType = payTypeOf(e.payType);
     const dm = dailyMonth(e.entries, month);
     // a daily-wage person earns day by day: month-end only pays what is still owed
-    return { id: e.id, name: e.name, role: e.role, monthlySalaryInr: e.monthlySalaryInr, payType, dailyWageInr: e.dailyWageInr ?? null, wageDays: dm.days, wageEarnedInr: dm.earnedInr, balanceInr: balanceOf(e.entries), posted, carriedInr: carried };
+    return { id: e.id, name: e.name, role: e.role, monthlySalaryInr: e.monthlySalaryInr, payType, dailyWageInr: e.dailyWageInr ?? null, wageDays: dm.days, wageEarnedInr: dm.earnedInr, balanceInr: balanceOf(e.entries), posted: salary.posted, salary, carriedInr: carried };
   });
 }
 
