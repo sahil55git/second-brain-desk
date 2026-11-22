@@ -65,6 +65,19 @@ interface Settings {
   discount: boolean;
   beep: boolean;
 }
+const BILL_VIEW_OPTIONS = {
+  reports: ["Reports tab", "ವರದಿಗಳ ಟ್ಯಾಬ್"],
+  dates: ["Date range and Show button", "ದಿನಾಂಕ ವ್ಯಾಪ್ತಿ ಮತ್ತು ತೋರಿಸು ಬಟನ್"],
+  excel: ["Excel export", "Excel ರಫ್ತು"],
+  summary: ["Print summary", "ಸಾರಾಂಶ ಮುದ್ರಿಸಿ"],
+  select: ["Select bills", "ಬಿಲ್ ಆಯ್ಕೆ"],
+  payAll: ["All pending paid", "ಎಲ್ಲಾ ಬಾಕಿ ಬಂತು"],
+  status: ["Payment pending and Oil held filters", "ಹಣ ಬಾಕಿ ಮತ್ತು ಎಣ್ಣೆ ಹಿಡಿದಿದೆ ಫಿಲ್ಟರ್‌ಗಳು"],
+  totals: ["Totals and payment summary cards", "ಒಟ್ಟು ಮತ್ತು ಪಾವತಿ ಸಾರಾಂಶ ಕಾರ್ಡ್‌ಗಳು"],
+} as const;
+type BillViewOption = keyof typeof BILL_VIEW_OPTIONS;
+const BILL_VIEW_KEY = "counterBillsView";
+
 const DEFAULTS: Settings = { showTare: true, showGross: false, upiQr: true, roundOff: false, discount: true, beep: true };
 const SETTING_TEXT: Record<keyof Settings, [string, string]> = {
   showTare: ["Show tare weight on bill and print", "ಬಿಲ್ ಮತ್ತು ಮುದ್ರಣದಲ್ಲಿ ಟೇರ್ ತೂಕ ತೋರಿಸು"],
@@ -243,6 +256,7 @@ export default function CounterApp() {
   const [holds, setHolds] = useState<Hold[]>([]);
   const [holdId, setHoldId] = useState<string | null>(null);
   const [device, setDevice] = useState("");
+  const [hiddenBillView, setHiddenBillView] = useState<Partial<Record<BillViewOption, boolean>>>({});
   const [bFrom, setBFrom] = useState("");
   const [bTo, setBTo] = useState("");
   const [bQ, setBQ] = useState("");
@@ -264,6 +278,7 @@ export default function CounterApp() {
     setPrintPanel(read<boolean>("counterPrintPanel", false));
     setSettings({ ...DEFAULTS, ...read<Partial<Settings>>("counterSettings", {}) });
     setKiosk(readKiosk());
+    setHiddenBillView(read(BILL_VIEW_KEY, {}) ?? {});
     let d = read<string>("counterDevice", "");
     if (!d) {
       d = `dev-${Math.random().toString(36).slice(2, 8)}`;
@@ -858,7 +873,7 @@ export default function CounterApp() {
     const t = setInterval(() => void loadBills(), 15000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [upiWaiting]);
+  }, [upiWaiting, bFrom, bTo, date]);
 
   // ---- UPI payments seen by the UPI app on this device (Android app, Notification access allowed)
   const [upiAuto, setUpiAuto] = useState(true);
@@ -1105,7 +1120,7 @@ export default function CounterApp() {
           </button>
         )}
         {!kiosk?.on && show.deskLink && <Link href="/register/cashier" className="ctr-tbtn" title={k("Cashier desk: take the money, release the oil", "ಕ್ಯಾಷಿಯರ್ ಡೆಸ್ಕ್: ಹಣ ಪಡೆಯಿರಿ, ಎಣ್ಣೆ ಕೊಡಿ")}>💰 {k("Cashier", "ಕ್ಯಾಷಿಯರ್")}</Link>}
-        {show.bills && <button type="button" className="ctr-tbtn ctr-bills-button" onClick={() => { setBFilter(queueInBills ? "held" : "all"); setSelMode(false); setSel([]); setBTab("bills"); setPanel("bills"); void loadBills(); }}><span aria-hidden="true" className="ctr-bills-icon">📋</span> {k("Bills", "ಬಿಲ್‌ಗಳು")}{(queueInBills ? heldN : openN) > 0 && <b>{queueInBills ? heldN : openN}</b>}</button>}
+        {show.bills && <button type="button" className="ctr-tbtn ctr-bills-button" onClick={() => { setBFilter(queueInBills && !hiddenBillView.status ? "held" : "all"); setSelMode(false); setSel([]); setBTab("bills"); setPanel("bills"); if (hiddenBillView.dates) { setBFrom(""); setBTo(""); } void loadBills(hiddenBillView.dates ? { from: date, to: date } : undefined); }}><span aria-hidden="true" className="ctr-bills-icon">📋</span> {k("Bills", "ಬಿಲ್‌ಗಳು")}{(queueInBills ? heldN : openN) > 0 && <b>{queueInBills ? heldN : openN}</b>}</button>}
         {!queueInBills && (heldN > 0 || holdCash) && <button type="button" className={`ctr-tbtn${heldN > 0 ? " has" : ""}${readyN > 0 ? " ctr-next" : ""}`} onClick={() => { setPanel("queue"); void loadBills(); }} title={k("Bills whose oil is held till the money is received", "ಹಣ ಬರುವವರೆಗೆ ಎಣ್ಣೆ ಹಿಡಿದ ಬಿಲ್‌ಗಳು")}>🔒 {k("Held queue", "ಹಿಡಿದ ಸಾಲು")} <b>{heldN}</b></button>}
     </>
   );
@@ -1531,11 +1546,14 @@ export default function CounterApp() {
               <b>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}</b>
               <button type="button" onClick={() => setPanel(null)} aria-label="Close">✕</button>
             </div>
-            <div className="ctr-btabs" role="tablist">
-              <button type="button" role="tab" aria-selected={bTab === "bills"} className={bTab === "bills" ? "on" : ""} onClick={() => setBTab("bills")}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}</button>
+            {!hiddenBillView.reports && <div className="ctr-btabs" role="tablist">
+              <button type="button" role="tab" aria-selected={bTab === "bills"} className={bTab === "bills" ? "on" : ""} onClick={() => {
+                setBTab("bills");
+                if (hiddenBillView.dates) { setBFrom(""); setBTo(""); void loadBills({ from: date, to: date }); }
+              }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}</button>
               <button type="button" role="tab" aria-selected={bTab === "reports"} className={bTab === "reports" ? "on" : ""} onClick={() => { setBTab("reports"); setSelMode(false); setSel([]); }}>📊 {k("Reports", "ವರದಿಗಳು")}</button>
-            </div>
-            {bTab === "reports" ? (
+            </div>}
+            {!hiddenBillView.reports && bTab === "reports" ? (
               <BillReports
                 bills={bills}
                 k={k}
@@ -1549,17 +1567,19 @@ export default function CounterApp() {
               />
             ) : (
             <>
-            <div className="ctr-bfilter">
+            {(!hiddenBillView.dates || !hiddenBillView.excel || !hiddenBillView.summary) && <div className="ctr-bfilter">
+              {!hiddenBillView.dates && <>
               <input type="date" value={bFrom || date} max={date} onChange={(e) => setBFrom(e.target.value)} aria-label={k("From", "ಇಂದ")} />
               <input type="date" value={bTo || bFrom || date} max={date} onChange={(e) => setBTo(e.target.value)} aria-label={k("To", "ವರೆಗೆ")} />
               <button type="button" onClick={() => void loadBills()}>↻ {k("Show", "ತೋರಿಸು")}</button>
-              <button type="button" onClick={exportCsv} disabled={!shownBills.length}>⬇ Excel</button>
-              <button type="button" onClick={printSummary} disabled={!shownBills.length}>🖨️ {k("Summary", "ಸಾರಾಂಶ")}</button>
-            </div>
-            <div className="ctr-selbar">
-              <button type="button" className={selMode ? "on" : ""} onClick={() => { setSelMode(!selMode); setSel([]); }}>{selMode ? "✕" : "☑"} {selMode ? k("Stop selecting", "ಆಯ್ಕೆ ನಿಲ್ಲಿಸಿ") : k("Select bills", "ಬಿಲ್ ಆಯ್ಕೆ")}</button>
-              {openN > 0 && (
-                <button type="button" className="payall" onClick={() => { setSelMode(true); setSel(bills.filter((b) => dueOf(b) > 0).map((b) => b.key)); setBulk("money"); }}>
+              </>}
+              {!hiddenBillView.excel && <button type="button" onClick={exportCsv} disabled={!shownBills.length}>⬇ Excel</button>}
+              {!hiddenBillView.summary && <button type="button" onClick={printSummary} disabled={!shownBills.length}>🖨️ {k("Summary", "ಸಾರಾಂಶ")}</button>}
+            </div>}
+            {(!hiddenBillView.select || (!hiddenBillView.payAll && openN > 0)) && <div className="ctr-selbar">
+              {!hiddenBillView.select && <button type="button" className={selMode ? "on" : ""} onClick={() => { setSelMode(!selMode); setSel([]); }}>{selMode ? "✕" : "☑"} {selMode ? k("Stop selecting", "ಆಯ್ಕೆ ನಿಲ್ಲಿಸಿ") : k("Select bills", "ಬಿಲ್ ಆಯ್ಕೆ")}</button>}
+              {!hiddenBillView.payAll && openN > 0 && (
+                <button type="button" className="payall" onClick={() => { setSelMode(!hiddenBillView.select); setSel(bills.filter((b) => dueOf(b) > 0).map((b) => b.key)); setBulk("money"); }}>
                   <CashIn size={0.6} /> {k("All pending paid", "ಎಲ್ಲಾ ಬಾಕಿ ಬಂತು")} ({bills.filter((b) => dueOf(b) > 0).length})
                 </button>
               )}
@@ -1571,20 +1591,20 @@ export default function CounterApp() {
                   <button type="button" onClick={() => setSel([])}>{k("Clear", "ಅಳಿಸಿ")}</button>
                 </>
               )}
-            </div>
+            </div>}
             <input className="ctr-search" value={bQ} onChange={(e) => setBQ(e.target.value)} placeholder={k("🔍 Bill no, customer, item, amount", "🔍 ಬಿಲ್ ಸಂಖ್ಯೆ, ಹೆಸರು, ವಸ್ತು, ಮೊತ್ತ")} />
-            <div className="ctr-seg">
+            {!hiddenBillView.status && <div className="ctr-seg">
               <button type="button" className={bFilter === "all" ? "on" : ""} onClick={() => setBFilter("all")}>{k("All", "ಎಲ್ಲಾ")}</button>
               <button type="button" className={bFilter === "open" ? "on" : ""} onClick={() => setBFilter("open")}>⏳ {k("Payment pending", "ಹಣ ಬಾಕಿ")} {openN > 0 ? `(${openN})` : ""}</button>
               <button type="button" className={bFilter === "held" ? "on" : ""} onClick={() => setBFilter("held")}>🔒 {k("Oil held", "ಎಣ್ಣೆ ಹಿಡಿದಿದೆ")} {heldN > 0 ? `(${heldN})` : ""}</button>
-            </div>
-            <div className="ctr-bsum">
+            </div>}
+            {!hiddenBillView.totals && <div className="ctr-bsum">
               <div><small>{k("Bills", "ಬಿಲ್")}</small><b>{bSum.count}</b></div>
               <div className="tot"><small>{k("Total", "ಒಟ್ಟು")}</small><b>{rupees(bSum.total)}</b></div>
               <div><small>kg</small><b>{bSum.kg.toFixed(3).replace(/\.?0+$/, "")}</b></div>
               {Object.entries(bSum.modes).map(([m, v]) => <div key={m}><small>{modeName(m)}</small><b>{rupees(v)}</b></div>)}
               {retTotal > 0 && <div className="ret"><small>↩️ {k("Returned", "ಹಿಂತಿರುಗಿಸಿದ್ದು")}</small><b>−{rupees(retTotal)}</b></div>}
-            </div>
+            </div>}
             {bErr && <p className="ctr-msg bad">{bErr}</p>}
             {askCards()}
             <ul className="ctr-list">
@@ -2129,6 +2149,22 @@ export default function CounterApp() {
                 <span>{k(SETTING_TEXT[key][0], SETTING_TEXT[key][1])}</span>
               </label>
             ))}
+
+            {isOwner && !kiosk?.on && <>
+              <h4>{k("Bills view (this device)", "ಬಿಲ್ ನೋಟ (ಈ ಸಾಧನ)")}</h4>
+              <p className="ctr-hint">{k("Choose which controls are visible in the Bills window on this device.", "ಈ ಸಾಧನದ ಬಿಲ್ ವಿಂಡೋದಲ್ಲಿ ಕಾಣಬೇಕಾದ ನಿಯಂತ್ರಣಗಳನ್ನು ಆರಿಸಿ.")}</p>
+              {(Object.keys(BILL_VIEW_OPTIONS) as BillViewOption[]).map((key) => (
+                <label key={key} className="ctr-set">
+                  <input type="checkbox" checked={!hiddenBillView[key]} onChange={(e) => {
+                    const hidden = { ...hiddenBillView, [key]: !e.target.checked };
+                    setHiddenBillView(hidden);
+                    write(BILL_VIEW_KEY, hidden);
+                    if (hidden.dates) { setBFrom(""); setBTo(""); }
+                  }} />
+                  <span>{k(...BILL_VIEW_OPTIONS[key])}</span>
+                </label>
+              ))}
+            </>}
 
             <h4>{k("Install on another device", "ಬೇರೆ ಸಾಧನದಲ್ಲಿ ಇನ್‌ಸ್ಟಾಲ್")}</h4>
             <p className="ctr-hint">
