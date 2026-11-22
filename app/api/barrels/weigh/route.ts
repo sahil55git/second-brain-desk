@@ -72,24 +72,24 @@ export async function POST(req: NextRequest) {
     if (!reweigh && phase === "EMPTY" && barrel.grossAt && weighedAt.getTime() < new Date(barrel.grossAt).getTime())
       return fail("The empty weighing cannot be dated before the full weighing.", 400);
 
-    if (tickId) {
-      const claimed = await prisma.scaleTick.updateMany({
-        where: { id: tickId, usedAt: null },
-        data: { usedAt: new Date(), usedBarrelCode: barrel.code, usedPhase: phase },
-      });
-      if (claimed.count !== 1) return fail("That scale reading was just used. Wait for the next steady reading.", 409);
-    }
-
     const now = new Date();
     const data =
       phase === "GROSS"
         ? { grossKg: kg, grossAt: weighedAt, grossRecordedAt: now, grossBy: by, grossSource: source, grossScale: scaleSource, grossTickId: tickId, grossNote: note }
         : { emptyKg: kg, emptyAt: weighedAt, emptyRecordedAt: now, emptyBy: by, emptySource: source, emptyScale: scaleSource, emptyTickId: tickId, emptyNote: note };
     const before = phase === "GROSS" ? barrel.grossKg : barrel.emptyKg;
-    await prisma.$transaction(async (tx) => {
+    const conflict = await prisma.$transaction(async (tx) => {
+      if (tickId) {
+        const claimed = await tx.scaleTick.updateMany({
+          where: { id: tickId, usedAt: null },
+          data: { usedAt: now, usedBarrelCode: barrel.code, usedPhase: phase },
+        });
+        if (claimed.count !== 1) return fail("That scale reading was just used. Wait for the next steady reading.", 409);
+      }
       await tx.barrel.update({ where: { id: barrel.id }, data });
       await logEvent(tx, barrel.receiptId, reweigh ? "REWEIGH" : phase, by, { phase, kg, source, scale: scaleSource, tickId, note, weighedAt: weighedAt.toISOString(), recordedAt: now.toISOString(), ...(reweigh ? { previousKg: before } : {}) }, barrel.code);
     });
+    if (conflict) return conflict;
     const r = await prisma.oilReceipt.findUnique({ where: { id: barrel.receiptId }, include: RECEIPT_INCLUDE });
     return { r: r!, code: barrel.code, kg } as const;
   });

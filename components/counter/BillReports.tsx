@@ -48,9 +48,11 @@ function download(name: string, rows: (string | number)[][]) {
 }
 
 export default function BillReports({
-  bills, k, from, to, today, onRange, returned, modeName, error,
+  bills, k, from, to, today, onRange, returned, modeName, error, dashboard = false, onOpenReport,
 }: {
   bills: SavedBill[];
+  dashboard?: boolean;
+  onOpenReport?: () => void;
   k: (en: string, ka: string) => string;
   from: string;
   to: string;
@@ -61,6 +63,7 @@ export default function BillReports({
   error?: string;
 }) {
   const [rep, setRep] = useState<Rep>("days");
+  const open = (report: Rep) => { setRep(report); onOpenReport?.(); };
   const [custom, setCustom] = useState(false);
   const t = useMemo(() => totals(bills), [bills]);
   const active = (Object.keys(Object.fromEntries(PRESETS.map((p) => [p.id, 1]))) as Preset[]).find((p) => {
@@ -317,19 +320,26 @@ export default function BillReports({
         <div><small>{k("Avg bill", "ಸರಾಸರಿ")}</small><b>{rupees(t.avg)}</b></div>
       </div>
       <div className="rpt-kpis sub">
-        <button type="button" className={t.pending > 0 ? "warn" : ""} onClick={() => setRep("pend")}><small>⏳ {k("To collect", "ಬರಬೇಕು")}</small><b>{rupees(t.pending)}</b></button>
-        <button type="button" className={t.held > 0 ? "warn" : ""} onClick={() => setRep("held")}><small>🔒 {k("Oil held", "ಎಣ್ಣೆ ಹಿಡಿದಿದೆ")}</small><b>{t.held}</b></button>
-        <button type="button" onClick={() => setRep("disc")}><small>🏷️ {k("Discount", "ರಿಯಾಯಿತಿ")}</small><b>{rupees(t.discount)}</b></button>
+        <button type="button" className={t.pending > 0 ? "warn" : ""} onClick={() => open("pend")}><small>⏳ {k("To collect", "ಬರಬೇಕು")}</small><b>{rupees(t.pending)}</b></button>
+        <button type="button" className={t.held > 0 ? "warn" : ""} onClick={() => open("held")}><small>🔒 {k("Oil held", "ಎಣ್ಣೆ ಹಿಡಿದಿದೆ")}</small><b>{t.held}</b></button>
+        <button type="button" onClick={() => open("disc")}><small>🏷️ {k("Discount", "ರಿಯಾಯಿತಿ")}</small><b>{rupees(t.discount)}</b></button>
         {returned > 0 && <div><small>↩️ {k("Returned", "ಹಿಂತಿರುಗಿದ್ದು")}</small><b>−{rupees(returned)}</b></div>}
       </div>
 
-      <div className="rpt-chips" role="tablist" aria-label={k("Reports", "ವರದಿಗಳು")}>
+      {dashboard && <div className="rpt-kpis sub">
+        <button type="button" onClick={() => open("pay")}><small>{k("Cash on selected bills", "ಆಯ್ದ ಬಿಲ್‌ಗಳ ನಗದು")}</small><b>{rupees(t.modes.CASH || 0)}</b></button>
+        <button type="button" onClick={() => open("pay")}><small>{k("UPI on selected bills", "ಆಯ್ದ ಬಿಲ್‌ಗಳ ಯುಪಿಐ")}</small><b>{rupees(t.modes.UPI || 0)}</b></button>
+        <button type="button" onClick={() => open("items")}><small>{k("View item-wise sales", "ವಸ್ತುವಾರು ಮಾರಾಟ")}</small></button>
+        <button type="button" onClick={() => open("hours")}><small>{k("View busy hours", "ಬಿಜಿ ಸಮಯ")}</small></button>
+      </div>}
+
+      {!dashboard && <><div className="rpt-chips" role="tablist" aria-label={k("Reports", "ವರದಿಗಳು")}>
         {REPORTS.map((r) => (
           <button key={r.id} type="button" role="tab" aria-selected={rep === r.id} className={rep === r.id ? "on" : ""} onClick={() => setRep(r.id)}><i aria-hidden>{r.icon}</i> {k(r.en, r.kn)}</button>
         ))}
       </div>
       <h4 className="rpt-title">{REPORTS.find((r) => r.id === rep)!.icon} {k(REPORTS.find((r) => r.id === rep)!.en, REPORTS.find((r) => r.id === rep)!.kn)}</h4>
-      {body()}
+      {body()}</>}
     </div>
   );
 }
