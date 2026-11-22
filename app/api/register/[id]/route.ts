@@ -30,6 +30,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const result = await safeDbCall(() =>
     prisma.$transaction(async (tx) => {
       const rows = group ? await tx.registerEntry.findMany({ where: { details: { path: ["split", "id"], equals: group.id } } }) : [e];
+      const billNo = rows.map((row) => Number((row.details as { billNo?: unknown } | null)?.billNo)).find((no) => Number.isInteger(no) && no > 0);
+      if (e.kind === "SALE" && billNo && await tx.registerEntry.findFirst({
+        where: { kind: "SALE_RETURN", details: { path: ["returnOf"], equals: billNo } },
+        select: { id: true },
+      })) return false;
       if (group) await tx.registerEntry.deleteMany({ where: { details: { path: ["split", "id"], equals: group.id } } });
       else await tx.registerEntry.delete({ where: { id: e.id } });
       const total = rows.reduce((a, r) => a + r.amountInr, 0);
@@ -43,9 +48,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         rows.length > 1 ? rows : e,
         null
       );
+      return true;
     })
   );
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 503 });
+  if (!result.data) return NextResponse.json({ error: "This bill already has a return and cannot be cancelled." }, { status: 409 });
   return NextResponse.json({ ok: true });
 }
 
