@@ -2200,7 +2200,7 @@ export default function CounterApp() {
                     write(BILL_VIEW_KEY, hidden);
                     if (hidden.dates) { setBFrom(""); setBTo(""); }
                   }} />
-                  <span>{k(...BILL_VIEW_OPTIONS[key])}</span>
+                  <span>{k(BILL_VIEW_OPTIONS[key][0], BILL_VIEW_OPTIONS[key][1])}</span>
                 </label>
               ))}
             </>}
