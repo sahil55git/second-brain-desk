@@ -151,6 +151,38 @@ describe("BtScaleLink", () => {
     expect(t.scale.opens).toBe(2);
     await t.link.stop();
   });
+  it("reattaches to the saved Android scale after an app switch and waits for fresh bytes", async () => {
+    const page = Object.assign(new EventTarget(), { visibilityState: "visible" });
+    vi.stubGlobal("document", page);
+    const t = setup();
+    try {
+      t.link.start();
+      await wait(0);
+      t.scale.say("001.000");
+      const oldBytes = t.scale.text!;
+      page.visibilityState = "hidden";
+      page.dispatchEvent(new Event("visibilitychange"));
+      await wait(30_000);
+      expect(t.scale.closes).toBe(0);
+      page.visibilityState = "visible";
+      page.dispatchEvent(new Event("visibilitychange"));
+      page.dispatchEvent(new Event("visibilitychange"));
+      await wait(0);
+      expect(t.scale.opens).toBe(2);
+      oldBytes("+ 999.000 kg\r\n");
+      expect(t.status()).toBe("silent");
+      t.scale.say("002.500");
+      expect(t.status()).toBe("live");
+      expect(t.readings.map(r => r.weightKg)).toEqual([1, 2.5]);
+      await t.link.stop();
+      page.dispatchEvent(new Event("visibilitychange"));
+      expect(t.scale.opens).toBe(2);
+    } finally {
+      await t.link.stop();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("says so when data comes but is not a weight (wrong speed)", async () => {
     const t = setup();
     t.link.start();
