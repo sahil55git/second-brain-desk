@@ -287,6 +287,11 @@ rep("${jobSteps(j)}${payStatus(j)}", "${jobSteps(j)}${payStatus(j)}${j.cake==='S
 rep("const j=S.jw.find(x=>x.tok===tok);j.settled=true;", "const j=S.jw.find(x=>x.tok===tok);if(!j||j.settled)return;if(!validTempoShare(j,j.seedKg)){toast('Adjust the tempo share for this weight','bad');sheetJob(tok);return}const payment=settlement(j);if(j.cake==='SHOP'&&!window.confirm(splitNote(payment)+'\\nRecord these settlement amounts?'))return;j.settled=true;")
 app+="\n"+open(D+'/app_payout.js').read()
 
+# Put the dashboard beside the current work queues.
+rep("+cnt(S.parked.length,'park','parked','sheetParked()',S.parked.length);",
+    """+cnt(S.parked.length,'park','parked','sheetParked()',S.parked.length)
+  +'<a class="cp" href="/mill/operations" target="_top">'+ic('list')+'<span>'+ (S.lang==='kn'?'ವರದಿಗಳು':'Dashboard · Reports')+'</span></a>';""")
+
 i=s.rindex("\nrender();\n</script>")
 s=s[:i]+"\n/*VOICE-ENGINE*/\n"+eng+"\n/*APP-VOICE*/\n"+tail+app+wrap+s[i:]
 open(D+'/preview.html','w').write(s)

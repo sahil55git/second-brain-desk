@@ -20,8 +20,9 @@ function payoutRows(job, kg) {
 }
 
 function payoutButton(job, kg, tok = '') {
- const rows = validTempoShare(job, kg) ? payoutRows(job, kg).map(([name, value]) => name + ' ' + value).join(' · ') : 'Adjust the tempo share for this weight';
- const shares = `<div class="note">${rows}</div>`;
+ const shares = validTempoShare(job, kg)
+  ? `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:8px 0">${payoutRows(job, kg).map(([name, value], i) => `<div class="trow"><span class="ti">${ic(i === 0 ? 'user' : 'auto')}</span><span>${name}<br><b>${value}</b></span></div>`).join('')}</div>`
+  : '<div class="note">Adjust the tempo share for this weight</div>';
  if (job.settled) return shares;
  return `<button class="sbtn" onclick="sheetPayout('${tok}')">${ic('edit')} Edit payout split</button>${shares}`;
 }
@@ -37,9 +38,14 @@ function sheetPayout(tok, mode) {
  const custom = selected === 'rate' || selected === 'amount';
  layer('Edit payout split', `
   <div class="note">${f2(kg)} kg × ₹${RATE.SHOP}/kg · Total ${payoutInr(kg * RATE.SHOP)}</div>
-  <div class="chrow">${choices.map(([id, icon, label]) => `<button class="ch ${selected===id?'sel':''}" onclick="sheetPayout('${tok}','${id}')">${ic(icon)} ${label}</button>`).join('')}</div>
+  <div class="chrow" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">${choices.map(([id, icon, label]) => `<button class="ch ${selected===id?'sel':''}" aria-pressed="${selected===id}" onclick="sheetPayout('${tok}','${id}')">${ic(icon)} ${label}</button>`).join('')}</div>
   ${custom ? `<label class="mrow">${selected === 'rate' ? 'Tempo ₹/kg' : 'Tempo ₹ amount'} <input id="tempo-share" inputmode="decimal" type="number" min="0" step="0.01" value="${split?.mode === selected ? split.value : ''}" style="min-width:0;width:7em"></label>` : ''}
+  ${payoutSummary(job,kg)}
   <button class="sbtn go" onclick="savePayout('${tok}','${selected}')">${ic('check')} Save split</button>`, back);
+}
+
+function payoutSummary(job, kg) {
+ return `<div class="acct" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">${payoutRows(job,kg).map(([name,value],i)=>`<div><small>${i===0?'Customer':'Tempo'}</small><br><b>${value}</b></div>`).join('')}</div><p class="note">Current saved shares before deductions</p>`;
 }
 
 function savePayout(tok, mode) {
