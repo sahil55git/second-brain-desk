@@ -421,15 +421,15 @@ const PLACES=['Bidar','Kamthana','Chidri','Naubad','Janawada','Humnabad','Bhalki
 const RATE={SHOP:6,CUSTOMER:10},CANS={can15:50,can5new:40,can5old:20};
 const canCharge=c=>sum(Object.entries(c||{}).map(([k,q])=>q*(CANS[k]||0)));
 function settlement(j){const rate=RATE[j.cake],gross=j.seedKg*rate,cans=canCharge(j.cans),aC=Math.max(0,(j.advC||0)-(j.advR||0)),aA=Math.max(0,(j.advA||0)-(j.advRA||0)),adv=aC+aA;
- if(j.cake==='SHOP'){const half=gross/2,due=gross-adv-cans;return{rate,gross,cans,adv,due,dir:due>=0?'out':'in',cust:half-aC-cans,auto:half-aA,advR:j.advR||0}}
+ if(j.cake==='SHOP'){const tempo=tempoShare(j,gross),due=gross-adv-cans;return{rate,gross,cans,adv,due,dir:due>=0?'out':'in',cust:gross-tempo-aC-cans,auto:tempo-aA,advR:j.advR||0}}
  const due=gross+cans+adv;return{rate,gross,cans,adv,due,dir:'in',cust:due,auto:0,advR:j.advR||0}}
 /* who pays whom: 'in' = the customer pays us, 'out' = we pay the customer. Shop keeps khali: advances and cans come off what we pay. Customer takes khali: khali + cans + the advance we gave all come back from the customer. */
 const payLbl=(j,dirIn)=>dirIn?(j.cake==='SHOP'?'Customer pays':'Khali payment'):'Pay customer';
-const splitNote=s=>'Customer '+(s.cust>=0?'gets ':'owes ')+inr(s.cust)+' · Tempo '+(s.auto>=0?'gets ':'owes ')+inr(s.auto);
+const splitNote=s=>'Customer '+(s.cust>=0?'gets ':'owes ')+payoutInr(s.cust)+' · Tempo '+(s.auto>=0?'gets ':'owes ')+payoutInr(s.auto);
 function resRows(j,s){const net=`<div class="ar res"><span>${s.dir==='in'?ic('down')+(j.cake==='SHOP'?'':ic('bag'))+' '+(j.cake==='SHOP'?'Customer pays you':'Khali payment'):ic('up')+' You pay customer'}</span><b>${inr(s.due)}</b></div>`;
  if(j.cake!=='SHOP')return net;
- const line=(ico,pay,owe,v)=>`<div class="ar"><span>${ic(ico)} ${v>=0?pay:owe}</span><b>${inr(v)}</b></div>`;
- return line('user','Pay customer','Customer owes shop',s.cust)+line('auto','Pay tempo','Tempo owes shop',s.auto)+net}
+ const line=(ico,pay,owe,v)=>`<div class="ar"><span>${ic(ico)} ${v>=0?pay:owe}</span><b>${payoutInr(v)}</b></div>`;
+ return line('user','Pay customer','Customer owes shop',s.cust)+line('auto','Pay tempo','Tempo owes shop',s.auto)+`<div class="ar res"><span>${s.due<0?'Net in':s.due>0?'Net out':'Net movement'}</span><b>${payoutInr(s.due)}</b></div>`}
 
 /* ---------- state ---------- */
 const isBagK=k=>/seed|khali/.test(k)&&k!=='sed';
@@ -550,7 +550,7 @@ function workerHTML(){
 function workerPrint(){const tr=S.wtray;if(!tr.length)return;const sn='WS-'+pad(S.wsn++),tm=clock();
  tr.forEach(x=>S.queue.push({id:uid('Q'),k:x.k,nb:x.nb||1,kg:x.kg,time:tm,at:Date.now(),by:(S.me&&S.me.name)||'Worker',cno:x.cno||0,slip:sn}));
  {const mx=Math.max(0,...tr.map(x=>x.cno||0));if(mx){S.maxCno=Math.max(S.maxCno||1,mx);S.lastCno=cnoMax()+1;cnoSave()}}S.wtray=[];S.wdone={sn,n:tr.length};millPrintGo(S.cfg.autoSlip!==false,{kind:'slip',code:sn,shop:'MAHADEV TRADERS',title:'Mill 1 · WEIGHT SLIP',when:nowFull(),rows:tr.map(x=>[IT[x.k].wl+(x.cno?' · '+cnoL()+' '+x.cno:'')+(isBagK(x.k)?' · '+bagTxt(x.nb||1):''),f2(x.kg)+' kg']),foot:['By '+((S.me&&S.me.name)||'Worker'),nowFull()]},1);
- layer('Printed',`<div class="note">Saved · the counter person sees these in Waiting.</div><div id="prst" class="prst"></div>
+ layer('Weight slip saved',`<div class="note">Saved · the counter person sees these in Waiting.</div><div id="prst" class="prst"></div>
   <div class="paper"><div class="hd">MAHADEV TRADERS</div><div style="text-align:center">Mill 1 · WEIGHT SLIP</div><div style="text-align:center;font-weight:700">${nowFull()}</div><div class="hr"></div>
   ${tr.map(x=>`<div class="sr"><span>${esc(IT[x.k].wl)}${x.cno?' · '+cnoL()+' '+x.cno:''}${isBagK(x.k)?' · '+bagTxt(x.nb||1):''}</span><b>${f2(x.kg)} kg</b></div>`).join('')}<div class="hr"></div>
   <div class="sr"><span>By ${esc((S.me&&S.me.name)||'Worker')}</span><span>${nowFull()}</span></div><div class="bcw">${bcSvg(sn)}</div><div style="text-align:center;font-size:12px;letter-spacing:.1em">${sn}</div></div>
@@ -567,7 +567,8 @@ function slipHTML(){const sp=S.slip,kg=sum(sp.lines);
   ${sp.lines.map((k,i)=>`<div class="li"><div class="r1"><span class="tag" style="border:0;color:var(--soft)">${i+1}</span><b>${bagLabel(nbs,i)}</b><span class="tag">steady</span><span class="kgbox">${f2(k)} kg</span></div><div class="r1"><span class="tag">${cnoL()} ${sp.cnos[i]||'—'}</span><span class="stpr" style="margin:0"><button onclick="slipNb(${i},-1)">−</button><b>${nbs[i]}</b><button onclick="slipNb(${i},1)">+</button></span><span style="flex:1"></span><button class="xbtn" onclick="slipNbs();S.slip.lines.splice(${i},1);S.slip.cnos.splice(${i},1);S.slip.nbs.splice(${i},1);if(!S.slip.lines.length)S.view='pick';render()">${ic('x')}</button></div></div>`).join('')}
   <div class="total"><small>${bagTxt(sum(nbs))} · ${f1(kg)} kg<br><span style="color:#B8C6E6">${est.dir==='in'?(sp.cake==='SHOP'?'Customer pays you (estimate)':'Customer pays (khali · estimate)'):'You pay customer (estimate)'}</span></small><b>${inr(est.due)}</b></div>
   <div class="note acct" style="padding:0 4px"><div class="ar"><span>Crushing ${f1(kg)} kg × ₹${est.rate}</span><b>${inr(est.gross)}</b></div>${sp.advC?`<div class="ar"><span>${sp.cake==='SHOP'?'−':'+'} customer advance</span><b>${inr(sp.advC)}</b></div>`:''}${sp.advA?`<div class="ar"><span>${sp.cake==='SHOP'?'−':'+'} tempo advance</span><b>${inr(sp.advA)}</b></div>`:''}${est.cans?`<div class="ar"><span>${sp.cake==='SHOP'?'− cans taken':'+ cans taken'}</span><b>${inr(est.cans)}</b></div>`:''}${sp.advR?`<div class="ar"><span>${sp.cake==='SHOP'?'+':'−'} advance returned</span><b>${inr(sp.advR)}</b></div>`:''}${sp.advRA?`<div class="ar"><span>${sp.cake==='SHOP'?'+':'−'} tempo advance returned</span><b>${inr(sp.advRA)}</b></div>`:''}${sp.cake==='SHOP'?`<div class="ar"><span>${est.cust>=0?'Customer gets':'Customer owes shop'}</span><b>${inr(est.cust)}</b></div><div class="ar"><span>${est.auto>=0?'Tempo gets':'Tempo owes shop'}</span><b>${inr(est.auto)}</b></div>`:''}</div>
-  <div class="cake" data-f="khalichg"><button class="${sp.cake==='SHOP'?'sel':''}" onclick="S.slip.cake='SHOP';render()">${icoSvg('khali',30)}${ic('shop')}<br>Shop keeps khali (oil cake)<small>₹6/kg · split customer/auto</small></button><button class="${sp.cake==='CUSTOMER'?'sel':''}" onclick="S.slip.cake='CUSTOMER';render()">${icoSvg('khali',30)}${ic('user')}<br>Customer takes khali (oil cake)<small>₹10/kg of seed</small></button></div>
+  <div class="cake" data-f="khalichg"><button class="${sp.cake==='SHOP'?'sel':''}" onclick="S.slip.cake='SHOP';render()">${icoSvg('khali',30)}${ic('shop')}<br>Shop keeps khali (oil cake)<small>₹6/kg</small></button><button class="${sp.cake==='CUSTOMER'?'sel':''}" onclick="S.slip.cake='CUSTOMER';render()">${icoSvg('khali',30)}${ic('user')}<br>Customer takes khali (oil cake)<small>₹10/kg of seed</small></button></div>
+${sp.cake==='SHOP'?payoutButton(sp,kg):''}
   <div class="sec"><div class="grp"><span class="gi" style="background:#C98A25">${ic('rupee')}</span>Taken by customer · advance and cans</div>
   <button class="mrow" data-f="adv" onclick="sheetAdv('slip','advC')"><span class="coin">₹</span><span class="arr out">↑</span><span class="sp">Customer advance</span><span class="amt">${advTxt(sp,'advC','advR')}</span>${ic('edit')}</button>
   <button class="mrow" data-f="adv" onclick="sheetAdv('slip','advA')"><span class="coin">${ic('auto')}</span><span class="arr out">↑</span><span class="sp">Tempo advance</span><span class="amt">${advTxt(sp,'advA','advRA')}</span>${ic('edit')}</button>
@@ -592,7 +593,7 @@ function tapItem(k){if(k==='can15'||k==='can5new'||k==='can5old'){sheetCanJob(k)
 function giveKhali(j,kg){j.khaliKg=kg;if(j.cake==='SHOP'){j.cake='CUSTOMER';j.settled=false}toast(`Khali handed over → ₹10/kg of ${f1(j.seedKg)} kg seed = ${inr(j.seedKg*10)}`);afterSave();sheetHeld()}
 
 /* ---------- layer / sheets ---------- */
-const LAYER_IC=[[/^Customer advance|^Tempo advance/,'rupee'],[/^Customer$/,'user'],[/^Jobs/,'jc'],[/^Parked/,'park'],[/^Printed|^Token/,'printer'],[/^Waiting/,'hourg'],[/^Our mill/,'own'],[/^Our oil|^Customer oil|^Customer khali|^Add /,'drop']];
+const LAYER_IC=[[/^Customer advance|^Tempo advance/,'rupee'],[/^Customer$/,'user'],[/^Jobs/,'jc'],[/^Parked/,'park'],[/^Weight slip saved|^Token/,'printer'],[/^Waiting/,'hourg'],[/^Our mill/,'own'],[/^Our oil|^Customer oil|^Customer khali|^Add /,'drop']];
 function layer(title,body,close='closeLayer()'){const l=$('#layer');
  if(title.indexOf('<')<0){const m=LAYER_IC.find(x=>x[0].test(title));if(m)title=(m[1]==='jc'?jcIcon(28):m[1]==='own'?ownIcon(28):ic(m[1]))+' '+title}
  else if(/<small/.test(title)&&title.indexOf('class="ic')<0)title=jcIcon(28)+' '+title;
@@ -635,9 +636,10 @@ function clearSlip(){S.slip={cust:null,cake:'SHOP',lines:[],advC:0,advA:0,cans:{
 function parkSlip(){if(!S.slip.lines.length)return;S.parked.push(Object.assign(JSON.parse(JSON.stringify(S.slip)),{at:Date.now()}));clearSlip();toast('Parked — find it under Parked')}
 function sheetParked(){layer('Parked',(S.parked.length?sortBar('P'):'')+(S.parked.length?sortBy(S.parked.map((p,i)=>({p,i})),o=>({ts:o.p.at||0,no:o.i,cno:0,name:o.p.cust?o.p.cust[0]:'',kg:sum(o.p.lines)})).map(({p,i})=>`<button class="card" style="text-align:left" onclick="if(S.mode==='worker'){toast('Switch to Counter mode to finish this bill','bad');return}S.slip=S.parked.splice(${i},1)[0];S.view='slip';closeLayer()"><h3>${p.cust?esc(p.cust[0]):'No customer yet'}</h3><div class="pillrow"><span class="pc">${bagTxt(p.nbs&&p.nbs.length?sum(p.nbs):p.lines.length)}</span><span class="pc">${f1(sum(p.lines))} kg</span></div></button>`).join(''):'<div class="note">Nothing parked.</div>'))}
 function confirmSlip(){S.slip.stick=!!S.cfg.stickers;S.slip.copies=S.cfg.copies||1;const sp=S.slip;if(!sp.cust)return toast('Choose the customer first','bad');
- const tok='JW-'+pad(S.nextJw++),kg=r2(sum(sp.lines)),nbs=slipNbs().slice(),j={id:uid('J'),nb:sum(nbs),tok,customer:sp.cust[0],place:sp.cust[1],mobile:sp.cust[2]||'',lines:sp.lines.slice(),seedKg:kg,cake:sp.cake,advC:sp.advC||0,advA:sp.advA||0,advR:sp.advR||0,advRA:sp.advRA||0,cans:Object.assign({},sp.cans),time:clock(),at:Date.now(),crushed:false,settled:false,given:false,method:'cash'};
+ const kg=r2(sum(sp.lines));if(!validTempoShare(sp,kg))return toast('Adjust the tempo share for this weight','bad');
+ const tok='JW-'+pad(S.nextJw++),nbs=slipNbs().slice(),j={id:uid('J'),nb:sum(nbs),tok,customer:sp.cust[0],place:sp.cust[1],mobile:sp.cust[2]||'',lines:sp.lines.slice(),seedKg:kg,cake:sp.cake,tempoSplit:sp.cake==='SHOP'?sp.tempoSplit:undefined,advC:sp.advC||0,advA:sp.advA||0,advR:sp.advR||0,advRA:sp.advRA||0,cans:Object.assign({},sp.cans),time:clock(),at:Date.now(),crushed:false,settled:false,given:false,method:'cash'};
  S.jw.push(j);const est=Math.abs(settlement(j).due);
- const rows=[['Token no. (today)',String(jserial(j))],['Invoice no.',j.tok.replace('JW-','#')],['-'],['Customer',j.customer],['Village',j.place],...(j.mobile?[['Mobile',fmtMob(j.mobile)]]:[]),['-'],...sp.lines.map((x,i)=>[bagLabel(nbs,i)+(sp.cnos[i]?' · '+cnoL()+' '+sp.cnos[i]:''),f2(x)+' kg']),['Total seed',f1(kg)+' kg · '+bagTxt(sum(nbs))],['Khali',sp.cake==='SHOP'?'Shop keeps · ₹6/kg':'Customer takes · ₹10/kg'],sp.advC?['Customer advance',inr(sp.advC)]:null,sp.advA?['Tempo advance',inr(sp.advA)]:null,sp.advR?['Advance returned',inr(sp.advR)]:null,sp.advRA?['Tempo advance returned',inr(sp.advRA)]:null,...CANK.filter(c=>sp.cans[c[0]]).map(c=>[c[2],'× '+sp.cans[c[0]]])].filter(Boolean);
+ const rows=[['Token no. (today)',String(jserial(j))],['Invoice no.',j.tok.replace('JW-','#')],['-'],['Customer',j.customer],['Village',j.place],...(j.mobile?[['Mobile',fmtMob(j.mobile)]]:[]),['-'],...sp.lines.map((x,i)=>[bagLabel(nbs,i)+(sp.cnos[i]?' · '+cnoL()+' '+sp.cnos[i]:''),f2(x)+' kg']),['Total seed',f1(kg)+' kg · '+bagTxt(sum(nbs))],['Khali',sp.cake==='SHOP'?'Shop keeps · ₹6/kg':'Customer takes · ₹10/kg'],...(j.cake==='SHOP'?payoutRows(j,kg):[]),sp.advC?['Customer advance',inr(sp.advC)]:null,sp.advA?['Tempo advance',inr(sp.advA)]:null,sp.advR?['Advance returned',inr(sp.advR)]:null,sp.advRA?['Tempo advance returned',inr(sp.advRA)]:null,...CANK.filter(c=>sp.cans[c[0]]).map(c=>[c[2],'× '+sp.cans[c[0]]])].filter(Boolean);
  clearSlip();
  millPrintGo(S.cfg.autoTok,{kind:'token',code:tok,shop:'MAHADEV TRADERS',title:'JOB-WORK TOKEN',sub:'Bidar · Mill 1',when:nowFull(),rows:rows.map(r=>r[0]==='-'?'-':[r[0],r[1]]),total:[settlement(j).dir==='in'?'Customer pays (est.)':'We pay (est.)',inr(est)],foot:['Date · time',nowFull()],qr:true},sp.copies||1);
  layer('Job saved',`<div class="note">Job saved. Printing is optional: tap Print only if the customer needs a paper token. The codes below are real and scan.</div><div id="prst" class="prst"></div>
@@ -724,7 +726,7 @@ function sheetJob(tok){const j=S.jw.find(x=>x.tok===tok),s=settlement(j),dirIn=s
   ${resRows(j,s)}</div>`;
  const khali=j.khaliKg!=null?`${f1(j.khaliKg)} kg handed`:(j.cake!=='SHOP'?'not weighed yet':'shop keeps');
  layer(`${esc(j.customer)}<small style="display:block;font:500 14px var(--body);color:var(--soft)">${j.tok.replace('JW-','#')} · ${esc(j.place)} · ${j.time}${j.mobile?` · <a class="callrow" href="tel:${j.mobile}" onclick="event.stopPropagation()">${ic('phone')} ${fmtMob(j.mobile)}</a>`:''}</small>${spkBtn(`sayJob('${j.tok}')`)}`,
-  `${jobSteps(j)}${payStatus(j)}
+  `${jobSteps(j)}${payStatus(j)}${j.cake==='SHOP'?payoutButton(j,j.seedKg,j.tok):''}
   <div class="sec"><div class="grp"><span class="gi" style="background:#C98A25">${ic('rupee')}</span>Taken by customer${edit?'':' · locked after payment'}</div>
    ${row(`<span class="coin sm">₹</span>`,'Customer advance',advTxt(j,'advC','advR'),`sheetAdv('${tok}','advC')`)}
    ${row(ic('auto'),'Tempo advance',advTxt(j,'advA','advRA'),`sheetAdv('${tok}','advA')`)}
@@ -757,7 +759,7 @@ function sheetHeld(){const hs=heldSorted();
    ${!j.given?`<button class="sbtn ${lock?'dis':nextOil?'go':''} ${nextOil?'next':''}" style="min-height:76px" onclick="${lock?"toast('Wait for the khali payment first','bad')":`giveOil('${j.tok}')`}">${ic('oilout')}<span>Oil out ${j.oilKg!=null?'· '+f1(j.oilKg)+' kg':'(not weighed)'} → ${ic('user')}</span></button>`:`<div class="st ok">${ic('check')} Oil out${j.oilKg!=null?' · '+f1(j.oilKg)+' kg':''}</div>`}
    ${lock&&!j.given?`<div class="note" style="text-align:center">${ic('hand')} Oil out · wait for khali payment</div>`:''}
    <div class="note">${j.settled&&j.given?'Closed.':''}</div></div>`}).join(''):'<div class="note">Nothing held. All crushed jobs are settled.</div>'))}
-function settle(tok){const j=S.jw.find(x=>x.tok===tok);j.settled=true;j.tPaid=clock();toast((settlement(j).dir==='in'?'Cash in ':'Cash out ')+inr(Math.abs(settlement(j).due))+' · '+j.method.toUpperCase());sheetHeld()}
+function settle(tok){const j=S.jw.find(x=>x.tok===tok);if(!j||j.settled)return;if(!validTempoShare(j,j.seedKg)){toast('Adjust the tempo share for this weight','bad');sheetJob(tok);return}const payment=settlement(j);if(j.cake==='SHOP'&&!window.confirm(splitNote(payment)+'\nRecord these settlement amounts?'))return;j.settled=true;j.tPaid=clock();toast((settlement(j).dir==='in'?'Cash in ':'Cash out ')+inr(Math.abs(settlement(j).due))+' · '+j.method.toUpperCase());sheetHeld()}
 function payStatus(j){const st=settlement(j),dirIn=st.dir==='in';
  const one=(ico,who,adv,final,paid)=>paid?`<div class="ps ok">${ic('check')}${ic(ico)}<b>${who}</b><span>${final<0?'Received':'Paid'}${final?' '+inr(final):''}${adv?' · adv '+inr(adv):''}</span></div>`
   :adv?`<div class="ps ok">${ic('check')}${ic(ico)}<b>${who}</b><span>Advance taken ${inr(adv)}</span></div>`
@@ -1266,6 +1268,66 @@ function sheetRunOil(id){const r=S.runs.find(x=>x.id===id),q=S.queue.filter(x=>x
   :`<div class="note">${ic('hand')} No oil can is waiting. Weigh the oil can on the scale first (tile 5 · Our oil can).</div><button class="sbtn" onclick="sheetMill()">${ic('arrowr')}Back</button>`,'sheetMill()')}
 function runOil(id,qid,tank){const r=S.runs.find(x=>x.id===id),qi=S.queue.findIndex(x=>x.id===qid);if(!r||qi<0)return;const x=S.queue.splice(qi,1)[0];r.oil.push([x.kg,tank]);S.own.ooil.push([x.kg,tank]);toast(f1(x.kg)+' kg → '+tank);sheetMill();render()}
 function sayRun(id){const r=S.runs.find(x=>x.id===id);if(!r)return;const st={weighed:'Waiting to go in the machine',machine:'In the machine, crushing',oil:'Crushed. Oil to tank',done:'Done'}[r.state];TTS.say(`Run ${rserial(r)}. Seed ${f1(r.seedKg)} kilos, ${bagTxt(r.nb)}. ${st}.${r.oil.length?' Oil '+f1(runOilKg(r))+' kilos.':''}`,'en-IN')}
+
+/* The customer allocates the shop-keeps-khali payout before deductions. */
+function tempoShare(job, gross) {
+ const split = job.tempoSplit;
+ if (!split) return gross / 2;
+ return split.mode === 'rate' ? r2(job.seedKg * split.value) : split.value;
+}
+
+function validTempoShare(job, kg) {
+ const split = job.tempoSplit;
+ if (job.cake !== 'SHOP' || !split) return true;
+ return split.mode === 'rate' ? split.value <= RATE.SHOP : split.value <= r2(kg * RATE.SHOP);
+}
+
+const payoutInr = value => '₹' + Math.abs(value).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+
+function payoutRows(job, kg) {
+ const gross = r2(kg * RATE.SHOP);
+ const tempo = tempoShare({ ...job, seedKg: kg }, gross);
+ return [['Customer share', payoutInr(gross - tempo)], ['Tempo share', payoutInr(tempo)]];
+}
+
+function payoutButton(job, kg, tok = '') {
+ const rows = validTempoShare(job, kg) ? payoutRows(job, kg).map(([name, value]) => name + ' ' + value).join(' · ') : 'Adjust the tempo share for this weight';
+ const shares = `<div class="note">${rows}</div>`;
+ if (job.settled) return shares;
+ return `<button class="sbtn" onclick="sheetPayout('${tok}')">${ic('edit')} Edit payout split</button>${shares}`;
+}
+
+function sheetPayout(tok, mode) {
+ const job = tok ? S.jw.find(j => j.tok === tok) : S.slip;
+ if (!job || job.settled || job.cake !== 'SHOP') return;
+ const kg = tok ? job.seedKg : r2(sum(job.lines));
+ const split = job.tempoSplit;
+ const back = tok ? `sheetJob('${tok}')` : 'closeLayer()';
+ const selected = mode || split?.mode || 'equal';
+ const choices = [['equal','swap','Equal split'],['customer','user','All to customer'],['rate','scale','Tempo ₹/kg'],['amount','rupee','Tempo ₹ amount']];
+ const custom = selected === 'rate' || selected === 'amount';
+ layer('Edit payout split', `
+  <div class="note">${f2(kg)} kg × ₹${RATE.SHOP}/kg · Total ${payoutInr(kg * RATE.SHOP)}</div>
+  <div class="chrow">${choices.map(([id, icon, label]) => `<button class="ch ${selected===id?'sel':''}" onclick="sheetPayout('${tok}','${id}')">${ic(icon)} ${label}</button>`).join('')}</div>
+  ${custom ? `<label class="mrow">${selected === 'rate' ? 'Tempo ₹/kg' : 'Tempo ₹ amount'} <input id="tempo-share" inputmode="decimal" type="number" min="0" step="0.01" value="${split?.mode === selected ? split.value : ''}" style="min-width:0;width:7em"></label>` : ''}
+  <button class="sbtn go" onclick="savePayout('${tok}','${selected}')">${ic('check')} Save split</button>`, back);
+}
+
+function savePayout(tok, mode) {
+ const job = tok ? S.jw.find(j => j.tok === tok) : S.slip;
+ if (!job || job.settled || job.cake !== 'SHOP') return;
+ const kg = tok ? job.seedKg : r2(sum(job.lines));
+ const raw = document.getElementById('tempo-share')?.value;
+ const value = mode === 'customer' ? 0 : Number(raw);
+ const split = mode === 'equal' ? undefined : { mode: mode === 'rate' ? 'rate' : 'amount', value };
+ if (split && (!Number.isFinite(value) || (mode !== 'customer' && !raw) || value < 0 || r2(value) !== value || !validTempoShare({ ...job, tempoSplit: split }, kg))) {
+  return toast('Enter a share within the total payout (up to 2 decimal places)','bad');
+ }
+ if (split) job.tempoSplit = split;
+ else delete job.tempoSplit;
+ if (tok) sheetJob(tok);
+ else closeLayer();
+}
 
 (function(){const _layer=layer;layer=function(){window.__cardTok=null;return _layer.apply(this,arguments)};
  const _sj=sheetJob;sheetJob=function(t){_sj(t);window.__cardTok=t};

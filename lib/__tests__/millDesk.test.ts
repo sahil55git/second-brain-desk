@@ -12,6 +12,20 @@ describe("Mill Desk money (same as the preview's settlement)", () => {
     expect(m.customer).toBeCloseTo(gross / 2 - 500 - 100, 6);
     expect(m.auto).toBeCloseTo(gross / 2 - 200, 6);
   });
+  it.each([
+    [{ mode: "amount", value: 0 }, 580, 0],
+    [{ mode: "amount", value: 125 }, 455, 125],
+    [{ mode: "rate", value: 4 }, 180, 400],
+  ] as const)("allocates the agreed tempo share and keeps can charges on the customer", (tempoSplit, customer, auto) => {
+    const j = job({ seedKg: 100, advC: 0, advA: 0, cans: { can5old: 1 }, tempoSplit, settled: true });
+    expect(jobError(j)).toBeNull();
+    expect(jobMoney(j)).toMatchObject({ due: 580, customer, auto });
+    expect(intakeData(j, null, null)).toMatchObject({ settlementCustomerInr: customer, settlementAutoInr: auto });
+  });
+  it("rejects a tempo share above the payout or the per-kg rate", () => {
+    expect(jobError(job({ seedKg: 1, tempoSplit: { mode: "amount", value: 7 } }))).toMatch(/Tempo share/);
+    expect(jobError(job({ tempoSplit: { mode: "rate", value: 7 } }))).toMatch(/Tempo share/);
+  });
   it("customer takes khali: ₹10/kg, cans and the advance we gave added, no tempo split", () => {
     const m = jobMoney(job({ seedKg: 120, cake: "CUSTOMER", advC: 300, advA: 0, cans: { can5new: 1 } }));
     expect(m.rate).toBe(10);
