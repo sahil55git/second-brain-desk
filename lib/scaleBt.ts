@@ -284,8 +284,15 @@ export class BtScaleLink {
   }
 
   private onVisible = () => {
-    // a phone that was asleep: timers were paused, so check the link the moment it wakes
-    if (document.visibilityState === "visible") this.tick();
+    if (document.visibilityState !== "visible") return;
+    // WebView may have missed the socket's close/open events while another app
+    // was in front. Reattach listeners and ask Android for the saved scale.
+    // Native open reuses its connected socket or wakes the reconnect supervisor.
+    if (this.cfg.kind === "native") {
+      if (["live", "silent", "waiting"].includes(this.state.status)) void this.tryOpen();
+      return;
+    }
+    this.tick();
   };
 
   private stopTimers() {
@@ -309,6 +316,8 @@ export class BtScaleLink {
   }
 
   private tick() {
+    // Android deliberately stops sending bytes to a background WebView.
+    if (this.cfg.kind === "native" && typeof document !== "undefined" && document.visibilityState === "hidden") return;
     const now = Date.now();
     this.apply({ type: "tick" });
     if (linkIsDead(this.state, now) && !this.transport?.selfHealing) {
