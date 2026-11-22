@@ -45,7 +45,7 @@ import { fitsBill, parseUpi, planUpi, samePayment, type UpiEvent } from "@/lib/u
 import { hasNativeUpi, MahadevUpi } from "@/lib/native";
 import { useKeepAwake } from "@/lib/keepAwake";
 import { PAY_SHOW_KEYS, ensurePayOption, parseShow, SHOW_ALL, SHOW_KEYS, SHOW_LABELS, SHOW_SIMPLE, type ShowCfg } from "@/lib/counterShow";
-import { hashPin, KIOSK_EXTRAS, KIOSK_KEY, readKiosk, type KioskExtra, type KioskState } from "@/lib/counterKiosk";
+import { hashPin, KIOSK_EXTRAS, KIOSK_CHANGED, KIOSK_KEY, readKiosk, type KioskExtra, type KioskState } from "@/lib/counterKiosk";
 
 type Lang = "en" | "kn";
 type Chan = "CASH" | "UPI" | "CREDIT";
@@ -1072,6 +1072,7 @@ export default function CounterApp() {
     if (window.prompt(k("Type the PIN again:", "PIN ಮತ್ತೆ ಟೈಪ್ ಮಾಡಿ:")) !== pin) return setMsg({ ok: false, text: k("The PINs did not match.", "PIN ಹೊಂದಲಿಲ್ಲ.") });
     const s: KioskState = { on: true, pinHash: await hashPin(pin), allow: kiosk?.allow || [] };
     write(KIOSK_KEY, s);
+    window.dispatchEvent(new Event(KIOSK_CHANGED));
     setKiosk(s);
   };
   const kioskOff = async () => {
@@ -1080,12 +1081,14 @@ export default function CounterApp() {
     if (!kiosk || (await hashPin(pin)) !== kiosk.pinHash) return setMsg({ ok: false, text: k("Wrong PIN.", "ತಪ್ಪು PIN.") });
     const s = { ...kiosk, on: false };
     write(KIOSK_KEY, s);
+    window.dispatchEvent(new Event(KIOSK_CHANGED));
     setKiosk(s);
   };
   const kioskAllow = (x: KioskExtra, on: boolean) => {
     const cur = kiosk?.allow || [];
     const s: KioskState = { on: !!kiosk?.on, pinHash: kiosk?.pinHash || "", allow: on ? Array.from(new Set([...cur, x])) : cur.filter((a) => a !== x) };
     write(KIOSK_KEY, s);
+    window.dispatchEvent(new Event(KIOSK_CHANGED));
     setKiosk(s);
   };
 
@@ -1102,7 +1105,7 @@ export default function CounterApp() {
           </button>
         )}
         {!kiosk?.on && show.deskLink && <Link href="/register/cashier" className="ctr-tbtn" title={k("Cashier desk: take the money, release the oil", "ಕ್ಯಾಷಿಯರ್ ಡೆಸ್ಕ್: ಹಣ ಪಡೆಯಿರಿ, ಎಣ್ಣೆ ಕೊಡಿ")}>💰 {k("Cashier", "ಕ್ಯಾಷಿಯರ್")}</Link>}
-        {show.bills && <button type="button" className="ctr-tbtn" onClick={() => { setBFilter(queueInBills ? "held" : "all"); setSelMode(false); setSel([]); setBTab("bills"); setPanel("bills"); void loadBills(); }}>📋 {k("Bills", "ಬಿಲ್‌ಗಳು")}{(queueInBills ? heldN : openN) > 0 && <b>{queueInBills ? heldN : openN}</b>}</button>}
+        {show.bills && <button type="button" className="ctr-tbtn ctr-bills-button" onClick={() => { setBFilter(queueInBills ? "held" : "all"); setSelMode(false); setSel([]); setBTab("bills"); setPanel("bills"); void loadBills(); }}><span aria-hidden="true" className="ctr-bills-icon">📋</span> {k("Bills", "ಬಿಲ್‌ಗಳು")}{(queueInBills ? heldN : openN) > 0 && <b>{queueInBills ? heldN : openN}</b>}</button>}
         {!queueInBills && (heldN > 0 || holdCash) && <button type="button" className={`ctr-tbtn${heldN > 0 ? " has" : ""}${readyN > 0 ? " ctr-next" : ""}`} onClick={() => { setPanel("queue"); void loadBills(); }} title={k("Bills whose oil is held till the money is received", "ಹಣ ಬರುವವರೆಗೆ ಎಣ್ಣೆ ಹಿಡಿದ ಬಿಲ್‌ಗಳು")}>🔒 {k("Held queue", "ಹಿಡಿದ ಸಾಲು")} <b>{heldN}</b></button>}
     </>
   );
