@@ -55,6 +55,22 @@ describe("employee routes", () => {
     expect(r2.skipped[0].reason).toMatch(/already posted/);
     expect(db.entries.filter((x) => x.type === "EARN")).toHaveLength(1);
   });
+  it("shows month-specific advances and payments and excludes later entries from settlement", async () => {
+    const entry = (month: string, type: string, debitInr: number, voidedAt: string | null = null) =>
+      ({ employeeId: "e1", month, type, creditInr: 0, debitInr, voidedAt });
+    db.entries.push(entry("2026-09", "ADV", 1000), entry("2026-10", "ADV", 4000),
+      entry("2026-10", "PAY", 2000), entry("2026-10", "CUT", 500),
+      entry("2026-10", "ADV", 900, "2026-10-15"), entry("2026-11", "ADV", 8000));
+    const preview = async () => (await (await payrollGet(nextReq("http://x/p?month=2026-10"))).json()).data[0];
+    expect((await preview()).salary).toMatchObject({
+      posted: false, salaryInr: 15000, advancesInr: 4000, paidInr: 2000, deductionsInr: 500, closingInr: 7500,
+    });
+    const result = await (await payrollPost(nextReq("http://x/p", { month: "2026-10", rows: [{ employeeId: "e1", days: 24 }] }))).json();
+    expect(result.done[0]).toMatchObject({ earnedInr: 12000, paidInr: 4500 });
+    expect((await preview()).salary).toMatchObject({
+      posted: true, salaryInr: 12000, advancesInr: 4000, paidInr: 6500, closingInr: 0,
+    });
+  });
   it("typed advance bigger than salary leaves an advance and pays nothing", async () => {
     await addEntry(nextReq("http://x/e", { type: "ADV", amountInr: 20000, date: "2026-10-05" }), { params: { id: "e1" } });
     const r = await (await payrollPost(nextReq("http://x/p", { month: "2026-10", rows: [{ employeeId: "e1", days: 30 }] }))).json();
