@@ -1059,3 +1059,22 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
   min-height: 58px;
   font-size: 22px;
 }
+
+.ctr .ctr-act .ctr-park-bill,
+.ctr .ctr-tbtn.ctr-parked-button {
+  min-height: 48px;
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.ctr-parked-sheet .ctr-sheethead > b { font-size: 1.25rem; }
+.ctr-parked-sheet .ctr-list .open {
+  min-width: 0;
+  min-height: 48px;
+  gap: 4px;
+  font-size: 1.125rem;
+  overflow-wrap: anywhere;
+}
+.ctr-parked-sheet .ctr-list .open span { font-size: 1rem; }
+.ctr-parked-sheet .ctr-list .open small { font-size: .875rem; }
+.ctr-parked-sheet .ctr-list .amt { font-size: 1.25rem; }
