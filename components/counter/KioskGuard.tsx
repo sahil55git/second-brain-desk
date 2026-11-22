@@ -4,7 +4,7 @@
 // device back to the counter. The pages the owner ticked stay open.
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { COUNTER_PATH, kioskAllows, readKiosk } from "@/lib/counterKiosk";
+import { COUNTER_PATH, kioskAllows, readKiosk, subscribeKiosk } from "@/lib/counterKiosk";
 
 export default function KioskGuard() {
   const pathname = usePathname();
@@ -16,8 +16,7 @@ export default function KioskGuard() {
       document.documentElement.classList.toggle("counter-kiosk", !!s?.on);
     };
     check();
-    window.addEventListener("storage", check);
-    return () => window.removeEventListener("storage", check);
+    return subscribeKiosk(check);
   }, [pathname, router]);
   return null;
 }
