@@ -1042,3 +1042,20 @@ html.counter-kiosk nav, html.counter-kiosk [data-nav-dock], html.counter-kiosk .
     padding: calc(12px / var(--u, 1)); line-height: 1.2;
   }
 }
+
+.ctr .ctr-tbtn.ctr-bills-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.ctr-bills-icon { font-size: 1.35em; line-height: 1; }
+.ctr.lay-tablet .ctr-chips .ctr-tbtn.ctr-bills-button {
+  min-height: 58px;
+  font-size: 22px;
+}
