@@ -141,6 +141,24 @@ describe("words for the person", () => {
     expect(texts(TEST_DOC)[0]).toBe("Mill 1");
     expect(texts({ ...TEST_DOC, kind: "slip" })).toContain("MAHADEV TRADERS");
   });
+  it("a weight slip sent to a label printer is compact too, with the date and time once", () => {
+    const slip: MillPrintDoc = { ...TEST_DOC, kind: "slip", when: "23 Nov 2026 · 08:16 PM", foot: ["By sahil", "23 Nov 2026 · 08:16 PM"] };
+    const texts = (cfg: { lang: "tspl" | "escpos" }) => planJob(slip, { widthMm: 50, heightMm: 75, ...cfg }, measure).pages.flat().filter((o): o is Extract<Op, { t: "text" }> => o.t === "text").map((o) => o.text);
+    const label = texts({ lang: "tspl" });
+    expect(label).not.toContain("MAHADEV TRADERS");
+    expect(label.filter((t) => t.includes("08:16 PM")).length).toBe(1);
+    const receipt = texts({ lang: "escpos" });
+    expect(receipt).toContain("MAHADEV TRADERS");
+    expect(receipt.filter((t) => t.includes("08:16 PM")).length).toBe(2);
+  });
+  it("on a label the data rows are larger than the header lines", () => {
+    const ops = layoutDoc({ ...TEST_DOC, when: "23 Nov, 07:17 pm" }, 384, measure, 1, true).ops.filter((o): o is Extract<Op, { t: "text" }> => o.t === "text");
+    const head = ops.find((o) => o.text === "Mill 1")!;
+    const row = ops.find((o) => o.text === "Seed")!;
+    const when = ops.find((o) => o.text === "23 Nov, 07:17 pm")!;
+    expect(row.px).toBeGreaterThan(head.px);
+    expect(row.px).toBeGreaterThan(when.px);
+  });
   it("the Seznik DD72 is drawn no wider than its 48 mm print head, other printers keep their width", () => {
     const dd = planJob(TEST_DOC, { widthMm: 50, heightMm: 30, name: "DD72-1A2B" }, measure);
     expect(dd.widthDots).toBe(384);

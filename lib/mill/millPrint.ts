@@ -237,12 +237,15 @@ export function wrapText(text: string, maxW: number, px: number, bold: boolean, 
 }
 
 /** The whole slip as drawing operations, top to bottom. `scale` shrinks everything (to fit a small label). */
-export function layoutDoc(doc: MillPrintDoc, widthDots: number, measure: Measure, scale = 1): { ops: Op[]; height: number } {
-  // tokens and stickers (label printer) are small: no shop name, smaller writing; the customer's slip keeps both
-  const lab = doc.kind !== "slip";
-  const base = Math.max(16, Math.min(32, Math.round(widthDots / 15))) * scale * (lab ? 0.8 : 1);
-  const px = Math.round(base);
-  const big = Math.round(base * 1.3);
+export function layoutDoc(doc: MillPrintDoc, widthDots: number, measure: Measure, scale = 1, compact?: boolean): { ops: Op[]; height: number } {
+  // anything on a label printer (tokens, stickers, and a weight slip sent there) is small: no shop name, smaller
+  // writing, the date and time once. A slip on the receipt printer keeps the shop name.
+  const lab = compact ?? doc.kind !== "slip";
+  const base = Math.max(16, Math.min(32, Math.round(widthDots / 15))) * scale;
+  // label: small header lines, LARGE data rows (customer, weight) and total; slip: as before
+  const px = Math.round(lab ? base * 0.7 : base);
+  const rowPx = lab ? Math.round(base * 1.25) : px;
+  const big = Math.round(base * (lab ? 1.5 : 1.3));
   const lh = (p: number) => Math.round(p * 1.3);
   const inner = widthDots - 2 * MARGIN;
   const ops: Op[] = [];
@@ -277,7 +280,7 @@ export function layoutDoc(doc: MillPrintDoc, widthDots: number, measure: Measure
   hr();
   for (const r of doc.rows) {
     if (r === "-") hr();
-    else pair(r[0], r[1], px, false);
+    else pair(r[0], r[1], rowPx, lab);
   }
   if (doc.total) {
     hr();
@@ -285,7 +288,9 @@ export function layoutDoc(doc: MillPrintDoc, widthDots: number, measure: Measure
   }
   if (doc.foot) {
     hr();
-    pair(doc.foot[0], doc.foot[1], Math.round(px * 0.85), false);
+    // the date and time already printed at the top are not printed again
+    const again = lab && !!doc.when && doc.foot[1] === doc.when;
+    pair(doc.foot[0], again ? "" : doc.foot[1], Math.round(px * 0.85), false);
   }
   y += 8;
   // The phones scan the QR with the camera, so the QR is what is printed (no barcode: nobody has a scanner),
@@ -349,17 +354,18 @@ export interface PlannedJob {
 export const headLimitMm = (name: string | undefined) => (name && /seznik|dd-?72/i.test(name) ? 48 : Infinity);
 
 /** Layout for this printer: shrinks the writing a little (down to 75 %) to keep one slip on one label, then cuts into pages. */
-export function planJob(doc: MillPrintDoc, cfg: Pick<MillPrinterCfg, "widthMm" | "heightMm"> & { name?: string }, measure: Measure): PlannedJob {
+export function planJob(doc: MillPrintDoc, cfg: Pick<MillPrinterCfg, "widthMm" | "heightMm"> & { name?: string; lang?: "tspl" | "escpos" }, measure: Measure): PlannedJob {
+  const compact = cfg.lang === "tspl" ? true : undefined; // a label printer always gets the small label layout
   const widthDots = Math.max(8, Math.floor(mmToDots(Math.min(cfg.widthMm, headLimitMm(cfg.name))) / 8) * 8);
   const labelDots = cfg.heightMm > 0 ? mmToDots(cfg.heightMm) : 0;
   let scale = 1;
-  let lay = layoutDoc(doc, widthDots, measure, scale);
+  let lay = layoutDoc(doc, widthDots, measure, scale, compact);
   if (labelDots > 0 && lay.height > labelDots) {
     // shrink the text and the QR a little; only then spill onto a second label
     const tries = [0.9, 0.82, 0.75, 0.68, 0.62];
     let fitted = false;
     for (const t of tries) {
-      const l = layoutDoc(doc, widthDots, measure, t);
+      const l = layoutDoc(doc, widthDots, measure, t, compact);
       if (l.height <= labelDots) {
         lay = l;
         scale = t;
@@ -369,7 +375,7 @@ export function planJob(doc: MillPrintDoc, cfg: Pick<MillPrinterCfg, "widthMm" |
     }
     if (!fitted) {
       scale = 0.62;
-      lay = layoutDoc(doc, widthDots, measure, scale);
+      lay = layoutDoc(doc, widthDots, measure, scale, compact);
     }
   }
   const pages = paginate(lay.ops, labelDots);
