@@ -56,7 +56,7 @@ export function setSlipPrinter(c: SlipPrinterCfg | null) {
 }
 
 /** Label printers speak TSPL and print on stickers: never a slip printer. */
-export const isLabelPrinterName = (n: string) => /h30|helett|label|tsc|zebra|godex|tspl|niimbot|d11|b21/i.test(n);
+export const isLabelPrinterName = (n: string) => /h30|helett|label|tsc|zebra|godex|tspl|niimbot|d11|b21|seznik|dd-?72/i.test(n);
 /** 2-inch (58 mm) or 3-inch (80 mm) roll, from the printer's name. */
 export function guessPaper(name: string): SlipPaper {
   const n = name.toLowerCase();

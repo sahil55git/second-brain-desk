@@ -47,7 +47,7 @@ const MODE_NAME: Record<PrintMode, string> = {
 
 /** Does this printer name look like one for labels (or for slips)? Used to put the likely one first. */
 export function suitsKind(name: string, kind: PrintKind): boolean {
-  return kind === "label" ? /h30c|helett|label|tsc|zebra|xprinter|godex|tsp|sticker|barcode/i.test(name) : /posiflow|receipt|pos|thermal|58|80|slip|epson|rp/i.test(name);
+  return kind === "label" ? /h30c|helett|label|tsc|zebra|xprinter|godex|tsp|sticker|barcode|seznik|dd-?72/i.test(name) : /posiflow|receipt|pos|thermal|58|80|slip|epson|rp/i.test(name);
 }
 
 export function savedDetail(p: SavedPrinter, d: Detected): { detail: string; ready: boolean | null } {

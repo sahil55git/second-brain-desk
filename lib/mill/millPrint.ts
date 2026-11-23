@@ -187,7 +187,7 @@ export const onMillPrinterChange = (f: () => void) => {
 };
 
 /** Label printers (TSPL) first: the Helett H30C and friends. */
-export const isLabelishName = (n: string) => /h30|helett|label|tsc|zebra|godex|tspl|xprinter|\bxp-?\d|niimbot|d11|b21/i.test(n);
+export const isLabelishName = (n: string) => /h30|helett|label|tsc|zebra|godex|tspl|xprinter|\bxp-?\d|niimbot|d11|b21|seznik|dd-?72/i.test(n);
 /** Many label printers show up twice: "H30C_F1BA" (normal Bluetooth, what the app prints over) and "H30C_F1BA_BLE" (low-energy, which the app cannot print over). */
 export const isBleName = (n: string) => /(^|[\s_-])ble$/i.test(n.trim());
 export function labelCandidates(list: NativePrinter[]): NativePrinter[] {

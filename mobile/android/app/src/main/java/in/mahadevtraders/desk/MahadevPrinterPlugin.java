@@ -61,7 +61,7 @@ import java.util.regex.Pattern;
 public class MahadevPrinterPlugin extends Plugin {
     private static final UUID SPP = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     private static final String USB_PERMISSION = "in.mahadevtraders.desk.USB_PERMISSION";
-    private static final Pattern PRINTERISH = Pattern.compile("print|pos|thermal|label|receipt|h30|helett|posiflow|xp-|xprinter|mpt|rpp|tsc|zebra|godex|tsp|bixolon|epson|gprinter|hprt|pt-|ptp|bt-?58|bt-?80", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PRINTERISH = Pattern.compile("print|pos|thermal|label|receipt|h30|helett|seznik|dd-?72|posiflow|xp-|xprinter|mpt|rpp|tsc|zebra|godex|tsp|bixolon|epson|gprinter|hprt|pt-|ptp|bt-?58|bt-?80", Pattern.CASE_INSENSITIVE);
 
     private volatile BluetoothSocket btSocket;
     private volatile String btAddr;

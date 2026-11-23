@@ -171,5 +171,20 @@ export const PRINTER_MODELS: PrinterModel[] = [
       "Barrel labels do not suit this printer: use it for the weighment slips and receipts (Print slips page). Use the H30C for barrel stickers.",
     ],
   },
+  {
+    id: "seznik-dd72",
+    name: "Seznik DD72",
+    type: "label",
+    maxWidth: 58,
+    labelSizes: ["50x30", "50x25", "50x50", "40x30", "2x2", "38x25"],
+    about: "Seznik thermal label printer, Bluetooth, 58 mm wide paper (about 50 mm labels). The maker's full spec was not found, so the width is as told by the shop; check your unit's box if it differs.",
+    setup: [
+      "Switch the printer on, then on the phone/tablet pair it in Android Bluetooth settings (Settings > Bluetooth > pair new device > Seznik / DD72). Allow \"Nearby devices\" for the Mahadev Desk app.",
+      "Load 58 mm thermal label paper (or roll) with the heat-sensitive side facing out. Do not use the Seznik / Flashlabel app at the same time: only one app can hold the Bluetooth link.",
+      "In the app open the printer list, pick the Seznik DD72, save it as a label printer and choose a label size from the list (50 x 30 mm is the usual one).",
+      "Language: start with TSPL. If it prints blank, garbage or nothing, switch the printer's language to ESC/POS and print the test label again. Keep the one that gives a clear label.",
+      "Print one test label and scan the QR with a phone before printing a batch. If it is faint, raise darkness in the printer's own app or lower the speed.",
+    ],
+  },
 ];
 export const printerModel = (id: string | undefined) => PRINTER_MODELS.find((m) => m.id === id);

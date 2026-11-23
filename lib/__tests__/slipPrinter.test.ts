@@ -11,6 +11,8 @@ describe("slip printer choice", () => {
   });
   it("never picks a label printer for slips", () => {
     expect(isLabelPrinterName("Helett H30C")).toBe(true);
+    expect(isLabelPrinterName("Seznik DD72")).toBe(true);
+    expect(isLabelPrinterName("DD72_1A2B")).toBe(true);
     expect(isLabelPrinterName("MPT-III_34AB")).toBe(false);
     const list = slipCandidates([
       { id: "nbt:AA", name: "Helett H30C", kind: "bluetooth", printer: true },
