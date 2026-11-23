@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanCfg, cleanDoc, explainPrintError, jobBytes, layoutDoc, MillPrintError, paginate, planJob, TEST_DOC, wrapText, labelCandidates, isBleName, type MillPrintDoc, type Op } from "@/lib/mill/millPrint";
+import { MILL_PAPERS, cleanCfg, cleanDoc, explainPrintError, jobBytes, layoutDoc, MillPrintError, paginate, planJob, TEST_DOC, wrapText, labelCandidates, isBleName, type MillPrintDoc, type Op } from "@/lib/mill/millPrint";
 import { mmToDots } from "@/lib/printerLang";
 
 const measure = (t: string, px: number, bold: boolean) => t.length * px * (bold ? 0.62 : 0.55);
@@ -147,6 +147,10 @@ describe("words for the person", () => {
     const other = planJob(TEST_DOC, { widthMm: 50, heightMm: 30, name: "Helett H30C" }, measure);
     expect(other.widthDots).toBe(400);
     expect(planJob(TEST_DOC, { widthMm: 40, heightMm: 30, name: "Seznik DD72" }, measure).widthDots).toBe(320);
+  });
+  it("has a 50 x 50 mm label size", () => {
+    const p = MILL_PAPERS.find((x) => x.id === "50x50");
+    expect(p).toMatchObject({ widthMm: 50, heightMm: 50, lang: "tspl" });
   });
   it("the Seznik DD72 is listed as a label printer", () => {
     const l = labelCandidates([

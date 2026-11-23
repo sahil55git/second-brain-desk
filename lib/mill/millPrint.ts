@@ -80,6 +80,7 @@ export const MILL_PAPERS: { id: string; name: string; widthMm: number; heightMm:
   { id: "50x75", name: "50 × 75 mm label", widthMm: 50, heightMm: 75, gapMm: 3, lang: "tspl" },
   { id: "75x100", name: "75 × 100 mm label", widthMm: 75, heightMm: 100, gapMm: 3, lang: "tspl" },
   { id: "100x150", name: "100 × 150 mm (4 × 6 in) label", widthMm: 100, heightMm: 150, gapMm: 3, lang: "tspl" },
+  { id: "50x50", name: "50 × 50 mm label", widthMm: 50, heightMm: 50, gapMm: 3, lang: "tspl" },
   { id: "50x30", name: "50 × 30 mm sticker (slips split over several)", widthMm: 50, heightMm: 30, gapMm: 3, lang: "tspl" },
   { id: "roll50", name: "Roll without gaps, 50 mm wide", widthMm: 50, heightMm: 0, gapMm: 0, lang: "tspl" },
   // receipt rolls: the width is the PRINTED width (a 58 mm roll prints 48 mm, an 80 mm roll 72 mm)
