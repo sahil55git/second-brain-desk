@@ -237,7 +237,9 @@ export function wrapText(text: string, maxW: number, px: number, bold: boolean, 
 
 /** The whole slip as drawing operations, top to bottom. `scale` shrinks everything (to fit a small label). */
 export function layoutDoc(doc: MillPrintDoc, widthDots: number, measure: Measure, scale = 1): { ops: Op[]; height: number } {
-  const base = Math.max(18, Math.min(32, Math.round(widthDots / 15))) * scale;
+  // tokens and stickers (label printer) are small: no shop name, smaller writing; the customer's slip keeps both
+  const lab = doc.kind !== "slip";
+  const base = Math.max(16, Math.min(32, Math.round(widthDots / 15))) * scale * (lab ? 0.8 : 1);
   const px = Math.round(base);
   const big = Math.round(base * 1.3);
   const lh = (p: number) => Math.round(p * 1.3);
@@ -267,9 +269,9 @@ export function layoutDoc(doc: MillPrintDoc, widthDots: number, measure: Measure
     });
   };
 
-  if (doc.shop) centered(doc.shop, big, true);
+  if (doc.shop && !lab) centered(doc.shop, big, true);
   if (doc.title) centered(doc.title, px, true);
-  if (doc.sub) centered(doc.sub, px, false);
+  if (doc.sub) centered(doc.sub, px, lab && !doc.title);
   if (doc.when) centered(doc.when, Math.round(px * 0.85), false);
   hr();
   for (const r of doc.rows) {
@@ -342,9 +344,12 @@ export interface PlannedJob {
   scale: number;
 }
 
+/** Widest picture the print head can print, mm. The Seznik DD72 takes 58 mm paper but prints 48 mm: anything wider is cut off at the right edge. */
+export const headLimitMm = (name: string | undefined) => (name && /seznik|dd-?72/i.test(name) ? 48 : Infinity);
+
 /** Layout for this printer: shrinks the writing a little (down to 75 %) to keep one slip on one label, then cuts into pages. */
-export function planJob(doc: MillPrintDoc, cfg: Pick<MillPrinterCfg, "widthMm" | "heightMm">, measure: Measure): PlannedJob {
-  const widthDots = Math.max(8, Math.round(mmToDots(cfg.widthMm) / 8) * 8);
+export function planJob(doc: MillPrintDoc, cfg: Pick<MillPrinterCfg, "widthMm" | "heightMm"> & { name?: string }, measure: Measure): PlannedJob {
+  const widthDots = Math.max(8, Math.floor(mmToDots(Math.min(cfg.widthMm, headLimitMm(cfg.name))) / 8) * 8);
   const labelDots = cfg.heightMm > 0 ? mmToDots(cfg.heightMm) : 0;
   let scale = 1;
   let lay = layoutDoc(doc, widthDots, measure, scale);
@@ -453,7 +458,7 @@ export const TEST_DOC: MillPrintDoc = {
   kind: "token",
   code: "TEST-0001",
   shop: "MAHADEV TRADERS",
-  title: "PRINTER TEST",
+  title: "",
   sub: "Mill 1",
   when: "",
   rows: [["Seed", "123.45 kg"], ["Bags", "3"], "-", ["ಬೀಜ", "50.00 kg"]],

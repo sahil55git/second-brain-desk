@@ -135,6 +135,19 @@ describe("words for the person", () => {
     ]);
     expect(l.map((p) => p.name)).toEqual(["Helett H30C", "POS-80", "USB"]); // a USB cable printer is listed too
   });
+  it("a label (token / sticker) has no shop header; the customer's slip keeps it", () => {
+    const texts = (d: MillPrintDoc) => layoutDoc(d, 400, measure).ops.filter((o): o is Extract<Op, { t: "text" }> => o.t === "text").map((o) => o.text);
+    expect(texts(TEST_DOC)).not.toContain("MAHADEV TRADERS");
+    expect(texts(TEST_DOC)[0]).toBe("Mill 1");
+    expect(texts({ ...TEST_DOC, kind: "slip" })).toContain("MAHADEV TRADERS");
+  });
+  it("the Seznik DD72 is drawn no wider than its 48 mm print head, other printers keep their width", () => {
+    const dd = planJob(TEST_DOC, { widthMm: 50, heightMm: 30, name: "DD72-1A2B" }, measure);
+    expect(dd.widthDots).toBe(384);
+    const other = planJob(TEST_DOC, { widthMm: 50, heightMm: 30, name: "Helett H30C" }, measure);
+    expect(other.widthDots).toBe(400);
+    expect(planJob(TEST_DOC, { widthMm: 40, heightMm: 30, name: "Seznik DD72" }, measure).widthDots).toBe(320);
+  });
   it("the Seznik DD72 is listed as a label printer", () => {
     const l = labelCandidates([
       { id: "nbt:1", name: "POS-80", kind: "bluetooth", printer: true },
