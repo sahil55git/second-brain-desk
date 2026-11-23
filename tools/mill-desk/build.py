@@ -110,7 +110,7 @@ rep("""<button class="sbtn go next" onclick="printPaper()">${ic('printer')}Print
 rep("""<button class="sbtn go next" onclick="window.__copies=${sp.copies||1};printPaper()">${ic('printer')}Print · ${sp.copies||1}</button>""","""<button class="sbtn go next" onclick="window.__copies=${sp.copies||1};printAgain()">${ic('printer')}<span class="prlbl">Print</span> · ${sp.copies||1}</button><button class="sbtn" onclick="millSticker()">${ic('printer')}Sticker</button>""")
 rep("Saved. Tap Print for the weight slip. The counter person sees these in Waiting.</div>","Saved · the counter person sees these in Waiting.</div><div id=\"prst\" class=\"prst\"></div>")
 rep("The codes below are real and scan.</div>","The codes below are real and scan.</div><div id=\"prst\" class=\"prst\"></div>")
-rep("S.wtray=[];S.wdone={sn,n:tr.length};","S.wtray=[];S.wdone={sn,n:tr.length};millPrintAuto({kind:'slip',code:sn,shop:'MAHADEV TRADERS',title:'Mill 1 · WEIGHT SLIP',when:nowFull(),rows:tr.flatMap(x=>[[IT[x.k].wl+(isBagK(x.k)?' · '+bagTxt(x.nb||1):''),f2(x.kg)+' kg']].concat(x.cno?[[cnoL()+' '+x.cno,'']]:[])),foot:['By '+((S.me&&S.me.name)||'Worker'),nowFull()]},1);")
+rep("S.wtray=[];S.wdone={sn,n:tr.length};","S.wtray=[];S.wdone={sn,n:tr.length};millPrintAuto({kind:'slip',code:sn,shop:'MAHADEV TRADERS',title:'Mill 1 · WEIGHT SLIP',when:nowFull(),rows:(()=>{let last='';return tr.flatMap(x=>{const key=(x.cno||0)+'|'+(x.cust?x.cust[0]+'|'+(x.cust[1]||''):''),r=[];if(key!==last){last=key;if(x.cno)r.push([cnoL()+' '+x.cno,'']);if(x.cust)r.push([x.cust[0]+(x.cust[1]&&x.cust[1]!==x.cust[0]?' · '+x.cust[1]:''),''])}r.push([IT[x.k].wl+(isBagK(x.k)?' · '+bagTxt(x.nb||1):''),f2(x.kg)+' kg']);return r})})(),foot:['By '+((S.me&&S.me.name)||'Worker'),nowFull()]},1);")
 rep(" clearSlip();\n layer('Token printed',"," clearSlip();\n millPrintAuto({kind:'token',code:tok,shop:'MAHADEV TRADERS',title:'JOB-WORK TOKEN',sub:'Bidar · Mill 1',when:nowFull(),rows:rows.map(r=>r[0]==='-'?'-':[r[0],r[1]]),total:['Estimate',inr(est)],foot:['Date · time',nowFull()],qr:true},sp.copies||1);\n layer('Token printed',")
 # our seed tapped at the counter starts a crushing run, like Waiting's "Add to today's crushing"
 rep(" const key=k;(S.own[key]=S.own[key]||[]).push(kg);toast(IT[k].wl+' '+f1(kg)+' kg saved');afterSave()}",
@@ -261,6 +261,19 @@ window.cnoKey=cnoKey;
 function setCno(i,n){S.wtray[i].cno=n;cnoSeen(n);render()}""")
 rep("function wMoveCno(gi,n){groups()[gi].items.forEach(x=>x.cno=n);sheetWaiting()}","function wMoveCno(gi,n){groups()[gi].items.forEach(x=>x.cno=n);cnoSeen(n);sheetWaiting()}")
 rep("S.wtray=[];S.wdone={sn,n:tr.length};","{const mx=Math.max(0,...tr.map(x=>x.cno||0));if(mx){S.maxCno=Math.max(S.maxCno||1,mx);S.lastCno=cnoMax()+1;cnoSave()}}S.wtray=[];S.wdone={sn,n:tr.length};")
+
+# ---- 23 Nov: customer name / village at the weighing screen (per customer no.), on the weight slip; can be hidden in Settings ----
+rep("function trayAdd(k,kg){S.wtray.push({k,kg,nb:1,cno:isCust(k)?S.lastCno:0});S.wdone=null;afterSave()}","function trayAdd(k,kg){const cn=isCust(k)?S.lastCno:0,pv=cn&&S.wtray.find(y=>y.cno===cn&&y.cust);S.wtray.push({k,kg,nb:1,cno:cn,cust:pv?pv.cust:undefined});S.wdone=null;afterSave()}")
+rep("function setCno(i,n){S.wtray[i].cno=n;cnoSeen(n);render()}","function setCno(i,n){const x=S.wtray[i];x.cno=n;const pv=isCust(x.k)&&S.wtray.find(y=>y!==x&&y.cno===n&&y.cust);x.cust=pv?pv.cust:undefined;cnoSeen(n);render()}")
+rep("function trayNb(i,d){","""/* a name / village row for each customer no. in the tray; it goes on that customer's weighings and on the slip. Hidden by Settings > Customer name. */
+function trayNames(){const cs=[...new Set(S.wtray.filter(x=>isCust(x.k)).map(x=>x.cno||0))];return cs.map(c=>{const it=S.wtray.find(x=>isCust(x.k)&&(x.cno||0)===c&&x.cust),n=it&&it.cust;return `<button class="mrow wname" data-f="wcust" onclick="trayName(${c})">${ic('user')}<span class="sp">${n?esc(n[0])+(n[1]&&n[1]!==n[0]?' · '+esc(n[1]):''):cnoL()+' '+c+' · '+t('who')}</span>${ic('edit')}</button>`}).join('')}
+function trayName(c){sheetCust('t|'+c)}
+function trayNb(i,d){""")
+rep("${traySum()}","${traySum()}${trayNames()}")
+rep("if(f){const [k,cno]=f.split('|');S.queue.forEach","if(f){const [k,cno]=f.split('|');if(k==='t'){S.wtray.forEach(x=>{if(isCust(x.k)&&(x.cno||0)===+cno)x.cust=c.slice(0,3)});closeLayer();render();toast('Name: '+c[0]);return}S.queue.forEach")
+assert s.count("cno:x.cno||0,slip:sn}")>=1
+rep("cno:x.cno||0,slip:sn}","cno:x.cno||0,slip:sn,cust:x.cust}")
+rep('<button class="mrow wname" onclick="wName(${gi})">','<button class="mrow wname" data-f="wcust" onclick="wName(${gi})">')
 
 # ---- engine + app code before the final render()
 eng=open(D+'/voice_engine.js').read()
