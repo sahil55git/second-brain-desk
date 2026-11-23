@@ -125,7 +125,7 @@ export default function MillPrinterSheet({ onClose, slot: slot0 = "label" }: { o
               ))}
             </div>
             <div style={card}>
-              <b>1 · Connect the printer once ({slot === "receipt" ? "MPT-III" : "Helett"}) · Bluetooth or USB cable</b>
+              <b>1 · Connect the printer once ({slot === "receipt" ? "MPT-III" : "Helett or Seznik DD72"}) · Bluetooth or USB cable</b>
               <span style={{ opacity: 0.8, fontSize: 14 }}>Switch the printer on and disconnect it from any other phone. Pair it in Android Bluetooth settings (PIN 0000 or 1234). The Helett shows twice: pair the one WITHOUT “_BLE” (printer icon), e.g. H30C_F1BA, not H30C_F1BA_BLE. Then come back and press Refresh. With a USB cable: plug the printer into the phone (OTG cable), switch it on and press Refresh; Android asks to allow it, tap OK (tick “always”).</span>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button style={btn} onClick={() => void MahadevPrinter.openBluetoothSettings().catch(() => {})}>Open Bluetooth settings</button>

@@ -135,6 +135,13 @@ describe("words for the person", () => {
     ]);
     expect(l.map((p) => p.name)).toEqual(["Helett H30C", "POS-80", "USB"]); // a USB cable printer is listed too
   });
+  it("the Seznik DD72 is listed as a label printer", () => {
+    const l = labelCandidates([
+      { id: "nbt:1", name: "POS-80", kind: "bluetooth", printer: true },
+      { id: "nbt:2", name: "DD72-1A2B", kind: "bluetooth", printer: false },
+    ]);
+    expect(l[0].name).toBe("DD72-1A2B");
+  });
   it("the low-energy twin of a printer goes last and is explained", () => {
     const l = labelCandidates([
       { id: "nbt:1", name: "H30C_F1BA_BLE", kind: "bluetooth", printer: false },
