@@ -156,10 +156,15 @@ rep(r"""'Tempo advance',j.advA?inr(j.advA):'₹ —',`sheetNum('Tempo advance (�
 rep("function setAdv(tok,f,v){","""const advTxt=(o,f,r)=>o[f]?inr(o[f])+(o[r]?' · back '+inr(o[r]):''):'₹ —';
 function advObj(ctx){return ctx==='slip'?S.slip:S.jw.find(x=>x.tok===ctx)}
 function advSet(ctx,k,v){const o=advObj(ctx);o[k]=v;const f=k==='advR'?'advC':k==='advRA'?'advA':k,r=f==='advC'?'advR':'advRA';if((o[r]||0)>(o[f]||0))o[r]=o[f]||0;if(ctx==='slip'){closeLayer();render()}else sheetJob(ctx)}
+function openAdvanceAmount(ctx,f,returning){
+ const customer=f==='advC',field=returning?(customer?'advR':'advRA'):f;
+ const title=returning?'Return advance':customer?'Customer advance':'Tempo advance';
+ sheetNum(title,v=>advSet(ctx,field,v),`sheetAdv('${ctx}','${f}')`);
+}
 function sheetAdv(ctx,f){const o=advObj(ctx),r=f==='advC'?'advR':'advRA',nm=f==='advC'?'Customer advance':'Tempo advance',back=ctx==='slip'?'closeLayer()':`sheetJob('${ctx}')`;
  layer(nm,`<div class="note">Taken ${inr(o[f]||0)}${o[r]?' · given back '+inr(o[r]):''}</div>
- <button class="sbtn go" onclick="sheetNum('${nm} (₹)',v=>advSet('${ctx}','${f}',v),'sheetAdv(\\'${ctx}\\',\\'${f}\\')')">${ic('edit')}Edit amount</button>
- <button class="sbtn" onclick="sheetNum('Given back by customer (₹)',v=>advSet('${ctx}','${r}',v),'sheetAdv(\\'${ctx}\\',\\'${f}\\')')">${ic('down')}Return advance</button>
+ <button class="sbtn go" onclick="openAdvanceAmount('${ctx}','${f}',false)">${ic('edit')}Edit amount</button>
+ <button class="sbtn" onclick="openAdvanceAmount('${ctx}','${f}',true)">${ic('down')}Return advance</button>
  ${o[r]?`<button class="sbtn" onclick="advSet('${ctx}','${r}',0)">${ic('x')}Clear returned</button>`:''}`,back)}
 function setAdv(tok,f,v){""")
 # the counter slip: sign-aware estimate, per-party lines, advance returned; stickers/receipts leave this screen
