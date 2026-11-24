@@ -118,7 +118,8 @@ function vctx(){return {customers:CUSTS.map(c=>({name:c[0],place:c[1],mobile:c[2
  jobs:S.jw.map(j=>({tok:j.tok,serial:jserial(j),customer:j.customer,place:j.place})),cardOpen:window.__cardTok||null,pending:S.ast.pending}}
 S.ast={open:false,msgs:[],listening:false,pending:null,expect:null,interim:'',undo:null};
 const ASTEX=['open mill','open waiting','open jobs','who is next','how many waiting','customer Sangamma','village Bhalki','advance 500','tempo advance 200','shop keeps khali','crushing done for Ravi','pay Sangamma','token 2','new customer Ramesh from Humnabad'];
-function astOpen(listen){S.ast.open=true;document.getElementById('app').classList.add('ast-open');if(!S.ast.msgs.length)astBot('Hello. Tap the mic and speak, or type. Try: “open waiting”, “customer Sangamma”, “advance 500”.','info');astRender();if(listen&&S.cfg.autolisten)astMic()}
+const KN_ASTEX=['ಕಾಯುವ ಪಟ್ಟಿ ತೆರೆಯಿರಿ','ಕೆಲಸಗಳ ಪಟ್ಟಿ ತೋರಿಸಿ','ಮಿಲ್ ತೆರೆಯಿರಿ','ಟೋಕನ್ ಎರಡು','ಅಡ್ವಾನ್ಸ್ ೫೦೦','ಸಹಾಯ'];
+function astOpen(listen){S.ast.open=true;document.getElementById('app').classList.add('ast-open');if(!S.ast.msgs.length)astBot(S.cfg.vlang==='kn-IN'?'ಮೈಕ್ ಒತ್ತಿ ಮಾತನಾಡಿ. ಉದಾಹರಣೆಗೆ “ಕಾಯುವ ಪಟ್ಟಿ ತೆರೆಯಿರಿ” ಎಂದು ಹೇಳಿ.':'Hello. Tap the mic and speak, or type. Try: “open waiting”, “customer Sangamma”, “advance 500”.','info');astRender();if(listen&&S.cfg.autolisten)astMic()}
 function astClose(){Voice.stop();TTS.stop();S.ast.open=false;S.ast.listening=false;S.ast.pending=null;S.ast.expect=null;document.getElementById('app').classList.remove('ast-open');astRender()}
 function astBot(text,kind,extra){text=text?text[0].toUpperCase()+text.slice(1):text;S.ast.msgs.push(Object.assign({who:'bot',text,kind:kind||'ok'},extra||{}));if(S.ast.msgs.length>40)S.ast.msgs.shift();if(S.cfg.reply&&kind!=='info')TTS.say(text)}
 function astYou(text){S.ast.msgs.push({who:'you',text});if(S.ast.msgs.length>40)S.ast.msgs.shift()}
@@ -126,9 +127,9 @@ function astRender(){
  const p=document.getElementById('ast');if(!p)return;
  p.classList.toggle('on',S.ast.open);document.getElementById('fab').style.display=S.ast.open?'none':'';
  if(!S.ast.open){p.innerHTML='';return}
- const langs=[['en-IN','EN'],['hi-IN','हिं'],['kn-IN','ಕನ್']];
+ const langs=[['en-IN','EN'],['hi-IN','हिं'],['kn-IN','ಕನ್ನಡ']];
  const msgs=S.ast.msgs.map(m=>m.who==='you'?`<div class="am you">${esc(m.text)}</div>`:`<div class="am bot ${m.kind||''}">${esc(m.text)}${(m.buttons||[]).length?`<div class="abtns">${m.buttons.map(b=>`<button class="ch ${b.cls||''}" onclick="${b.js}">${esc(b.label)}</button>`).join('')}</div>`:''}</div>`).join('');
- const chips=S.ast.pending?'':ASTEX.slice(0,6).map(x=>`<button class="ch sm" onclick="astRun('${x.replace(/'/g,"\\'")}')">${esc(x)}</button>`).join('');
+ const chips=S.ast.pending?'':(S.cfg.vlang==='kn-IN'?KN_ASTEX:ASTEX.slice(0,6)).map(x=>`<button class="ch sm" onclick="astRun('${x.replace(/'/g,"\\'")}')">${esc(x)}</button>`).join('');
  const keep=(document.getElementById('ain')||{}).value||'';
  p.innerHTML=`<div class="ahd">${ic('bot')}<b>Assistant</b><span class="alg">${langs.map(([c,n])=>`<button class="${S.cfg.vlang===c?'sel':''}" onclick="cfgLang('${c}')">${n}</button>`).join('')}</span><button class="pill" onclick="astClose()" aria-label="Close">${ic('x')}</button></div>
  <div class="amsgs" id="amsgs">${msgs}${S.ast.listening?`<div class="am you live">${ic('mic')} ${esc(S.ast.interim||'Listening…')}</div>`:''}</div>

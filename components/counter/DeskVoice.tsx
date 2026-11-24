@@ -35,7 +35,7 @@ export default function DeskVoice({ k, onCommand }: Props) {
       const digits = pending ? spokenBillNumber(text) : null;
       const cmd = pending && digits ? { ...pending, no: digits } : deskCommand(text);
       if (!cmd) {
-        setMessage(k("Try “cash received for bill number 12” or “received all pending bills”.", "“ಬಿಲ್ ಸಂಖ್ಯೆ 12 ನಗದು ಬಂದಿದೆ” ಅಥವಾ “ಎಲ್ಲಾ ಬಾಕಿ ಬಿಲ್ ಹಣ ಬಂದಿದೆ” ಎಂದು ಹೇಳಿ."));
+        setMessage(k("Try “cash received for bill number 12” or “received all pending bills”.", "“ಹನ್ನೆರಡು ನಂಬರ್ ಬಿಲ್ಲಿಗೆ ನಗದು ಬಂದಿದೆ” ಅಥವಾ “ಎಲ್ಲಾ ಬಾಕಿ ಬಿಲ್‌ಗಳಿಗೆ ಹಣ ಬಂದಿದೆ” ಎಂದು ಹೇಳಿ."));
         return;
       }
       if ("no" in cmd && !cmd.no) {
