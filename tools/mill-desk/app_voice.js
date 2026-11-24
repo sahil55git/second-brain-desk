@@ -45,10 +45,24 @@ const fmtMob=m=>m?m.slice(0,5)+' '+m.slice(5):'';
 /* ===== Speech to text (browser) ===== */
 const Voice={
  R:()=>window.SpeechRecognition||window.webkitSpeechRecognition,
- ok(){return !!this.R()},
+ ok(){return !!window.millListen||!!this.R()},
  rec:null,timer:null,
  err(code){return ({'not-allowed':'The microphone is blocked. Allow the microphone for this page in the browser, then try again.','service-not-allowed':'The microphone is blocked here. Open the app in the browser tab itself and allow the microphone.','no-speech':'I did not hear anything. Tap the mic and speak again.','audio-capture':'No microphone found.','network':'Speech needs the internet. Check the connection, or type instead.','aborted':'','language-not-supported':'This phone does not support that speaking language. Pick another.'})[code]||('Voice problem: '+code)},
  start(o){
+  if(window.millListen){
+   this.stop();
+   const session={stop:()=>o.onEnd&&o.onEnd(null,[])};
+   this.rec=session;
+   o.onStart&&o.onStart();
+   window.millListen({lang:o.lang||S.cfg.vlang||'en-IN'}).then(({text})=>{
+    if(this.rec!==session)return;
+    this.rec=null;o.onEnd&&o.onEnd(text||null,text?[text]:[]);
+   }).catch(()=>{
+    if(this.rec!==session)return;
+    this.rec=null;o.onError&&o.onError('native','Could not hear a command. Tap the microphone to try again.');
+   });
+   return true;
+  }
   const R=this.R();if(!R){o.onError&&o.onError('unsupported','Voice typing is not available in this browser. Use the microphone key on your keyboard, or type.');return false}
   this.stop();
   const r=new R();this.rec=r;r.lang=o.lang||S.cfg.vlang||'en-IN';r.interimResults=true;r.continuous=false;r.maxAlternatives=3;
@@ -104,7 +118,8 @@ function vctx(){return {customers:CUSTS.map(c=>({name:c[0],place:c[1],mobile:c[2
  jobs:S.jw.map(j=>({tok:j.tok,serial:jserial(j),customer:j.customer,place:j.place})),cardOpen:window.__cardTok||null,pending:S.ast.pending}}
 S.ast={open:false,msgs:[],listening:false,pending:null,expect:null,interim:'',undo:null};
 const ASTEX=['open mill','open waiting','open jobs','who is next','how many waiting','customer Sangamma','village Bhalki','advance 500','tempo advance 200','shop keeps khali','crushing done for Ravi','pay Sangamma','token 2','new customer Ramesh from Humnabad'];
-function astOpen(listen){S.ast.open=true;document.getElementById('app').classList.add('ast-open');if(!S.ast.msgs.length)astBot('Hello. Tap the mic and speak, or type. Try: “open waiting”, “customer Sangamma”, “advance 500”.','info');astRender();if(listen&&S.cfg.autolisten)astMic()}
+const KN_ASTEX=['ಕಾಯುವ ಪಟ್ಟಿ ತೆರೆಯಿರಿ','ಕೆಲಸಗಳ ಪಟ್ಟಿ ತೋರಿಸಿ','ಮಿಲ್ ತೆರೆಯಿರಿ','ಟೋಕನ್ ಎರಡು','ಅಡ್ವಾನ್ಸ್ ೫೦೦','ಸಹಾಯ'];
+function astOpen(listen){S.ast.open=true;document.getElementById('app').classList.add('ast-open');if(!S.ast.msgs.length)astBot(S.cfg.vlang==='kn-IN'?'ಮೈಕ್ ಒತ್ತಿ ಮಾತನಾಡಿ. ಉದಾಹರಣೆಗೆ “ಕಾಯುವ ಪಟ್ಟಿ ತೆರೆಯಿರಿ” ಎಂದು ಹೇಳಿ.':'Hello. Tap the mic and speak, or type. Try: “open waiting”, “customer Sangamma”, “advance 500”.','info');astRender();if(listen&&S.cfg.autolisten)astMic()}
 function astClose(){Voice.stop();TTS.stop();S.ast.open=false;S.ast.listening=false;S.ast.pending=null;S.ast.expect=null;document.getElementById('app').classList.remove('ast-open');astRender()}
 function astBot(text,kind,extra){text=text?text[0].toUpperCase()+text.slice(1):text;S.ast.msgs.push(Object.assign({who:'bot',text,kind:kind||'ok'},extra||{}));if(S.ast.msgs.length>40)S.ast.msgs.shift();if(S.cfg.reply&&kind!=='info')TTS.say(text)}
 function astYou(text){S.ast.msgs.push({who:'you',text});if(S.ast.msgs.length>40)S.ast.msgs.shift()}
@@ -112,9 +127,9 @@ function astRender(){
  const p=document.getElementById('ast');if(!p)return;
  p.classList.toggle('on',S.ast.open);document.getElementById('fab').style.display=S.ast.open?'none':'';
  if(!S.ast.open){p.innerHTML='';return}
- const langs=[['en-IN','EN'],['hi-IN','हिं'],['kn-IN','ಕನ್']];
+ const langs=[['en-IN','EN'],['hi-IN','हिं'],['kn-IN','ಕನ್ನಡ']];
  const msgs=S.ast.msgs.map(m=>m.who==='you'?`<div class="am you">${esc(m.text)}</div>`:`<div class="am bot ${m.kind||''}">${esc(m.text)}${(m.buttons||[]).length?`<div class="abtns">${m.buttons.map(b=>`<button class="ch ${b.cls||''}" onclick="${b.js}">${esc(b.label)}</button>`).join('')}</div>`:''}</div>`).join('');
- const chips=S.ast.pending?'':ASTEX.slice(0,6).map(x=>`<button class="ch sm" onclick="astRun('${x.replace(/'/g,"\\'")}')">${esc(x)}</button>`).join('');
+ const chips=S.ast.pending?'':(S.cfg.vlang==='kn-IN'?KN_ASTEX:ASTEX.slice(0,6)).map(x=>`<button class="ch sm" onclick="astRun('${x.replace(/'/g,"\\'")}')">${esc(x)}</button>`).join('');
  const keep=(document.getElementById('ain')||{}).value||'';
  p.innerHTML=`<div class="ahd">${ic('bot')}<b>Assistant</b><span class="alg">${langs.map(([c,n])=>`<button class="${S.cfg.vlang===c?'sel':''}" onclick="cfgLang('${c}')">${n}</button>`).join('')}</span><button class="pill" onclick="astClose()" aria-label="Close">${ic('x')}</button></div>
  <div class="amsgs" id="amsgs">${msgs}${S.ast.listening?`<div class="am you live">${ic('mic')} ${esc(S.ast.interim||'Listening…')}</div>`:''}</div>

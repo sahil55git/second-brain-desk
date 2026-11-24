@@ -8,7 +8,7 @@ import { useSession } from "next-auth/react";
 import { useScale } from "@/components/ScaleProvider";
 import { scaleTapPlan } from "@/lib/mill/scaleTap";
 import { scaleSetupHref } from "@/lib/scaleSetup";
-import { isNative } from "@/lib/native";
+import { isNative, MahadevNative } from "@/lib/native";
 import MillPrinterSheet from "@/components/mill/MillPrinterSheet";
 import { printHtml } from "@/lib/mill/printWindow";
 import { useKeepAwake } from "@/lib/keepAwake";
@@ -143,6 +143,12 @@ export default function MillDeskFrame() {
     <iframe
       ref={ref}
       src="/mill/desk.html"
+      onLoad={() => {
+        const desk = ref.current?.contentWindow as (Window & { millListen?: typeof MahadevNative.listen }) | null;
+        if (desk && isNative() && desk.location.origin === window.location.origin) {
+          desk.millListen = options => MahadevNative.listen(options);
+        }
+      }}
       title="Mill Desk"
       allow="microphone; bluetooth; serial; clipboard-write"
       style={{ position: "fixed", inset: 0, width: "100%", height: "100dvh", border: 0, zIndex: 2147483000, background: "#05080C" }}
