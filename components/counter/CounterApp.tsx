@@ -5,6 +5,8 @@
 // Each bill is ONE register SALE with its lines (lib/counterBill.ts) through /api/register, so cash,
 // udhaar, stock and Daily Closing need nothing new. Bills get plain numbers 1, 2, 3 … from the server.
 // Item keys, PLU numbers, Kannada names and staff locks are shared by every device (setting "counter").
+import DeskVoice from "./DeskVoice";
+import { voiceCashDue, type DeskCommand } from "@/lib/deskVoice";
 import { scaleSetupHref } from "@/lib/scaleSetup";
 import "./counter.css";
 import Link from "next/link";
@@ -616,8 +618,10 @@ export default function CounterApp() {
       const res = await fetch(`/api/register/range?from=${from}&to=${to}`, { cache: "no-store" });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Could not load bills.");
-      setBills(groupBills(j.data as SaleRow[], labelOf));
+      const fresh = groupBills(j.data as SaleRow[], labelOf);
+      setBills(fresh);
       setRetTotal(Math.round((j.data as SaleRow[]).filter((r) => r.kind === "SALE_RETURN").reduce((a, r) => a + r.amountInr, 0) * 100) / 100);
+      return fresh;
     } catch (e) {
       setBErr(e instanceof Error ? e.message : "Could not load bills.");
     }
@@ -1124,8 +1128,39 @@ export default function CounterApp() {
   useEffect(() => { setNowMs(Date.now()); const t = setInterval(() => setNowMs(Date.now()), 20_000); return () => clearInterval(t); }, []);
   const clock = !nowMs ? { time: "", date: "" } : { time: new Date(nowMs).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }).toUpperCase(), date: new Date(nowMs).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) };
 
+  async function voiceCommand(cmd: DeskCommand) {
+    if (cmd.action === "discount") {
+      if (!discOn || !show.discount || !lines.length) return k("Discount needs an eligible item on the current bill.", "ಈ ಬಿಲ್‌ನಲ್ಲಿ ರಿಯಾಯಿತಿಗೆ ಅರ್ಹ ವಸ್ತು ಬೇಕು.");
+      openPad({ kind: "discount" });
+      return;
+    }
+    if (!show.bills || (cmd.action === "cancel" && !can("cancel")) || (cmd.action === "all" && hiddenBillView.payAll)) {
+      return k("This action is unavailable on this desk.", "ಈ ಕಾರ್ಯ ಇಲ್ಲಿ ಲಭ್ಯವಿಲ್ಲ.");
+    }
+    const fresh = await loadBills({ from: date, to: date });
+    if (!fresh) return k("Could not load today's bills.", "ಇಂದಿನ ಬಿಲ್‌ಗಳು ಸಿಗಲಿಲ್ಲ.");
+    setBFrom(date); setBTo(date); setBFilter("all"); setBQ(""); setBTab("bills"); setPanel("bills");
+    if (cmd.action === "all") {
+      const due = fresh.filter(b => dueOf(b) > 0);
+      if (!due.length) return setBErr(k("No payments pending today.", "ಇಂದು ಹಣ ಬಾಕಿ ಇಲ್ಲ."));
+      setSelMode(!hiddenBillView.select); setSel(due.map(b => b.key)); setBulkPay("CASH"); setBulk("money");
+      return;
+    }
+    const matches = fresh.filter(b => b.no === cmd.no);
+    if (matches.length !== 1) return setBErr(k("No unique bill with that number today.", "ಇಂದು ಆ ಸಂಖ್ಯೆಯ ಬಿಲ್ ಸಿಗಲಿಲ್ಲ."));
+    const bill = matches[0];
+    setBQ(bill.no);
+    if (cmd.action === "return") await openReturn(bill);
+    else if (cmd.action === "cancel") setCancel({ bill, reason: "", busy: false, error: "" });
+    else if (!voiceCashDue(bill)) setBErr(k("No cash due on this bill.", "ಈ ಬಿಲ್‌ನಲ್ಲಿ ನಗದು ಬಾಕಿ ಇಲ್ಲ."));
+    else if (bill.track.payPending) {
+      setSel([bill.key]); setSelMode(true); setBulkPay("CASH"); setBulk("money");
+    } else setCashFor(bill);
+  }
+
   const chips = (
     <>
+        <DeskVoice k={k} onCommand={voiceCommand} />
         {(show.held || holds.length > 0) && (
           <button type="button" className={`ctr-tbtn ctr-parked-button${holds.length ? " has" : ""}`} onClick={() => { setPanel("holds"); void loadHolds(); }}>
             🅿️ {k("Parked", "ನಿಲ್ಲಿಸಿದ")} <b>{holds.length}</b>
@@ -1575,7 +1610,7 @@ export default function CounterApp() {
       )}
 
       {/* ---------- saved bills ---------- */}
-      {panel === "bills" && (
+      {panel === "bills" && !ret && (
         <div className="ctr-drawer" role="dialog" aria-label="Bills" onClick={() => setPanel(null)}>
           <div className="ctr-sheet wide" onClick={(e) => e.stopPropagation()}>
             <div className="ctr-sheethead">
@@ -1881,6 +1916,7 @@ export default function CounterApp() {
                 <b>{bulk === "money" ? k("Money received", "ಹಣ ಬಂತು") : bulk === "oil" ? k("Give oil to customers", "ಗ್ರಾಹಕರಿಗೆ ಎಣ್ಣೆ ಕೊಡಿ") : k("Money received + give oil", "ಹಣ ಬಂತು + ಎಣ್ಣೆ ಕೊಡಿ")} · {picked.length} {k("bills", "ಬಿಲ್")}</b>
                 <button type="button" onClick={() => setBulk(null)} aria-label="Close">✕</button>
               </div>
+              {bulk === "money" && <p className="rp-bulk-note">{dueB.map(b => "#" + b.no).join(", ")}</p>}
               {bulk !== "oil" && <div className="rp-bulk-sum"><span>{dueB.length} {k("bill(s) with money pending", "ಬಿಲ್‌ಗಳಲ್ಲಿ ಹಣ ಬಾಕಿ")}</span><strong>{rupees(pickedDue)}</strong></div>}
               {needMode && (
                 <>

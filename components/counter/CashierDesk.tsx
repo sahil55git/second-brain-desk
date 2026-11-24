@@ -3,6 +3,8 @@
 // Cashier desk: for the person who takes the money (manager) on a separate device. Held bills wait here;
 // type what the customer gave, see the change, one tap records the cash and releases the goods.
 // Same data and permissions as the counter; nothing is stored on this device except the language and print choice.
+import DeskVoice from "./DeskVoice";
+import { voiceCashDue, type DeskCommand } from "@/lib/deskVoice";
 import { onAccent, parseTheme } from "@/lib/counterTheme";
 import OilIcon, { BookIcon, CashIn, CashOut, CoinIcon, HourglassIcon, OilOut, PauseIcon, PhoneIcon, PrinterIcon, TickIcon } from "./OilIcon";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -87,9 +89,11 @@ export default function CashierDesk() {
       ]);
       const j = await a.json();
       if (!a.ok) throw new Error(j.error || "Could not load bills.");
-      setBills(groupBills(j.data as SaleRow[], (item, label) => label || item || "Item"));
+      const fresh = groupBills(j.data as SaleRow[], (item, label) => label || item || "Item");
+      setBills(fresh);
       if (b.ok) setParked(((await b.json()).data || []) as ParkedBill[]);
       setErr("");
+      return fresh;
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not load bills.");
     }
@@ -129,6 +133,23 @@ export default function CashierDesk() {
   const toPayTotal = r2(toPay.reduce((s, b) => s + dueOf(b), 0));
   const togglePick = (key: string) => setPick((s) => (s.includes(key) ? s.filter((x) => x !== key) : [...s, key]));
   const endSelect = () => { setSelMode(false); setPick([]); };
+
+  async function voiceCommand(cmd: DeskCommand) {
+    if (cmd.action !== "all" && cmd.action !== "cash") return k("Use Weigh & Bill for returns, cancellations and discounts.", "ವಾಪಸ್, ರದ್ದು ಮತ್ತು ರಿಯಾಯಿತಿಗೆ ತೂಕ ಮತ್ತು ಬಿಲ್ ಬಳಸಿ.");
+    const fresh = await load();
+    if (!fresh) return k("Could not load today's bills.", "ಇಂದಿನ ಬಿಲ್‌ಗಳು ಸಿಗಲಿಲ್ಲ.");
+    let selection = fresh.filter(b => dueOf(b) > 0);
+    if (cmd.action === "cash") {
+      const matches = fresh.filter(b => b.no === cmd.no);
+      if (matches.length !== 1) return k("No unique bill with that number today.", "ಇಂದು ಆ ಸಂಖ್ಯೆಯ ಬಿಲ್ ಸಿಗಲಿಲ್ಲ.");
+      const bill = matches[0];
+      if (!voiceCashDue(bill)) return k("No cash due on this bill.", "ಈ ಬಿಲ್‌ನಲ್ಲಿ ನಗದು ಬಾಕಿ ಇಲ್ಲ.");
+      if (!bill.track.payPending) { open(bill); return; }
+      selection = [bill];
+    }
+    if (!selection.length) return k("No payments pending today.", "ಇಂದು ಹಣ ಬಾಕಿ ಇಲ್ಲ.");
+    setTab("bills"); setQ(""); setSelMode(true); setPick(selection.map(b => b.key)); setBulkPay("CASH"); setBulk("money");
+  }
 
   const runBulk = async (what: "money" | "oil" | "both") => {
     setBulkBusy(true);
@@ -426,6 +447,7 @@ const txtStyle = useMemo(() => {
       <header className="cd-top">
         <a href="/register/counter" className="cd-back" aria-label={k("Back to Weigh & Bill", "ತೂಕ & ಬಿಲ್‌ಗೆ ಹಿಂತಿರುಗಿ")}>← {k("Weigh & Bill", "ತೂಕ & ಬಿಲ್")}</a>
         <b><CoinIcon size={28} /> {k("Cashier desk", "ಕ್ಯಾಷಿಯರ್ ಡೆಸ್ಕ್")}</b>
+        <DeskVoice k={k} onCommand={voiceCommand} />
         <PrinterChip shop={shop} k={k} />
         <span className="cd-date"><b>{clockTime}</b> <small>{today}</small></span>
         <button type="button" onClick={() => void load()} aria-label="Refresh">🔄</button>
@@ -575,6 +597,7 @@ const txtStyle = useMemo(() => {
                 <b>{bulk === "money" ? k("Money received", "ಹಣ ಬಂತು") : bulk === "oil" ? k("Give oil to customers", "ಗ್ರಾಹಕರಿಗೆ ಎಣ್ಣೆ ಕೊಡಿ") : k("Money received + give oil", "ಹಣ ಬಂತು + ಎಣ್ಣೆ ಕೊಡಿ")}</b>
                 <button type="button" onClick={() => setBulk(null)} aria-label="Close">✕</button>
               </div>
+              {bulk === "money" && <p className="rp-bulk-note">{dueB.map(b => "#" + b.no).join(", ")}</p>}
               {bulk !== "oil" && <div className="rp-bulk-sum"><span>{dueB.length} {k("bill(s) with money pending", "ಬಿಲ್‌ಗಳಲ್ಲಿ ಹಣ ಬಾಕಿ")}</span><strong>{rupees(pickedDue)}</strong></div>}
               {needMode && (
                 <>
